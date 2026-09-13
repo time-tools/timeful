@@ -42,7 +42,7 @@ func guestNameValidationErrorMessage(code respondents.GuestNameValidationCode) s
 		return "Guest name is required"
 	case respondents.GuestNameInvalidFormatting:
 		return "Guest name contains only unsupported formatting characters"
-	case respondents.GuestNameObjectIDLike:
+	case respondents.GuestNameAccountIDLike:
 		return "Guest name cannot look like an account ID"
 	case respondents.GuestNameTooLong:
 		return "Guest name must be 100 characters or fewer"

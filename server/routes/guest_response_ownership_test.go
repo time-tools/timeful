@@ -63,8 +63,8 @@ func TestGuestNameValidationErrorMessageUsesSpecificMessages(t *testing.T) {
 	if message := guestNameValidationErrorMessage(respondents.GuestNameInvalidFormatting); message == "" {
 		t.Fatal("expected invalid-formatting message")
 	}
-	if message := guestNameValidationErrorMessage(respondents.GuestNameObjectIDLike); message == "" {
-		t.Fatal("expected object-id-like message")
+	if message := guestNameValidationErrorMessage(respondents.GuestNameAccountIDLike); message == "" {
+		t.Fatal("expected account-id-like message")
 	}
 	if message := guestNameValidationErrorMessage(respondents.GuestNameTooLong); message == "" {
 		t.Fatal("expected too-long message")

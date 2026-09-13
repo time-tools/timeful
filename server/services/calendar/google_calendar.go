@@ -34,9 +34,9 @@ func (calendar GoogleCalendar) GetCalendarList() (map[string]models.SubCalendar,
 	// Define stucts to parse json response
 	type Response struct {
 		Items []struct {
-			Id       string `json:"id" bson:"id,omitempty"`
-			Summary  string `json:"summary" bson:"summary,omitempty"`
-			Selected bool   `json:"selected" bson:"selected,omitempty"`
+			Id       string `json:"id"`
+			Summary  string `json:"summary"`
+			Selected bool   `json:"selected"`
 		} `json:"items"`
 		Error *errs.GoogleAPIError `json:"error"`
 	}

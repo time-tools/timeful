@@ -26,7 +26,7 @@ func TestValidateGuestNameRejectsBlankAndFormattingOnlyValues(t *testing.T) {
 }
 
 func TestValidateGuestNameRejectsIdentifierLikeAndOverlengthValues(t *testing.T) {
-	if result := ValidateGuestName(models.NewUUID().String()); result.Code != GuestNameObjectIDLike {
+	if result := ValidateGuestName(models.NewUUID().String()); result.Code != GuestNameAccountIDLike {
 		t.Fatalf("expected identifier-like validation error, got %q", result.Code)
 	}
 

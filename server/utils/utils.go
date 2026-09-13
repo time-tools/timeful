@@ -2,10 +2,6 @@ package utils
 
 import (
 	"bytes"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,7 +10,6 @@ import (
 	"net/mail"
 	"net/url"
 	"os"
-	"regexp"
 	"strings"
 	"time"
 
@@ -90,12 +85,6 @@ func GetDateAtTime(date time.Time, timeString string) time.Time {
 		logger.StdErr.Panicln(err)
 	}
 	return newDate
-}
-
-// Escapes regex for a string
-func EscapeRegExp(str string) string {
-	check := regexp.MustCompile(`([.*+?^${}()|[\]\\])`)
-	return check.ReplaceAllString(str, "\\${1}")
 }
 
 // Returns the correct client id given the token origin
@@ -263,51 +252,4 @@ func GetPrimaryAccountKey(user *models.User) string {
 	}
 
 	return *user.PrimaryAccountKey
-}
-
-func Encode(b []byte) string {
-	return base64.StdEncoding.EncodeToString(b)
-}
-
-func Decode(s string) []byte {
-	data, err := base64.StdEncoding.DecodeString(s)
-	if err != nil {
-		panic(err)
-	}
-	return data
-}
-
-// Encrypts the given text using the given secret
-func Encrypt(text string) (string, error) {
-	block, err := aes.NewCipher([]byte(os.Getenv("ENCRYPTION_KEY")))
-	if err != nil {
-		return "", err
-	}
-	plainText := []byte(text)
-	cipherText := make([]byte, aes.BlockSize+len(plainText))
-	iv := cipherText[:aes.BlockSize]
-	if _, err := rand.Read(iv); err != nil {
-		return "", err
-	}
-	cfb := cipher.NewCFBEncrypter(block, iv)
-	cfb.XORKeyStream(cipherText[aes.BlockSize:], plainText)
-	return Encode(cipherText), nil
-}
-
-// Decrypts the given text using the given secret
-func Decrypt(text string) (string, error) {
-	block, err := aes.NewCipher([]byte(os.Getenv("ENCRYPTION_KEY")))
-	if err != nil {
-		return "", err
-	}
-	cipherText := Decode(text)
-	if len(cipherText) < aes.BlockSize {
-		return "", errors.New("ciphertext too short")
-	}
-	iv := cipherText[:aes.BlockSize]
-	cipherText = cipherText[aes.BlockSize:]
-	cfb := cipher.NewCFBDecrypter(block, iv)
-	plainText := make([]byte, len(cipherText))
-	cfb.XORKeyStream(plainText, cipherText)
-	return string(plainText), nil
 }

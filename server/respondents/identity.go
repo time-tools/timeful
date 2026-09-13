@@ -17,7 +17,7 @@ const (
 	GuestNameValid             GuestNameValidationCode = ""
 	GuestNameRequired          GuestNameValidationCode = "required"
 	GuestNameInvalidFormatting GuestNameValidationCode = "invalid_formatting"
-	GuestNameObjectIDLike      GuestNameValidationCode = "object_id_like"
+	GuestNameAccountIDLike     GuestNameValidationCode = "account_id_like"
 	GuestNameTooLong           GuestNameValidationCode = "too_long"
 )
 
@@ -65,7 +65,7 @@ func ValidateGuestName(input string) GuestNameValidationResult {
 	}
 
 	if _, ok := models.ParseUUID(normalized); ok {
-		return GuestNameValidationResult{Code: GuestNameObjectIDLike}
+		return GuestNameValidationResult{Code: GuestNameAccountIDLike}
 	}
 
 	return GuestNameValidationResult{
