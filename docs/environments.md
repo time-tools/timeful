@@ -178,6 +178,15 @@ Test-only calendar provider override variables (isolated stack only):
 - `TEST_MICROSOFT_OAUTH_TOKEN_ENDPOINT`
 - `TEST_MICROSOFT_GRAPH_API_BASE_URL`
 
+Manual CalDAV debug script variables:
+
+- `APPLE_CALDAV_EMAIL`
+- `APPLE_CALDAV_APP_PASSWORD`
+
+`server/scripts/20240721_apple_calendar_test/` is a manual CalDAV debugging tool that runs outside Compose.
+It reads the account email from `APPLE_CALDAV_EMAIL` and the app-specific password from `APPLE_CALDAV_APP_PASSWORD`, and exits when either is unset or blank.
+Provide both values in the shell environment only; never store them in a tracked file.
+
 Deployment environment semantics:
 
 - `APP_ENV=development` defaults the Go server to port `3002` and defaults Gin to debug unless `GIN_MODE` overrides it.

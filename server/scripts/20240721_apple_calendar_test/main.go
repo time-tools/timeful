@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -11,7 +13,13 @@ import (
 )
 
 func main() {
-	httpClient := webdav.HTTPClientWithBasicAuth(nil, "liu.z.jonathan@gmail.com", "eypf-izki-chlg-cyzj")
+	email := os.Getenv("APPLE_CALDAV_EMAIL")
+	appPassword := os.Getenv("APPLE_CALDAV_APP_PASSWORD")
+	if email == "" || appPassword == "" {
+		log.Fatal("APPLE_CALDAV_EMAIL and APPLE_CALDAV_APP_PASSWORD must be set")
+	}
+
+	httpClient := webdav.HTTPClientWithBasicAuth(nil, email, appPassword)
 
 	webdavClient, err := webdav.NewClient(httpClient, "https://caldav.icloud.com")
 	if err != nil {
