@@ -139,6 +139,49 @@ func TestAttendeeRepositoryMembershipLifecycle(t *testing.T) {
 	}
 }
 
+// TestAttendeeRepositoryHasNonDeclinedAttendeeEmail proves the invitee EXISTS
+// matches case-insensitively only non-declined memberships of the requested
+// event, mirroring the dashboard membership predicate, and reports no
+// membership for an empty email.
+func TestAttendeeRepositoryHasNonDeclinedAttendeeEmail(t *testing.T) {
+	ctx, repo, tx := newAvailabilityGroupTestRepository(t)
+	eventID := seedAvailabilityGroupEvent(t, ctx, tx)
+	otherEventID := seedAvailabilityGroupEvent(t, ctx, tx)
+
+	if err := repo.AddAttendees(ctx, eventID, []string{"invitee@example.com"}, boolPointer(false)); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.AddAttendees(ctx, eventID, []string{"declined@example.com"}, boolPointer(true)); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.AddAttendees(ctx, otherEventID, []string{"elsewhere@example.com"}, boolPointer(false)); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, testCase := range []struct {
+		name  string
+		event string
+		email string
+		want  bool
+	}{
+		{"case-insensitive match", eventID, "INVITEE@example.com", true},
+		{"declined excluded", eventID, "declined@example.com", false},
+		{"other event excluded", eventID, "elsewhere@example.com", false},
+		{"unknown email", eventID, "stranger@example.com", false},
+		{"empty email", eventID, "", false},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			found, err := repo.HasNonDeclinedAttendeeEmail(ctx, testCase.event, testCase.email)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if found != testCase.want {
+				t.Fatalf("HasNonDeclinedAttendeeEmail(%q, %q) = %v, want %v", testCase.event, testCase.email, found, testCase.want)
+			}
+		})
+	}
+}
+
 // TestAttendeeRepositoryResolvesAccountByEmail proves email resolves to a
 // PostgreSQL account case-insensitively and that an unknown email leaves the
 // account relation absent.

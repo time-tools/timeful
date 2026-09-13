@@ -779,3 +779,39 @@ VALUES ($1, $2, 'guest', 'Grace') RETURNING id`, eventID, seedSignupVisitor(t, c
 		t.Fatalf("restored block_ids default = %#v, want empty", defaulted)
 	}
 }
+
+// TestSignupPublicIDLookupsRejectNonCanonicalIdentifiers proves the signup
+// public-ID lookups validate the opaque identifier before binding the uuid
+// column, so a non-canonical value keeps reporting pgx.ErrNoRows for reads,
+// deletes, and updates instead of a PostgreSQL 22P02 cast error.
+func TestSignupPublicIDLookupsRejectNonCanonicalIdentifiers(t *testing.T) {
+	ctx, repo, tx := newSignupTestRepository(t)
+	eventID := seedSignupEvent(t, ctx, tx, signupTestShortID(t))
+	visitorID := seedSignupVisitor(t, ctx, tx, eventID)
+	response := &SignupResponse{EventID: eventID, EventVisitorIdentityID: visitorID, Name: "Ada"}
+	if err := repo.CreateSignupResponse(ctx, response); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, input := range []string{
+		"not-a-uuid",
+		"507f1f77bcf86cd799439011",
+		"0198E6F0-6A3A-7C4B-9A2D-4F6A1B2C3D4E",
+		"0198e6f0-6a3a-7c4b-9a2d-4f6a1b2c3d4e-",
+	} {
+		if _, err := repo.GetSignupResponseByPublicID(ctx, eventID, input); !errors.Is(err, pgx.ErrNoRows) {
+			t.Fatalf("signup public ID %q read error = %v, want pgx.ErrNoRows", input, err)
+		}
+		if err := repo.DeleteSignupResponse(ctx, eventID, input); !errors.Is(err, pgx.ErrNoRows) {
+			t.Fatalf("signup public ID %q delete error = %v, want pgx.ErrNoRows", input, err)
+		}
+		update := &SignupResponse{PublicID: input, EventID: eventID, Name: "Ada"}
+		if err := repo.UpdateSignupResponse(ctx, update); !errors.Is(err, pgx.ErrNoRows) {
+			t.Fatalf("signup public ID %q update error = %v, want pgx.ErrNoRows", input, err)
+		}
+	}
+
+	if _, err := repo.GetSignupResponseByPublicID(ctx, eventID, response.PublicID); err != nil {
+		t.Fatalf("canonical lookup after rejected identifiers: %v", err)
+	}
+}

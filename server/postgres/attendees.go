@@ -26,6 +26,19 @@ type Attendee struct {
 
 const attendeeColumns = `id, event_id, email, platform_identity_id, declined, created_at, updated_at`
 
+// listAttendeesQuery lists one event's email-keyed memberships in write order.
+const listAttendeesQuery = `SELECT ` + attendeeColumns + `
+FROM event_attendees WHERE event_id = $1 ORDER BY created_at, id`
+
+// nonDeclinedAttendeeEmailExistsQuery answers the group viewer invitee check
+// with one EXISTS over event_attendees (event_id, lower(email)) instead of a
+// scan of the loaded attendee list. It ignores declined memberships and matches
+// the dashboard membership predicate exactly.
+const nonDeclinedAttendeeEmailExistsQuery = `SELECT EXISTS (
+    SELECT 1 FROM event_attendees
+    WHERE event_id = $1 AND declined IS NOT TRUE AND lower(email) = lower($2)
+)`
+
 func scanAttendee(row interface{ Scan(...any) error }) (*Attendee, error) {
 	attendee := &Attendee{}
 	err := row.Scan(&attendee.ID, &attendee.EventID, &attendee.Email, &attendee.PlatformIdentityID, &attendee.Declined, &attendee.CreatedAt, &attendee.UpdatedAt)
@@ -81,8 +94,7 @@ func (r *Repository) ListAttendees(ctx context.Context, eventID string) ([]Atten
 	if eventID == "" {
 		return nil, errors.New("attendee event ID is required")
 	}
-	rows, err := r.db.Query(ctx, `SELECT `+attendeeColumns+`
-FROM event_attendees WHERE event_id = $1 ORDER BY created_at, id`, eventID)
+	rows, err := r.db.Query(ctx, listAttendeesQuery, eventID)
 	if err != nil {
 		return nil, err
 	}
@@ -106,6 +118,20 @@ func (r *Repository) GetAttendeeByEmail(ctx context.Context, eventID, email stri
 	}
 	return scanAttendee(r.db.QueryRow(ctx, `SELECT `+attendeeColumns+`
 FROM event_attendees WHERE event_id = $1 AND email = $2`, eventID, email))
+}
+
+// HasNonDeclinedAttendeeEmail reports whether the event has a non-declined
+// membership for the email, matching the dashboard membership predicate. It
+// backs the group viewer invitee check with one indexed EXISTS instead of
+// scanning the loaded attendee list. An empty event or email reports no
+// membership.
+func (r *Repository) HasNonDeclinedAttendeeEmail(ctx context.Context, eventID, email string) (bool, error) {
+	if eventID == "" || email == "" {
+		return false, nil
+	}
+	var exists bool
+	err := r.db.QueryRow(ctx, nonDeclinedAttendeeEmailExistsQuery, eventID, email).Scan(&exists)
+	return exists, err
 }
 
 // SetAttendeeDeclined writes the explicit decline state for one email-keyed

@@ -77,21 +77,16 @@ func postgresAccountEmail(ctx context.Context, platformIdentityID string) string
 
 // postgresGroupViewerIsInvitee reports whether the signed-in viewer is a
 // non-declined member of the group, which is required to expose respondent
-// emails for matching pending attendees to respondents.
-func postgresGroupViewerIsInvitee(ctx context.Context, viewer *postgresVisitor, attendees []pgstore.Attendee) bool {
+// emails for matching pending attendees to respondents. The membership check is
+// a repository EXISTS over event_attendees (event_id, lower(email)) rather than
+// an in-memory scan of the loaded attendee list.
+func postgresGroupViewerIsInvitee(ctx context.Context, repository *pgstore.Repository, eventID string, viewer *postgresVisitor) bool {
 	email := postgresAccountEmail(ctx, viewer.platformIdentityID)
 	if email == "" {
 		return false
 	}
-	for _, attendee := range attendees {
-		if attendee.Declined != nil && *attendee.Declined {
-			continue
-		}
-		if strings.EqualFold(strings.TrimSpace(attendee.Email), strings.TrimSpace(email)) {
-			return true
-		}
-	}
-	return false
+	invitee, err := repository.HasNonDeclinedAttendeeEmail(ctx, eventID, email)
+	return err == nil && invitee
 }
 
 // postgresGroupEmailVisibility keeps respondent emails visible to the owner and
@@ -99,12 +94,12 @@ func postgresGroupViewerIsInvitee(ctx context.Context, viewer *postgresVisitor, 
 // when collectEmails is off, mirroring legacy group behavior. PostgreSQL does
 // not persist a denormalized account snapshot, so the response email is
 // promoted into the rebuilt user snapshot at read time.
-func postgresGroupEmailVisibility(ctx context.Context, value models.Event, viewer *postgresVisitor, attendees []pgstore.Attendee, responseMap map[string]*postgresPublicResponse) {
+func postgresGroupEmailVisibility(ctx context.Context, repository *pgstore.Repository, eventID string, value models.Event, viewer *postgresVisitor, responseMap map[string]*postgresPublicResponse) {
 	if responseMap == nil {
 		return
 	}
 	showEmails := viewer.owner && utils.Coalesce(value.CollectEmails)
-	keepGroupEmails := viewer.owner || postgresGroupViewerIsInvitee(ctx, viewer, attendees)
+	keepGroupEmails := viewer.owner || postgresGroupViewerIsInvitee(ctx, repository, eventID, viewer)
 	for key, response := range responseMap {
 		if response == nil {
 			continue

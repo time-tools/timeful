@@ -292,8 +292,12 @@ WHERE platform_identity_id = $1`, platformIdentityID); err != nil {
 WHERE platform_identity_id = $1 OR event_visitor_identity_id = ANY($2)`, platformIdentityID, visitorIDs); err != nil {
 		return err
 	}
+	// visitorIDs are canonical UUIDs scanned from uuid columns, so the ANY bind
+	// infers uuid[] from the column type; no index exists on
+	// event_signup_responses.event_visitor_identity_id, so this is type
+	// consistency rather than an index restoration.
 	if _, err := r.db.Exec(ctx, `DELETE FROM event_signup_responses
-WHERE platform_identity_id = $1 OR event_visitor_identity_id::text = ANY($2)`, platformIdentityID, visitorIDs); err != nil {
+WHERE platform_identity_id = $1 OR event_visitor_identity_id = ANY($2)`, platformIdentityID, visitorIDs); err != nil {
 		return err
 	}
 	if _, err := r.db.Exec(ctx, `DELETE FROM event_visitor_identities WHERE id = ANY($1)`, visitorIDs); err != nil {

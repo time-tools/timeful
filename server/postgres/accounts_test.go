@@ -285,6 +285,82 @@ VALUES ($1, $2, 'guest', 'Guest', '{"name":"Guest"}')`, eventID, guestVisitorID)
 	}
 }
 
+// TestAccountRepositoryDeletionRemovesOwnSignupResponses proves the typed
+// uuid[] bind in deleteAccountAuthority removes the deleted account's signup
+// responses while leaving another guest's signup response intact. The visitor
+// FK cascade is dropped inside the test transaction so the
+// event_visitor_identity_id = ANY($2) branch is observable on its own: the
+// account's direct response covers the platform_identity_id = $1 clause, and
+// the guest response on the account-owned visitor would survive without the
+// ANY clause. Another visitor's response is the control.
+func TestAccountRepositoryDeletionRemovesOwnSignupResponses(t *testing.T) {
+	ctx, repo, tx := newAccountsTestRepository(t)
+	account, err := repo.CreateAccount(ctx, Account{Email: "signup-owner@example.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(ctx, `ALTER TABLE event_signup_responses DROP CONSTRAINT event_signup_responses_visitor_event_fk`); err != nil {
+		t.Fatal(err)
+	}
+
+	var eventID, ownerVisitorID, guestVisitorID string
+	if err := tx.QueryRow(ctx, `INSERT INTO postgres_events (short_id, name, type)
+VALUES ($1, 'Signup', 'signup') RETURNING id`, signupTestShortID(t)).Scan(&eventID); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.QueryRow(ctx, `INSERT INTO event_visitor_identities (event_id, platform_identity_id)
+VALUES ($1, $2) RETURNING id`, eventID, account.PlatformIdentityID).Scan(&ownerVisitorID); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.QueryRow(ctx, `INSERT INTO event_visitor_identities (event_id) VALUES ($1) RETURNING id`, eventID).Scan(&guestVisitorID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO event_signup_responses
+ (event_id, event_visitor_identity_id, respondent_kind, platform_identity_id, name)
+VALUES ($1, $2, 'account', $3, 'Owner')`, eventID, ownerVisitorID, account.PlatformIdentityID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO event_signup_responses
+ (event_id, event_visitor_identity_id, respondent_kind, canonical_guest_name, name)
+VALUES ($1, $2, 'guest', 'Owner Guest', 'Owner Guest')`, eventID, ownerVisitorID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO event_signup_responses
+ (event_id, event_visitor_identity_id, respondent_kind, canonical_guest_name, name)
+VALUES ($1, $2, 'guest', 'Guest', 'Guest')`, eventID, guestVisitorID); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := repo.DeleteAccountByPlatformIdentityID(ctx, account.PlatformIdentityID); err != nil {
+		t.Fatal(err)
+	}
+
+	var directResponses, visitorResponses, ownerVisitor int
+	if err := tx.QueryRow(ctx, `SELECT
+ (SELECT count(*) FROM event_signup_responses WHERE event_id = $1 AND platform_identity_id = $2),
+ (SELECT count(*) FROM event_signup_responses WHERE event_id = $1 AND event_visitor_identity_id = $3),
+ (SELECT count(*) FROM event_visitor_identities WHERE id = $3)`,
+		eventID, account.PlatformIdentityID, ownerVisitorID).Scan(&directResponses, &visitorResponses, &ownerVisitor); err != nil {
+		t.Fatal(err)
+	}
+	if directResponses != 0 {
+		t.Fatalf("account's direct signup response must be removed: %d", directResponses)
+	}
+	if visitorResponses != 0 {
+		t.Fatalf("account visitor's signup responses must be removed through the typed array branch: %d", visitorResponses)
+	}
+	if ownerVisitor != 0 {
+		t.Fatalf("account visitor identity must be removed: %d", ownerVisitor)
+	}
+	var guestStored int
+	if err := tx.QueryRow(ctx, `SELECT count(*) FROM event_signup_responses WHERE event_id = $1 AND event_visitor_identity_id = $2`, eventID, guestVisitorID).Scan(&guestStored); err != nil {
+		t.Fatal(err)
+	}
+	if guestStored != 1 {
+		t.Fatalf("other guest's signup response must survive: %d", guestStored)
+	}
+}
+
 func TestAccountRepositoryIncrementsUsageCounter(t *testing.T) {
 	ctx, repo, _ := newAccountsTestRepository(t)
 	account, err := repo.CreateAccount(ctx, Account{Email: "count@example.com"})

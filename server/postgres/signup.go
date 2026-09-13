@@ -323,8 +323,11 @@ func (r *Repository) GetSignupResponseByPublicID(ctx context.Context, eventID, p
 	if eventID == "" || publicID == "" {
 		return nil, errors.New("signup response event ID and public ID are required")
 	}
+	if !validUUID(publicID) {
+		return nil, pgx.ErrNoRows
+	}
 	return scanSignupResponse(r.db.QueryRow(ctx, `SELECT `+signupResponseSelectColumns+`
-FROM event_signup_responses WHERE event_id = $1 AND public_id::text = $2`, eventID, publicID))
+FROM event_signup_responses WHERE event_id = $1 AND public_id = $2`, eventID, publicID))
 }
 
 // ListSignupResponses returns every signup response for an event in write order.
@@ -360,6 +363,9 @@ func (r *Repository) UpdateSignupResponse(ctx context.Context, response *SignupR
 	}
 	if response.ID == "" && response.PublicID == "" {
 		return errors.New("signup response ID is required")
+	}
+	if response.ID == "" && !validUUID(response.PublicID) {
+		return pgx.ErrNoRows
 	}
 	if err := normalizeSignupResponseIdentity(response); err != nil {
 		return err
@@ -411,12 +417,15 @@ func (r *Repository) DeleteSignupResponse(ctx context.Context, eventID, publicID
 	if eventID == "" || publicID == "" {
 		return errors.New("signup response event ID and public ID are required")
 	}
+	if !validUUID(publicID) {
+		return pgx.ErrNoRows
+	}
 	return r.withTransaction(ctx, func(ctx context.Context, tx *Repository) error {
 		if _, err := tx.LockEvent(ctx, eventID); err != nil {
 			return err
 		}
 		tag, err := tx.db.Exec(ctx, `DELETE FROM event_signup_responses
-WHERE event_id = $1 AND public_id::text = $2`, eventID, publicID)
+WHERE event_id = $1 AND public_id = $2`, eventID, publicID)
 		if err != nil {
 			return err
 		}
@@ -433,7 +442,9 @@ WHERE event_id = $1 AND public_id::text = $2`, eventID, publicID)
 // which serializes concurrent reservations for the event. The grouped join
 // counts claims on the join table, but only memberships of responses in the same
 // event; comparing block identities as text keeps a non-canonical identifier on
-// the ErrSignupBlockNotFound path instead of a cast error.
+// the ErrSignupBlockNotFound path instead of a cast error. The excluded
+// response identity is compared as a typed uuid, and an empty exclude value
+// matches no response so every membership is counted.
 func (r *Repository) reserveSignupCapacity(ctx context.Context, eventID string, blockIDs []string, excludeResponseID string) error {
 	if len(blockIDs) == 0 {
 		return nil
@@ -442,7 +453,7 @@ func (r *Repository) reserveSignupCapacity(ctx context.Context, eventID string, 
 FROM event_signup_blocks block
 LEFT JOIN event_signup_response_blocks membership
     ON membership.block_id = block.id
-   AND membership.response_id::text <> $3
+   AND membership.response_id IS DISTINCT FROM NULLIF($3, '')::uuid
 LEFT JOIN event_signup_responses response
     ON response.id = membership.response_id
    AND response.event_id = $1

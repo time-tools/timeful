@@ -66,6 +66,11 @@ func TestAccessTransferRepository(t *testing.T) {
 	if _, err := repo.LockAccessTransfer(ctx, other.ID, transfer.ID); !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatalf("cross-event lookup: %v", err)
 	}
+	for _, nonCanonical := range []string{"", "not-a-uuid", "507f1f77bcf86cd799439011", "0198E6F0-6A3A-7C4B-9A2D-4F6A1B2C3D4E"} {
+		if _, err := repo.LockAccessTransfer(ctx, event.ID, nonCanonical); !errors.Is(err, pgx.ErrNoRows) {
+			t.Fatalf("non-canonical transfer ID %q lookup: %v", nonCanonical, err)
+		}
+	}
 	for _, code := range []string{"AAAAAAAA", "BBBBBBBB"} {
 		target := &TransferRequest{Code: code, TargetHash: hash[:]}
 		if err := repo.CreateTransferRequest(ctx, transfer.ID, target); err != nil {

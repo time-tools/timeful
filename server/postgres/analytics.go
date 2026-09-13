@@ -24,14 +24,38 @@ LEFT JOIN postgres_events e
  AND e.creator_posthog_id IS NOT NULL
  AND e.creator_posthog_id <> ''`
 
+// countDistinctMonthlyActiveEventCreatorsByDayQuery returns one distinct-creator
+// count per day end. The supporting-index forced-plan test runs this statement
+// directly.
+const countDistinctMonthlyActiveEventCreatorsByDayQuery = `SELECT count(DISTINCT e.creator_posthog_id)` + monthlyActiveCreatorDaySpine + `
+GROUP BY day.position
+ORDER BY day.position`
+
+// countDistinctMonthlyActiveEventCreatorsWithMoreThanXEventsByDayQuery returns
+// one count per day end of distinct creators with at least x events in that
+// day's window. The supporting-index forced-plan test runs this statement
+// directly.
+const countDistinctMonthlyActiveEventCreatorsWithMoreThanXEventsByDayQuery = `SELECT count(grouped.creator_posthog_id)
+FROM unnest($1::timestamptz[]) WITH ORDINALITY AS day(day_end, position)
+LEFT JOIN LATERAL (
+    SELECT e.creator_posthog_id
+    FROM postgres_events e
+    WHERE e.created_at >= day.day_end - $2::int * interval '1 day'
+      AND e.created_at < day.day_end
+      AND e.creator_posthog_id IS NOT NULL
+      AND e.creator_posthog_id <> ''
+    GROUP BY e.creator_posthog_id
+    HAVING count(*) >= $3
+) AS grouped ON TRUE
+GROUP BY day.position
+ORDER BY day.position`
+
 // CountDistinctMonthlyActiveEventCreatorsByDay returns one count per day-end
 // instant in the same ascending order as the supplied spine. A day without any
 // qualifying event yields zero, so the result always has one count per input
 // day, and the caller issues one query for the whole reporting range.
 func (r *Repository) CountDistinctMonthlyActiveEventCreatorsByDay(ctx context.Context, dayEnds []time.Time) ([]int64, error) {
-	rows, err := r.db.Query(ctx, `SELECT count(DISTINCT e.creator_posthog_id)`+monthlyActiveCreatorDaySpine+`
-GROUP BY day.position
-ORDER BY day.position`, dayEnds, monthlyActiveCreatorLookback)
+	rows, err := r.db.Query(ctx, countDistinctMonthlyActiveEventCreatorsByDayQuery, dayEnds, monthlyActiveCreatorLookback)
 	if err != nil {
 		return nil, err
 	}
@@ -53,20 +77,7 @@ ORDER BY day.position`, dayEnds, monthlyActiveCreatorLookback)
 // created in that day's half-open [day-30d, day) window, and a day without any
 // qualifying creator yields zero.
 func (r *Repository) CountDistinctMonthlyActiveEventCreatorsWithMoreThanXEventsByDay(ctx context.Context, dayEnds []time.Time, x int) ([]int64, error) {
-	rows, err := r.db.Query(ctx, `SELECT count(grouped.creator_posthog_id)
-FROM unnest($1::timestamptz[]) WITH ORDINALITY AS day(day_end, position)
-LEFT JOIN LATERAL (
-    SELECT e.creator_posthog_id
-    FROM postgres_events e
-    WHERE e.created_at >= day.day_end - $2::int * interval '1 day'
-      AND e.created_at < day.day_end
-      AND e.creator_posthog_id IS NOT NULL
-      AND e.creator_posthog_id <> ''
-    GROUP BY e.creator_posthog_id
-    HAVING count(*) >= $3
-) AS grouped ON TRUE
-GROUP BY day.position
-ORDER BY day.position`, dayEnds, monthlyActiveCreatorLookback, x)
+	rows, err := r.db.Query(ctx, countDistinctMonthlyActiveEventCreatorsWithMoreThanXEventsByDayQuery, dayEnds, monthlyActiveCreatorLookback, x)
 	if err != nil {
 		return nil, err
 	}

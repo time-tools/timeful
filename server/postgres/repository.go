@@ -279,8 +279,12 @@ func (r *Repository) getResponse(ctx context.Context, predicate string, values .
 	return response, nil
 }
 
+// listResponsesQuery lists one event's responses in write order. The
+// supporting-index forced-plan test runs this statement directly.
+const listResponsesQuery = `SELECT id, public_id, event_visitor_identity_id, event_id, COALESCE(respondent_kind, ''), platform_identity_id, guest_id, canonical_guest_name, guest_edit_policy, guest_ownership_mode, guest_edit_token, payload, created_at, updated_at FROM postgres_event_responses WHERE event_id = $1 ORDER BY created_at, id`
+
 func (r *Repository) ListResponses(ctx context.Context, eventID string) ([]Response, error) {
-	rows, err := r.db.Query(ctx, `SELECT id, public_id, event_visitor_identity_id, event_id, COALESCE(respondent_kind, ''), platform_identity_id, guest_id, canonical_guest_name, guest_edit_policy, guest_ownership_mode, guest_edit_token, payload, created_at, updated_at FROM postgres_event_responses WHERE event_id = $1 ORDER BY created_at, id`, eventID)
+	rows, err := r.db.Query(ctx, listResponsesQuery, eventID)
 	if err != nil {
 		return nil, err
 	}

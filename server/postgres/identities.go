@@ -41,6 +41,14 @@ func (r *Repository) GetPlatformIdentity(ctx context.Context, platformIdentityID
 // a platform identity UUID. Non-canonical session values resolve to no account
 // instead of reaching PostgreSQL as an invalid uuid literal.
 func validPlatformIdentityID(value string) bool {
+	return validUUID(value)
+}
+
+// validUUID reports whether a client-supplied identifier is the canonical UUID
+// wire form. Opaque identifiers are validated in the repository before they
+// reach a uuid bind, so a non-canonical value keeps reporting pgx.ErrNoRows
+// instead of surfacing a PostgreSQL 22P02 cast error to routes.
+func validUUID(value string) bool {
 	_, ok := models.ParseUUID(value)
 	return ok
 }
@@ -52,10 +60,16 @@ func (r *Repository) CreateEventVisitorIdentity(ctx context.Context, eventID str
 	return value, err
 }
 
+// GetEventVisitorIdentity resolves one visitor identity by its opaque public
+// identifier within an event. A non-canonical identifier resolves to no
+// identity instead of reaching the uuid column as an invalid literal.
 func (r *Repository) GetEventVisitorIdentity(ctx context.Context, eventID, publicID string) (*EventVisitorIdentity, error) {
+	if !validUUID(publicID) {
+		return nil, pgx.ErrNoRows
+	}
 	value := &EventVisitorIdentity{}
 	err := r.db.QueryRow(ctx, `SELECT id, event_id, public_id, platform_identity_id, created_at
- FROM event_visitor_identities WHERE event_id = $1 AND public_id::text = $2`, eventID, publicID).Scan(&value.ID, &value.EventID, &value.PublicID, &value.PlatformIdentityID, &value.CreatedAt)
+ FROM event_visitor_identities WHERE event_id = $1 AND public_id = $2`, eventID, publicID).Scan(&value.ID, &value.EventID, &value.PublicID, &value.PlatformIdentityID, &value.CreatedAt)
 	return value, err
 }
 
@@ -81,10 +95,16 @@ func (r *Repository) CreateEventVisitorCredential(ctx context.Context, value *Ev
  VALUES ($1, $2, $3, $4) RETURNING id, created_at`, value.EventVisitorIdentityID, value.CredentialHash, value.Kind, value.GrantsOwner).Scan(&value.ID, &value.CreatedAt)
 }
 
+// GetEventVisitorCredential resolves one credential by its opaque identifier
+// within a visitor identity. A non-canonical identifier resolves to no
+// credential instead of reaching the uuid column as an invalid literal.
 func (r *Repository) GetEventVisitorCredential(ctx context.Context, visitorID, credentialID string) (*EventVisitorCredential, error) {
+	if !validUUID(credentialID) {
+		return nil, pgx.ErrNoRows
+	}
 	value := &EventVisitorCredential{}
 	err := r.db.QueryRow(ctx, `SELECT id, event_visitor_identity_id, credential_hash, created_at, revoked_at, kind, grants_owner
- FROM event_visitor_credentials WHERE event_visitor_identity_id = $1 AND id::text = $2`, visitorID, credentialID).Scan(&value.ID, &value.EventVisitorIdentityID, &value.CredentialHash, &value.CreatedAt, &value.RevokedAt, &value.Kind, &value.GrantsOwner)
+ FROM event_visitor_credentials WHERE event_visitor_identity_id = $1 AND id = $2`, visitorID, credentialID).Scan(&value.ID, &value.EventVisitorIdentityID, &value.CredentialHash, &value.CreatedAt, &value.RevokedAt, &value.Kind, &value.GrantsOwner)
 	return value, err
 }
 
@@ -151,8 +171,14 @@ WHERE event_id = $1 AND event_visitor_identity_id = $2)`, eventID, visitorID).Sc
 	return hasResponse, err
 }
 
+// GetResponseByPublicID resolves one response by its opaque public identifier
+// within an event. A non-canonical identifier resolves to no response instead
+// of reaching the uuid column as an invalid literal.
 func (r *Repository) GetResponseByPublicID(ctx context.Context, eventID, publicID string) (*Response, error) {
-	return r.getResponse(ctx, `event_id = $1 AND public_id::text = $2`, eventID, publicID)
+	if !validUUID(publicID) {
+		return nil, pgx.ErrNoRows
+	}
+	return r.getResponse(ctx, `event_id = $1 AND public_id = $2`, eventID, publicID)
 }
 
 // LockEvent serializes response count changes across concurrent requests and

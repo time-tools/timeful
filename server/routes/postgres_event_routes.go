@@ -413,7 +413,7 @@ func postgresGetEvent(c *gin.Context) {
 		responseMap[key] = response
 	}
 	if event.Type == pgstore.EventTypeGroup {
-		postgresGroupEmailVisibility(c.Request.Context(), value, visitor, groupAttendees, responseMap)
+		postgresGroupEmailVisibility(c.Request.Context(), repository, event.ID, value, visitor, responseMap)
 	} else {
 		for key, response := range responseMap {
 			response.Email = ""
@@ -510,12 +510,7 @@ func postgresGetResponses(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed-to-serialize-event"})
 			return
 		}
-		attendees, err := repository.ListAttendees(c.Request.Context(), event.ID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed-to-load-attendees"})
-			return
-		}
-		postgresGroupEmailVisibility(c.Request.Context(), value, visitor, attendees, responseMap)
+		postgresGroupEmailVisibility(c.Request.Context(), repository, event.ID, value, visitor, responseMap)
 	} else {
 		for key, response := range responseMap {
 			response.Email = ""

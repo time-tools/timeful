@@ -3,6 +3,8 @@ package postgres
 import (
 	"context"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 type AccessTransfer struct {
@@ -29,10 +31,19 @@ func (r *Repository) CreateAccessTransfer(ctx context.Context, v *AccessTransfer
  VALUES($1,$2,$3,$4,$5) RETURNING id,expires_at,state`, v.EventID, v.SourceHash, v.SourceCredentialID, v.PlatformIdentityID, v.GrantsOwner).Scan(&v.ID, &v.ExpiresAt, &v.State)
 }
 
+// lockAccessTransferQuery locks one transfer row by event and primary key. The
+// supporting-index forced-plan test runs this statement directly.
+const lockAccessTransferQuery = `SELECT id,event_id,source_hash,source_credential_id,platform_identity_id,grants_owner,expires_at,state,approved_request_id,grant_id FROM access_transfers WHERE event_id=$1 AND id=$2 FOR UPDATE`
+
 // All lifecycle transitions use this row lock, including opening target requests.
+// A non-canonical transfer identifier resolves to no transfer instead of
+// reaching the uuid column as an invalid literal.
 func (r *Repository) LockAccessTransfer(ctx context.Context, eventID, id string) (*AccessTransfer, error) {
+	if !validUUID(id) {
+		return nil, pgx.ErrNoRows
+	}
 	v := &AccessTransfer{}
-	err := r.db.QueryRow(ctx, `SELECT id,event_id,source_hash,source_credential_id,platform_identity_id,grants_owner,expires_at,state,approved_request_id,grant_id FROM access_transfers WHERE event_id=$1 AND id::text=$2 FOR UPDATE`, eventID, id).Scan(&v.ID, &v.EventID, &v.SourceHash, &v.SourceCredentialID, &v.PlatformIdentityID, &v.GrantsOwner, &v.ExpiresAt, &v.State, &v.ApprovedRequestID, &v.GrantID)
+	err := r.db.QueryRow(ctx, lockAccessTransferQuery, eventID, id).Scan(&v.ID, &v.EventID, &v.SourceHash, &v.SourceCredentialID, &v.PlatformIdentityID, &v.GrantsOwner, &v.ExpiresAt, &v.State, &v.ApprovedRequestID, &v.GrantID)
 	return v, err
 }
 

@@ -28,11 +28,11 @@ type DashboardEvent struct {
 // email against non-declined attendees. A group invitee keeps their pending
 // state until they respond. Every entry comes from PostgreSQL event storage, so
 // callers receive one deduplicated list.
-func (r *Repository) ListDashboardEvents(ctx context.Context, platformIdentityID, email string) ([]DashboardEvent, error) {
-	if platformIdentityID == "" {
-		return nil, errors.New("account platform identity ID is required")
-	}
-	rows, err := r.db.Query(ctx, `SELECT e.id, e.short_id, e.owner_edit_token_hash, e.owner_platform_identity_id, e.owner_event_visitor_identity_id, e.name, e.type, e.is_archived, e.is_deleted, e.num_responses, e.schedule_version, e.creator_posthog_id, e.created_at, e.updated_at, e.payload,
+// listDashboardEventsQuery returns every non-deleted event the account owns,
+// has responded to, or is invited to as a group attendee. The supporting-index
+// forced-plan test runs this statement directly so the membership access path
+// cannot drift from production.
+const listDashboardEventsQuery = `SELECT e.id, e.short_id, e.owner_edit_token_hash, e.owner_platform_identity_id, e.owner_event_visitor_identity_id, e.name, e.type, e.is_archived, e.is_deleted, e.num_responses, e.schedule_version, e.creator_posthog_id, e.created_at, e.updated_at, e.payload,
        COALESCE(e.owner_platform_identity_id = $1, FALSE) AS owned,
        (EXISTS (
           SELECT 1
@@ -88,7 +88,13 @@ WHERE e.is_deleted = FALSE
         AND lower(a.email) = lower($2)
     ))
   )
-ORDER BY e.created_at DESC, e.id DESC`, platformIdentityID, email)
+ORDER BY e.created_at DESC, e.id DESC`
+
+func (r *Repository) ListDashboardEvents(ctx context.Context, platformIdentityID, email string) ([]DashboardEvent, error) {
+	if platformIdentityID == "" {
+		return nil, errors.New("account platform identity ID is required")
+	}
+	rows, err := r.db.Query(ctx, listDashboardEventsQuery, platformIdentityID, email)
 	if err != nil {
 		return nil, err
 	}
