@@ -1,10 +1,10 @@
 ---
 id: TASK-0149
 title: Run Backend CI browser E2E with Nix-provided dependencies
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-09-03 14:46'
-updated_date: '2026-09-03 15:10'
+updated_date: '2026-09-13 15:06'
 labels:
   - ci
   - nix
@@ -83,3 +83,19 @@ Task left In Progress; AC5/AC6 blocked on fixing the two defects (spec readiness
 
 Scope decision (user, 2026-09-03): fixes moved to follow-up TASK-0150 (spec grid-readiness wait + cloneable get-slots payload); TASK-0149 now depends on TASK-0150. AC1-AC4 verified; AC5 blocked on TASK-0150; AC6 pending next CI run after TASK-0150 lands.
 <!-- SECTION:NOTES:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: opencode
+created: 2026-09-13 15:06
+---
+2026-09-13: closed as superseded. The browser E2E suite moved to the root e2e/ package (TASK-0164), flake.nix now exposes .#e2e, and browser E2E runs through the dedicated E2E CI workflow (TASK-0165/TASK-0195); the frontend-e2e flake entry and the backend-ci.yml browser step this task targeted no longer exist. AC #5 and AC #6 are obsolete; AC #1-#4 were verified during round 1.
+---
+<!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Closed as superseded on 2026-09-13. The browser E2E suite moved from frontend/e2e/ to the self-contained root e2e/ package (TASK-0164), flake.nix exposes the runner as .#e2e, and browser E2E now runs through the dedicated E2E CI workflow (TASK-0165/TASK-0195) instead of the backend-ci.yml step this task targeted. The frontend-e2e flake entry and the browser step in backend-ci.yml no longer exist, so AC #5 (local exact-command run) and AC #6 (backend CI green) are obsolete. AC #1-#4 were verified during round 1 before the relocation.
+<!-- SECTION:FINAL_SUMMARY:END -->

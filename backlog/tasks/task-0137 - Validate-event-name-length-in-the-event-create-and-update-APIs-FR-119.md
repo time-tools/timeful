@@ -4,12 +4,14 @@ title: Validate event name length in the event create and update APIs (FR-119)
 status: To Do
 assignee: []
 created_date: '2026-09-02 11:18'
+updated_date: '2026-09-13 15:06'
 labels:
   - backend
 dependencies: []
 references:
   - docs/requirements/functional/fr/FR-119.md
   - TASK-0136
+  - server/routes/postgres_event_routes.go
 priority: medium
 type: task
 ordinal: 150300
@@ -24,8 +26,8 @@ Add server-side validation of the event name length on event creation and update
 
 - Reject event names longer than 100 characters on POST /events and PUT /events/:id with an appropriate 4xx response, without persisting the event or the change.
 - Names of exactly 100 characters remain valid.
-- Keep validation in the handler/service layer conventions used by the existing event routes; MongoDB access stays in server/db/.
-- Add route tests for both boundaries (over-limit rejection and exactly-100 acceptance) following the Server Test Workflow: start the isolated test Mongo via compose.test.yaml and run the scoped route suite against the timeful-test database.
+- Enforce the cap in the PostgreSQL event handlers postgresCreateEvent and postgresEditEvent (server/routes/postgres_event_routes.go), keeping the handler/service-layer conventions used by the existing event routes; PostgreSQL access stays in server/postgres/ (server/db/ no longer exists after the MongoDB retirement).
+- Add route tests for both boundaries (over-limit rejection and exactly-100 acceptance) following the Server Test Workflow: start postgres-test via compose.test.yaml and run --rm server-route-test against the timeful-test database.
 - If handler annotations change, regenerate swagger per Backend Conventions (swag init, then npm run gen:api).
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -45,3 +47,13 @@ Add server-side validation of the event name length on event creation and update
 - [ ] #3 All required e2e tests pass. Documentation-only changes are exempt unless the user requests e2e tests
 - [ ] #4 Changed Markdown files are formatted with npm run format:markdown
 <!-- DOD:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: opencode
+created: 2026-09-13 15:06
+---
+2026-09-13: refreshed for the MongoDB retirement (TASK-0199). Replaced the server/db/ access rule with server/postgres/, named the PostgreSQL handlers that need the check, and switched the test workflow to postgres-test/server-route-test.
+---
+<!-- COMMENTS:END -->
