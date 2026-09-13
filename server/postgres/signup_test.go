@@ -66,6 +66,27 @@ func seedSignupVisitor(t *testing.T, ctx context.Context, tx pgx.Tx, eventID str
 	return visitorID
 }
 
+func seedSignupBlock(t *testing.T, ctx context.Context, tx pgx.Tx, eventID, name string) string {
+	t.Helper()
+	var blockID string
+	if err := tx.QueryRow(ctx, `INSERT INTO event_signup_blocks (event_id, name) VALUES ($1, $2) RETURNING id::text`, eventID, name).Scan(&blockID); err != nil {
+		t.Fatal(err)
+	}
+	return blockID
+}
+
+func assertSignupBlockIDs(t *testing.T, got, want []string) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("block IDs = %#v, want %#v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("block IDs = %#v, want %#v", got, want)
+		}
+	}
+}
+
 // TestSignupSchemaConstraints proves the baseline admits the signup kind,
 // enforces the visitor/event relation, rejects negative capacity, and requires
 // a canonical guest name for guest responses.
@@ -352,7 +373,10 @@ VALUES ($1, 'Limited', $2) RETURNING id::text`, eventID, capacity).Scan(&blockID
 		t.Fatalf("capacity contention admitted=%d rejected=%d, want %d/%d", admitted, rejected, capacity, workers-capacity)
 	}
 	var stored int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM event_signup_responses WHERE event_id = $1 AND $2 = ANY(block_ids)`, eventID, blockID).Scan(&stored); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT count(*)
+FROM event_signup_responses response
+JOIN event_signup_response_blocks membership ON membership.response_id = response.id
+WHERE response.event_id = $1 AND membership.block_id::text = $2`, eventID, blockID).Scan(&stored); err != nil {
 		t.Fatal(err)
 	}
 	if stored != capacity {
@@ -381,5 +405,377 @@ func TestSignupUnlimitedBlockAdmitsAll(t *testing.T) {
 	}
 	if len(responses) != 5 {
 		t.Fatalf("unlimited block admitted %d signups, want 5", len(responses))
+	}
+}
+
+// TestSignupResponseBlockMembershipRoundTripOrder proves a response's claimed
+// blocks round-trip through the join table in write order on create, public-ID
+// read, list, and update, and that deleting the response cascades the
+// memberships away.
+func TestSignupResponseBlockMembershipRoundTripOrder(t *testing.T) {
+	ctx, repo, tx := newSignupTestRepository(t)
+	eventID := seedSignupEvent(t, ctx, tx, signupTestShortID(t))
+	visitorID := seedSignupVisitor(t, ctx, tx, eventID)
+	firstBlockID := seedSignupBlock(t, ctx, tx, eventID, "First")
+	secondBlockID := seedSignupBlock(t, ctx, tx, eventID, "Second")
+
+	response := &SignupResponse{
+		EventID:                eventID,
+		EventVisitorIdentityID: visitorID,
+		Name:                   "Ada",
+		BlockIDs:               []string{secondBlockID, firstBlockID, secondBlockID, " "},
+	}
+	if err := repo.CreateSignupResponse(ctx, response); err != nil {
+		t.Fatal(err)
+	}
+	assertSignupBlockIDs(t, response.BlockIDs, []string{secondBlockID, firstBlockID})
+
+	stored, err := repo.GetSignupResponseByPublicID(ctx, eventID, response.PublicID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertSignupBlockIDs(t, stored.BlockIDs, []string{secondBlockID, firstBlockID})
+
+	listed, err := repo.ListSignupResponses(ctx, eventID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listed) != 1 {
+		t.Fatalf("listed %d responses, want 1", len(listed))
+	}
+	assertSignupBlockIDs(t, listed[0].BlockIDs, []string{secondBlockID, firstBlockID})
+
+	if err := repo.UpdateSignupResponse(ctx, &SignupResponse{
+		ID:       response.ID,
+		EventID:  eventID,
+		Name:     "Ada",
+		BlockIDs: []string{firstBlockID, secondBlockID},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	stored, err = repo.GetSignupResponseByPublicID(ctx, eventID, response.PublicID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertSignupBlockIDs(t, stored.BlockIDs, []string{firstBlockID, secondBlockID})
+
+	if err := repo.DeleteSignupResponse(ctx, eventID, response.PublicID); err != nil {
+		t.Fatal(err)
+	}
+	var memberships int
+	if err := tx.QueryRow(ctx, `SELECT count(*) FROM event_signup_response_blocks WHERE response_id = $1`, response.ID).Scan(&memberships); err != nil {
+		t.Fatal(err)
+	}
+	if memberships != 0 {
+		t.Fatalf("deleting the response left %d memberships", memberships)
+	}
+}
+
+// TestSignupCapacityClaimsAndMissingBlocks proves the grouped capacity count
+// reads the join table, excludes the response being updated, and maps foreign,
+// nonexistent, and non-canonical block identifiers to ErrSignupBlockNotFound
+// instead of a cast error.
+func TestSignupCapacityClaimsAndMissingBlocks(t *testing.T) {
+	ctx, repo, tx := newSignupTestRepository(t)
+	eventID := seedSignupEvent(t, ctx, tx, signupTestShortID(t))
+	otherEventID := seedSignupEvent(t, ctx, tx, signupTestShortID(t))
+	foreignBlockID := seedSignupBlock(t, ctx, tx, otherEventID, "Foreign")
+	capacity := 1
+	block := &SignupBlock{EventID: eventID, Name: "One seat", Capacity: &capacity}
+	if err := repo.CreateSignupBlock(ctx, block); err != nil {
+		t.Fatal(err)
+	}
+
+	first := &SignupResponse{EventID: eventID, EventVisitorIdentityID: seedSignupVisitor(t, ctx, tx, eventID), Name: "Ada", BlockIDs: []string{block.ID}}
+	if err := repo.CreateSignupResponse(ctx, first); err != nil {
+		t.Fatal(err)
+	}
+	// Re-saving the claiming response excludes its own membership from the count.
+	first.Email = "ada@example.com"
+	if err := repo.UpdateSignupResponse(ctx, first); err != nil {
+		t.Fatal(err)
+	}
+
+	full := &SignupResponse{EventID: eventID, EventVisitorIdentityID: seedSignupVisitor(t, ctx, tx, eventID), Name: "Grace", BlockIDs: []string{block.ID}}
+	if err := repo.CreateSignupResponse(ctx, full); !errors.Is(err, ErrSignupCapacityExceeded) {
+		t.Fatalf("second claim error = %v, want ErrSignupCapacityExceeded", err)
+	}
+
+	missing := []string{foreignBlockID, "00000000-0000-0000-0000-000000000000", "not-a-uuid"}
+	for i, blockID := range missing {
+		guest := &SignupResponse{
+			EventID:                eventID,
+			EventVisitorIdentityID: seedSignupVisitor(t, ctx, tx, eventID),
+			Name:                   "Missing " + string(rune('A'+i)),
+			BlockIDs:               []string{blockID},
+		}
+		if err := repo.CreateSignupResponse(ctx, guest); !errors.Is(err, ErrSignupBlockNotFound) {
+			t.Fatalf("block %q error = %v, want ErrSignupBlockNotFound", blockID, err)
+		}
+	}
+}
+
+// TestSignupCapacityIgnoresOtherEventMemberships proves the grouped capacity
+// count only credits claims made by responses of the same event: a cross-event
+// membership inserted by direct SQL must not consume the block's seats.
+func TestSignupCapacityIgnoresOtherEventMemberships(t *testing.T) {
+	ctx, repo, tx := newSignupTestRepository(t)
+	eventID := seedSignupEvent(t, ctx, tx, signupTestShortID(t))
+	otherEventID := seedSignupEvent(t, ctx, tx, signupTestShortID(t))
+	capacity := 2
+	block := &SignupBlock{EventID: eventID, Name: "Two seats", Capacity: &capacity}
+	if err := repo.CreateSignupBlock(ctx, block); err != nil {
+		t.Fatal(err)
+	}
+	claimant := &SignupResponse{EventID: eventID, EventVisitorIdentityID: seedSignupVisitor(t, ctx, tx, eventID), Name: "Ada", BlockIDs: []string{block.ID}}
+	if err := repo.CreateSignupResponse(ctx, claimant); err != nil {
+		t.Fatal(err)
+	}
+
+	// The repository filters memberships by event, so the cross-event row only
+	// exists through direct SQL.
+	var foreignResponseID string
+	if err := tx.QueryRow(ctx, `INSERT INTO event_signup_responses (event_id, event_visitor_identity_id, respondent_kind, canonical_guest_name)
+VALUES ($1, $2, 'guest', 'Grace') RETURNING id`, otherEventID, seedSignupVisitor(t, ctx, tx, otherEventID)).Scan(&foreignResponseID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO event_signup_response_blocks (response_id, block_id, position)
+VALUES ($1, $2, 1)`, foreignResponseID, block.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	second := &SignupResponse{EventID: eventID, EventVisitorIdentityID: seedSignupVisitor(t, ctx, tx, eventID), Name: "Carol", BlockIDs: []string{block.ID}}
+	if err := repo.CreateSignupResponse(ctx, second); err != nil {
+		t.Fatalf("second same-event claim error = %v, want admission", err)
+	}
+	assertSignupBlockIDs(t, second.BlockIDs, []string{block.ID})
+}
+
+// TestWriteSignupResponseMembershipsRejectsUnwrittenIDs proves the set-based
+// membership write reports ErrSignupBlockNotFound instead of silently dropping
+// an identity that does not name a same-event block, even without the capacity
+// pre-check.
+func TestWriteSignupResponseMembershipsRejectsUnwrittenIDs(t *testing.T) {
+	ctx, repo, tx := newSignupTestRepository(t)
+	eventID := seedSignupEvent(t, ctx, tx, signupTestShortID(t))
+	otherEventID := seedSignupEvent(t, ctx, tx, signupTestShortID(t))
+	blockID := seedSignupBlock(t, ctx, tx, eventID, "Open")
+	foreignBlockID := seedSignupBlock(t, ctx, tx, otherEventID, "Foreign")
+
+	var responseID string
+	if err := tx.QueryRow(ctx, `INSERT INTO event_signup_responses (event_id, event_visitor_identity_id, respondent_kind, canonical_guest_name)
+VALUES ($1, $2, 'guest', 'Ada') RETURNING id`, eventID, seedSignupVisitor(t, ctx, tx, eventID)).Scan(&responseID); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.writeSignupResponseMemberships(ctx, responseID, eventID, []string{blockID, foreignBlockID}); !errors.Is(err, ErrSignupBlockNotFound) {
+		t.Fatalf("foreign membership error = %v, want ErrSignupBlockNotFound", err)
+	}
+}
+
+// TestSignupResponseBlockJoinTableSchema proves the migration created the join
+// table with cascading foreign keys on both sides, a unique (response_id,
+// block_id) constraint, a NOT NULL position, and the (block_id, response_id)
+// and (response_id, position, block_id) indexes that serve capacity counts and
+// ordered membership reads.
+func TestSignupResponseBlockJoinTableSchema(t *testing.T) {
+	ctx, _, tx := newSignupTestRepository(t)
+	var positionNullable string
+	if err := tx.QueryRow(ctx, `SELECT is_nullable FROM information_schema.columns
+WHERE table_name = 'event_signup_response_blocks' AND column_name = 'position'`).Scan(&positionNullable); err != nil {
+		t.Fatal(err)
+	}
+	if positionNullable != "NO" {
+		t.Fatalf("position is_nullable = %q, want NO", positionNullable)
+	}
+	var cascadeCount int
+	if err := tx.QueryRow(ctx, `SELECT count(*) FROM pg_constraint
+WHERE conrelid = 'event_signup_response_blocks'::regclass
+  AND contype = 'f'
+  AND confdeltype = 'c'`).Scan(&cascadeCount); err != nil {
+		t.Fatal(err)
+	}
+	if cascadeCount != 2 {
+		t.Fatalf("cascading foreign keys = %d, want 2", cascadeCount)
+	}
+	var uniqueExists bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'event_signup_response_blocks'::regclass
+      AND contype = 'u'
+      AND conkey = ARRAY[
+          (SELECT attnum FROM pg_attribute WHERE attrelid = 'event_signup_response_blocks'::regclass AND attname = 'response_id'),
+          (SELECT attnum FROM pg_attribute WHERE attrelid = 'event_signup_response_blocks'::regclass AND attname = 'block_id')
+      ]::smallint[]
+)`).Scan(&uniqueExists); err != nil {
+		t.Fatal(err)
+	}
+	if !uniqueExists {
+		t.Fatal("unique (response_id, block_id) constraint is missing")
+	}
+	for _, indexName := range []string{
+		"event_signup_response_blocks_block_id_idx",
+		"event_signup_response_blocks_response_position_idx",
+	} {
+		var resolved string
+		if err := tx.QueryRow(ctx, `SELECT COALESCE(to_regclass($1)::text, '')`, indexName).Scan(&resolved); err != nil {
+			t.Fatal(err)
+		}
+		if resolved == "" {
+			t.Fatalf("%s is missing", indexName)
+		}
+	}
+}
+
+// TestReplaceSignupBlocksDuplicatesCollapseToLastOccurrence proves a repeated
+// supplied block identity is applied once with its last occurrence, so the
+// set-based upsert cannot raise PostgreSQL 21000, and that mixed new and kept
+// blocks still renumber in supplied order.
+func TestReplaceSignupBlocksDuplicatesCollapseToLastOccurrence(t *testing.T) {
+	ctx, repo, tx := newSignupTestRepository(t)
+	eventID := seedSignupEvent(t, ctx, tx, signupTestShortID(t))
+	first := &SignupBlock{EventID: eventID, Name: "First"}
+	if err := repo.CreateSignupBlock(ctx, first); err != nil {
+		t.Fatal(err)
+	}
+	second := &SignupBlock{EventID: eventID, Name: "Second"}
+	if err := repo.CreateSignupBlock(ctx, second); err != nil {
+		t.Fatal(err)
+	}
+	replacement, err := repo.ReplaceSignupBlocks(ctx, eventID, []SignupBlock{
+		{ID: second.ID, Name: "Second renamed first"},
+		{ID: first.ID, Name: "First renamed"},
+		{Name: "Third"},
+		{ID: second.ID, Name: "Second renamed last"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(replacement) != 3 || replacement[0].ID != first.ID || replacement[0].Name != "First renamed" ||
+		replacement[1].Name != "Third" || replacement[2].ID != second.ID || replacement[2].Name != "Second renamed last" {
+		t.Fatalf("duplicate replacement = %#v", replacement)
+	}
+	if replacement[0].Position != 1 || replacement[1].Position != 2 || replacement[2].Position != 3 {
+		t.Fatalf("duplicate replacement positions = %#v", replacement)
+	}
+}
+
+// TestSignupResponseBlockMembershipBackfill proves the join-table migration
+// copies legacy block_ids in stored array order, collapses a repeated identity
+// to its first occurrence, skips values that do not name a same-event block, and
+// drops the retired column.
+func TestSignupResponseBlockMembershipBackfill(t *testing.T) {
+	ctx, tx := newMigrationTestTransaction(t)
+	applyMigration(t, ctx, tx, "20260912000000_baseline_schema.sql")
+
+	eventID := seedSignupEvent(t, ctx, tx, signupTestShortID(t))
+	otherEventID := seedSignupEvent(t, ctx, tx, signupTestShortID(t))
+	visitorID := seedSignupVisitor(t, ctx, tx, eventID)
+	firstBlockID := seedSignupBlock(t, ctx, tx, eventID, "First")
+	secondBlockID := seedSignupBlock(t, ctx, tx, eventID, "Second")
+	foreignBlockID := seedSignupBlock(t, ctx, tx, otherEventID, "Foreign")
+
+	var responseID string
+	if err := tx.QueryRow(ctx, `INSERT INTO event_signup_responses (event_id, event_visitor_identity_id, respondent_kind, canonical_guest_name, block_ids)
+VALUES ($1, $2, 'guest', 'Ada', $3) RETURNING id`,
+		eventID, visitorID, []string{secondBlockID, firstBlockID, secondBlockID, foreignBlockID, "not-a-uuid"}).Scan(&responseID); err != nil {
+		t.Fatal(err)
+	}
+	var emptyResponseID string
+	if err := tx.QueryRow(ctx, `INSERT INTO event_signup_responses (event_id, event_visitor_identity_id, respondent_kind, canonical_guest_name)
+VALUES ($1, $2, 'guest', 'Grace') RETURNING id`, eventID, seedSignupVisitor(t, ctx, tx, eventID)).Scan(&emptyResponseID); err != nil {
+		t.Fatal(err)
+	}
+
+	applyMigration(t, ctx, tx, "20260913000000_signup_response_blocks.sql")
+
+	if hasColumn(t, ctx, tx, "event_signup_responses", "block_ids") {
+		t.Fatal("block_ids survived the join-table migration")
+	}
+	rows, err := tx.Query(ctx, `SELECT block_id::text, position
+FROM event_signup_response_blocks WHERE response_id = $1 ORDER BY position`, responseID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	blockIDs := []string{}
+	positions := []int{}
+	for rows.Next() {
+		var blockID string
+		var position int
+		if err := rows.Scan(&blockID, &position); err != nil {
+			t.Fatal(err)
+		}
+		blockIDs = append(blockIDs, blockID)
+		positions = append(positions, position)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	assertSignupBlockIDs(t, blockIDs, []string{secondBlockID, firstBlockID})
+	if len(positions) != 2 || positions[0] != 1 || positions[1] != 2 {
+		t.Fatalf("backfilled positions = %#v, want [1 2]", positions)
+	}
+	var emptyCount int
+	if err := tx.QueryRow(ctx, `SELECT count(*) FROM event_signup_response_blocks WHERE response_id = $1`, emptyResponseID).Scan(&emptyCount); err != nil {
+		t.Fatal(err)
+	}
+	if emptyCount != 0 {
+		t.Fatalf("empty block_ids backfilled %d memberships", emptyCount)
+	}
+}
+
+// TestSignupResponseBlockMembershipDownMigration proves the down migration
+// restores block_ids in stored position order, reinstates the empty-array
+// default, and drops the join table.
+func TestSignupResponseBlockMembershipDownMigration(t *testing.T) {
+	ctx, tx := newMigrationTestTransaction(t)
+	applyMigration(t, ctx, tx, "20260912000000_baseline_schema.sql")
+
+	eventID := seedSignupEvent(t, ctx, tx, signupTestShortID(t))
+	firstBlockID := seedSignupBlock(t, ctx, tx, eventID, "First")
+	secondBlockID := seedSignupBlock(t, ctx, tx, eventID, "Second")
+
+	var responseID string
+	if err := tx.QueryRow(ctx, `INSERT INTO event_signup_responses (event_id, event_visitor_identity_id, respondent_kind, canonical_guest_name, block_ids)
+VALUES ($1, $2, 'guest', 'Ada', $3) RETURNING id`,
+		eventID, seedSignupVisitor(t, ctx, tx, eventID), []string{secondBlockID, firstBlockID}).Scan(&responseID); err != nil {
+		t.Fatal(err)
+	}
+
+	applyMigration(t, ctx, tx, "20260913000000_signup_response_blocks.sql")
+	applyMigrationDown(t, ctx, tx, "20260913000000_signup_response_blocks.sql")
+
+	if !hasColumn(t, ctx, tx, "event_signup_responses", "block_ids") {
+		t.Fatal("block_ids was not restored by the down migration")
+	}
+	var restored []string
+	if err := tx.QueryRow(ctx, `SELECT block_ids FROM event_signup_responses WHERE id = $1`, responseID).Scan(&restored); err != nil {
+		t.Fatal(err)
+	}
+	assertSignupBlockIDs(t, restored, []string{secondBlockID, firstBlockID})
+
+	var tempJoinTableExists bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (
+    SELECT 1 FROM pg_class
+    WHERE relname = 'event_signup_response_blocks'
+      AND relnamespace = pg_my_temp_schema()
+)`).Scan(&tempJoinTableExists); err != nil {
+		t.Fatal(err)
+	}
+	if tempJoinTableExists {
+		t.Fatal("the down migration left the temporary join table in place")
+	}
+
+	var defaultResponseID string
+	if err := tx.QueryRow(ctx, `INSERT INTO event_signup_responses (event_id, event_visitor_identity_id, respondent_kind, canonical_guest_name)
+VALUES ($1, $2, 'guest', 'Grace') RETURNING id`, eventID, seedSignupVisitor(t, ctx, tx, eventID)).Scan(&defaultResponseID); err != nil {
+		t.Fatal(err)
+	}
+	var defaulted []string
+	if err := tx.QueryRow(ctx, `SELECT block_ids FROM event_signup_responses WHERE id = $1`, defaultResponseID).Scan(&defaulted); err != nil {
+		t.Fatal(err)
+	}
+	if len(defaulted) != 0 {
+		t.Fatalf("restored block_ids default = %#v, want empty", defaulted)
 	}
 }

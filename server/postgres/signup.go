@@ -51,7 +51,8 @@ func scanSignupBlock(row interface{ Scan(...any) error }) (*SignupBlock, error) 
 // the opaque identifier exposed to clients; ID and the owning Event Visitor
 // Identity stay internal. PlatformIdentityID or CanonicalGuestName identifies
 // the respondent, matching the account-uuid-or-canonical-guest-name key.
-// BlockIDs holds the claimed event_signup_blocks identities.
+// BlockIDs holds the claimed event_signup_blocks identities in their stored
+// claim order.
 type SignupResponse struct {
 	ID                     string
 	PublicID               string
@@ -67,15 +68,63 @@ type SignupResponse struct {
 	UpdatedAt              time.Time
 }
 
-const signupResponseColumns = `id, public_id, event_id, event_visitor_identity_id, respondent_kind, platform_identity_id, canonical_guest_name, name, email, block_ids, created_at, updated_at`
+// signupResponseColumns lists the response columns without membership. Full
+// response reads append signupResponseBlockIDsColumn and end with BlockIDs.
+const signupResponseColumns = `id, public_id, event_id, event_visitor_identity_id, respondent_kind, platform_identity_id, canonical_guest_name, name, email, created_at, updated_at`
+
+// signupResponseBlockIDsColumn aggregates a response's claimed block identities
+// in their stored position order so reads reproduce the write order. Position
+// alone is not unique, so the block identity is the deterministic tie-break.
+const signupResponseBlockIDsColumn = `COALESCE(ARRAY(
+    SELECT membership.block_id::text
+    FROM event_signup_response_blocks membership
+    WHERE membership.response_id = event_signup_responses.id
+    ORDER BY membership.position, membership.block_id
+), '{}'::text[])`
+
+const signupResponseSelectColumns = signupResponseColumns + `, ` + signupResponseBlockIDsColumn
 
 func scanSignupResponse(row interface{ Scan(...any) error }) (*SignupResponse, error) {
 	response := &SignupResponse{}
-	err := row.Scan(&response.ID, &response.PublicID, &response.EventID, &response.EventVisitorIdentityID, &response.RespondentKind, &response.PlatformIdentityID, &response.CanonicalGuestName, &response.Name, &response.Email, &response.BlockIDs, &response.CreatedAt, &response.UpdatedAt)
+	err := row.Scan(&response.ID, &response.PublicID, &response.EventID, &response.EventVisitorIdentityID, &response.RespondentKind, &response.PlatformIdentityID, &response.CanonicalGuestName, &response.Name, &response.Email, &response.CreatedAt, &response.UpdatedAt, &response.BlockIDs)
 	if err != nil {
 		return nil, err
 	}
 	return response, nil
+}
+
+// readSignupResponseByID reads one response with its claimed blocks aggregated
+// in position order.
+func (r *Repository) readSignupResponseByID(ctx context.Context, responseID string) (*SignupResponse, error) {
+	return scanSignupResponse(r.db.QueryRow(ctx, `SELECT `+signupResponseSelectColumns+`
+FROM event_signup_responses WHERE id = $1`, responseID))
+}
+
+// writeSignupResponseMemberships replaces a response's claimed blocks with the
+// supplied normalized identities in their given order. The delete and the
+// set-based insert both target the join table; the capacity check in the same
+// transaction has already proven every identity names a block of the event, and
+// the unique constraint backstops a repeated claim. The affected-row check keeps
+// a caller that skips the capacity check from silently dropping a claim.
+func (r *Repository) writeSignupResponseMemberships(ctx context.Context, responseID, eventID string, blockIDs []string) error {
+	if _, err := r.db.Exec(ctx, `DELETE FROM event_signup_response_blocks WHERE response_id = $1`, responseID); err != nil {
+		return err
+	}
+	if len(blockIDs) == 0 {
+		return nil
+	}
+	tag, err := r.db.Exec(ctx, `INSERT INTO event_signup_response_blocks (response_id, block_id, position)
+SELECT $1, block.id, claimed.ordinality
+FROM unnest($2::text[]) WITH ORDINALITY AS claimed(block_text, ordinality)
+JOIN event_signup_blocks block
+    ON block.id::text = claimed.block_text AND block.event_id = $3`, responseID, blockIDs, eventID)
+	if err != nil {
+		return err
+	}
+	if int(tag.RowsAffected()) != len(blockIDs) {
+		return ErrSignupBlockNotFound
+	}
+	return nil
 }
 
 // CreateSignupBlock appends one block to a signup form event. A non-positive
@@ -105,75 +154,88 @@ RETURNING `+signupBlockColumns, block.EventID, block.Name, block.Capacity, block
 // ReplaceSignupBlocks writes the supplied blocks as the complete ordered block
 // set for an event. A block with an ID must belong to the event and keeps its
 // identity and response memberships; a block without an ID is inserted.
-// Removed blocks are deleted and their identities are detached from every
-// response in the same transaction, so the block/response relation never
-// dangles. The event row is locked for the duration.
+// Removed blocks are deleted and their memberships cascade away in the same
+// transaction, so the block/response relation never dangles. A removal still
+// bumps the affected responses' updated_at, which the retired detach path did
+// and a cascade alone does not. The event row is locked for the duration.
+// Repeated non-empty identities collapse to their last occurrence because a
+// set-based ON CONFLICT DO UPDATE cannot touch one conflict row twice; that
+// matches the old per-block loop, which applied the updates in order.
 func (r *Repository) ReplaceSignupBlocks(ctx context.Context, eventID string, blocks []SignupBlock) ([]SignupBlock, error) {
 	if eventID == "" {
 		return nil, errors.New("signup block event ID is required")
+	}
+	lastIndex := make(map[string]int, len(blocks))
+	for i := range blocks {
+		if blocks[i].Capacity != nil && *blocks[i].Capacity < 0 {
+			return nil, errors.New("signup block capacity must not be negative")
+		}
+		if blocks[i].ID != "" {
+			lastIndex[blocks[i].ID] = i
+		}
+	}
+	positioned := make([]SignupBlock, 0, len(blocks))
+	for i := range blocks {
+		if blocks[i].ID != "" && lastIndex[blocks[i].ID] != i {
+			continue
+		}
+		positioned = append(positioned, blocks[i])
+	}
+	ids := make([]string, 0, len(positioned))
+	names := make([]string, 0, len(positioned))
+	capacities := make([]*int, 0, len(positioned))
+	startDates := make([]*time.Time, 0, len(positioned))
+	endDates := make([]*time.Time, 0, len(positioned))
+	positions := make([]int, 0, len(positioned))
+	keepIDs := make([]string, 0, len(positioned))
+	for i := range positioned {
+		block := &positioned[i]
+		ids = append(ids, block.ID)
+		names = append(names, block.Name)
+		capacities = append(capacities, block.Capacity)
+		startDates = append(startDates, block.StartDate)
+		endDates = append(endDates, block.EndDate)
+		positions = append(positions, i+1)
+		if block.ID != "" {
+			keepIDs = append(keepIDs, block.ID)
+		}
 	}
 	stored := []SignupBlock{}
 	err := r.withTransaction(ctx, func(ctx context.Context, tx *Repository) error {
 		if _, err := tx.LockEvent(ctx, eventID); err != nil {
 			return err
 		}
-		keepIDs := make([]string, 0, len(blocks))
-		for i := range blocks {
-			if blocks[i].Capacity != nil && *blocks[i].Capacity < 0 {
-				return errors.New("signup block capacity must not be negative")
-			}
-			if blocks[i].ID != "" {
-				keepIDs = append(keepIDs, blocks[i].ID)
-			}
+		if _, err := tx.db.Exec(ctx, `UPDATE event_signup_responses response
+SET updated_at = clock_timestamp()
+WHERE response.event_id = $1
+  AND EXISTS (
+      SELECT 1
+      FROM event_signup_response_blocks membership
+      JOIN event_signup_blocks block ON block.id = membership.block_id
+      WHERE membership.response_id = response.id
+        AND block.event_id = $1
+        AND block.id::text <> ALL($2::text[])
+  )`, eventID, keepIDs); err != nil {
+			return err
 		}
-		removed := []string{}
-		rows, err := tx.db.Query(ctx, `SELECT id::text FROM event_signup_blocks
-WHERE event_id = $1 AND id::text <> ALL($2)`, eventID, keepIDs)
+		if _, err := tx.db.Exec(ctx, `DELETE FROM event_signup_blocks
+WHERE event_id = $1 AND id::text <> ALL($2::text[])`, eventID, keepIDs); err != nil {
+			return err
+		}
+		tag, err := tx.db.Exec(ctx, `INSERT INTO event_signup_blocks (id, event_id, name, capacity, start_date, end_date, position)
+SELECT COALESCE(existing.id, uuidv7()), $1, incoming.name, incoming.capacity, incoming.start_date, incoming.end_date, incoming.position
+FROM unnest($2::text[], $3::text[], $4::int[], $5::timestamptz[], $6::timestamptz[], $7::int[]) AS incoming(id_text, name, capacity, start_date, end_date, position)
+LEFT JOIN event_signup_blocks existing
+    ON existing.id::text = incoming.id_text AND existing.event_id = $1
+WHERE incoming.id_text = '' OR existing.id IS NOT NULL
+ON CONFLICT (id) DO UPDATE
+SET name = EXCLUDED.name, capacity = EXCLUDED.capacity, start_date = EXCLUDED.start_date, end_date = EXCLUDED.end_date, position = EXCLUDED.position, updated_at = clock_timestamp()`,
+			eventID, ids, names, capacities, startDates, endDates, positions)
 		if err != nil {
 			return err
 		}
-		for rows.Next() {
-			var id string
-			if err := rows.Scan(&id); err != nil {
-				rows.Close()
-				return err
-			}
-			removed = append(removed, id)
-		}
-		rows.Close()
-		if err := rows.Err(); err != nil {
-			return err
-		}
-		if len(removed) > 0 {
-			if _, err := tx.db.Exec(ctx, `UPDATE event_signup_responses
-SET block_ids = ARRAY(SELECT b FROM unnest(block_ids) AS b WHERE b <> ALL($2)), updated_at = clock_timestamp()
-WHERE event_id = $1 AND block_ids && $2`, eventID, removed); err != nil {
-				return err
-			}
-			if _, err := tx.db.Exec(ctx, `DELETE FROM event_signup_blocks
-WHERE event_id = $1 AND id::text = ANY($2)`, eventID, removed); err != nil {
-				return err
-			}
-		}
-		for i := range blocks {
-			block := &blocks[i]
-			position := i + 1
-			if block.ID == "" {
-				if _, err := tx.db.Exec(ctx, `INSERT INTO event_signup_blocks (event_id, name, capacity, start_date, end_date, position)
-VALUES ($1, $2, $3, $4, $5, $6)`, eventID, block.Name, block.Capacity, block.StartDate, block.EndDate, position); err != nil {
-					return err
-				}
-				continue
-			}
-			tag, err := tx.db.Exec(ctx, `UPDATE event_signup_blocks
-SET name = $3, capacity = $4, start_date = $5, end_date = $6, position = $7, updated_at = clock_timestamp()
-WHERE id = $1 AND event_id = $2`, block.ID, eventID, block.Name, block.Capacity, block.StartDate, block.EndDate, position)
-			if err != nil {
-				return err
-			}
-			if tag.RowsAffected() == 0 {
-				return pgx.ErrNoRows
-			}
+		if int(tag.RowsAffected()) != len(positioned) {
+			return pgx.ErrNoRows
 		}
 		list, err := tx.ListSignupBlocks(ctx, eventID)
 		if err != nil {
@@ -234,12 +296,23 @@ func (r *Repository) CreateSignupResponse(ctx context.Context, response *SignupR
 		if err := tx.reserveSignupCapacity(ctx, response.EventID, blockIDs, ""); err != nil {
 			return err
 		}
-		return tx.db.QueryRow(ctx, `INSERT INTO event_signup_responses
- (event_id, event_visitor_identity_id, respondent_kind, platform_identity_id, canonical_guest_name, name, email, block_ids)
- VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		if err := tx.db.QueryRow(ctx, `INSERT INTO event_signup_responses
+ (event_id, event_visitor_identity_id, respondent_kind, platform_identity_id, canonical_guest_name, name, email)
+ VALUES ($1, $2, $3, $4, $5, $6, $7)
  RETURNING `+signupResponseColumns,
-			response.EventID, response.EventVisitorIdentityID, response.RespondentKind, response.PlatformIdentityID, response.CanonicalGuestName, response.Name, response.Email, blockIDs).
-			Scan(&response.ID, &response.PublicID, &response.EventID, &response.EventVisitorIdentityID, &response.RespondentKind, &response.PlatformIdentityID, &response.CanonicalGuestName, &response.Name, &response.Email, &response.BlockIDs, &response.CreatedAt, &response.UpdatedAt)
+			response.EventID, response.EventVisitorIdentityID, response.RespondentKind, response.PlatformIdentityID, response.CanonicalGuestName, response.Name, response.Email).
+			Scan(&response.ID, &response.PublicID, &response.EventID, &response.EventVisitorIdentityID, &response.RespondentKind, &response.PlatformIdentityID, &response.CanonicalGuestName, &response.Name, &response.Email, &response.CreatedAt, &response.UpdatedAt); err != nil {
+			return err
+		}
+		if err := tx.writeSignupResponseMemberships(ctx, response.ID, response.EventID, blockIDs); err != nil {
+			return err
+		}
+		stored, err := tx.readSignupResponseByID(ctx, response.ID)
+		if err != nil {
+			return err
+		}
+		*response = *stored
+		return nil
 	})
 }
 
@@ -250,7 +323,7 @@ func (r *Repository) GetSignupResponseByPublicID(ctx context.Context, eventID, p
 	if eventID == "" || publicID == "" {
 		return nil, errors.New("signup response event ID and public ID are required")
 	}
-	return scanSignupResponse(r.db.QueryRow(ctx, `SELECT `+signupResponseColumns+`
+	return scanSignupResponse(r.db.QueryRow(ctx, `SELECT `+signupResponseSelectColumns+`
 FROM event_signup_responses WHERE event_id = $1 AND public_id::text = $2`, eventID, publicID))
 }
 
@@ -259,7 +332,7 @@ func (r *Repository) ListSignupResponses(ctx context.Context, eventID string) ([
 	if eventID == "" {
 		return nil, errors.New("signup response event ID is required")
 	}
-	rows, err := r.db.Query(ctx, `SELECT `+signupResponseColumns+`
+	rows, err := r.db.Query(ctx, `SELECT `+signupResponseSelectColumns+`
 FROM event_signup_responses WHERE event_id = $1 ORDER BY created_at, id`, eventID)
 	if err != nil {
 		return nil, err
@@ -311,12 +384,23 @@ WHERE public_id = $1 AND event_id = $2`, response.PublicID, response.EventID).Sc
 		if err := tx.reserveSignupCapacity(ctx, response.EventID, blockIDs, responseID); err != nil {
 			return err
 		}
-		return tx.db.QueryRow(ctx, `UPDATE event_signup_responses
-SET respondent_kind = $2, platform_identity_id = $3, canonical_guest_name = $4, name = $5, email = $6, block_ids = $7, updated_at = clock_timestamp()
+		if err := tx.db.QueryRow(ctx, `UPDATE event_signup_responses
+SET respondent_kind = $2, platform_identity_id = $3, canonical_guest_name = $4, name = $5, email = $6, updated_at = clock_timestamp()
 WHERE id = $1
 RETURNING `+signupResponseColumns,
-			responseID, response.RespondentKind, response.PlatformIdentityID, response.CanonicalGuestName, response.Name, response.Email, blockIDs).
-			Scan(&response.ID, &response.PublicID, &response.EventID, &response.EventVisitorIdentityID, &response.RespondentKind, &response.PlatformIdentityID, &response.CanonicalGuestName, &response.Name, &response.Email, &response.BlockIDs, &response.CreatedAt, &response.UpdatedAt)
+			responseID, response.RespondentKind, response.PlatformIdentityID, response.CanonicalGuestName, response.Name, response.Email).
+			Scan(&response.ID, &response.PublicID, &response.EventID, &response.EventVisitorIdentityID, &response.RespondentKind, &response.PlatformIdentityID, &response.CanonicalGuestName, &response.Name, &response.Email, &response.CreatedAt, &response.UpdatedAt); err != nil {
+			return err
+		}
+		if err := tx.writeSignupResponseMemberships(ctx, response.ID, response.EventID, blockIDs); err != nil {
+			return err
+		}
+		stored, err := tx.readSignupResponseByID(ctx, response.ID)
+		if err != nil {
+			return err
+		}
+		*response = *stored
+		return nil
 	})
 }
 
@@ -346,51 +430,55 @@ WHERE event_id = $1 AND public_id::text = $2`, eventID, publicID)
 // reserveSignupCapacity verifies every requested block belongs to the event and
 // that no limited block is already at capacity, excluding the response being
 // rewritten. It must run inside the transaction that holds the event row lock,
-// which serializes concurrent reservations for the event.
+// which serializes concurrent reservations for the event. The grouped join
+// counts claims on the join table, but only memberships of responses in the same
+// event; comparing block identities as text keeps a non-canonical identifier on
+// the ErrSignupBlockNotFound path instead of a cast error.
 func (r *Repository) reserveSignupCapacity(ctx context.Context, eventID string, blockIDs []string, excludeResponseID string) error {
 	if len(blockIDs) == 0 {
 		return nil
 	}
-	rows, err := r.db.Query(ctx, `SELECT id::text, capacity FROM event_signup_blocks
-WHERE event_id = $1 AND id::text = ANY($2)`, eventID, blockIDs)
+	rows, err := r.db.Query(ctx, `SELECT block.id::text, block.capacity, count(response.id)
+FROM event_signup_blocks block
+LEFT JOIN event_signup_response_blocks membership
+    ON membership.block_id = block.id
+   AND membership.response_id::text <> $3
+LEFT JOIN event_signup_responses response
+    ON response.id = membership.response_id
+   AND response.event_id = $1
+WHERE block.event_id = $1 AND block.id::text = ANY($2)
+GROUP BY block.id, block.capacity`, eventID, blockIDs, excludeResponseID)
 	if err != nil {
 		return err
 	}
-	capacities := make(map[string]*int, len(blockIDs))
+	type blockClaim struct {
+		capacity *int
+		claimed  int
+	}
+	claims := make(map[string]blockClaim, len(blockIDs))
 	for rows.Next() {
 		var id string
 		var capacity *int
-		if err := rows.Scan(&id, &capacity); err != nil {
+		var claimed int
+		if err := rows.Scan(&id, &capacity, &claimed); err != nil {
 			rows.Close()
 			return err
 		}
-		capacities[id] = capacity
+		claims[id] = blockClaim{capacity: capacity, claimed: claimed}
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	if len(capacities) != len(blockIDs) {
+	if len(claims) != len(blockIDs) {
 		return ErrSignupBlockNotFound
 	}
 	for _, blockID := range blockIDs {
-		capacity := capacities[blockID]
-		if capacity == nil {
+		claim := claims[blockID]
+		if claim.capacity == nil {
 			continue
 		}
-		var claimed int
-		if excludeResponseID != "" {
-			if err := r.db.QueryRow(ctx, `SELECT count(*) FROM event_signup_responses
-WHERE event_id = $1 AND $2 = ANY(block_ids) AND id::text <> $3`, eventID, blockID, excludeResponseID).Scan(&claimed); err != nil {
-				return err
-			}
-		} else {
-			if err := r.db.QueryRow(ctx, `SELECT count(*) FROM event_signup_responses
-WHERE event_id = $1 AND $2 = ANY(block_ids)`, eventID, blockID).Scan(&claimed); err != nil {
-				return err
-			}
-		}
-		if claimed >= *capacity {
+		if claim.claimed >= *claim.capacity {
 			return ErrSignupCapacityExceeded
 		}
 	}
