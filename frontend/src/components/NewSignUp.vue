@@ -35,10 +35,11 @@
           ref="nameField"
           v-model="name"
           placeholder="Name your event..."
+          :maxlength="EVENT_NAME_MAX_LENGTH"
           hide-details="auto"
           variant="solo"
           class="timeful-solo-field timeful-invalid-field"
-          :rules="nameRules"
+          :rules="eventNameRules"
           required
           @keyup.enter="blurNameField"
         />
@@ -262,6 +263,11 @@ import { useRouter } from "vue-router"
 import { storeToRefs } from "pinia"
 import { dateOptions, eventTypes } from "@/constants"
 import { plainTimeToTimeNum, post, put, timeNumToPlainTime } from "@/utils"
+import {
+  EVENT_NAME_MAX_LENGTH,
+  getEventNameValidationMessage,
+  validateEventName,
+} from "@/utils/eventName"
 import { resolveTimezoneValue } from "@/utils/timezone_utils"
 import { signInEnabled } from "@/utils/signInAvailability"
 import { useMainStore } from "@/stores/main"
@@ -365,7 +371,6 @@ const {
   sendEmailAfterXResponses,
   timezone,
   hasMounted,
-  nameRules,
   selectedDaysRules,
   dayOfWeekButtons,
   times,
@@ -378,6 +383,21 @@ const {
   resetToEventData,
   hasEventBeenEdited,
 } = editorState
+
+const eventNameRules = computed(() => [
+  (value: string) =>
+    getEventNameValidationMessage(validateEventName(value).code) ?? true,
+])
+
+const EVENT_NAME_TOO_LONG_ERROR = "event-name-too-long"
+
+const getSubmitErrorMessage = (err: unknown, fallback: string) => {
+  const parsedError = (err as { parsed?: { error?: string } } | null)?.parsed
+    ?.error
+  if (parsedError !== EVENT_NAME_TOO_LONG_ERROR) return fallback
+
+  return getEventNameValidationMessage("tooLong") ?? fallback
+}
 
 const startTimeOption = computed({
   get: () =>
@@ -488,9 +508,12 @@ const submit = async () => {
         posthogPayload.eventId = eventId
         posthog.capture("Sign up form created", posthogPayload)
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         mainStore.showError(
-          "There was a problem creating that event! Please try again later.",
+          getSubmitErrorMessage(
+            err,
+            "There was a problem creating that event! Please try again later.",
+          ),
         )
       })
       .finally(() => {
@@ -506,9 +529,12 @@ const submit = async () => {
           fromEditEvent: false,
         })
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         mainStore.showError(
-          "There was a problem editing this event! Please try again later.",
+          getSubmitErrorMessage(
+            err,
+            "There was a problem editing this event! Please try again later.",
+          ),
         )
       })
       .finally(() => {

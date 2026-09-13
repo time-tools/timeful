@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { flushPromises, shallowMount } from "@vue/test-utils"
+import { flushPromises, shallowMount, type VueWrapper } from "@vue/test-utils"
 import { defineComponent, nextTick } from "vue"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { Temporal } from "temporal-polyfill"
@@ -18,6 +18,10 @@ import newSignUpSource from "./NewSignUp.vue?raw"
 const { postMock, putMock } = vi.hoisted(() => ({
   postMock: vi.fn(),
   putMock: vi.fn(),
+}))
+
+const { showErrorMock } = vi.hoisted(() => ({
+  showErrorMock: vi.fn(),
 }))
 
 vi.mock("@/utils/fetch_utils", () => ({
@@ -42,7 +46,7 @@ vi.mock("@/stores/main", () => ({
   useMainStore: () => ({
     authUser: { value: null },
     showInfo: vi.fn(),
-    showError: vi.fn(),
+    showError: showErrorMock,
   }),
 }))
 
@@ -74,6 +78,56 @@ const DatePickerModelStub = defineComponent({
   template: "<div />",
 })
 
+const VTextFieldCaptureStub = defineComponent({
+  name: "VTextField",
+  props: {
+    modelValue: {
+      type: [String, Number],
+      default: "",
+    },
+    placeholder: {
+      type: String,
+      default: undefined,
+    },
+    maxlength: {
+      type: [Number, String],
+      default: undefined,
+    },
+    rules: {
+      type: Array,
+      default: () => [],
+    },
+  },
+  emits: ["update:modelValue"],
+  template: `
+    <input
+      :value="modelValue"
+      :placeholder="placeholder"
+      :maxlength="maxlength"
+      @input="$emit('update:modelValue', $event.target.value)"
+    />
+  `,
+})
+
+const eventNameTooLongError = () =>
+  Object.assign(new Error("HTTP 400"), {
+    parsed: { error: "event-name-too-long" },
+  })
+
+const submitSignUp = async (wrapper: VueWrapper) => {
+  const vm = wrapper.vm as unknown as {
+    submit?: () => Promise<void>
+    $: { setupState?: { submit?: () => Promise<void> } }
+  }
+  await (vm.submit ?? vm.$.setupState?.submit)?.()
+  await flushPromises()
+}
+
+const getSignUpNameRules = (wrapper: VueWrapper) =>
+  wrapper.getComponent(VTextFieldCaptureStub).props("rules") as Array<
+    (value: string) => true | string
+  >
+
 describe("NewSignUp", () => {
   beforeEach(() => {
     vi.stubGlobal("localStorage", createLocalStorageMock())
@@ -81,6 +135,7 @@ describe("NewSignUp", () => {
     putMock.mockReset()
     postMock.mockResolvedValue({ eventId: "evt-created" })
     putMock.mockResolvedValue(undefined)
+    showErrorMock.mockReset()
     formRefMethods.validate.mockClear()
     formRefMethods.resetValidation.mockClear()
   })
@@ -185,6 +240,116 @@ describe("NewSignUp", () => {
     expect(selects[1]?.props("variant")).toBe("solo")
     expect(selects[2]?.props("itemColor")).toBe("green")
     expect(selects[2]?.props("variant")).toBe("solo")
+  })
+
+  it("caps the sign-up name field at 100 characters in create mode", () => {
+    const wrapper = shallowMount(NewSignUp, {
+      global: {
+        stubs: {
+          ...defaultStubs,
+          "v-text-field": VTextFieldCaptureStub,
+        },
+      },
+    })
+
+    const nameField = wrapper.getComponent(VTextFieldCaptureStub)
+    expect(nameField.props("maxlength")).toBe(100)
+    expect(wrapper.get("input").attributes("maxlength")).toBe("100")
+
+    const rules = getSignUpNameRules(wrapper)
+    expect(rules[0]?.("Planning sync")).toBe(true)
+    expect(rules[0]?.("a".repeat(100))).toBe(true)
+    expect(rules[0]?.("a".repeat(101))).toBe(
+      "Event name must be 100 characters or fewer",
+    )
+  })
+
+  it("caps the sign-up name field at 100 characters in edit mode", () => {
+    const wrapper = shallowMount(NewSignUp, {
+      props: {
+        edit: true,
+        event: {
+          _id: "evt-1",
+          name: "Edited sign up",
+          type: "specific_dates",
+          dates: [Temporal.PlainDate.from("2026-01-02")],
+          duration: durations.ONE_HOUR,
+        },
+      },
+      global: {
+        stubs: {
+          ...defaultStubs,
+          "v-text-field": VTextFieldCaptureStub,
+        },
+      },
+    })
+
+    const nameField = wrapper.getComponent(VTextFieldCaptureStub)
+    expect(nameField.props("maxlength")).toBe(100)
+
+    const rules = getSignUpNameRules(wrapper)
+    expect(rules[0]?.("a".repeat(100))).toBe(true)
+    expect(rules[0]?.("a".repeat(101))).toBe(
+      "Event name must be 100 characters or fewer",
+    )
+  })
+
+  it("shows the too-long message when the create API rejects the name", async () => {
+    postMock
+      .mockRejectedValueOnce(eventNameTooLongError())
+      .mockRejectedValueOnce(new Error("network failure"))
+
+    const wrapper = shallowMount(NewSignUp, {
+      global: {
+        stubs: defaultStubs,
+      },
+    })
+
+    await submitSignUp(wrapper)
+
+    expect(showErrorMock).toHaveBeenLastCalledWith(
+      "Event name must be 100 characters or fewer",
+    )
+
+    await submitSignUp(wrapper)
+
+    expect(showErrorMock).toHaveBeenLastCalledWith(
+      "There was a problem creating that event! Please try again later.",
+    )
+  })
+
+  it("shows the too-long message when the edit API rejects the name", async () => {
+    putMock
+      .mockRejectedValueOnce(eventNameTooLongError())
+      .mockRejectedValueOnce(new Error("network failure"))
+
+    const wrapper = shallowMount(NewSignUp, {
+      props: {
+        edit: true,
+        event: {
+          _id: "evt-1",
+          name: "Edited sign up",
+          type: "specific_dates",
+          dates: [Temporal.PlainDate.from("2026-01-02")],
+          duration: durations.ONE_HOUR,
+        },
+      },
+      global: {
+        stubs: defaultStubs,
+      },
+    })
+
+    await submitSignUp(wrapper)
+
+    expect(showErrorMock).toHaveBeenLastCalledWith(
+      "Event name must be 100 characters or fewer",
+    )
+
+    await submitSignUp(wrapper)
+
+    expect(showErrorMock).toHaveBeenLastCalledWith(
+      "There was a problem editing this event! Please try again later.",
+    )
   })
 
   it("renders the event time format toggle and time range in one row", () => {
