@@ -776,8 +776,7 @@ func postgresUpdateSchedule(c *gin.Context, clear bool) {
 	if repository == nil {
 		return
 	}
-	event := postgresEvent(c, repository)
-	if event == nil {
+	if postgresEvent(c, repository) == nil {
 		return
 	}
 	var input struct {
@@ -793,34 +792,22 @@ func postgresUpdateSchedule(c *gin.Context, clear bool) {
 			return
 		}
 	}
-	err := repository.WithTransaction(c.Request.Context(), func(ctx context.Context, tx *pgstore.Repository) error {
-		locked, err := tx.LockEvent(ctx, event.ID)
-		if err != nil {
-			return err
-		}
-		if err := postgresWritableEvent(locked); err != nil {
-			return err
-		}
-		value, err := postgresEventModel(locked)
+	postgresOwnerMutation(c, false, func(ctx context.Context, tx *pgstore.Repository, event *pgstore.Event) error {
+		value, err := postgresEventModel(event)
 		if err != nil {
 			return err
 		}
 		value.ScheduledEvent = nil
 		if !clear {
-			value.ScheduledEvent = &models.CalendarEvent{Summary: locked.Name, StartDate: input.StartDate, EndDate: input.EndDate}
+			value.ScheduledEvent = &models.CalendarEvent{Summary: event.Name, StartDate: input.StartDate, EndDate: input.EndDate}
 		}
 		value.Id, value.ShortId, value.OwnerId, value.NumResponses, value.ResponsesMap = models.ZeroUUID(), nil, models.ZeroUUID(), nil, nil
-		locked.Payload, err = json.Marshal(value)
+		event.Payload, err = json.Marshal(value)
 		if err != nil {
 			return err
 		}
-		return tx.UpdateEvent(ctx, locked)
+		return tx.UpdateEvent(ctx, event)
 	})
-	if err != nil {
-		postgresMutationError(c, err)
-		return
-	}
-	c.Status(http.StatusOK)
 }
 
 type postgresResponseInput struct {

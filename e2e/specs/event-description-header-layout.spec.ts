@@ -38,13 +38,15 @@ test("renders a saved multiline description without edit controls", async ({
 
 test("omits the description card when an event has no description", async ({
   page,
-  request,
 }, testInfo) => {
   const today = Temporal.Now.instant()
     .toZonedDateTimeISO("UTC")
     .toPlainDate()
     .toString()
-  const seed = await seedCanonicalTimedEvent(request, {
+  // Seeding through the page request context keeps the HttpOnly creation
+  // cookies, so this browser is the Event Owner that can see the Schedule
+  // event control this test aligns against.
+  const seed = await seedCanonicalTimedEvent(page.request, {
     ...buildSpecificDateSeed({
       name: `Empty description ${Temporal.Now.instant().epochMilliseconds}`,
       selectedDays: [today],

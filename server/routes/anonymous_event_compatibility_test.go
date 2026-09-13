@@ -137,7 +137,7 @@ func assertEventIDsResolve(t *testing.T, router http.Handler, eventID string) st
 func TestAnonymousTimedEventCompatibilityContract(t *testing.T) {
 	for _, store := range anonymousEventContractStores() {
 		t.Run(store.name, func(t *testing.T) {
-			router := store.newRouter(t)
+			router := compatibilityOwnerBrowser(store.newRouter(t))
 			eventID := createAnonymousCompatibilityEvent(t, router, canonicalTimedEventPayload("Compatibility timed event"))
 			t.Cleanup(func() { store.cleanupEvent(t, eventID) })
 

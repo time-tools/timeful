@@ -74,6 +74,7 @@ func TestPostgresOwnerAuthority(t *testing.T) {
 	owner, baseOnly, stranger := client(), client(), client()
 	payload := canonicalTimedEventPayload("Owner authority")
 	payload["blindAvailabilityEnabled"] = true
+	schedulePayload := map[string]string{"startDate": "2026-01-05T14:00:00Z", "endDate": "2026-01-05T15:00:00Z"}
 	created := request(owner, "POST", "/api/events", payload, 201)
 	id, ownerID := str(created, "eventId"), str(created, "eventVisitorId")
 	t.Cleanup(func() { store.cleanupEvent(t, id) })
@@ -111,6 +112,8 @@ func TestPostgresOwnerAuthority(t *testing.T) {
 	for _, who := range []*http.Client{baseOnly, stranger} {
 		flag(request(who, "GET", path+"?eventVisitorId="+ownerID, nil, 200), "canManageEvent", false)
 		request(who, "PUT", path, payload, 403)
+		request(who, "PUT", path+"/schedule", schedulePayload, 403)
+		request(who, "DELETE", path+"/schedule", nil, 403)
 		request(who, "POST", path+"/archive", map[string]bool{"archive": true}, 403)
 		request(who, "DELETE", path, nil, 403)
 	}
@@ -129,6 +132,8 @@ func TestPostgresOwnerAuthority(t *testing.T) {
 	tokenOnly := client()
 	tokenOnly.Jar.SetCookies(origin, []*http.Cookie{token})
 	request(tokenOnly, "PUT", path, payload, 200)
+	request(tokenOnly, "PUT", path+"/schedule", schedulePayload, 200)
+	request(tokenOnly, "DELETE", path+"/schedule", nil, 200)
 	request(tokenOnly, "POST", path+"/response?eventVisitorId="+ownerID, map[string]string{"responseId": responseID, "name": "Stolen"}, 403)
 
 	// Future transfer issuance is deferred: seed distinct grants at the repository
@@ -151,6 +156,8 @@ func TestPostgresOwnerAuthority(t *testing.T) {
 			status = 200
 		}
 		request(target, "PUT", path, payload, status)
+		request(target, "PUT", path+"/schedule", schedulePayload, status)
+		request(target, "DELETE", path+"/schedule", nil, status)
 		request(target, "POST", path+"/archive", map[string]bool{"archive": true}, status)
 		if grantsOwner {
 			request(target, "POST", path+"/archive", map[string]bool{"archive": false}, 200)
@@ -166,6 +173,8 @@ func TestPostgresOwnerAuthority(t *testing.T) {
 			t.Fatal(err)
 		}
 		request(target, "PUT", path, payload, 403)
+		request(target, "PUT", path+"/schedule", schedulePayload, 403)
+		request(target, "DELETE", path+"/schedule", nil, 403)
 		request(target, "DELETE", path, nil, 403)
 		request(target, "POST", path+"/response", map[string]string{"responseId": responseID, "name": "Revoked"}, 403)
 	}
@@ -176,13 +185,19 @@ func TestPostgresOwnerAuthority(t *testing.T) {
 	request(accountOne, "POST", "/test/sign-in/"+ownerOneID, nil, 200)
 	flag(request(accountOne, "GET", path, nil, 200), "canEditSettings", true)
 	request(accountOne, "PUT", path, payload, 200)
+	request(accountOne, "PUT", path+"/schedule", schedulePayload, 200)
+	request(accountOne, "DELETE", path+"/schedule", nil, 200)
 	accountTwo := client()
 	request(accountTwo, "POST", "/test/sign-in/"+ownerTwoID, nil, 200)
 	request(accountTwo, "PUT", path, payload, 403)
+	request(accountTwo, "PUT", path+"/schedule", schedulePayload, 403)
+	request(accountTwo, "DELETE", path+"/schedule", nil, 403)
 	// Explicit proof via the sign-in association endpoint moves only ownership.
 	accountTwo.Jar.SetCookies(origin, []*http.Cookie{token})
 	request(accountTwo, "POST", "/api/auth/visitor-identities", map[string]any{"identities": []map[string]string{{"eventId": id, "eventVisitorId": ownerID}}}, 200)
 	request(accountOne, "PUT", path, payload, 403)
+	request(accountOne, "PUT", path+"/schedule", schedulePayload, 403)
+	request(accountOne, "DELETE", path+"/schedule", nil, 403)
 	request(accountOne, "POST", path+"/archive", map[string]bool{"archive": true}, 403)
 	request(accountOne, "DELETE", path, nil, 403)
 	flag(request(accountOne, "GET", path, nil, 200), "canManageEvent", false)
@@ -192,6 +207,8 @@ func TestPostgresOwnerAuthority(t *testing.T) {
 	request(recovered, "POST", "/test/sign-in/"+ownerTwoID, nil, 200)
 	flag(request(recovered, "GET", path, nil, 200), "canManageEvent", true)
 	request(recovered, "PUT", path, payload, 200)
+	request(recovered, "PUT", path+"/schedule", schedulePayload, 200)
+	request(recovered, "DELETE", path+"/schedule", nil, 200)
 	request(recovered, "POST", path+"/response?eventVisitorId="+ownerID, map[string]string{"responseId": responseID, "name": "Not transferred"}, 403)
 	request(recovered, "POST", path+"/archive", map[string]bool{"archive": true}, 200)
 	archived := request(recovered, "GET", path, nil, 200)
@@ -200,10 +217,12 @@ func TestPostgresOwnerAuthority(t *testing.T) {
 	flag(archived, "canEditSettings", false)
 	flag(archived, "canCreateResponse", false)
 	request(recovered, "PUT", path, payload, 403)
+	request(recovered, "PUT", path+"/schedule", schedulePayload, 403)
+	request(recovered, "DELETE", path+"/schedule", nil, 403)
 	request(baseOnly, "POST", path+"/response", map[string]any{"createResponse": true, "name": "Blocked"}, 403)
 	request(baseOnly, "DELETE", path+"/response", map[string]string{"responseId": responseID}, 403)
 	request(baseOnly, "POST", path+"/rename-user", map[string]string{"responseId": responseID, "newName": "Blocked"}, 403)
-	request(stranger, "PUT", path+"/schedule", map[string]string{"startDate": "2026-01-05T14:00:00Z", "endDate": "2026-01-05T15:00:00Z"}, 403)
+	request(stranger, "PUT", path+"/schedule", schedulePayload, 403)
 	request(stranger, "DELETE", path+"/schedule", nil, 403)
 	request(recovered, "POST", path+"/archive", map[string]bool{"archive": false}, 200)
 	request(baseOnly, "POST", path+"/response", map[string]string{"responseId": responseID, "name": "Writable again"}, 200)

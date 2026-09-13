@@ -48,7 +48,7 @@ Instants are normalized to millisecond precision before writing JSONB and before
 The repository distinguishes absent fields, JSON null, empty arrays/maps, and zero scalar values.
 An omitted description preserves the existing value, and an explicit empty description persists.
 A timed edit with an explicit empty `activeSlots` retains the existing [Active Slots](../../docs/terminology/glossary.md#active-slots) to match the field-omission behavior of partial payloads.
-Public schedule save, replace, and clear remain supported while the event is not archived.
+Saving, replacing, or clearing the [Event Occurrence Span](../../docs/terminology/glossary.md#event-occurrence-span) is owner-only, and archived events reject occurrence-span mutations.
 
 ## Event Visitor Identity And Credentials
 
@@ -80,7 +80,7 @@ The browser plugin `set-slots` wire contract is unchanged; the frontend maps the
 
 PostgreSQL creation issues a distinct [Event Owner Edit Token](../../docs/terminology/glossary.md#event-owner-edit-token) in an HttpOnly, SameSite=Lax cookie scoped to `/api`, with Secure enabled for HTTPS requests.
 Only its SHA-256 hash is stored, and the credential value never reaches application JavaScript.
-The token authorizes [Event Settings](../../docs/terminology/glossary.md#event-settings) edits, archive/unarchive, and deletion, but it does not authorize [Event Response](../../docs/terminology/glossary.md#event-response) edits.
+The token authorizes [Event Settings](../../docs/terminology/glossary.md#event-settings) edits, [Event Occurrence Span](../../docs/terminology/glossary.md#event-occurrence-span) save, replace, and clear, archive/unarchive, and deletion, but it does not authorize [Event Response](../../docs/terminology/glossary.md#event-response) edits.
 Base [EVCCs](../../docs/terminology/glossary.md#event-visitor-control-credential-evcc) never authorize these owner actions, including the creator's credential.
 
 Ownership has its own [Platform Visitor Identity](../../docs/terminology/glossary.md#platform-visitor-identity) association, separate from the creator's [Event Visitor Identity](../../docs/terminology/glossary.md#event-visitor-identity) and [Event Responses](../../docs/terminology/glossary.md#event-response).
@@ -89,7 +89,7 @@ Proving the [Event Owner Edit Token](../../docs/terminology/glossary.md#event-ow
 Ownership takeover and protected mutations serialize under the event row lock.
 
 Event reads expose server-proven `canEditSettings` and `canManageEvent` capabilities for frontend controls.
-Archived events remain readable and allow authorized unarchive or deletion, but reject settings, response, rename, and selected-schedule mutations.
+Archived events remain readable and allow authorized unarchive or deletion, but reject settings, response, rename, and occurrence-span mutations.
 Deleted events and their responses stop resolving through event routes.
 
 The credential schema and validator distinguish an owner-issued [Granted EVCC](../../docs/terminology/glossary.md#granted-event-visitor-control-credential-granted-evcc) through explicit credential-kind and owner-grant metadata, and reject revoked grants.

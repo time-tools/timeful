@@ -1,11 +1,11 @@
 ---
 id: TASK-0094
 title: Enforce owner-only Event Occurrence Span saving (FR-012)
-status: In Progress
+status: Done
 assignee:
   - opencode
 created_date: '2026-08-28 20:35'
-updated_date: '2026-09-13 17:28'
+updated_date: '2026-09-13 17:50'
 labels:
   - backend
   - authorization
@@ -64,18 +64,18 @@ FR-012 (status: accepted; reworded in TASK-0092) restricts saving, replacing, or
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Saving, replacing, or clearing an Event Occurrence Span on a PostgreSQL event succeeds only for the Event Owner and is rejected with 403 for every other Event Visitor, matching FR-012's owner-only authority; owner authorization follows the FR-018 credential model (Event Owner Edit Token, the associated Platform Visitor Identity, or an owner-issued Granted EVCC) as implemented by postgresOwnerMutation, and archived events remain read-only.
-- [ ] #2 Route tests prove owner success and non-owner rejection on a writable (non-archived) event for both span endpoints and pass via the isolated Compose test stack (postgres-test, server-route-test per compose.test.yaml); existing span tests that mutated without owner credentials are updated to prove owner authority or assert rejection, and the archived-only stranger assertions in postgres_owner_test.go are no longer the only non-owner coverage.
-- [ ] #3 The Schedule event controls are not offered to visitors without owner authority, with frontend regression coverage consistent with the existing server-proven capability gating and the frontend required checks.
-- [ ] #4 server/docs/postgres-event-api-contract.md documents owner-only schedule save, replace, and clear, including archived read-only behavior.
+- [x] #1 Saving, replacing, or clearing an Event Occurrence Span on a PostgreSQL event succeeds only for the Event Owner and is rejected with 403 for every other Event Visitor, matching FR-012's owner-only authority; owner authorization follows the FR-018 credential model (Event Owner Edit Token, the associated Platform Visitor Identity, or an owner-issued Granted EVCC) as implemented by postgresOwnerMutation, and archived events remain read-only.
+- [x] #2 Route tests prove owner success and non-owner rejection on a writable (non-archived) event for both span endpoints and pass via the isolated Compose test stack (postgres-test, server-route-test per compose.test.yaml); existing span tests that mutated without owner credentials are updated to prove owner authority or assert rejection, and the archived-only stranger assertions in postgres_owner_test.go are no longer the only non-owner coverage.
+- [x] #3 The Schedule event controls are not offered to visitors without owner authority, with frontend regression coverage consistent with the existing server-proven capability gating and the frontend required checks.
+- [x] #4 server/docs/postgres-event-api-contract.md documents owner-only schedule save, replace, and clear, including archived read-only behavior.
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 All acceptance criteria are satisfied
-- [ ] #2 All required unit tests pass. Documentation-only changes are exempt unless the user requests unit tests
-- [ ] #3 All required e2e tests pass. Documentation-only changes are exempt unless the user requests e2e tests
-- [ ] #4 Changed Markdown files are formatted with npm run format:markdown
+- [x] #1 All acceptance criteria are satisfied
+- [x] #2 All required unit tests pass. Documentation-only changes are exempt unless the user requests unit tests
+- [x] #3 All required e2e tests pass. Documentation-only changes are exempt unless the user requests e2e tests
+- [x] #4 Changed Markdown files are formatted with npm run format:markdown
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -145,4 +145,32 @@ created: 2026-09-13 17:15
 ---
 2026-09-13 review update: verified the enforcement gap still exists in postgresUpdateSchedule; re-verified the false-positive non-owner coverage in postgres_owner_test.go (archived-only), the cookie-less span tests in event_schedule_test.go and the anonymous compatibility contract, the stale public-schedule wording in server/docs/postgres-event-api-contract.md:51, and the non-owner-visible Schedule controls in frontend/src/views/Event.vue. Updated the credential model to the current FR-018 set (Event Owner Edit Token, associated Platform Visitor Identity, or owner-issued Granted EVCC) and, with user approval, expanded scope to include frontend gating of the Schedule controls plus the contract-doc update; added a fourth acceptance criterion and frontend label.
 ---
+
+author: opencode
+created: 2026-09-13 17:50
+---
+2026-09-13 implementation complete. Plan deviation: the e2e layout specs event-description-header-layout.spec.ts and event-page-days-only-layout.spec.ts seeded through the standalone request fixture while asserting the owner-only Schedule event control, so they were adapted to seed through page.request per the e2e owner-journey rule instead of adding new e2e specs. Full e2e run: 110 passed, 21 skipped, 1 timeout (timed-event-access-transfer-firefox guest approval at its 30s budget, unrelated to span authority; owner and signed-in variants passed).
+---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Enforced FR-012 owner-only Event Occurrence Span mutation end to end.
+
+Backend
+- postgresUpdateSchedule now binds/validates the body as before, then delegates the write to postgresOwnerMutation (server/routes/postgres_event_routes.go), so save, replace, and clear require an Event Owner Edit Token, an associated Platform Visitor Identity session, or an owner-issued Granted EVCC. Base EVCCs, strangers, and non-owner grants get 403; archived events stay read-only. Body semantics, the 200 success status, and the 400 scheduled-event-end-must-follow-start error are unchanged.
+- postgres_owner_test.go now proves owner success (token-only and associated-account clients), Granted EVCC role parity, and 403 non-owner rejection for both span endpoints on the writable event, plus owner/stranger archived rejection; the previous archived-only stranger assertions remain as read-only coverage.
+- event_schedule_test.go and TestAnonymousTimedEventCompatibilityContract now run through compatibilityOwnerBrowser so their span mutations carry the creation owner cookie; TestTimefulScheduleRejectsEmptyRangeBeforeOwnerAuthorization stays cookie-less to lock the validation-before-authorization ordering.
+- server/docs/postgres-event-api-contract.md documents owner-only occurrence-span save/replace/clear and archived rejection.
+
+Frontend
+- showScheduleEventButton requires canEditMetadata, hiding the desktop and mobile Schedule controls from visitors without owner authority and from archived events, consistent with the existing settings/archive/delete capability gating.
+- Event.test.ts default fixture is a PostgreSQL owner; added regression tests for a non-owner visitor and an archived owner, and made the group-invitation auto-open test state its non-editable fixture explicitly.
+- e2e layout specs event-description-header-layout.spec.ts and event-page-days-only-layout.spec.ts now seed through page.request so the browser carries owner cookies for their Schedule-event assertions.
+
+Verification
+- server-route-test via the isolated Compose stack: all packages ok, including timeful/server/routes.
+- Frontend: npm run lint, fmt:check, typecheck, build, and test:unit (1093 passed) all pass; npm run format:markdown:check passes.
+- e2e chromium-desktop/chromium-mobile/firefox-desktop/firefox-touch: 110 passed, 21 skipped, 1 unrelated access-transfer approval test hit its AGENTS-documented 30s two-worker budget while its owner and signed-in variants passed; targeted reruns of every changed spec passed.
+<!-- SECTION:FINAL_SUMMARY:END -->

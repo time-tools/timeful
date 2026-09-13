@@ -7,9 +7,9 @@ import (
 	"timeful/server/models"
 )
 
-func TestPublicTimefulScheduleCanBeSavedReplacedAndCleared(t *testing.T) {
+func TestTimefulScheduleCanBeSavedReplacedAndCleared(t *testing.T) {
 	store := anonymousEventContractStores()[0]
-	router := store.newRouter(t)
+	router := compatibilityOwnerBrowser(store.newRouter(t))
 	eventID := createAnonymousCompatibilityEvent(t, router, map[string]any{
 		"name":     "Public planning",
 		"type":     string(models.SPECIFIC_DATES),
@@ -62,7 +62,9 @@ func TestPublicTimefulScheduleCanBeSavedReplacedAndCleared(t *testing.T) {
 	}
 }
 
-func TestPublicTimefulScheduleRejectsEmptyRange(t *testing.T) {
+// The end-before-start validation deliberately runs before owner authorization,
+// so a cookie-less request with an invalid range gets 400 rather than 403.
+func TestTimefulScheduleRejectsEmptyRangeBeforeOwnerAuthorization(t *testing.T) {
 	store := anonymousEventContractStores()[0]
 	router := store.newRouter(t)
 	eventID := createAnonymousCompatibilityEvent(t, router, map[string]any{

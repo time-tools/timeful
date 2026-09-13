@@ -56,7 +56,6 @@ test("dates-only event Edit event opens the dates-only editor", async ({
 
 test("days-only event page without responses shows an inline Start on Monday switch aligned with Add availability", async ({
   page,
-  request,
 }, testInfo) => {
   test.skip(
     testInfo.project.name === "chromium-mobile",
@@ -71,7 +70,10 @@ test("days-only event page without responses shows an inline Start on Monday swi
     .add({ days: 1 })
     .toString()
 
-  const seed = await seedCanonicalTimedEvent(request, {
+  // Seeding through the page request context keeps the HttpOnly creation
+  // cookies, so this browser is the Event Owner that can see the Schedule
+  // event control this test asserts.
+  const seed = await seedCanonicalTimedEvent(page.request, {
     name: `Days-only layout test ${String(now.epochMilliseconds)}`,
     type: "specific_dates",
     daysOnly: true,

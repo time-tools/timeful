@@ -1379,7 +1379,11 @@ const showSecondaryAddAvailabilityAction = computed(() => {
   )
 })
 const showScheduleEventButton = computed(
-  () => !isEditing.value && !isSignUp.value && !isReadOnlyEvent.value,
+  () =>
+    canEditMetadata.value &&
+    !isEditing.value &&
+    !isSignUp.value &&
+    !isReadOnlyEvent.value,
 )
 const desktopScheduleEventButtonClass = computed(() =>
   numResponses.value > 0 ? "tw:w-full" : "desktop-event-header-single-column",
