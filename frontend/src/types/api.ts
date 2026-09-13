@@ -635,6 +635,15 @@ export interface paths {
                         };
                     };
                 };
+                /** @description Event name must be 100 characters or fewer */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["responses.Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -725,6 +734,15 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description Event name must be 100 characters or fewer */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["responses.Error"];
+                    };
                 };
                 /** @description Owner authority required or event archived */
                 403: {

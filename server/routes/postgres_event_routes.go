@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -624,6 +625,7 @@ func filterResponseSlotsOutsideActiveSet(payload json.RawMessage, active map[mod
 // @Param eventId path string true "Event ID"
 // @Param payload body object{name=string,description=string,dates=[]string,type=models.EventType,signUpBlocks=[]models.SignUpBlock,notificationsEnabled=bool,blindAvailabilityEnabled=bool,daysOnly=bool,remindees=[]string,sendEmailAfterXResponses=int,activeSlots=[]string,eventTimezone=string,slotGeneration=models.SlotGeneration,timedRecurrence=models.TimedRecurrence,attendees=[]string} true "Timed events require the complete canonical slot contract; day-only events require dates"
 // @Success 200
+// @Failure 400 {object} responses.Error "Event name must be 100 characters or fewer"
 // @Failure 403 {object} responses.Error "Owner authority required or event archived"
 // @Failure 404 {object} responses.Error "Event not found"
 // @Router /events/{eventId} [put]
@@ -666,6 +668,10 @@ func postgresEditEvent(c *gin.Context) {
 	update := input.Event
 	if update.Name == "" || update.Type == "" {
 		c.Status(http.StatusBadRequest)
+		return
+	}
+	if utf8.RuneCountInString(update.Name) > models.MaxEventNameLength {
+		c.JSON(http.StatusBadRequest, responses.Error{Error: errs.EventNameTooLong})
 		return
 	}
 	requestGroup := update.Type == models.GROUP
@@ -1132,6 +1138,7 @@ func postgresMutationError(c *gin.Context, err error) {
 // @Produce json
 // @Param payload body object{name=string,description=string,type=models.EventType,isSignUpForm=bool,signUpBlocks=[]models.SignUpBlock,notificationsEnabled=bool,blindAvailabilityEnabled=bool,daysOnly=bool,dates=[]string,remindees=[]string,sendEmailAfterXResponses=int,when2meetHref=string,activeSlots=[]string,eventTimezone=string,slotGeneration=models.SlotGeneration,timedRecurrence=models.TimedRecurrence,attendees=[]string} true "Timed events require the complete canonical slot contract; day-only events require dates"
 // @Success 201 {object} object{eventId=string,eventVisitorId=string} "Creation returns eventVisitorId and issues separate HttpOnly EVCC and Event Owner Edit Token cookies"
+// @Failure 400 {object} responses.Error "Event name must be 100 characters or fewer"
 // @Router /events [post]
 func postgresCreateEvent(c *gin.Context) {
 	if err := rejectLegacyTimedScheduleFields(c); err != nil {
@@ -1147,6 +1154,10 @@ func postgresCreateEvent(c *gin.Context) {
 	isGroup := event.Type == models.GROUP
 	if event.Name == "" || (!isSignup && !isGroup && event.Type != models.SPECIFIC_DATES && event.Type != models.DOW) {
 		c.Status(http.StatusBadRequest)
+		return
+	}
+	if utf8.RuneCountInString(event.Name) > models.MaxEventNameLength {
+		c.JSON(http.StatusBadRequest, responses.Error{Error: errs.EventNameTooLong})
 		return
 	}
 	if isSignup {

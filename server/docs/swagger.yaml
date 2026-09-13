@@ -845,6 +845,10 @@ paths:
               eventVisitorId:
                 type: string
             type: object
+        "400":
+          description: Event name must be 100 characters or fewer
+          schema:
+            $ref: '#/definitions/responses.Error'
       summary: Creates a new event
       tags:
       - events
@@ -970,6 +974,10 @@ paths:
       responses:
         "200":
           description: OK
+        "400":
+          description: Event name must be 100 characters or fewer
+          schema:
+            $ref: '#/definitions/responses.Error'
         "403":
           description: Owner authority required or event archived
           schema:

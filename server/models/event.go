@@ -12,6 +12,10 @@ const (
 	GROUP          EventType = "group"
 )
 
+// MaxEventNameLength caps event names by Unicode code points, matching the
+// guest-name convention so a name of 100 non-ASCII characters stays valid.
+const MaxEventNameLength = 100
+
 // Object containing information associated with the remindee
 type Remindee struct {
 	Email     string   `json:"email"`

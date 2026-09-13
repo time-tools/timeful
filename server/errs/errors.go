@@ -15,6 +15,7 @@ const (
 	UserDoesNotExist      string = "user-does-not-exist"
 	AccountEmailMismatch  string = "account-email-mismatch"
 	EventNotFound         string = "event-not-found"
+	EventNameTooLong      string = "event-name-too-long"
 	UserNotEventOwner     string = "user-not-event-owner"
 	AttendeeEmailNotFound string = "attendee-email-not-found"
 	EventNotGroup         string = "event-not-group"

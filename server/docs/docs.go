@@ -648,6 +648,12 @@ const docTemplate = `{
                                 }
                             }
                         }
+                    },
+                    "400": {
+                        "description": "Event name must be 100 characters or fewer",
+                        "schema": {
+                            "$ref": "#/definitions/responses.Error"
+                        }
                     }
                 }
             }
@@ -798,6 +804,12 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
+                    },
+                    "400": {
+                        "description": "Event name must be 100 characters or fewer",
+                        "schema": {
+                            "$ref": "#/definitions/responses.Error"
+                        }
                     },
                     "403": {
                         "description": "Owner authority required or event archived",

@@ -1,10 +1,11 @@
 ---
 id: TASK-0137
 title: Validate event name length in the event create and update APIs (FR-119)
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - opencode
 created_date: '2026-09-02 11:18'
-updated_date: '2026-09-13 18:10'
+updated_date: '2026-09-13 18:16'
 labels:
   - backend
 dependencies: []
@@ -35,20 +36,47 @@ Out of scope: the NewSignUp.vue sign-up event form still submits an uncapped nam
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The event create and update APIs reject an event name longer than 100 Unicode code points with a 400 response carrying the event-name-too-long token and do not persist the event or the change, per FR-119.
-- [ ] #2 An event name of exactly 100 characters is accepted, including a non-ASCII name of 100 code points.
-- [ ] #3 Route tests in the isolated Compose test stack cover the over-limit rejection, the 100-character acceptance boundary (including a non-ASCII case), and that a rejected change was not persisted.
-- [ ] #4 POST /events and PUT /events/{eventId} document @Failure 400 and the regenerated server/docs/swagger.* and frontend/src/types/api.ts stay consistent with the handler responses.
-- [ ] #5 The scoped server-route-test suite passes on the isolated Compose test stack.
+- [x] #1 The event create and update APIs reject an event name longer than 100 Unicode code points with a 400 response carrying the event-name-too-long token and do not persist the event or the change, per FR-119.
+- [x] #2 An event name of exactly 100 characters is accepted, including a non-ASCII name of 100 code points.
+- [x] #3 Route tests in the isolated Compose test stack cover the over-limit rejection, the 100-character acceptance boundary (including a non-ASCII case), and that a rejected change was not persisted.
+- [x] #4 POST /events and PUT /events/{eventId} document @Failure 400 and the regenerated server/docs/swagger.* and frontend/src/types/api.ts stay consistent with the handler responses.
+- [x] #5 The scoped server-route-test suite passes on the isolated Compose test stack.
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 All acceptance criteria are satisfied
-- [ ] #2 All required unit tests pass. Documentation-only changes are exempt unless the user requests unit tests
-- [ ] #3 All required e2e tests pass. Documentation-only changes are exempt unless the user requests e2e tests
-- [ ] #4 Changed Markdown files are formatted with npm run format:markdown
+- [x] #1 All acceptance criteria are satisfied
+- [x] #2 All required unit tests pass. Documentation-only changes are exempt unless the user requests unit tests
+- [x] #3 All required e2e tests pass. Documentation-only changes are exempt unless the user requests e2e tests
+- [x] #4 Changed Markdown files are formatted with npm run format:markdown
 <!-- DOD:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Add a routes-package event-name length check (MaxEventNameLength = 100, utf8.RuneCountInString) returning the stable event-name-too-long token.
+2. Enforce it in postgresCreateEvent and postgresEditEvent before any repository work so rejected requests cannot persist.
+3. Add @Failure 400 to both handler annotations and regenerate swagger (swag init, npm run gen:api).
+4. Add route tests for 101-rune rejection (ASCII and non-ASCII), 100-rune acceptance (ASCII and non-ASCII) on create and update, plus no-persistence assertions through pgstore.Pool and a follow-up GET.
+5. Run the backend suite through the isolated compose.test.yaml server-route-test service, then run frontend checks if the regenerated api.ts changes.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implementation notes (2026-09-13):
+- server/errs/errors.go: added the stable EventNameTooLong = "event-name-too-long" token.
+- server/models/event.go: added MaxEventNameLength = 100.
+- server/routes/postgres_event_routes.go: postgresCreateEvent and postgresEditEvent now reject utf8.RuneCountInString(name) > models.MaxEventNameLength with 400 responses.Error{Error: errs.EventNameTooLong} before any repository work, so rejected requests cannot persist; both routes gained @Failure 400 annotations.
+- server/routes/postgres_event_name_length_test.go: four new route tests cover ASCII and non-ASCII 101-rune rejection with token and no-persistence (CREATE: count rows by name; PUT: re-read stored name) plus ASCII and non-ASCII 100-rune acceptance on create and update.
+- Regenerated server/docs/docs.go, server/docs/swagger.json, server/docs/swagger.yaml, and frontend/src/types/api.ts; the only API diff is the new 400 responses.
+
+Evidence:
+- Focused: go test ./routes/ -run 'NamesLongerThan100|NamesAt100' -v -count=1 -> 4 tests / 8 subtests PASS.
+- Full isolated stack: docker compose --env-file .env.test -f compose.yaml -f compose.test.yaml run --rm server-route-test -> every package ok (timeful/server/routes 3.259s).
+- Frontend: npm run lint, fmt:check, typecheck, build, and test:unit (146 files / 1093 tests) all pass.
+- No Markdown files changed, so format:markdown was not needed; no e2e was required for this backend-only change.
+<!-- SECTION:NOTES:END -->
 
 ## Comments
 
@@ -75,3 +103,20 @@ Findings:
 Decisions applied: description and acceptance criteria updated; status, priority, assignee, and milestone unchanged.
 ---
 <!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Enforced the FR-119 100-code-point event-name cap on POST /events and PUT /events/{eventId}.
+
+Changes:
+- Added the stable errs.EventNameTooLong ("event-name-too-long") token and models.MaxEventNameLength = 100.
+- postgresCreateEvent and postgresEditEvent now reject names whose utf8.RuneCountInString exceeds the cap with 400 and the token, before any repository work, so neither a new event nor an edit persists.
+- Added @Failure 400 to both handler annotations and regenerated server/docs/docs.go, swagger.json, swagger.yaml, and frontend/src/types/api.ts (only the new 400 responses changed).
+- Added server/routes/postgres_event_name_length_test.go with ASCII and non-ASCII coverage of the 101-rune rejection (including no-persistence assertions via a CREATE row count and a PUT re-read) and the 100-rune acceptance boundary on both create and update.
+
+Validation:
+- Focused route tests: 4 tests / 8 subtests PASS with -run 'NamesLongerThan100|NamesAt100'.
+- Full isolated stack: server-route-test via compose.test.yaml -> all packages ok.
+- Frontend: lint, fmt:check, typecheck, build, test:unit (146 files / 1093 tests) all pass.
+<!-- SECTION:FINAL_SUMMARY:END -->
