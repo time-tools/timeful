@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"encoding/json"
 	"testing"
 
 	"timeful/server/models"
@@ -330,5 +331,111 @@ func TestNormalizeTimedEventPayloadFieldsRejectsWeeklyActiveOutsideDerivedDomain
 	}
 	if _, err := normalizeTimedEventPayloadFields(fields); err != errActiveSlotOutsideEnabled {
 		t.Fatalf("expected %v, got %v", errActiveSlotOutsideEnabled, err)
+	}
+}
+
+func TestDiscardActiveSlotsOutsideEnabledDomainDiscardsOutOfDomainActives(t *testing.T) {
+	fields := specificDatesFieldsFor(t, "UTC", []string{"2026-01-04"}, "23:00", "01:00", 30)
+	fields.ActiveSlots = []models.DateTime{
+		timedSlotDateTime(t, "2026-01-05T07:00:00Z"),
+		timedSlotDateTime(t, "2026-01-05T07:30:00Z"),
+	}
+
+	kept, err := discardActiveSlotsOutsideEnabledDomain(fields)
+	if err != nil {
+		t.Fatalf("discard active slots: %v", err)
+	}
+
+	assertDateTimesEqual(t, kept, []models.DateTime{})
+}
+
+func TestDiscardActiveSlotsOutsideEnabledDomainKeepsInDomainActives(t *testing.T) {
+	fields := specificDatesFieldsFor(t, "UTC", []string{"2026-01-04"}, "23:00", "01:00", 30)
+	fields.ActiveSlots = []models.DateTime{
+		timedSlotDateTime(t, "2026-01-04T18:00:00Z"),
+		timedSlotDateTime(t, "2026-01-05T07:00:00Z"),
+		timedSlotDateTime(t, "2026-01-05T07:30:00Z"),
+	}
+
+	kept, err := discardActiveSlotsOutsideEnabledDomain(fields)
+	if err != nil {
+		t.Fatalf("discard active slots: %v", err)
+	}
+
+	assertDateTimesEqual(t, kept, []models.DateTime{
+		timedSlotDateTime(t, "2026-01-04T18:00:00Z"),
+	})
+}
+
+func TestDiscardActiveSlotsOutsideEnabledDomainWeeklyDropsUnselectedWeekday(t *testing.T) {
+	fields := weeklyFieldsFor(t, "America/Los_Angeles", []int{1, 3}, true, "09:00", "11:00", 30)
+	fields.ActiveSlots = []models.DateTime{
+		timedSlotDateTime(t, "2026-01-05T17:00:00Z"),
+		timedSlotDateTime(t, "2026-01-05T17:30:00Z"),
+		timedSlotDateTime(t, "2026-01-06T17:00:00Z"),
+	}
+
+	kept, err := discardActiveSlotsOutsideEnabledDomain(fields)
+	if err != nil {
+		t.Fatalf("discard active slots: %v", err)
+	}
+
+	// The anchor week runs Monday 2026-01-05 and Wednesday 2026-01-07, so the
+	// Tuesday instant is dropped and the Monday pair survives.
+	assertDateTimesEqual(t, kept, []models.DateTime{
+		timedSlotDateTime(t, "2026-01-05T17:00:00Z"),
+		timedSlotDateTime(t, "2026-01-05T17:30:00Z"),
+	})
+}
+
+func TestFilterResponseSlotsOutsideActiveSetFiltersOnlySlotKeys(t *testing.T) {
+	payload := json.RawMessage(`{"availability":["2026-01-05T14:00:00Z","2026-01-05T14:30:00Z"],"ifNeeded":["2026-01-05T14:15:00Z","2026-01-05T14:30:00Z"],"name":"Maya"}`)
+	active := map[models.DateTime]struct{}{
+		timedSlotDateTime(t, "2026-01-05T14:00:00Z"): {},
+		timedSlotDateTime(t, "2026-01-05T14:15:00Z"): {},
+	}
+
+	next, changed, err := filterResponseSlotsOutsideActiveSet(payload, active)
+	if err != nil {
+		t.Fatalf("filter response slots: %v", err)
+	}
+	if !changed {
+		t.Fatal("expected changed payload")
+	}
+
+	var fields struct {
+		Availability []models.DateTime `json:"availability"`
+		IfNeeded     []models.DateTime `json:"ifNeeded"`
+		Name         string            `json:"name"`
+	}
+	if err := json.Unmarshal(next, &fields); err != nil {
+		t.Fatalf("unmarshal filtered payload: %v", err)
+	}
+	assertDateTimesEqual(t, fields.Availability, []models.DateTime{
+		timedSlotDateTime(t, "2026-01-05T14:00:00Z"),
+	})
+	assertDateTimesEqual(t, fields.IfNeeded, []models.DateTime{
+		timedSlotDateTime(t, "2026-01-05T14:15:00Z"),
+	})
+	if fields.Name != "Maya" {
+		t.Fatalf("expected untouched name, got %q", fields.Name)
+	}
+}
+
+func TestFilterResponseSlotsOutsideActiveSetReportsUnchanged(t *testing.T) {
+	payload := json.RawMessage(`{"availability":["2026-01-05T14:00:00Z"],"name":"Maya"}`)
+	active := map[models.DateTime]struct{}{
+		timedSlotDateTime(t, "2026-01-05T14:00:00Z"): {},
+	}
+
+	next, changed, err := filterResponseSlotsOutsideActiveSet(payload, active)
+	if err != nil {
+		t.Fatalf("filter response slots: %v", err)
+	}
+	if changed {
+		t.Fatal("expected unchanged payload")
+	}
+	if string(next) != string(payload) {
+		t.Fatalf("expected original payload %s, got %s", payload, next)
 	}
 }

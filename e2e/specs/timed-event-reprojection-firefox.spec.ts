@@ -23,6 +23,7 @@ import {
   setSpecificTimesEnabled,
   sortIsoInstants,
   type CanonicalTimedSeedInput,
+  waitForSpecificTimesGrid,
 } from "../helpers/timed-event-helpers"
 import { Temporal } from "temporal-polyfill"
 
@@ -176,20 +177,20 @@ test("reprojects a canonical timed event with the same slot window after reload"
   expect(await countGridCellsByClass(page, "tw:bg-white")).toBeGreaterThan(0)
 })
 
-test("preserves timed instants when the event timezone changes and shifts projected local days", async ({
+test("discards out-of-domain actives and keeps picked dates when the event timezone changes", async ({
   page,
   request,
 }) => {
-  // The enabled domain is the full civil day of each membership day, so a
-  // wrapped-window event may only carry actives inside its membership day;
-  // the post-midnight portion now rejects at ingest. These two Los Angeles
-  // instants (Jan 4 23:00/23:30) project to Jan 5 07:00/07:30 UTC, which
-  // re-anchors the membership day to 2026-01-05 after the timezone change.
+  // The picked 2026-01-04 Los Angeles day and the seeded actives are the
+  // 2026-01-05T07:00/07:30Z instants. Switching the event timezone to UTC
+  // rebuilds the enabled domain as the full civil day of 2026-01-04 UTC, so
+  // every active is out of domain and the wipe rule discards them while the
+  // picked date stays 2026-01-04.
   const activeSlots = ["2026-01-05T07:00:00Z", "2026-01-05T07:30:00Z"]
   const seeded = await seedCanonicalTimedEvent(
     page.request,
     buildSpecificDateSeed({
-      name: "Timezone preservation regression",
+      name: "Timezone discard regression",
       selectedDays: ["2026-01-04"],
       activeSlots,
       eventTimezone: "America/Los_Angeles",
@@ -208,23 +209,33 @@ test("preserves timed instants when the event timezone changes and shifts projec
     optionValue: "UTC",
     optionLabelPattern: /\(GMT\+0:00\).*UTC/i,
   })
+
+  const putResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "PUT" &&
+      response.url().includes("/api/events/"),
+  )
   await proceedToSpecificTimesGrid(page)
-  await saveEditorAndWaitForPut(page, { action: "next" })
+  await putResponse
+
+  await expect(page.getByTestId("specific-times-grid-next")).toBeDisabled()
 
   const savedEvent = await fetchEventByShortId(request, seeded.shortId)
   expect(savedEvent.eventTimezone).toMatch(/UTC|GMT/)
   expect(savedEvent).not.toHaveProperty("enabledSlots")
-  expect(sortIsoInstants(savedEvent.activeSlots)).toEqual(
-    sortIsoInstants(activeSlots),
-  )
+  expect(sortIsoInstants(savedEvent.activeSlots ?? [])).toEqual([])
+  expect(savedEvent.timedRecurrence?.selectedDays).toEqual(["2026-01-04"])
 
   await page.reload({ waitUntil: "domcontentloaded" })
   await dismissConsent(page)
-  const reopenedEditor = await openEditDialog(page)
-  const selectedDates = selectedDatesFromState(
-    await collectDatePickerState(reopenedEditor),
-  )
-  expect(selectedDates).toEqual(["2026-01-05"])
+  // With no active times left, the reloaded page boots into the
+  // specific-times setup grid; its columns still reflect the stable picked
+  // date 2026-01-04 rather than a re-anchored 2026-01-05.
+  await waitForSpecificTimesGrid(page)
+  const gridState = await collectGridState(page)
+  expect(gridState.visibleDateStrings).toEqual([
+    expect.stringMatching(/^jan 4$/i),
+  ])
 })
 
 test("reopens cross-midnight fixture without dropping membership days or drifting instants", async ({

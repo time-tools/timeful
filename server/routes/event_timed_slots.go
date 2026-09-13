@@ -84,6 +84,26 @@ func normalizeTimedEventPayloadFields(
 	return fields, nil
 }
 
+// discardActiveSlotsOutsideEnabledDomain applies the wipe rule to fields.ActiveSlots
+// against the domain derived from the same fields, instead of rejecting them.
+func discardActiveSlotsOutsideEnabledDomain(fields timedEventPayloadFields) ([]models.DateTime, error) {
+	enabledSlots, err := deriveEnabledSlots(fields)
+	if err != nil {
+		return nil, err
+	}
+	enabled := make(map[int64]struct{}, len(enabledSlots))
+	for _, slot := range enabledSlots {
+		enabled[int64(slot)] = struct{}{}
+	}
+	kept := make([]models.DateTime, 0, len(fields.ActiveSlots))
+	for _, slot := range fields.ActiveSlots {
+		if _, ok := enabled[int64(slot)]; ok {
+			kept = append(kept, slot)
+		}
+	}
+	return normalizeDateTimes(kept), nil
+}
+
 // deriveEnabledSlots regenerates the enabled slot domain from picked dates
 // (specific-dates) or the anchor week (weekly), the event timezone, and the
 // slot-generation settings. The enabled domain is always the full civil day

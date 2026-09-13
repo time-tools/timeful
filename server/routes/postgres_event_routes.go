@@ -533,6 +533,90 @@ func filterResponseSlots(slots []models.DateTime, minimum, maximum time.Time) []
 	return filtered
 }
 
+func activeSlotSetsEqual(left, right []models.DateTime) bool {
+	normalizedLeft := normalizeDateTimes(left)
+	normalizedRight := normalizeDateTimes(right)
+	if len(normalizedLeft) != len(normalizedRight) {
+		return false
+	}
+	for index := range normalizedLeft {
+		if normalizedLeft[index] != normalizedRight[index] {
+			return false
+		}
+	}
+	return true
+}
+
+func discardResponseSlotsOutsideActiveSet(ctx context.Context, tx *pgstore.Repository, eventID string, activeSlots []models.DateTime) error {
+	active := make(map[models.DateTime]struct{}, len(activeSlots))
+	for _, slot := range activeSlots {
+		active[slot] = struct{}{}
+	}
+	responses, err := tx.ListResponses(ctx, eventID)
+	if err != nil {
+		return err
+	}
+	for index := range responses {
+		response := &responses[index]
+		next, changed, err := filterResponseSlotsOutsideActiveSet(response.Payload, active)
+		if err != nil {
+			return err
+		}
+		if !changed {
+			continue
+		}
+		response.Payload = next
+		if err := tx.UpdateResponse(ctx, response); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// filterResponseSlotsOutsideActiveSet filters only the payload's availability and
+// ifNeeded keys, preserving every other key. It returns the original payload and
+// false when nothing changed.
+func filterResponseSlotsOutsideActiveSet(payload json.RawMessage, active map[models.DateTime]struct{}) (json.RawMessage, bool, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(payload, &fields); err != nil {
+		return nil, false, err
+	}
+	changed := false
+	for _, key := range []string{"availability", "ifNeeded"} {
+		raw, present := fields[key]
+		if !present {
+			continue
+		}
+		var slots []models.DateTime
+		if err := json.Unmarshal(raw, &slots); err != nil {
+			return nil, false, err
+		}
+		kept := make([]models.DateTime, 0, len(slots))
+		for _, slot := range slots {
+			if _, ok := active[slot]; ok {
+				kept = append(kept, slot)
+			}
+		}
+		if len(kept) == len(slots) {
+			continue
+		}
+		encoded, err := json.Marshal(kept)
+		if err != nil {
+			return nil, false, err
+		}
+		fields[key] = encoded
+		changed = true
+	}
+	if !changed {
+		return payload, false, nil
+	}
+	next, err := json.Marshal(fields)
+	if err != nil {
+		return nil, false, err
+	}
+	return next, true, nil
+}
+
 // @Summary Edits an event based on its id
 // @Description Requires Event Owner Edit Token proof, the associated Platform Visitor Identity session, or an owner-issued Granted EVCC; base EVCCs never authorize settings edits. Archived events are read-only.
 // @Tags events
@@ -585,7 +669,8 @@ func postgresEditEvent(c *gin.Context) {
 		return
 	}
 	requestGroup := update.Type == models.GROUP
-	if !requestGroup && (update.DaysOnly == nil || !*update.DaysOnly) {
+	timedEvent := !requestGroup && (update.DaysOnly == nil || !*update.DaysOnly)
+	if timedEvent {
 		fields, err := normalizeTimedEventPayloadFields(timedEventPayloadFields{ActiveSlots: update.ActiveSlots, EventTimezone: update.EventTimezone, SlotGeneration: update.SlotGeneration, TimedRecurrence: update.TimedRecurrence})
 		if err != nil {
 			c.JSON(http.StatusBadRequest, responses.Error{Error: err.Error()})
@@ -608,6 +693,18 @@ func postgresEditEvent(c *gin.Context) {
 		}
 		if slots, present := raw["activeSlots"]; present && string(slots) == "[]" && len(current.ActiveSlots) > 0 {
 			update.ActiveSlots = current.ActiveSlots
+			if timedEvent {
+				filtered, err := discardActiveSlotsOutsideEnabledDomain(timedEventPayloadFields{
+					ActiveSlots:     current.ActiveSlots,
+					EventTimezone:   update.EventTimezone,
+					SlotGeneration:  update.SlotGeneration,
+					TimedRecurrence: update.TimedRecurrence,
+				})
+				if err != nil {
+					return err
+				}
+				update.ActiveSlots = filtered
+			}
 		}
 		update.Id, update.ShortId, update.OwnerId, update.NumResponses, update.ResponsesMap = models.ZeroUUID(), nil, models.ZeroUUID(), nil, nil
 		update.SignUpBlocks = nil
@@ -649,6 +746,11 @@ func postgresEditEvent(c *gin.Context) {
 		}
 		if err := tx.UpdateEvent(ctx, event); err != nil {
 			return err
+		}
+		if timedEvent && !activeSlotSetsEqual(current.ActiveSlots, update.ActiveSlots) {
+			if err := discardResponseSlotsOutsideActiveSet(ctx, tx, event.ID, update.ActiveSlots); err != nil {
+				return err
+			}
 		}
 		if isSignup {
 			// An omitted signUpBlocks preserves the existing block set, matching
