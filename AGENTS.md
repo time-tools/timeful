@@ -126,6 +126,7 @@ The canonical env-file contract lives in `docs/environments.md`.
 Browser E2E always uses the isolated test stack and must never target either development database:
 
 - run Playwright from `e2e/` with `npm run test:e2e -- --project=firefox-desktop`; it starts `postgres-test` and `server-test` on `3003`, then Vite on `4174`
+- run E2E so its full output streams: never pipe a run through `tail` or `head`; when a persistent full log is needed, append `2>&1 | tee /tmp/opencode/<name>.log`
 - `TEST_DB_PERSIST` defaults to `false`, removing the test stack and database volumes; set it to `true` to retain database state after successful or failed E2E setup
 - Playwright owns the isolated test stack and Vite process; do not use an existing server for browser E2E.
 - the test stack keeps persistent Go caches in the external `timeful-test-go-build-cache` and `timeful-test-go-mod-cache` volumes, so `go run .` inside `server-test` compiles incrementally across runs; `down -v` retains them, and `docker volume rm timeful-test-go-build-cache timeful-test-go-mod-cache` resets them

@@ -7,6 +7,8 @@ Specs live in `e2e/specs/`; `playwright.config.ts`, `isolated-test-stack.ts`, `c
 ## Failure Diagnosis Loop
 
 - Run a failing test in isolation before changing anything: `npm run test:e2e -- --project=chromium-desktop -g "<test title>"`.
+- Never pipe a run through `tail` or `head`: it hides progress until the run ends and can mask the suite's exit status.
+  Run the command with full output streaming, and when a persistent log is needed, append `2>&1 | tee /tmp/opencode/<name>.log` instead of truncating.
 - Read the full error output first; Playwright prints the action call log with the waiting locator, the resolved element, and the retry attempts.
 - Each run writes artifacts to its own `/tmp/opencode/timeful-e2e-artifacts/<run-id>/` directory; run directories are never cleaned automatically, so every run stays independently inspectable.
 - Find the latest run with `ls -t /tmp/opencode/timeful-e2e-artifacts | head -1`, set `E2E_ARTIFACTS_DIR` to relocate the artifacts root, and remove old run directories manually when no longer needed.
