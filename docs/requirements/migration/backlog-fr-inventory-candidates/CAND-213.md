@@ -37,7 +37,8 @@ Confidence: confirmed.
 
 ## Disposition
 
-Excluded: the development MongoDB service and its unauthenticated configuration were removed on 2026-09-11; PostgreSQL is the only supported store.
+Deprecated on 2026-09-11 with the MongoDB retirement; the development MongoDB service and its unauthenticated configuration were removed, and PostgreSQL is the only supported store.
+Not reformulated because development and test PostgreSQL access requires configured credentials, so the unauthenticated-access behavior has no PostgreSQL analog.
 
 ## Open Questions
 

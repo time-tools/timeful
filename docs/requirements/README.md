@@ -253,5 +253,6 @@ Read [`quality/README.md`](quality/README.md) before creating or changing a qual
 | [QR-011](quality/qr/QR-011.md) | Authenticate [Access Transfers](../terminology/glossary.md#access-transfer)           | frontend, backend       |
 | [QR-012](quality/qr/QR-012.md) | Preserve authorization when migrating core records (deprecated)                       | backend, infrastructure |
 | [QR-013](quality/qr/QR-013.md) | Protect provider credentials at rest and keep them out of responses                   | backend, infrastructure |
+| [QR-014](quality/qr/QR-014.md) | Require authenticated PostgreSQL access in staging and production                     | infrastructure          |
 
 When a requirement is migrated, add its row to the matching table with a stable relative link, for example `[FR-001](functional/fr/FR-001.md)`.

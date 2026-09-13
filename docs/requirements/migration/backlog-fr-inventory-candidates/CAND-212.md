@@ -41,7 +41,8 @@ Confidence: confirmed.
 
 ## Disposition
 
-Excluded: the MongoDB runtime, Compose services, environment variables, and credentials were removed on 2026-09-11, so no MongoDB access requirement remains.
+Deprecated on 2026-09-11 with the MongoDB retirement; the MongoDB runtime, Compose services, environment variables, and credentials were removed, so no MongoDB access requirement remains.
+Reformulated as [QR-014](../../quality/qr/QR-014.md) for staging and production PostgreSQL access.
 
 ## Open Questions
 
