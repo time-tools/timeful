@@ -1,7 +1,7 @@
 services:
   server:
-    volumes: !reset
+    volumes: !override
       - server_logs:/app/logs
-    depends_on: !reset
+    depends_on: !override
       postgres-migrate:
         condition: service_completed_successfully
