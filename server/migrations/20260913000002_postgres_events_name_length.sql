@@ -3,9 +3,9 @@
 -- counts Unicode code points, matching utf8.RuneCountInString and
 -- models.MaxEventNameLength. The constraint is added NOT VALID so legacy rows
 -- that predate the API cap (over 100 code points or empty) do not fail the
--- migration while every new insert and update is checked. After legacy data is
--- audited and cleaned, run:
---   ALTER TABLE postgres_events VALIDATE CONSTRAINT postgres_events_name_length;
+-- migration while every new insert and update is checked.
+-- 20260914000000_validate_postgres_events_name_length.sql validates the
+-- constraint once no legacy rows remain.
 ALTER TABLE postgres_events
     ADD CONSTRAINT postgres_events_name_length
     CHECK (name <> '' AND char_length(name) <= 100) NOT VALID;

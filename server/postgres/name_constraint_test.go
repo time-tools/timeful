@@ -8,12 +8,16 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-const eventNameConstraintMigration = "20260913000002_postgres_events_name_length.sql"
+const (
+	eventNameConstraintMigration = "20260913000002_postgres_events_name_length.sql"
+	eventNameValidationMigration = "20260914000000_validate_postgres_events_name_length.sql"
+)
 
-// TestPostgresEventsNameLengthConstraint proves the incremental migration adds
-// the FR-119 storage guard: event names must be non-empty and at most 100
-// Unicode code points. The NOT VALID constraint leaves legacy rows in place
-// while new writes are checked, so it exists unvalidated.
+// TestPostgresEventsNameLengthConstraint proves the incremental migrations add
+// and then validate the FR-119 storage guard: event names must be non-empty
+// and at most 100 Unicode code points. The constraint is added NOT VALID for
+// legacy rows and validated once no such rows remain, so the chain ends with a
+// validated constraint.
 func TestPostgresEventsNameLengthConstraint(t *testing.T) {
 	ctx, _, tx := newMigrationTestRepository(t)
 
@@ -23,8 +27,8 @@ func TestPostgresEventsNameLengthConstraint(t *testing.T) {
 WHERE conrelid = 'postgres_events'::regclass AND conname = 'postgres_events_name_length'`).Scan(&validated, &definition); err != nil {
 		t.Fatalf("read postgres_events_name_length: %v", err)
 	}
-	if validated {
-		t.Fatal("expected postgres_events_name_length to be NOT VALID")
+	if !validated {
+		t.Fatal("expected postgres_events_name_length to be validated")
 	}
 	if !strings.Contains(definition, "name <> ''") || !strings.Contains(definition, "char_length(name) <= 100") {
 		t.Fatalf("unexpected constraint definition: %s", definition)
@@ -85,5 +89,22 @@ func TestPostgresEventsNameLengthConstraintDown(t *testing.T) {
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO postgres_events (short_id, name, type) VALUES ($1, $2, 'signup')`, signupTestShortID(t), strings.Repeat("a", 101)); err != nil {
 		t.Fatalf("insert without the constraint: %v", err)
+	}
+}
+
+// TestPostgresEventsNameLengthValidationDown proves the validation migration
+// is reversible: PostgreSQL has no unvalidate operation, so its Down replaces
+// the validated constraint with an equivalent NOT VALID one.
+func TestPostgresEventsNameLengthValidationDown(t *testing.T) {
+	ctx, _, tx := newMigrationTestRepository(t)
+	applyMigrationDown(t, ctx, tx, eventNameValidationMigration)
+
+	var validated bool
+	if err := tx.QueryRow(ctx, `SELECT convalidated FROM pg_constraint
+WHERE conrelid = 'postgres_events'::regclass AND conname = 'postgres_events_name_length'`).Scan(&validated); err != nil {
+		t.Fatalf("read postgres_events_name_length: %v", err)
+	}
+	if validated {
+		t.Fatal("expected the Down migration to restore NOT VALID")
 	}
 }
