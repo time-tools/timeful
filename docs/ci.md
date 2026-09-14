@@ -22,7 +22,7 @@ Because the jobs are independent, wall-clock time approaches job setup plus the 
 Parallel jobs duplicate setup compute on purpose, which is the accepted trade-off for the lower wall-clock time.
 
 - The Chromium job runs `chromium-desktop`, `chromium-mobile`, `chromium-production-desktop`, and `chromium-production-mobile` at two Playwright workers.
-- The Firefox desktop job runs `firefox-desktop` at two Playwright workers and sets `E2E_FRONTEND=bundled` so the recorded PostgreSQL access-transfer journeys stay within budget.
+- The Firefox desktop job runs `firefox-desktop` at two Playwright workers and sets `E2E_FRONTEND=bundled` so the recorded access-transfer journeys stay within budget.
 - The Firefox touch job runs `firefox-touch` at one worker because it matches a single serial spec file that cannot parallelize further.
 
 Only the Firefox desktop job enables PostgreSQL anonymous event creation, because that flag is a stack-level setting consumed at global setup and must not be shared with the other suites.

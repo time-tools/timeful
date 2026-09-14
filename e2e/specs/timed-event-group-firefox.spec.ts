@@ -2,7 +2,7 @@ import { expect, type APIRequestContext, type Page } from "@playwright/test"
 import { Temporal } from "temporal-polyfill"
 import { test } from "../helpers/actor-context"
 import { signInNewAccount } from "../helpers/account-auth"
-import { postgresScalar } from "../helpers/postgres-inspect"
+import { databaseScalar } from "../helpers/database-inspect"
 import {
   dismissConsent,
   rowIndexForTime,
@@ -83,30 +83,30 @@ async function seedGroup(
 }
 
 function eventIdExpression(shortId: string): string {
-  return `(SELECT id FROM postgres_events WHERE short_id='${shortId}')`
+  return `(SELECT id FROM events WHERE short_id='${shortId}')`
 }
 
 function attendeeDeclined(shortId: string, email: string): string {
-  return postgresScalar(
+  return databaseScalar(
     `SELECT coalesce(declined::text, 'unset') FROM event_attendees WHERE event_id=${eventIdExpression(shortId)} AND email='${email}'`,
   )
 }
 
 function attendeeCount(shortId: string): string {
-  return postgresScalar(
+  return databaseScalar(
     `SELECT count(*) FROM event_attendees WHERE event_id=${eventIdExpression(shortId)}`,
   )
 }
 
 function accountResponseCount(shortId: string): string {
-  return postgresScalar(
-    `SELECT count(*) FROM postgres_event_responses WHERE event_id=${eventIdExpression(shortId)} AND respondent_kind='account'`,
+  return databaseScalar(
+    `SELECT count(*) FROM event_responses WHERE event_id=${eventIdExpression(shortId)} AND respondent_kind='account'`,
   )
 }
 
 function manualAvailabilityCount(shortId: string): string {
-  return postgresScalar(
-    `SELECT count(*) FROM postgres_event_responses WHERE event_id=${eventIdExpression(shortId)} AND payload->'manualAvailability' <> '{}'::jsonb`,
+  return databaseScalar(
+    `SELECT count(*) FROM event_responses WHERE event_id=${eventIdExpression(shortId)} AND payload->'manualAvailability' <> '{}'::jsonb`,
   )
 }
 
@@ -136,7 +136,7 @@ async function paintSlots(
   }
 }
 
-test("a signed-in invitee accepts a PostgreSQL group invitation and submits availability", async ({
+test("a signed-in invitee accepts a group invitation and submits availability", async ({
   page,
   actorContext,
 }) => {
@@ -198,7 +198,7 @@ test("a signed-in invitee accepts a PostgreSQL group invitation and submits avai
   })
 })
 
-test("an invitee declines and rejoins a PostgreSQL availability group", async ({
+test("an invitee declines and rejoins an availability group", async ({
   page,
   actorContext,
 }) => {
@@ -241,7 +241,7 @@ test("an invitee declines and rejoins a PostgreSQL availability group", async ({
   })
 })
 
-test("an owner adds a PostgreSQL group member through the edit dialog", async ({
+test("an owner adds a group member through the edit dialog", async ({
   page,
 }) => {
   const name = uniqueName("Group membership")

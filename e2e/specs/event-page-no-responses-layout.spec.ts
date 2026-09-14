@@ -104,7 +104,7 @@ test("event page without responses pairs each header row with one action column"
         "Expected each header-row detail and action to have boxes",
       )
     }
-    // A PostgreSQL [Event Owner](../../../docs/terminology/glossary.md#event-owner)
+    // An [Event Owner](../../../docs/terminology/glossary.md#event-owner)
     // additionally renders the access-transfer action, so the owner action
     // cluster may wrap to a second line; the collapse toggle stays centered on
     // the cluster rather than on any single button.

@@ -7,7 +7,7 @@ import {
 import { Temporal } from "temporal-polyfill"
 import { test } from "../helpers/actor-context"
 import { signInNewAccount } from "../helpers/account-auth"
-import { postgresScalar } from "../helpers/postgres-inspect"
+import { databaseScalar } from "../helpers/database-inspect"
 
 interface FolderResponse {
   _id: string
@@ -48,7 +48,7 @@ async function openEventMenu(item: Locator): Promise<void> {
   await item.getByRole("button").first().click()
 }
 
-test("signed-in PostgreSQL poll persists in PostgreSQL and survives a dashboard reload", async ({
+test("signed-in poll persists and survives a dashboard reload", async ({
   page,
 }) => {
   await signInNewAccount(page.request, "poll")
@@ -61,10 +61,10 @@ test("signed-in PostgreSQL poll persists in PostgreSQL and survives a dashboard 
   const { eventId } = (await created.json()) as { eventId: string }
   expect(eventId).toMatch(/^[0-9A-HJKMNPQRSTVWXYZ]{8}$/)
 
-  await test.step("the poll is owned in PostgreSQL", async () => {
+  await test.step("the poll is owned", async () => {
     expect(
-      postgresScalar(
-        `SELECT count(*) FROM postgres_events WHERE short_id='${eventId}' AND is_deleted=false`,
+      databaseScalar(
+        `SELECT count(*) FROM events WHERE short_id='${eventId}' AND is_deleted=false`,
       ),
     ).toBe("1")
     expect((await page.request.get(`/api/events/${eventId}`)).status()).toBe(
@@ -87,7 +87,7 @@ test("signed-in PostgreSQL poll persists in PostgreSQL and survives a dashboard 
   })
 })
 
-test("signed-in folder keeps a PostgreSQL event member across reload", async ({
+test("signed-in folder keeps an event member across reload", async ({
   page,
 }) => {
   await signInNewAccount(page.request, "folder")
@@ -144,8 +144,8 @@ test("signed-in folder keeps a PostgreSQL event member across reload", async ({
   })
 
   expect(
-    postgresScalar(
-      `SELECT count(*) FROM folder_events WHERE folder_id='${folder._id}' AND event_id=(SELECT id FROM postgres_events WHERE short_id='${eventId}')`,
+    databaseScalar(
+      `SELECT count(*) FROM folder_events WHERE folder_id='${folder._id}' AND event_id=(SELECT id FROM events WHERE short_id='${eventId}')`,
     ),
   ).toBe("1")
 })
@@ -175,8 +175,8 @@ test("signed-in poll archives and deletes from the dashboard", async ({
     await page.getByText("Archive", { exact: true }).click()
     expect((await archived).status()).toBe(200)
     expect(
-      postgresScalar(
-        `SELECT is_archived FROM postgres_events WHERE short_id='${eventId}'`,
+      databaseScalar(
+        `SELECT is_archived FROM events WHERE short_id='${eventId}'`,
       ),
     ).toBe("t")
     await expect(page.locator(`[data-folder-id="archived"]`)).toHaveCount(1)
@@ -205,8 +205,8 @@ test("signed-in poll archives and deletes from the dashboard", async ({
     expect((await deleted).status()).toBe(200)
     await expect(eventLink(page, eventId)).toHaveCount(0)
     expect(
-      postgresScalar(
-        `SELECT is_deleted FROM postgres_events WHERE short_id='${eventId}'`,
+      databaseScalar(
+        `SELECT is_deleted FROM events WHERE short_id='${eventId}'`,
       ),
     ).toBe("t")
     expect((await page.request.get(`/api/events/${eventId}`)).status()).toBe(

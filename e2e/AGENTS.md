@@ -35,7 +35,7 @@ Specs live in `e2e/specs/`; `playwright.config.ts`, `isolated-test-stack.ts`, `c
 - Keep one behavior per test, and wrap long journeys in `test.step()` so traces and errors name the failing step.
 - Seed state through the API instead of long UI setup journeys; reuse `./helpers` builders such as `seedCanonicalTimedEvent`.
 - For API-seeded browser owner journeys, pass `page.request` or `page.context().request` to the seed helper before opening the event.
-  These request contexts share the browser's cookie jar, including the HttpOnly creation cookies that prove [Event Owner](../docs/terminology/glossary.md#event-owner) authority in PostgreSQL mode.
+  These request contexts share the browser's cookie jar, including the HttpOnly creation cookies that prove [Event Owner](../docs/terminology/glossary.md#event-owner) authority.
   The standalone Playwright `request` fixture has its own cookie jar, so an event created through it leaves the page without creation credentials.
   Keep separate request or browser contexts for visitor and authorization-denial journeys; do not substitute visitor credentials for owner authority or bypass the edit control.
 - Treat fixed settle delays as exceptions; use `settlePage` from `./helpers/settle` only when no state-based wait can express the condition, for example settling a CSS transition after resize.
@@ -56,7 +56,7 @@ Specs live in `e2e/specs/`; `playwright.config.ts`, `isolated-test-stack.ts`, `c
   Existing serial test groups still run their own tests in order.
 - E2E CI runs the Chromium, Firefox desktop, and Firefox touch suites as three parallel matrix jobs, each on its own runner with its own isolated test stack.
   Chromium and Firefox desktop run at two workers; Firefox touch stays at one worker because it matches a single serial spec file.
-  The Firefox desktop job sets `E2E_FRONTEND=bundled` so the recorded PostgreSQL access-transfer journeys stay within budget at two workers, while the other suites keep the default dev-server frontend.
+  The Firefox desktop job sets `E2E_FRONTEND=bundled` so the recorded access-transfer journeys stay within budget at two workers, while the other suites keep the default dev-server frontend.
   The Chromium job is the only matrix job that saves the shared Nix, Go, npm, and migrator-image caches, so concurrent same-key saves cannot race.
 - Run a focused spec with `npm run test:e2e -- --project=firefox-desktop specs/timed-event-reprojection-firefox.spec.ts`, or select a title with `-g "<test title>"`.
 - Ordinary projects start Vite without a production build.
@@ -64,11 +64,11 @@ Specs live in `e2e/specs/`; `playwright.config.ts`, `isolated-test-stack.ts`, `c
 - Run `npm run test:e2e -- --project=chromium-production-desktop --project=chromium-production-mobile` for production-asset verification.
   Do not use `--no-deps`: the dependency builds fresh assets before the checks.
 - Run `npm run test:e2e` for all projects, including the production build and checks.
-  Supported events are created in PostgreSQL by default; no creation flag is required.
+  Supported events are created by default; no creation flag is required.
 - Keep parallelism inside a single Playwright invocation; concurrent invocations conflict over the fixed test-stack project and ports.
   The stack prints setup and teardown durations so infrastructure overhead can be distinguished from test execution.
 - The Firefox desktop plus touch benchmark passed at one and two workers, reducing wall time from 337s to 239s at two workers; four workers caused timeouts and was rejected.
-- PostgreSQL access-transfer coverage is heavier: each approval test opens and records up to three isolated pages, and the default dev server's unbundled modules can push the approval journeys past their 30-second budget at two workers.
+- Access-transfer coverage is heavier: each approval test opens and records up to three isolated pages, and the default dev server's unbundled modules can push the approval journeys past their 30-second budget at two workers.
 - Set `E2E_FRONTEND=bundled` to make the webServer build a fresh test-mode frontend and serve it from a Playwright-owned preview on the isolated host, port, and proxy, with assets under the invocation artifact directory.
   Bundled mode is opt-in and does not replace the production-asset projects; the dev server remains the default.
   On the benchmark machine, all eight access-transfer tests pass at the default two workers with `E2E_FRONTEND=bundled E2E_VIDEO=on`, and the first four pass repeatedly.

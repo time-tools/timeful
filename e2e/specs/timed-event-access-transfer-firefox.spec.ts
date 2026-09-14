@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process"
 import { fileURLToPath } from "node:url"
 import { expect, type APIRequestContext } from "@playwright/test"
 import { test } from "../helpers/actor-context"
-import { seedOtpChallenge } from "../helpers/postgres-inspect"
+import { seedOtpChallenge } from "../helpers/database-inspect"
 
 const payload = {
   name: "Transfer browser coverage",

@@ -1,19 +1,18 @@
 import { randomUUID } from "node:crypto"
 import { expect, type APIRequestContext } from "@playwright/test"
-import { seedOtpChallenge } from "./postgres-inspect"
+import { seedOtpChallenge } from "./database-inspect"
 
 const otpCode = "123456"
 
-// Seeds a valid PostgreSQL OTP challenge so sign-in resolves the authoritative
-// PostgreSQL account contract the app uses.
+// Seeds a valid OTP challenge so sign-in resolves the authoritative account
+// contract the app uses.
 export function seedOtpAccount(email: string): void {
   seedOtpChallenge(email, otpCode)
 }
 
-// Verifies the seeded OTP and returns the account _id, which is the PostgreSQL
-// external user identifier surfaced by AccountUser. The profile name is sent
-// with the verification so sign-in journeys keep a deterministic display name
-// in PostgreSQL.
+// Verifies the seeded OTP and returns the account _id, which is the external
+// user identifier surfaced by AccountUser. The profile name is sent with the
+// verification so sign-in journeys keep a deterministic display name.
 export async function verifySignIn(
   request: APIRequestContext,
   email: string,

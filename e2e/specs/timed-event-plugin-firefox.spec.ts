@@ -64,13 +64,13 @@ async function sendPluginMessage(
   )
 }
 
-test("PostgreSQL anonymous poll preserves the plugin slot contract", async ({
+test("anonymous poll preserves the plugin slot contract", async ({
   page,
   request,
 }) => {
   const created = await request.post("/api/events", {
     data: {
-      name: "PostgreSQL plugin contract",
+      name: "Plugin slot contract",
       type: "specific_dates",
       daysOnly: false,
       activeSlots: ["2026-01-05T14:00:00Z", "2026-01-05T14:15:00Z"],
@@ -112,7 +112,7 @@ test("PostgreSQL anonymous poll preserves the plugin slot contract", async ({
     page.getByTestId("schedule-overlap-time-grid-scroller"),
   ).toBeVisible()
 
-  const setResponse = await sendPluginMessage(page, "postgres-set-slots", {
+  const setResponse = await sendPluginMessage(page, "set-slots", {
     type: "set-slots",
     timezone: "GMT",
     guestName: "Ada",
@@ -128,11 +128,11 @@ test("PostgreSQL anonymous poll preserves the plugin slot contract", async ({
   expect(setResponse).toMatchObject({
     type: "FILL_CALENDAR_EVENT_RESPONSE",
     command: "set-slots",
-    requestId: "postgres-set-slots",
+    requestId: "set-slots",
     ok: true,
   })
 
-  const getResponse = await sendPluginMessage(page, "postgres-get-slots", {
+  const getResponse = await sendPluginMessage(page, "get-slots", {
     type: "get-slots",
     timezone: "GMT",
   })
@@ -140,7 +140,7 @@ test("PostgreSQL anonymous poll preserves the plugin slot contract", async ({
   expect(getResponse).toMatchObject({
     type: "FILL_CALENDAR_EVENT_RESPONSE",
     command: "get-slots",
-    requestId: "postgres-get-slots",
+    requestId: "get-slots",
     ok: true,
   })
   const slots = Object.values(getResponse.payload?.slots ?? {})

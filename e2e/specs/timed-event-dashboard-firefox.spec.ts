@@ -6,14 +6,14 @@ import {
   waitForEventShell,
 } from "../helpers/timed-event-helpers"
 
-// A signed-in PostgreSQL poll must appear on the dashboard, open through its
-// canonical bare short identifier, and survive a dashboard reload.
-test("signed-in PostgreSQL event loads on the dashboard and persists across reload", async ({
+// A signed-in poll must appear on the dashboard, open through its canonical
+// bare short identifier, and survive a dashboard reload.
+test("signed-in event loads on the dashboard and persists across reload", async ({
   page,
 }) => {
   await signInNewAccount(page.request, "dashboard")
 
-  const name = `Dashboard PostgreSQL ${String(Temporal.Now.instant().epochMilliseconds)}`
+  const name = `Dashboard ${String(Temporal.Now.instant().epochMilliseconds)}`
   const created = await page.request.post("/api/events", {
     data: {
       name,

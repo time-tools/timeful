@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test"
 import { Temporal } from "temporal-polyfill"
 import { signInNewAccount } from "../helpers/account-auth"
-import { postgresExec, postgresScalar } from "../helpers/postgres-inspect"
+import { databaseExec, databaseScalar } from "../helpers/database-inspect"
 
 const mockCalendarEmail = "calendar-mock@example.invalid"
 const mockCalendarType = "google"
@@ -13,7 +13,7 @@ const mockSubCalendarId = "work"
 // session carries, so parallel tests cannot read or mutate another account's
 // rows.
 function countCalendarAccounts(userId: string): string {
-  return postgresScalar(
+  return databaseScalar(
     `SELECT count(*) FROM calendar_accounts a
      JOIN platform_identities p ON p.id = a.platform_identity_id
      WHERE p.id = '${userId}'`,
@@ -21,7 +21,7 @@ function countCalendarAccounts(userId: string): string {
 }
 
 function countCalendarCredentials(userId: string): string {
-  return postgresScalar(
+  return databaseScalar(
     `SELECT count(*) FROM calendar_account_credentials c
      JOIN calendar_accounts a ON a.id = c.calendar_account_id
      JOIN platform_identities p ON p.id = a.platform_identity_id
@@ -30,7 +30,7 @@ function countCalendarCredentials(userId: string): string {
 }
 
 function countSubCalendars(userId: string): string {
-  return postgresScalar(
+  return databaseScalar(
     `SELECT count(*) FROM calendar_sub_calendars s
      JOIN calendar_accounts a ON a.id = s.calendar_account_id
      JOIN platform_identities p ON p.id = a.platform_identity_id
@@ -39,7 +39,7 @@ function countSubCalendars(userId: string): string {
 }
 
 function encryptedAccessToken(userId: string): string {
-  return postgresScalar(
+  return databaseScalar(
     `SELECT c.oauth_access_token_ciphertext FROM calendar_account_credentials c
      JOIN calendar_accounts a ON a.id = c.calendar_account_id
      JOIN platform_identities p ON p.id = a.platform_identity_id
@@ -48,7 +48,7 @@ function encryptedAccessToken(userId: string): string {
 }
 
 function accessTokenExpiryIsPast(userId: string): string {
-  return postgresScalar(
+  return databaseScalar(
     `SELECT (c.oauth_access_token_expires_at < clock_timestamp())::text FROM calendar_account_credentials c
      JOIN calendar_accounts a ON a.id = c.calendar_account_id
      JOIN platform_identities p ON p.id = a.platform_identity_id
@@ -57,7 +57,7 @@ function accessTokenExpiryIsPast(userId: string): string {
 }
 
 function subCalendarEnabled(userId: string, subCalendarId: string): string {
-  return postgresScalar(
+  return databaseScalar(
     `SELECT s.enabled::text FROM calendar_sub_calendars s
      JOIN calendar_accounts a ON a.id = s.calendar_account_id
      JOIN platform_identities p ON p.id = a.platform_identity_id
@@ -81,7 +81,7 @@ function calendarEventsURL(): string {
   return `/api/user/calendars?timeMin=${encodeURIComponent(now.toString())}&timeMax=${encodeURIComponent(now.add({ hours: 1 }).toString())}`
 }
 
-test("connecting a Google calendar persists encrypted PostgreSQL credentials", async ({
+test("connecting a Google calendar persists encrypted credentials", async ({
   page,
 }) => {
   const { userId } = await signInNewAccount(page.request, "calendar-connect")
@@ -90,7 +90,7 @@ test("connecting a Google calendar persists encrypted PostgreSQL credentials", a
     await connectMockGoogleCalendar(page)
   })
 
-  await test.step("PostgreSQL stores the account and encrypted credentials", () => {
+  await test.step("the database stores the account and encrypted credentials", () => {
     expect(countCalendarAccounts(userId)).toBe("1")
     expect(countCalendarCredentials(userId)).toBe("1")
     expect(countSubCalendars(userId)).toBe("2")
@@ -108,14 +108,14 @@ test("connecting a Google calendar persists encrypted PostgreSQL credentials", a
   })
 })
 
-test("an expired OAuth2 connection refreshes its encrypted access token in PostgreSQL", async ({
+test("an expired OAuth2 connection refreshes its encrypted access token", async ({
   page,
 }) => {
   const { userId } = await signInNewAccount(page.request, "calendar-refresh")
   await connectMockGoogleCalendar(page)
 
   const before = encryptedAccessToken(userId)
-  postgresExec(
+  databaseExec(
     `UPDATE calendar_account_credentials c
      SET oauth_access_token_expires_at = clock_timestamp() - interval '1 hour'
      FROM calendar_accounts a
@@ -129,7 +129,7 @@ test("an expired OAuth2 connection refreshes its encrypted access token in Postg
     expect(response.status()).toBe(200)
   })
 
-  await test.step("PostgreSQL stores a new encrypted token and future expiry", () => {
+  await test.step("the database stores a new encrypted token and future expiry", () => {
     const after = encryptedAccessToken(userId)
     expect(after).not.toHaveLength(0)
     expect(after).not.toBe(before)
@@ -137,9 +137,7 @@ test("an expired OAuth2 connection refreshes its encrypted access token in Postg
   })
 })
 
-test("toggling a sub-calendar persists enabled in PostgreSQL", async ({
-  page,
-}) => {
+test("toggling a sub-calendar persists its enabled state", async ({ page }) => {
   const { userId } = await signInNewAccount(page.request, "calendar-toggle")
   await connectMockGoogleCalendar(page)
 
@@ -172,7 +170,7 @@ test("toggling a sub-calendar persists enabled in PostgreSQL", async ({
   })
 })
 
-test("removing a calendar connection cascades its PostgreSQL credentials and sub-calendars", async ({
+test("removing a calendar connection cascades its credentials and sub-calendars", async ({
   page,
 }) => {
   const { userId } = await signInNewAccount(page.request, "calendar-remove")

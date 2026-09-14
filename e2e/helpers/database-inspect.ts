@@ -17,7 +17,7 @@ const composeArguments = [
 // Resolves the Playwright-owned PostgreSQL database from the application URI
 // the isolated server-test container actually connected to, so inspections can
 // never read a development database.
-function isolatedPostgresDatabase(): string {
+function isolatedDatabase(): string {
   const uri = execFileSync(
     "docker",
     [
@@ -33,7 +33,7 @@ function isolatedPostgresDatabase(): string {
   const database = new URL(uri).pathname.slice(1)
   if (!database.startsWith("timeful-test-")) {
     throw new Error(
-      "PostgreSQL inspection requires Playwright's isolated test database",
+      "Database inspection requires Playwright's isolated test database",
     )
   }
   return database
@@ -41,8 +41,8 @@ function isolatedPostgresDatabase(): string {
 
 // Runs a scalar SQL statement against the isolated database and returns the
 // unaligned, tuple-only result, so callers can assert on exact values.
-export function postgresScalar(sql: string): string {
-  const database = isolatedPostgresDatabase()
+export function databaseScalar(sql: string): string {
+  const database = isolatedDatabase()
   return execFileSync(
     "docker",
     [
@@ -53,7 +53,7 @@ export function postgresScalar(sql: string): string {
       "sh",
       "-ec",
       'psql --username "$POSTGRES_USER" --dbname "$1" --set=ON_ERROR_STOP=1 --tuples-only --no-align --command "$2"',
-      "postgres-inspect",
+      "database-scalar",
       database,
       sql,
     ],
@@ -62,8 +62,8 @@ export function postgresScalar(sql: string): string {
 }
 
 // Runs a non-returning SQL statement against the isolated database.
-export function postgresExec(sql: string): void {
-  const database = isolatedPostgresDatabase()
+export function databaseExec(sql: string): void {
+  const database = isolatedDatabase()
   execFileSync(
     "docker",
     [
@@ -74,7 +74,7 @@ export function postgresExec(sql: string): void {
       "sh",
       "-ec",
       'psql --username "$POSTGRES_USER" --dbname "$1" --set=ON_ERROR_STOP=1 --command "$2"',
-      "postgres-exec",
+      "database-exec",
       database,
       sql,
     ],
@@ -90,7 +90,7 @@ export function seedOtpChallenge(email: string, code: string): void {
   const digest = createHmac("sha256", salt).update(code).digest()
   const codeHash = `${salt.toString("base64")}:${digest.toString("base64")}`
   const literal = (value: string) => `'${value.replace(/'/g, "''")}'`
-  postgresExec(
+  databaseExec(
     `INSERT INTO otp_challenges (email, code_hash, expires_at, attempts) VALUES (${literal(
       email.trim().toLowerCase(),
     )}, ${literal(codeHash)}, clock_timestamp() + interval '10 minutes', 0) ` +

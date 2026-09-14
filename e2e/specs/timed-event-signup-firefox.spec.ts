@@ -2,7 +2,7 @@ import { expect, type APIRequestContext, type Page } from "@playwright/test"
 import { Temporal } from "temporal-polyfill"
 import { test } from "../helpers/actor-context"
 import { signInNewAccount } from "../helpers/account-auth"
-import { postgresScalar } from "../helpers/postgres-inspect"
+import { databaseScalar } from "../helpers/database-inspect"
 import { openEventPage } from "../helpers/timed-event-helpers"
 
 const blockName = "Morning Slot"
@@ -90,12 +90,12 @@ async function joinSlot(page: Page, blockId: string) {
 }
 
 function guestResponseCount(shortId: string, kind: string): string {
-  return postgresScalar(
-    `SELECT count(*) FROM event_signup_responses WHERE event_id=(SELECT id FROM postgres_events WHERE short_id='${shortId}') AND respondent_kind='${kind}'`,
+  return databaseScalar(
+    `SELECT count(*) FROM event_signup_responses WHERE event_id=(SELECT id FROM events WHERE short_id='${shortId}') AND respondent_kind='${kind}'`,
   )
 }
 
-test("an anonymous visitor joins a signup block and it persists in PostgreSQL", async ({
+test("an anonymous visitor joins a signup block and it persists", async ({
   page,
   request,
 }) => {
@@ -124,11 +124,11 @@ test("an anonymous visitor joins a signup block and it persists in PostgreSQL", 
     expect((await submitted).status()).toBe(200)
   })
 
-  await test.step("PostgreSQL stores the guest response", () => {
+  await test.step("the database stores the guest response", () => {
     expect(guestResponseCount(shortId, "guest")).toBe("1")
     expect(
-      postgresScalar(
-        `SELECT canonical_guest_name FROM event_signup_responses WHERE event_id=(SELECT id FROM postgres_events WHERE short_id='${shortId}')`,
+      databaseScalar(
+        `SELECT canonical_guest_name FROM event_signup_responses WHERE event_id=(SELECT id FROM events WHERE short_id='${shortId}')`,
       ),
     ).toBe("Ada Lovelace")
   })
@@ -142,7 +142,7 @@ test("an anonymous visitor joins a signup block and it persists in PostgreSQL", 
   })
 })
 
-test("a signed-in visitor joins a signup block and it persists in PostgreSQL", async ({
+test("a signed-in visitor joins a signup block and it persists", async ({
   page,
   actorContext,
 }) => {
@@ -179,11 +179,11 @@ test("a signed-in visitor joins a signup block and it persists in PostgreSQL", a
     expect((await submitted).status()).toBe(200)
   })
 
-  await test.step("PostgreSQL stores the account response", () => {
+  await test.step("the database stores the account response", () => {
     expect(guestResponseCount(shortId, "account")).toBe("1")
     expect(
-      postgresScalar(
-        `SELECT platform_identity_id FROM event_signup_responses WHERE event_id=(SELECT id FROM postgres_events WHERE short_id='${shortId}')`,
+      databaseScalar(
+        `SELECT platform_identity_id FROM event_signup_responses WHERE event_id=(SELECT id FROM events WHERE short_id='${shortId}')`,
       ),
     ).toBe(userId)
   })

@@ -101,7 +101,7 @@ test("round-trips group canonical timed fields through the edit flow", async ({
   ]
   // The page-scoped request context shares the browser's cookie jar, including
   // the HttpOnly Event Visitor Control Credential that proves owner authority
-  // for a PostgreSQL group event.
+  // for a group event.
   const seeded = await seedCanonicalTimedEvent(page.request, {
     name: "Group timed roundtrip",
     type: "group",
