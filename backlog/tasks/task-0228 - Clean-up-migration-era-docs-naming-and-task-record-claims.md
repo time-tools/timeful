@@ -4,6 +4,7 @@ title: 'Clean up migration-era docs, naming, and task-record claims'
 status: To Do
 assignee: []
 created_date: '2026-09-13 19:36'
+updated_date: '2026-09-14 19:01'
 labels:
   - cleanup
   - docs
@@ -48,3 +49,13 @@ Out of scope: backlog/backlog.md checkboxes, and TASK-0216, which remains the ow
 - [ ] #3 All required e2e tests pass. Documentation-only changes are exempt unless the user requests e2e tests
 - [ ] #4 Changed Markdown files are formatted with npm run format:markdown
 <!-- DOD:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: opencode
+created: 2026-09-14 19:01
+---
+Coordination: TASK-0233.03 updates the PostgreSQL access-transfer qualifier wording in docs/ci.md and deliberately leaves the stale anonymous-event-creation flag sentence to this task (AC1). Coordinate if both run concurrently.
+---
+<!-- COMMENTS:END -->

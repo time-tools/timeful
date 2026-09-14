@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-09-12 22:08'
+updated_date: '2026-09-14 19:01'
 labels:
   - postgres
   - tests
@@ -40,3 +41,13 @@ ordinal: 221000
 - [ ] #3 All required e2e tests pass. Documentation-only changes are exempt unless the user requests e2e tests
 - [ ] #4 Changed Markdown files are formatted with npm run format:markdown
 <!-- DOD:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: opencode
+created: 2026-09-14 19:01
+---
+Scope is absorbed by TASK-0233.02 (parent TASK-0233): that subtask renames server/routes/anonymous_event_compatibility_test.go and its single-store helpers for the PostgreSQL-only system. Do not execute this task independently; mark it satisfied when TASK-0233.02 lands.
+---
+<!-- COMMENTS:END -->
