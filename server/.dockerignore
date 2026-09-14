@@ -7,6 +7,9 @@ server
 bin/
 dist/
 coverage/
+
+# Local Go build caches (mirror the cache paths ignored in .gitignore)
+.gocache/
 .go-cache/
 
 # Environment files
