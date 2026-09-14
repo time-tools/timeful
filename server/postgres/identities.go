@@ -166,7 +166,7 @@ WHERE platform_identity_id = $1 AND id = ANY($2::uuid[])`, platformIdentityID, v
 // response row.
 func (r *Repository) EventVisitorHasResponse(ctx context.Context, eventID, visitorID string) (bool, error) {
 	var hasResponse bool
-	err := r.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM postgres_event_responses
+	err := r.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM event_responses
 WHERE event_id = $1 AND event_visitor_identity_id = $2)`, eventID, visitorID).Scan(&hasResponse)
 	return hasResponse, err
 }
@@ -184,7 +184,7 @@ func (r *Repository) GetResponseByPublicID(ctx context.Context, eventID, publicI
 // LockEvent serializes response count changes across concurrent requests and
 // returns the locked event, so callers need no second read.
 func (r *Repository) LockEvent(ctx context.Context, eventID string) (*Event, error) {
-	return scanEvent(r.db.QueryRow(ctx, `SELECT `+eventColumns+` FROM postgres_events WHERE id = $1 FOR UPDATE`, eventID))
+	return scanEvent(r.db.QueryRow(ctx, `SELECT `+eventColumns+` FROM events WHERE id = $1 FOR UPDATE`, eventID))
 }
 
 // SetEventOwnerToken is used only during event creation; existing EVCCs cannot recover a token.
@@ -192,14 +192,14 @@ func (r *Repository) SetEventOwnerToken(ctx context.Context, eventID string, has
 	if len(hash) != 32 {
 		return errors.New("owner token SHA-256 hash is required")
 	}
-	_, err := r.db.Exec(ctx, `UPDATE postgres_events SET owner_edit_token_hash = $2 WHERE id = $1 AND owner_edit_token_hash IS NULL`, eventID, hash)
+	_, err := r.db.Exec(ctx, `UPDATE events SET owner_edit_token_hash = $2 WHERE id = $1 AND owner_edit_token_hash IS NULL`, eventID, hash)
 	return err
 }
 
 // AssociateEventOwner must run under the event row lock after token proof.
 // It deliberately does not reassign any Event Visitor Identity or response.
 func (r *Repository) AssociateEventOwner(ctx context.Context, eventID, platformID string) error {
-	_, err := r.db.Exec(ctx, `UPDATE postgres_events SET owner_platform_identity_id = $2, updated_at = clock_timestamp() WHERE id = $1`, eventID, platformID)
+	_, err := r.db.Exec(ctx, `UPDATE events SET owner_platform_identity_id = $2, updated_at = clock_timestamp() WHERE id = $1`, eventID, platformID)
 	return err
 }
 
@@ -210,7 +210,7 @@ func (r *Repository) EventOwnerBelongsToAccount(ctx context.Context, eventID, pl
 		return false, nil
 	}
 	var authorized bool
-	err := r.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM postgres_events
+	err := r.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM events
  WHERE id = $1 AND owner_platform_identity_id = $2)`, eventID, platformIdentityID).Scan(&authorized)
 	return authorized, err
 }

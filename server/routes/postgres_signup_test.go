@@ -36,7 +36,7 @@ func createSignupPostgresEvent(t *testing.T, client *accountContractClient, name
 		t.Fatal("signup creation did not return an event identifier")
 	}
 	t.Cleanup(func() {
-		_, _ = pgstore.Pool.Exec(context.Background(), `DELETE FROM postgres_events WHERE short_id = $1`, eventID)
+		_, _ = pgstore.Pool.Exec(context.Background(), `DELETE FROM events WHERE short_id = $1`, eventID)
 	})
 	repository := repositoryForTest(t)
 	stored, err := repository.GetEventByShortID(context.Background(), eventID)
@@ -182,7 +182,7 @@ func TestPostgresSignupBlindAvailabilityParity(t *testing.T) {
 	created := owner.request(http.MethodPost, "/api/events", payload, http.StatusCreated)
 	eventID := decodeAccountString(t, created, "eventId")
 	t.Cleanup(func() {
-		_, _ = pgstore.Pool.Exec(context.Background(), `DELETE FROM postgres_events WHERE short_id = $1`, eventID)
+		_, _ = pgstore.Pool.Exec(context.Background(), `DELETE FROM events WHERE short_id = $1`, eventID)
 	})
 
 	stranger, _ := createSignedInAccount(t, router)

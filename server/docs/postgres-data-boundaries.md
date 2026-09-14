@@ -19,7 +19,7 @@ Every record is authored in exactly one store, and no record kind has a second r
 | Sub-calendar and its enabled state                                                                                            | PostgreSQL               | Child of its [Calendar Connection](../../docs/terminology/glossary.md#calendar-connection). |
 | OTP challenge                                                                                                                 | PostgreSQL               | Ephemeral; one active challenge per email.                                                  |
 | Historical daily user log and its account membership                                                                          | PostgreSQL               | Membership references an authoritative account.                                             |
-| Event-creator analytics                                                                                                       | PostgreSQL event storage | Reads `postgres_events.creator_posthog_id`.                                                 |
+| Event-creator analytics                                                                                                       | PostgreSQL event storage | Reads `events.creator_posthog_id`.                                                          |
 | Active-user and signed-up-user reporting                                                                                      | PostgreSQL               | Reads `daily_user_logs`, `daily_user_log_members`, and `accounts`.                          |
 | Core account, event, response, attendee, signup, group, and folder data                                                       | PostgreSQL               | Governed by the event API contract and the PostgreSQL schema.                               |
 
@@ -74,6 +74,6 @@ No calendar route may expose a token, password, or feed URL in a response.
 
 ## Reporting Reads
 
-Event-creator analytics aggregate `postgres_events.creator_posthog_id`, counting each event exactly once.
+Event-creator analytics aggregate `events.creator_posthog_id`, counting each event exactly once.
 Active-user reporting reads `daily_user_logs` and `daily_user_log_members`, and signed-up-user reporting reads `accounts`.
 Reporting reads only PostgreSQL records.

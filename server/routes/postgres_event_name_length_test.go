@@ -34,7 +34,7 @@ func countPostgresEventsByName(t *testing.T, name string) int {
 	t.Helper()
 
 	var count int
-	if err := pgstore.Pool.QueryRow(context.Background(), `SELECT count(*) FROM postgres_events WHERE name = $1`, name).Scan(&count); err != nil {
+	if err := pgstore.Pool.QueryRow(context.Background(), `SELECT count(*) FROM events WHERE name = $1`, name).Scan(&count); err != nil {
 		t.Fatalf("count PostgreSQL events by name: %v", err)
 	}
 	return count

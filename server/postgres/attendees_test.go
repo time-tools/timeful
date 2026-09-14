@@ -27,7 +27,7 @@ func seedAvailabilityGroupEvent(t *testing.T, ctx context.Context, tx pgx.Tx) st
 		t.Fatal(err)
 	}
 	var eventID string
-	if err := tx.QueryRow(ctx, `INSERT INTO postgres_events (short_id, name, type)
+	if err := tx.QueryRow(ctx, `INSERT INTO events (short_id, name, type)
 VALUES ($1, 'Group', 'group') RETURNING id`, shortID).Scan(&eventID); err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestAvailabilityGroupSchemaConstraints(t *testing.T) {
 	eventID := seedAvailabilityGroupEvent(t, ctx, tx)
 
 	expectSavepointError(t, ctx, tx, func() error {
-		_, err := tx.Exec(ctx, `INSERT INTO postgres_events (short_id, name, type) VALUES ($1, 'Bogus', 'bogus')`, signupTestShortID(t))
+		_, err := tx.Exec(ctx, `INSERT INTO events (short_id, name, type) VALUES ($1, 'Bogus', 'bogus')`, signupTestShortID(t))
 		return err
 	})
 	expectSavepointError(t, ctx, tx, func() error {
@@ -446,7 +446,7 @@ func TestAccountDeletionReleasesAttendeeRelations(t *testing.T) {
 }
 
 // TestGroupResponseReusesResponseStoragePayload proves a group response is
-// stored in the existing postgres_event_responses table with calendar-derived
+// stored in the existing event_responses table with calendar-derived
 // mode, selected calendars, copied calendar preferences, and manual
 // availability preserved, and that the manual availability window stays in the
 // event payload.
@@ -488,7 +488,7 @@ func TestGroupResponseReusesResponseStoragePayload(t *testing.T) {
 		}
 	}
 	var storedResponse int
-	if err := tx.QueryRow(ctx, `SELECT count(*) FROM postgres_event_responses WHERE id = $1`, response.ID).Scan(&storedResponse); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT count(*) FROM event_responses WHERE id = $1`, response.ID).Scan(&storedResponse); err != nil {
 		t.Fatal(err)
 	}
 	if storedResponse != 1 {

@@ -30,21 +30,21 @@ func expectConstraintViolation(t *testing.T, ctx context.Context, tx pgx.Tx, con
 func TestBaselineEventPayloadAndShortIDConstraints(t *testing.T) {
 	ctx, _, tx := newMigrationTestRepository(t)
 
-	if _, err := tx.Exec(ctx, `INSERT INTO postgres_events (short_id, name, type, payload)
+	if _, err := tx.Exec(ctx, `INSERT INTO events (short_id, name, type, payload)
 VALUES ($1, 'Baseline', 'signup', '{"name":"Baseline"}')`, signupTestShortID(t)); err != nil {
 		t.Fatalf("accept canonical short id and object payload: %v", err)
 	}
 	for _, shortID := range []string{"", "AAAAAAA", "AAAAAAAAA", "aaaaaaaa", "IIIIIIII", "AAAAAAAO"} {
 		shortID := shortID
-		expectConstraintViolation(t, ctx, tx, "postgres_events_short_id_format", func() error {
-			_, err := tx.Exec(ctx, `INSERT INTO postgres_events (short_id, name, type) VALUES ($1, 'Baseline', 'signup')`, shortID)
+		expectConstraintViolation(t, ctx, tx, "events_short_id_format", func() error {
+			_, err := tx.Exec(ctx, `INSERT INTO events (short_id, name, type) VALUES ($1, 'Baseline', 'signup')`, shortID)
 			return err
 		})
 	}
 	for _, payload := range []string{"[]", `"text"`, "null", "7"} {
 		payload := payload
-		expectConstraintViolation(t, ctx, tx, "postgres_events_payload_object", func() error {
-			_, err := tx.Exec(ctx, `INSERT INTO postgres_events (short_id, name, type, payload)
+		expectConstraintViolation(t, ctx, tx, "events_payload_object", func() error {
+			_, err := tx.Exec(ctx, `INSERT INTO events (short_id, name, type, payload)
 VALUES ($1, 'Baseline', 'signup', $2::jsonb)`, signupTestShortID(t), payload)
 			return err
 		})
@@ -58,12 +58,12 @@ func TestBaselineResponsePayloadObjectConstraint(t *testing.T) {
 	eventID := seedSignupEvent(t, ctx, tx, signupTestShortID(t))
 	visitorID := seedSignupVisitor(t, ctx, tx, eventID)
 
-	if _, err := tx.Exec(ctx, `INSERT INTO postgres_event_responses (event_id, event_visitor_identity_id, respondent_kind, payload)
+	if _, err := tx.Exec(ctx, `INSERT INTO event_responses (event_id, event_visitor_identity_id, respondent_kind, payload)
 VALUES ($1, $2, 'guest', '{"name":"Ada"}')`, eventID, visitorID); err != nil {
 		t.Fatalf("accept object payload: %v", err)
 	}
-	expectConstraintViolation(t, ctx, tx, "postgres_event_responses_payload_object", func() error {
-		_, err := tx.Exec(ctx, `INSERT INTO postgres_event_responses (event_id, event_visitor_identity_id, respondent_kind, payload)
+	expectConstraintViolation(t, ctx, tx, "event_responses_payload_object", func() error {
+		_, err := tx.Exec(ctx, `INSERT INTO event_responses (event_id, event_visitor_identity_id, respondent_kind, payload)
 VALUES ($1, $2, 'guest', '[]'::jsonb)`, eventID, visitorID)
 		return err
 	})
@@ -184,7 +184,7 @@ VALUES ($1, 'ada@example.com_google', 'ios')`, secondID); err != nil {
 
 // TestBaselineAdditionalCheckConstraints covers the remaining baseline CHECK
 // invariants that no other test exercises directly. The FR-119
-// postgres_events_name_length constraint is owned by name_constraint_test.go.
+// events_name_length constraint is owned by name_constraint_test.go.
 func TestBaselineAdditionalCheckConstraints(t *testing.T) {
 	ctx, _, tx := newMigrationTestRepository(t)
 	eventID := seedSignupEvent(t, ctx, tx, signupTestShortID(t))
@@ -206,17 +206,17 @@ func TestBaselineAdditionalCheckConstraints(t *testing.T) {
 	}{
 		{
 			name:       "event response counter rejects negative",
-			constraint: "postgres_events_num_responses_check",
+			constraint: "events_num_responses_check",
 			run: func() error {
-				_, err := tx.Exec(ctx, `INSERT INTO postgres_events (short_id, name, type, num_responses) VALUES ($1, 'Baseline', 'signup', -1)`, signupTestShortID(t))
+				_, err := tx.Exec(ctx, `INSERT INTO events (short_id, name, type, num_responses) VALUES ($1, 'Baseline', 'signup', -1)`, signupTestShortID(t))
 				return err
 			},
 		},
 		{
 			name:       "event owner edit token hash requires 32 bytes",
-			constraint: "postgres_events_owner_edit_token_hash_check",
+			constraint: "events_owner_edit_token_hash_check",
 			run: func() error {
-				_, err := tx.Exec(ctx, `INSERT INTO postgres_events (short_id, name, type, owner_edit_token_hash) VALUES ($1, 'Baseline', 'signup', 'short')`, signupTestShortID(t))
+				_, err := tx.Exec(ctx, `INSERT INTO events (short_id, name, type, owner_edit_token_hash) VALUES ($1, 'Baseline', 'signup', 'short')`, signupTestShortID(t))
 				return err
 			},
 		},

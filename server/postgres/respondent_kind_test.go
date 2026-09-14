@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-const respondentKindNotNullMigration = "20260915000000_postgres_event_responses_respondent_kind_not_null.sql"
+const respondentKindNotNullMigration = "20260915000000_event_responses_respondent_kind_not_null.sql"
 
 // TestPostgresEventResponsesRespondentKindNotNull proves the incremental
 // migration makes respondent_kind explicitly NOT NULL: every writer sets
@@ -18,7 +18,7 @@ func TestPostgresEventResponsesRespondentKindNotNull(t *testing.T) {
 
 	var nullable bool
 	if err := tx.QueryRow(ctx, `SELECT NOT attnotnull FROM pg_attribute
-WHERE attrelid = 'postgres_event_responses'::regclass AND attname = 'respondent_kind'`).Scan(&nullable); err != nil {
+WHERE attrelid = 'event_responses'::regclass AND attname = 'respondent_kind'`).Scan(&nullable); err != nil {
 		t.Fatalf("read respondent_kind nullability: %v", err)
 	}
 	if nullable {
@@ -29,7 +29,7 @@ WHERE attrelid = 'postgres_event_responses'::regclass AND attname = 'respondent_
 	visitorID := seedSignupVisitor(t, ctx, tx, eventID)
 
 	nullInsert := expectSavepointError(t, ctx, tx, func() error {
-		_, err := tx.Exec(ctx, `INSERT INTO postgres_event_responses (event_id, event_visitor_identity_id) VALUES ($1, $2)`, eventID, visitorID)
+		_, err := tx.Exec(ctx, `INSERT INTO event_responses (event_id, event_visitor_identity_id) VALUES ($1, $2)`, eventID, visitorID)
 		return err
 	})
 	var nullViolation *pgconn.PgError
@@ -37,19 +37,19 @@ WHERE attrelid = 'postgres_event_responses'::regclass AND attname = 'respondent_
 		t.Fatalf("expected a not-null violation for a NULL respondent_kind, got %v", nullInsert)
 	}
 
-	if _, err := tx.Exec(ctx, `INSERT INTO postgres_event_responses (event_id, event_visitor_identity_id, respondent_kind)
+	if _, err := tx.Exec(ctx, `INSERT INTO event_responses (event_id, event_visitor_identity_id, respondent_kind)
 VALUES ($1, $2, 'guest')`, eventID, visitorID); err != nil {
 		t.Fatalf("insert guest response: %v", err)
 	}
 
 	invalid := expectSavepointError(t, ctx, tx, func() error {
-		_, err := tx.Exec(ctx, `INSERT INTO postgres_event_responses (event_id, event_visitor_identity_id, respondent_kind)
+		_, err := tx.Exec(ctx, `INSERT INTO event_responses (event_id, event_visitor_identity_id, respondent_kind)
 VALUES ($1, $2, 'spectator')`, eventID, visitorID)
 		return err
 	})
 	var kindViolation *pgconn.PgError
-	if !errors.As(invalid, &kindViolation) || kindViolation.Code != "23514" || kindViolation.ConstraintName != "postgres_event_responses_kind" {
-		t.Fatalf("expected postgres_event_responses_kind check violation, got %v", invalid)
+	if !errors.As(invalid, &kindViolation) || kindViolation.Code != "23514" || kindViolation.ConstraintName != "event_responses_kind" {
+		t.Fatalf("expected event_responses_kind check violation, got %v", invalid)
 	}
 }
 
@@ -62,7 +62,7 @@ func TestPostgresEventResponsesRespondentKindNotNullDown(t *testing.T) {
 
 	var nullable bool
 	if err := tx.QueryRow(ctx, `SELECT NOT attnotnull FROM pg_attribute
-WHERE attrelid = 'postgres_event_responses'::regclass AND attname = 'respondent_kind'`).Scan(&nullable); err != nil {
+WHERE attrelid = 'event_responses'::regclass AND attname = 'respondent_kind'`).Scan(&nullable); err != nil {
 		t.Fatalf("read respondent_kind nullability: %v", err)
 	}
 	if !nullable {
@@ -71,7 +71,7 @@ WHERE attrelid = 'postgres_event_responses'::regclass AND attname = 'respondent_
 
 	eventID := seedSignupEvent(t, ctx, tx, signupTestShortID(t))
 	visitorID := seedSignupVisitor(t, ctx, tx, eventID)
-	if _, err := tx.Exec(ctx, `INSERT INTO postgres_event_responses (event_id, event_visitor_identity_id) VALUES ($1, $2)`, eventID, visitorID); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO event_responses (event_id, event_visitor_identity_id) VALUES ($1, $2)`, eventID, visitorID); err != nil {
 		t.Fatalf("insert NULL respondent_kind after Down: %v", err)
 	}
 }
@@ -99,7 +99,7 @@ func TestResponseWriterLeavesRetainedCompatibilityColumnsNull(t *testing.T) {
 
 	var guestID, canonicalName, editPolicy, ownershipMode, editToken *string
 	if err := tx.QueryRow(ctx, `SELECT guest_id, canonical_guest_name, guest_edit_policy, guest_ownership_mode, guest_edit_token
-FROM postgres_event_responses WHERE id = $1`, response.ID).Scan(&guestID, &canonicalName, &editPolicy, &ownershipMode, &editToken); err != nil {
+FROM event_responses WHERE id = $1`, response.ID).Scan(&guestID, &canonicalName, &editPolicy, &ownershipMode, &editToken); err != nil {
 		t.Fatal(err)
 	}
 	if guestID != nil || canonicalName != nil || editPolicy != nil || ownershipMode != nil || editToken != nil {

@@ -5,12 +5,12 @@
 PostgreSQL is the only store for every [Event Kind](../../docs/terminology/glossary.md#event-kind): [Timed Events](../../docs/terminology/glossary.md#timed-event), [Dates-Only Events](../../docs/terminology/glossary.md#dates-only-event), day-of-week events, availability groups, and signup forms, whether an [Anonymous Event Visitor](../../docs/terminology/glossary.md#anonymous-event-visitor) or an [Authenticated Event Visitor](../../docs/terminology/glossary.md#authenticated-event-visitor) creates them.
 This document is the API-behavior contract for those records: public identifiers, payload round-trip, authority credentials, response mutation, access transfers, and transaction rules.
 [Calendar Connections](../../docs/terminology/glossary.md#calendar-connection), provider tokens, OTP challenges, historical daily user logs, and reporting reads are governed by the [PostgreSQL Data Boundaries](postgres-data-boundaries.md) contract.
-`postgres_events` and `postgres_event_responses` are persistence tables, not HTTP DTOs, and route handlers project their records into API responses.
+`events` and `event_responses` are persistence tables, not HTTP DTOs, and route handlers project their records into API responses.
 The rules below govern the observable API behavior of every stored event record.
 
 ## Identifier Exposure
 
-`postgres_events.id` and `postgres_event_responses.id` are internal UUIDv7 identities.
+`events.id` and `event_responses.id` are internal UUIDv7 identities.
 Event routes address events by the canonical public event identifier, an eight-character Crockford Base32 `short_id`.
 The `/api/events/{eventId}/ids` read returns that identifier in both the `shortId` and `longId` fields.
 Each [Event Response](../../docs/terminology/glossary.md#event-response) carries an opaque `public_id` that keys response maps and names the mutation target.
@@ -28,7 +28,7 @@ Each response's event relation and its owner **Event Visitor Identity** must ide
 
 ## JSONB Payloads
 
-`postgres_events.payload` holds all remaining event state, including:
+`events.payload` holds all remaining event state, including:
 
 - Description and nullable/default settings.
 - Dates, [Active Slots](../../docs/terminology/glossary.md#active-slots), [Event Timezone](../../docs/terminology/glossary.md#event-timezone), slot generation, and timed recurrence.
@@ -39,7 +39,7 @@ Payload encoding round-trips every persisted field, including the days-only sche
 `models.Event.MarshalJSON` is the persistence encoding and must never drop a stored field.
 `models.Event.MarshalAPIJSON` is the API projection: it omits `duration`, `dates`, `timeIncrement`, `hasSpecificTimes`, `times`, and `startOnMonday` for events whose `daysOnly` flag is not true, while [Dates-Only Events](../../docs/terminology/glossary.md#dates-only-event) keep them.
 
-`postgres_event_responses.payload` holds display name, email, availability, if-needed availability, manual availability, and calendar-related fields.
+`event_responses.payload` holds display name, email, availability, if-needed availability, manual availability, and calendar-related fields.
 
 JSON arrays preserve their input behavior: date and recurrence arrays keep input order and duplicates, route validation normalizes active slots, and response availability keeps first-seen order after deduplication.
 Instants are normalized to millisecond precision before writing JSONB and before API output.

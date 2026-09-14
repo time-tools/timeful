@@ -65,27 +65,27 @@ VALUES ($1, $2, 0) ON CONFLICT DO NOTHING`, soloLogID, account.PlatformIdentityI
 		t.Fatal(err)
 	}
 	var eventID, ownerVisitorID, guestVisitorID string
-	if err := pgstore.Pool.QueryRow(ctx, `INSERT INTO postgres_events (short_id, name, type, owner_platform_identity_id)
+	if err := pgstore.Pool.QueryRow(ctx, `INSERT INTO events (short_id, name, type, owner_platform_identity_id)
 VALUES ($1, 'Owned', 'specific_dates', $2) RETURNING id`, shortID, account.PlatformIdentityID).Scan(&eventID); err != nil {
 		t.Fatal(err)
 	}
 	if err := pgstore.Pool.QueryRow(ctx, `INSERT INTO event_visitor_identities (event_id, platform_identity_id) VALUES ($1, $2) RETURNING id`, eventID, account.PlatformIdentityID).Scan(&ownerVisitorID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pgstore.Pool.Exec(ctx, `UPDATE postgres_events SET owner_event_visitor_identity_id = $2 WHERE id = $1`, eventID, ownerVisitorID); err != nil {
+	if _, err := pgstore.Pool.Exec(ctx, `UPDATE events SET owner_event_visitor_identity_id = $2 WHERE id = $1`, eventID, ownerVisitorID); err != nil {
 		t.Fatal(err)
 	}
 	if err := pgstore.Pool.QueryRow(ctx, `INSERT INTO event_visitor_identities (event_id) VALUES ($1) RETURNING id`, eventID).Scan(&guestVisitorID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pgstore.Pool.Exec(ctx, `INSERT INTO postgres_event_responses (event_id, event_visitor_identity_id, respondent_kind, platform_identity_id, payload)
+	if _, err := pgstore.Pool.Exec(ctx, `INSERT INTO event_responses (event_id, event_visitor_identity_id, respondent_kind, platform_identity_id, payload)
 VALUES ($1, $2, 'account', $3, '{"name":"Owner"}'), ($1, $4, 'guest', NULL, '{"name":"Guest"}')`,
 		eventID, ownerVisitorID, account.PlatformIdentityID, guestVisitorID); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
 		cleanup := context.Background()
-		_, _ = pgstore.Pool.Exec(cleanup, `DELETE FROM postgres_events WHERE id = $1`, eventID)
+		_, _ = pgstore.Pool.Exec(cleanup, `DELETE FROM events WHERE id = $1`, eventID)
 	})
 
 	// PostgreSQL: an account folder with a PostgreSQL member.
@@ -119,8 +119,8 @@ VALUES ($1, $2, 'account', $3, '{"name":"Owner"}'), ($1, $4, 'guest', NULL, '{"n
 	// response survives.
 	var ownResponses, guestResponses, pgFolders, pgMemberships int64
 	if err := pgstore.Pool.QueryRow(ctx, `SELECT
- (SELECT count(*) FROM postgres_event_responses WHERE platform_identity_id = $1),
- (SELECT count(*) FROM postgres_event_responses WHERE event_id = $2 AND respondent_kind = 'guest'),
+ (SELECT count(*) FROM event_responses WHERE platform_identity_id = $1),
+ (SELECT count(*) FROM event_responses WHERE event_id = $2 AND respondent_kind = 'guest'),
  (SELECT count(*) FROM folders WHERE platform_identity_id = $1),
  (SELECT count(*) FROM folder_events WHERE platform_identity_id = $1)`,
 		account.PlatformIdentityID, eventID).Scan(&ownResponses, &guestResponses, &pgFolders, &pgMemberships); err != nil {
@@ -157,9 +157,9 @@ VALUES ($1, $2, 'account', $3, '{"name":"Owner"}'), ($1, $4, 'guest', NULL, '{"n
 	// Events survive with released ownership.
 	var pgOwned, pgOwnResponses, pgGuestResponses int
 	if err := pgstore.Pool.QueryRow(ctx, `SELECT
- (SELECT count(*) FROM postgres_events WHERE id = $1 AND owner_platform_identity_id IS NULL AND owner_event_visitor_identity_id IS NULL),
- (SELECT count(*) FROM postgres_event_responses WHERE event_id = $1 AND respondent_kind = 'account'),
- (SELECT count(*) FROM postgres_event_responses WHERE event_id = $1 AND respondent_kind = 'guest')`, eventID).Scan(&pgOwned, &pgOwnResponses, &pgGuestResponses); err != nil {
+ (SELECT count(*) FROM events WHERE id = $1 AND owner_platform_identity_id IS NULL AND owner_event_visitor_identity_id IS NULL),
+ (SELECT count(*) FROM event_responses WHERE event_id = $1 AND respondent_kind = 'account'),
+ (SELECT count(*) FROM event_responses WHERE event_id = $1 AND respondent_kind = 'guest')`, eventID).Scan(&pgOwned, &pgOwnResponses, &pgGuestResponses); err != nil {
 		t.Fatal(err)
 	}
 	if pgOwned != 1 {

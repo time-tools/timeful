@@ -18,7 +18,7 @@ const monthlyActiveCreatorLookback = 30
 // one-second precision, so the upper bound excludes the reporting second
 // itself. The queries deliberately do not filter is_deleted.
 const monthlyActiveCreatorDaySpine = `FROM unnest($1::timestamptz[]) WITH ORDINALITY AS day(day_end, position)
-LEFT JOIN postgres_events e
+LEFT JOIN events e
   ON e.created_at >= day.day_end - $2::int * interval '1 day'
  AND e.created_at < day.day_end
  AND e.creator_posthog_id IS NOT NULL
@@ -39,7 +39,7 @@ const countDistinctMonthlyActiveEventCreatorsWithMoreThanXEventsByDayQuery = `SE
 FROM unnest($1::timestamptz[]) WITH ORDINALITY AS day(day_end, position)
 LEFT JOIN LATERAL (
     SELECT e.creator_posthog_id
-    FROM postgres_events e
+    FROM events e
     WHERE e.created_at >= day.day_end - $2::int * interval '1 day'
       AND e.created_at < day.day_end
       AND e.creator_posthog_id IS NOT NULL

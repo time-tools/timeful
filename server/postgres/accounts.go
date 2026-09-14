@@ -242,7 +242,7 @@ func (r *Repository) deleteAccountAuthority(ctx context.Context, platformIdentit
 	visitorIDs := []string{}
 	rows, err := r.db.Query(ctx, `SELECT id FROM event_visitor_identities WHERE platform_identity_id = $1
 UNION
-SELECT event_visitor_identity_id FROM postgres_event_responses WHERE platform_identity_id = $1
+SELECT event_visitor_identity_id FROM event_responses WHERE platform_identity_id = $1
 UNION
 SELECT event_visitor_identity_id FROM event_signup_responses WHERE platform_identity_id = $1`, platformIdentityID)
 	if err != nil {
@@ -273,7 +273,7 @@ WHERE platform_identity_id = $1
 
 	// Release event ownership while preserving the events themselves and every
 	// other guest's response.
-	if _, err := r.db.Exec(ctx, `UPDATE postgres_events
+	if _, err := r.db.Exec(ctx, `UPDATE events
 SET owner_platform_identity_id = NULL, owner_event_visitor_identity_id = NULL, updated_at = clock_timestamp()
 WHERE owner_platform_identity_id = $1
    OR owner_event_visitor_identity_id = ANY($2)`, platformIdentityID, visitorIDs); err != nil {
@@ -288,7 +288,7 @@ WHERE platform_identity_id = $1`, platformIdentityID); err != nil {
 		return err
 	}
 
-	if _, err := r.db.Exec(ctx, `DELETE FROM postgres_event_responses
+	if _, err := r.db.Exec(ctx, `DELETE FROM event_responses
 WHERE platform_identity_id = $1 OR event_visitor_identity_id = ANY($2)`, platformIdentityID, visitorIDs); err != nil {
 		return err
 	}

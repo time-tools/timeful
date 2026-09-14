@@ -31,7 +31,7 @@ func setGroupManualWindow(t *testing.T, event *pgstore.Event, durationHours floa
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pgstore.Pool.Exec(context.Background(), `UPDATE postgres_events SET payload = $2 WHERE id = $1`, event.ID, payload); err != nil {
+	if _, err := pgstore.Pool.Exec(context.Background(), `UPDATE events SET payload = $2 WHERE id = $1`, event.ID, payload); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -201,7 +201,7 @@ func TestPostgresGroupLegacyAccountResponseWithoutIdentityStaysEditable(t *testi
 	// Simulate a pre-cutover account response whose legacy account reference was
 	// empty, so the migration leaves it without a platform identity.
 	if _, err := pgstore.Pool.Exec(context.Background(),
-		`UPDATE postgres_event_responses SET respondent_kind = 'account', platform_identity_id = NULL, canonical_guest_name = NULL WHERE id = $1`,
+		`UPDATE event_responses SET respondent_kind = 'account', platform_identity_id = NULL, canonical_guest_name = NULL WHERE id = $1`,
 		response.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -394,7 +394,7 @@ func TestPostgresGroupLiveCreateDerivesManualAvailabilityWindow(t *testing.T) {
 	eventID := decodeAccountString(t, created, "eventId")
 	t.Cleanup(func() {
 		if pgstore.Pool != nil {
-			_, _ = pgstore.Pool.Exec(context.Background(), `DELETE FROM postgres_events WHERE short_id = $1`, eventID)
+			_, _ = pgstore.Pool.Exec(context.Background(), `DELETE FROM events WHERE short_id = $1`, eventID)
 		}
 	})
 	stored, err := repositoryForTest(t).GetEventByShortID(ctx, eventID)

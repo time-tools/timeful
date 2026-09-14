@@ -21,7 +21,7 @@ CREATE TABLE platform_identities (
 -- favor of the canonical short identifier, and ownership association is
 -- separate from the creator's response identity. The owner is a platform
 -- identity uuid.
-CREATE TABLE postgres_events (
+CREATE TABLE events (
     id UUID PRIMARY KEY DEFAULT uuidv7(),
     short_id TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
@@ -37,23 +37,23 @@ CREATE TABLE postgres_events (
     owner_event_visitor_identity_id UUID,
     owner_edit_token_hash BYTEA CHECK (octet_length(owner_edit_token_hash) = 32),
     owner_platform_identity_id UUID REFERENCES platform_identities(id),
-    CONSTRAINT postgres_events_short_id_format CHECK (
+    CONSTRAINT events_short_id_format CHECK (
         short_id ~ '^[0-9A-HJKMNPQRSTVWXYZ]{8}$'
     ),
-    CONSTRAINT postgres_events_type CHECK (type IN ('specific_dates', 'dow', 'signup', 'group')),
-    CONSTRAINT postgres_events_payload_object CHECK (jsonb_typeof(payload) = 'object')
+    CONSTRAINT events_type CHECK (type IN ('specific_dates', 'dow', 'signup', 'group')),
+    CONSTRAINT events_payload_object CHECK (jsonb_typeof(payload) = 'object')
 );
 
-CREATE INDEX postgres_events_active_creator_posthog_id_idx
-    ON postgres_events (creator_posthog_id, created_at DESC)
+CREATE INDEX events_active_creator_posthog_id_idx
+    ON events (creator_posthog_id, created_at DESC)
     WHERE NOT is_deleted;
 
-CREATE INDEX postgres_events_owner_platform_idx
-    ON postgres_events (owner_platform_identity_id);
+CREATE INDEX events_owner_platform_idx
+    ON events (owner_platform_identity_id);
 
 CREATE TABLE event_visitor_identities (
     id UUID PRIMARY KEY DEFAULT uuidv7(),
-    event_id UUID NOT NULL REFERENCES postgres_events(id) ON DELETE CASCADE,
+    event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     public_id UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
     platform_identity_id UUID REFERENCES platform_identities(id),
     created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
@@ -79,16 +79,16 @@ CREATE INDEX event_visitor_credentials_visitor_idx
 
 -- Ownership association is a separate relation from the creator's response
 -- identity, so it is added after the visitor identity table exists.
-ALTER TABLE postgres_events
-    ADD CONSTRAINT postgres_events_owner_visitor_fk
+ALTER TABLE events
+    ADD CONSTRAINT events_owner_visitor_fk
     FOREIGN KEY (id, owner_event_visitor_identity_id) REFERENCES event_visitor_identities(event_id, id);
 
 -- Responses are owned by an Event Visitor Identity, and the account reference
 -- is the platform identity uuid. Respondent identity columns and the retained
 -- credential column stay for runtime compatibility.
-CREATE TABLE postgres_event_responses (
+CREATE TABLE event_responses (
     id UUID PRIMARY KEY DEFAULT uuidv7(),
-    event_id UUID NOT NULL REFERENCES postgres_events(id) ON DELETE CASCADE,
+    event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     respondent_kind TEXT NULL,
     guest_id TEXT NULL,
     canonical_guest_name TEXT NULL,
@@ -102,29 +102,29 @@ CREATE TABLE postgres_event_responses (
     public_id UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
     event_visitor_identity_id UUID NOT NULL,
     platform_identity_id UUID REFERENCES platform_identities(id),
-    CONSTRAINT postgres_event_responses_kind CHECK (
+    CONSTRAINT event_responses_kind CHECK (
         respondent_kind IN ('account', 'guest')
     ),
-    CONSTRAINT postgres_event_responses_payload_object CHECK (jsonb_typeof(payload) = 'object'),
-    CONSTRAINT postgres_response_owner_event_fk
+    CONSTRAINT event_responses_payload_object CHECK (jsonb_typeof(payload) = 'object'),
+    CONSTRAINT event_responses_visitor_event_fk
         FOREIGN KEY (event_id, event_visitor_identity_id)
         REFERENCES event_visitor_identities(event_id, id)
 );
 
-CREATE INDEX postgres_event_responses_event_id_idx
-    ON postgres_event_responses (event_id);
+CREATE INDEX event_responses_event_id_idx
+    ON event_responses (event_id);
 
-CREATE INDEX postgres_response_visitor_idx
-    ON postgres_event_responses (event_visitor_identity_id);
+CREATE INDEX event_responses_visitor_idx
+    ON event_responses (event_visitor_identity_id);
 
-CREATE INDEX postgres_response_platform_identity_idx
-    ON postgres_event_responses (platform_identity_id);
+CREATE INDEX event_responses_platform_identity_idx
+    ON event_responses (platform_identity_id);
 
 -- The source account reference is the platform identity uuid while the
 -- credential-based path keeps source_credential_id.
 CREATE TABLE access_transfers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_id UUID NOT NULL REFERENCES postgres_events(id) ON DELETE CASCADE,
+    event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     source_hash BYTEA NOT NULL CHECK (octet_length(source_hash) = 32),
     source_credential_id UUID REFERENCES event_visitor_credentials(id),
     grants_owner BOOLEAN NOT NULL DEFAULT FALSE,
@@ -197,12 +197,12 @@ CREATE TABLE folders (
 
 CREATE INDEX folders_platform_identity_id_idx ON folders (platform_identity_id);
 
--- A membership holds exactly one PostgreSQL event reference and belongs to one
+-- A membership holds exactly one event reference and belongs to one
 -- account.
 CREATE TABLE folder_events (
     id UUID PRIMARY KEY DEFAULT uuidv7(),
     folder_id UUID NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
-    event_id UUID NOT NULL REFERENCES postgres_events(id) ON DELETE CASCADE,
+    event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
     platform_identity_id UUID NOT NULL REFERENCES platform_identities(id)
 );
@@ -218,7 +218,7 @@ CREATE UNIQUE INDEX folder_events_event_unique_idx
 -- capacity is NULL when unlimited; zero capacity rejects every signup.
 CREATE TABLE event_signup_blocks (
     id UUID PRIMARY KEY DEFAULT uuidv7(),
-    event_id UUID NOT NULL REFERENCES postgres_events(id) ON DELETE CASCADE,
+    event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     name TEXT NOT NULL DEFAULT '',
     capacity INTEGER NULL CHECK (capacity IS NULL OR capacity >= 0),
     start_date TIMESTAMPTZ NULL,
@@ -238,7 +238,7 @@ CREATE INDEX event_signup_blocks_event_id_idx
 CREATE TABLE event_signup_responses (
     id UUID PRIMARY KEY DEFAULT uuidv7(),
     public_id UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
-    event_id UUID NOT NULL REFERENCES postgres_events(id) ON DELETE CASCADE,
+    event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     event_visitor_identity_id UUID NOT NULL,
     respondent_kind TEXT NOT NULL CHECK (respondent_kind IN ('account', 'guest')),
     canonical_guest_name TEXT NULL,
@@ -275,7 +275,7 @@ CREATE UNIQUE INDEX event_signup_responses_guest_name_unique_idx
 -- omitted.
 CREATE TABLE event_attendees (
     id UUID PRIMARY KEY DEFAULT uuidv7(),
-    event_id UUID NOT NULL REFERENCES postgres_events(id) ON DELETE CASCADE,
+    event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     email TEXT NOT NULL CHECK (email <> ''),
     declined BOOLEAN NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),

@@ -41,10 +41,10 @@ func TestSupportingIndexesSchema(t *testing.T) {
 		name     string
 		fragment string
 	}{
-		{"postgres_event_responses_event_created_idx", "(event_id, created_at, id)"},
+		{"event_responses_event_created_idx", "(event_id, created_at, id)"},
 		{"event_attendees_event_created_idx", "(event_id, created_at, id)"},
 		{"event_attendees_event_email_lower_idx", "(event_id, lower(email))"},
-		{"postgres_events_creator_created_at_idx", "(created_at, creator_posthog_id)"},
+		{"events_creator_created_at_idx", "(created_at, creator_posthog_id)"},
 		{"daily_user_log_members_log_position_idx", "(daily_user_log_id, first_seen_position, id)"},
 	} {
 		definition := indexDefinition(t, ctx, tx, expected.name)
@@ -57,15 +57,15 @@ func TestSupportingIndexesSchema(t *testing.T) {
 	}
 
 	for _, retired := range []string{
-		"postgres_event_responses_event_id_idx",
-		"postgres_events_active_creator_posthog_id_idx",
+		"event_responses_event_id_idx",
+		"events_active_creator_posthog_id_idx",
 	} {
 		if definition := indexDefinition(t, ctx, tx, retired); definition != "" {
 			t.Fatalf("retired index %s survived: %q", retired, definition)
 		}
 	}
 
-	analytics := indexDefinition(t, ctx, tx, "postgres_events_creator_created_at_idx")
+	analytics := indexDefinition(t, ctx, tx, "events_creator_created_at_idx")
 	if !strings.Contains(analytics, "WHERE") || !strings.Contains(analytics, "creator_posthog_id IS NOT NULL") || !strings.Contains(analytics, "creator_posthog_id <> ''") {
 		t.Fatalf("analytics index is not partial on non-empty creator_posthog_id: %q", analytics)
 	}
@@ -74,18 +74,18 @@ func TestSupportingIndexesSchema(t *testing.T) {
 	// ones, so the temp-table harness can apply either direction.
 	applyMigrationDown(t, ctx, tx, "20260913000001_supporting_indexes.sql")
 	for _, restored := range []string{
-		"postgres_event_responses_event_id_idx",
-		"postgres_events_active_creator_posthog_id_idx",
+		"event_responses_event_id_idx",
+		"events_active_creator_posthog_id_idx",
 	} {
 		if definition := indexDefinition(t, ctx, tx, restored); definition == "" {
 			t.Fatalf("down migration did not restore %s", restored)
 		}
 	}
 	for _, removed := range []string{
-		"postgres_event_responses_event_created_idx",
+		"event_responses_event_created_idx",
 		"event_attendees_event_created_idx",
 		"event_attendees_event_email_lower_idx",
-		"postgres_events_creator_created_at_idx",
+		"events_creator_created_at_idx",
 		"daily_user_log_members_log_position_idx",
 	} {
 		if definition := indexDefinition(t, ctx, tx, removed); definition != "" {
@@ -184,13 +184,13 @@ VALUES ($1, $2, $3) RETURNING id`, eventID, hash[:], platformIdentityID).Scan(&t
 	}
 
 	distinctAnalytics := explainPlan(t, ctx, tx, countDistinctMonthlyActiveEventCreatorsByDayQuery, []time.Time{now}, monthlyActiveCreatorLookback)
-	assertPlanIndex(t, distinctAnalytics, "postgres_events_creator_created_at_idx")
+	assertPlanIndex(t, distinctAnalytics, "events_creator_created_at_idx")
 
 	groupedAnalytics := explainPlan(t, ctx, tx, countDistinctMonthlyActiveEventCreatorsWithMoreThanXEventsByDayQuery, []time.Time{now}, monthlyActiveCreatorLookback, 1)
-	assertPlanIndex(t, groupedAnalytics, "postgres_events_creator_created_at_idx")
+	assertPlanIndex(t, groupedAnalytics, "events_creator_created_at_idx")
 
 	responseListing := explainPlan(t, ctx, tx, listResponsesQuery, eventID)
-	assertPlanIndex(t, responseListing, "postgres_event_responses_event_created_idx")
+	assertPlanIndex(t, responseListing, "event_responses_event_created_idx")
 
 	attendeeListing := explainPlan(t, ctx, tx, listAttendeesQuery, eventID)
 	assertPlanIndex(t, attendeeListing, "event_attendees_event_created_idx")

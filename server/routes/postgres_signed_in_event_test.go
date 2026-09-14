@@ -65,7 +65,7 @@ func TestSignedInPostgresEventLifecycle(t *testing.T) {
 		t.Fatalf("expected a canonical event identifier, got %q", eventID)
 	}
 	t.Cleanup(func() {
-		_, _ = pgstore.Pool.Exec(context.Background(), `DELETE FROM postgres_events WHERE short_id = $1`, eventID)
+		_, _ = pgstore.Pool.Exec(context.Background(), `DELETE FROM events WHERE short_id = $1`, eventID)
 	})
 
 	repository := repositoryForTest(t)
@@ -118,7 +118,7 @@ func TestSignedInPostgresResponseAssociation(t *testing.T) {
 	created := owner.request(http.MethodPost, "/api/events", payload, http.StatusCreated)
 	eventID := decodeAccountString(t, created, "eventId")
 	t.Cleanup(func() {
-		_, _ = pgstore.Pool.Exec(context.Background(), `DELETE FROM postgres_events WHERE short_id = $1`, eventID)
+		_, _ = pgstore.Pool.Exec(context.Background(), `DELETE FROM events WHERE short_id = $1`, eventID)
 	})
 	path := "/api/events/" + eventID
 

@@ -47,7 +47,7 @@ func TestApplicationRolePrivilegeSeparation(t *testing.T) {
 		sql  string
 	}{
 		{"CREATE TABLE", `CREATE TABLE public.schema_integrity_ddl_probe (id integer)`},
-		{"ALTER TABLE", `ALTER TABLE public.postgres_events ADD COLUMN schema_integrity_ddl_probe integer`},
+		{"ALTER TABLE", `ALTER TABLE public.events ADD COLUMN schema_integrity_ddl_probe integer`},
 	} {
 		statement := statement
 		t.Run(statement.name+" is denied", func(t *testing.T) {

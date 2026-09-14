@@ -41,7 +41,7 @@ type Event struct {
 // Response is stored independently so response mutations and event response
 // counts can be committed in one transaction. Identity columns drive lookup
 // and uniqueness; Payload retains the current response wire shape. The legacy
-// guest columns on postgres_event_responses are retained only for the prior
+// guest columns on event_responses are retained only for the prior
 // release's rollback window and are neither read nor written here.
 type Response struct {
 	ID                     string

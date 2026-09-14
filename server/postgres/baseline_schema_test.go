@@ -21,24 +21,24 @@ func TestBaselineVisitorIdentityAndOwnerConstraints(t *testing.T) {
 
 	// A response must carry a visitor identity scoped to the same event.
 	expectSavepointError(t, ctx, tx, func() error {
-		_, err := tx.Exec(ctx, `INSERT INTO postgres_event_responses (event_id, event_visitor_identity_id, respondent_kind) VALUES ($1, $2, 'guest')`, otherEventID, visitorID)
+		_, err := tx.Exec(ctx, `INSERT INTO event_responses (event_id, event_visitor_identity_id, respondent_kind) VALUES ($1, $2, 'guest')`, otherEventID, visitorID)
 		return err
 	})
 	var platformIdentityID string
 	if err := tx.QueryRow(ctx, `INSERT INTO platform_identities DEFAULT VALUES RETURNING id`).Scan(&platformIdentityID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO postgres_event_responses (event_id, event_visitor_identity_id, respondent_kind, platform_identity_id, guest_edit_token, payload)
+	if _, err := tx.Exec(ctx, `INSERT INTO event_responses (event_id, event_visitor_identity_id, respondent_kind, platform_identity_id, guest_edit_token, payload)
 VALUES ($1, $2, 'account', $3, 'compat-token', '{}'::jsonb)`, eventID, visitorID, platformIdentityID); err != nil {
 		t.Fatalf("compatibility response insert: %v", err)
 	}
 
 	// The owner relation must reference a visitor identity of the same event.
 	expectSavepointError(t, ctx, tx, func() error {
-		_, err := tx.Exec(ctx, `UPDATE postgres_events SET owner_event_visitor_identity_id = $2 WHERE id = $1`, otherEventID, visitorID)
+		_, err := tx.Exec(ctx, `UPDATE events SET owner_event_visitor_identity_id = $2 WHERE id = $1`, otherEventID, visitorID)
 		return err
 	})
-	if _, err := tx.Exec(ctx, `UPDATE postgres_events SET owner_event_visitor_identity_id = $2 WHERE id = $1`, eventID, visitorID); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE events SET owner_event_visitor_identity_id = $2 WHERE id = $1`, eventID, visitorID); err != nil {
 		t.Fatalf("owner association: %v", err)
 	}
 
@@ -65,8 +65,8 @@ func TestBaselineConsolidatesAccountIdentity(t *testing.T) {
 
 	for _, column := range []struct{ table, column string }{
 		{"platform_identities", "external_user_id"},
-		{"postgres_events", "owner_external_id"},
-		{"postgres_event_responses", "account_user_id"},
+		{"events", "owner_external_id"},
+		{"event_responses", "account_user_id"},
 		{"event_signup_responses", "account_user_id"},
 		{"event_attendees", "account_user_id"},
 		{"folders", "account_user_id"},
@@ -81,8 +81,8 @@ func TestBaselineConsolidatesAccountIdentity(t *testing.T) {
 	}
 
 	for _, column := range []struct{ table, column string }{
-		{"postgres_events", "owner_platform_identity_id"},
-		{"postgres_event_responses", "platform_identity_id"},
+		{"events", "owner_platform_identity_id"},
+		{"event_responses", "platform_identity_id"},
 		{"event_signup_responses", "platform_identity_id"},
 		{"event_attendees", "platform_identity_id"},
 		{"folders", "platform_identity_id"},

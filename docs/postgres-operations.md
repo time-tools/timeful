@@ -37,16 +37,16 @@ Off-host replication, automated scheduling, and recovery objectives remain later
 
 ## Event Name Constraint
 
-The FR-119 event-name guard is added `NOT VALID` by `20260913000002_postgres_events_name_length.sql` so a database that predates the baseline cannot fail that migration on legacy rows, while every new insert and update is still checked.
-`20260914000000_validate_postgres_events_name_length.sql` then validates the constraint, so a database that applies the full migration chain ends with a validated guard.
+The FR-119 event-name guard is added `NOT VALID` by `20260913000002_events_name_length.sql` so a database that predates the baseline cannot fail that migration on legacy rows, while every new insert and update is still checked.
+`20260914000000_validate_events_name_length.sql` then validates the constraint, so a database that applies the full migration chain ends with a validated guard.
 A database created from the baseline has no legacy rows, so the validation migration succeeds there without cleanup.
 Do not validate or clean rows in a database that predates the baseline; recreate it from the baseline instead, which applies the validation migration as part of the chain.
 Confirm the constraint state after the application stack reports healthy against a database:
 
 ```sql
 SELECT convalidated FROM pg_constraint
-WHERE conrelid = 'postgres_events'::regclass
-    AND conname = 'postgres_events_name_length';
+WHERE conrelid = 'events'::regclass
+    AND conname = 'events_name_length';
 ```
 
 A result of `f` means the database has not applied the full chain, and an empty result means it has not applied the constraint migration at all.
@@ -55,7 +55,7 @@ The validation migration fails and aborts the goose run when a database still ho
 Detect offenders before rerunning the migration:
 
 ```sql
-SELECT id, name FROM postgres_events
+SELECT id, name FROM events
 WHERE name = '' OR char_length(name) > 100;
 ```
 

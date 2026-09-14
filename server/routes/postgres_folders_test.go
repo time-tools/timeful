@@ -157,7 +157,7 @@ func TestSignedInFolderDeleteRemovesMembershipsAndOwnedMembers(t *testing.T) {
 		t.Fatalf("folder memberships survived deletion: %d", memberships)
 	}
 	var postgresDeleted bool
-	if err := pgstore.Pool.QueryRow(ctx, `SELECT is_deleted FROM postgres_events WHERE short_id = $1`, postgresEventID).Scan(&postgresDeleted); err != nil {
+	if err := pgstore.Pool.QueryRow(ctx, `SELECT is_deleted FROM events WHERE short_id = $1`, postgresEventID).Scan(&postgresDeleted); err != nil {
 		t.Fatal(err)
 	}
 	if !postgresDeleted {

@@ -80,7 +80,7 @@ func anonymousEventContractStores() []anonymousEventContractStore {
 				if pgstore.Pool == nil {
 					return
 				}
-				_, err := pgstore.Pool.Exec(context.Background(), `DELETE FROM postgres_events WHERE short_id = $1`, eventID)
+				_, err := pgstore.Pool.Exec(context.Background(), `DELETE FROM events WHERE short_id = $1`, eventID)
 				if err != nil {
 					t.Fatalf("delete PostgreSQL event: %v", err)
 				}

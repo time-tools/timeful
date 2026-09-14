@@ -62,7 +62,7 @@ func createDashboardPostgresEvent(t *testing.T, client *accountContractClient, n
 		t.Fatal("signed-in creation did not return an event identifier")
 	}
 	t.Cleanup(func() {
-		_, _ = pgstore.Pool.Exec(context.Background(), `DELETE FROM postgres_events WHERE short_id = $1`, eventID)
+		_, _ = pgstore.Pool.Exec(context.Background(), `DELETE FROM events WHERE short_id = $1`, eventID)
 	})
 	return eventID
 }

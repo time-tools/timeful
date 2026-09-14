@@ -36,7 +36,7 @@ const listDashboardEventsQuery = `SELECT e.id, e.short_id, e.owner_edit_token_ha
        COALESCE(e.owner_platform_identity_id = $1, FALSE) AS owned,
        (EXISTS (
           SELECT 1
-          FROM postgres_event_responses r
+          FROM event_responses r
           WHERE r.event_id = e.id
             AND (r.platform_identity_id = $1 OR EXISTS (
               SELECT 1 FROM event_visitor_identities v
@@ -58,13 +58,13 @@ const listDashboardEventsQuery = `SELECT e.id, e.short_id, e.owner_edit_token_ha
             AND a.declined IS NOT TRUE
             AND lower(a.email) = lower($2)
        )) AS member
-FROM postgres_events e
+FROM events e
 WHERE e.is_deleted = FALSE
   AND (
     e.owner_platform_identity_id = $1
     OR EXISTS (
       SELECT 1
-      FROM postgres_event_responses r
+      FROM event_responses r
       WHERE r.event_id = e.id
         AND (r.platform_identity_id = $1 OR EXISTS (
           SELECT 1 FROM event_visitor_identities v

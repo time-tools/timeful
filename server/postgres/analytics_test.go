@@ -17,7 +17,7 @@ func insertAnalyticsEvent(t *testing.T, ctx context.Context, tx pgx.Tx, creatorP
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO postgres_events
+	if _, err := tx.Exec(ctx, `INSERT INTO events
  (short_id, name, type, is_deleted, creator_posthog_id, created_at, updated_at, payload)
 VALUES ($1, 'analytics', 'specific_dates', $2, $3, $4, $4, '{}'::jsonb)`,
 		shortID, isDeleted, creatorPosthogID, createdAt); err != nil {

@@ -50,7 +50,7 @@ func expectSavepointError(t *testing.T, ctx context.Context, tx pgx.Tx, fn func(
 func seedSignupEvent(t *testing.T, ctx context.Context, tx pgx.Tx, shortID string) string {
 	t.Helper()
 	var eventID string
-	if err := tx.QueryRow(ctx, `INSERT INTO postgres_events (short_id, name, type)
+	if err := tx.QueryRow(ctx, `INSERT INTO events (short_id, name, type)
 VALUES ($1, 'Signup', 'signup') RETURNING id`, shortID).Scan(&eventID); err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestSignupSchemaConstraints(t *testing.T) {
 	eventID := seedSignupEvent(t, ctx, tx, signupTestShortID(t))
 
 	expectSavepointError(t, ctx, tx, func() error {
-		_, err := tx.Exec(ctx, `INSERT INTO postgres_events (short_id, name, type) VALUES ($1, 'Bogus', 'bogus')`, signupTestShortID(t))
+		_, err := tx.Exec(ctx, `INSERT INTO events (short_id, name, type) VALUES ($1, 'Bogus', 'bogus')`, signupTestShortID(t))
 		return err
 	})
 	otherEventID := seedSignupEvent(t, ctx, tx, signupTestShortID(t))
@@ -316,12 +316,12 @@ func TestSignupCapacityReservationAtomicUnderContention(t *testing.T) {
 
 	shortID := signupTestShortID(t)
 	var eventID, blockID string
-	if err := pool.QueryRow(ctx, `INSERT INTO postgres_events (short_id, name, type)
+	if err := pool.QueryRow(ctx, `INSERT INTO events (short_id, name, type)
 VALUES ($1, 'Contended', 'signup') RETURNING id`, shortID).Scan(&eventID); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if _, err := pool.Exec(context.Background(), `DELETE FROM postgres_events WHERE id = $1`, eventID); err != nil {
+		if _, err := pool.Exec(context.Background(), `DELETE FROM events WHERE id = $1`, eventID); err != nil {
 			t.Errorf("delete contended event: %v", err)
 		}
 	})

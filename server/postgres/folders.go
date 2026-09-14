@@ -22,7 +22,7 @@ type Folder struct {
 }
 
 // FolderMember is one event reference stored by folder_events. EventID is the
-// member's PostgreSQL postgres_events.id. EventShortID is the member event's
+// member's events.id. EventShortID is the member event's
 // public short identifier and is empty when the referenced event row is
 // missing.
 type FolderMember struct {
@@ -34,7 +34,7 @@ const folderSelect = `SELECT f.id, f.platform_identity_id, f.name, f.color, f.is
        fe.event_id, e.short_id
 FROM folders f
 LEFT JOIN folder_events fe ON fe.folder_id = f.id
-LEFT JOIN postgres_events e ON e.id = fe.event_id`
+LEFT JOIN events e ON e.id = fe.event_id`
 
 // CreateFolder inserts an account-scoped folder and returns its hidden identity
 // and timestamps.
@@ -115,7 +115,7 @@ WHERE id = $1 AND platform_identity_id = $2 AND is_deleted IS DISTINCT FROM TRUE
 RETURNING id`, folderID, platformIdentityID).Scan(&id); err != nil {
 			return err
 		}
-		if _, err := tx.db.Exec(ctx, `UPDATE postgres_events SET is_deleted = TRUE, updated_at = clock_timestamp()
+		if _, err := tx.db.Exec(ctx, `UPDATE events SET is_deleted = TRUE, updated_at = clock_timestamp()
 WHERE id IN (
     SELECT fe.event_id FROM folder_events fe
     WHERE fe.folder_id = $1 AND fe.platform_identity_id = $2

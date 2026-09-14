@@ -34,7 +34,7 @@ VALUES ($1, decode(repeat('ab',32),'hex'))`, visitorID); err != nil {
 		t.Fatal(err)
 	}
 	var responseID string
-	if err := tx.QueryRow(ctx, `INSERT INTO postgres_event_responses (event_id, event_visitor_identity_id, respondent_kind)
+	if err := tx.QueryRow(ctx, `INSERT INTO event_responses (event_id, event_visitor_identity_id, respondent_kind)
 VALUES ($1, $2, 'guest') RETURNING id`, eventID, visitorID).Scan(&responseID); err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ VALUES ($1, $2, 'CASCADE1') RETURNING id`, transferID, hash[:]).Scan(&requestID)
 		t.Fatal(err)
 	}
 
-	if _, err := tx.Exec(ctx, `DELETE FROM postgres_events WHERE id = $1`, eventID); err != nil {
+	if _, err := tx.Exec(ctx, `DELETE FROM events WHERE id = $1`, eventID); err != nil {
 		t.Fatalf("delete event: %v", err)
 	}
 
@@ -91,7 +91,7 @@ VALUES ($1, $2, 'CASCADE1') RETURNING id`, transferID, hash[:]).Scan(&requestID)
 	}{
 		{"event_visitor_identities", "id = $1", []any{visitorID}},
 		{"event_visitor_credentials", "event_visitor_identity_id = $1", []any{visitorID}},
-		{"postgres_event_responses", "id = $1", []any{responseID}},
+		{"event_responses", "id = $1", []any{responseID}},
 		{"event_signup_blocks", "id = $1", []any{blockID}},
 		{"event_signup_responses", "id = $1", []any{signupResponseID}},
 		{"event_signup_response_blocks", "response_id = $1", []any{signupResponseID}},

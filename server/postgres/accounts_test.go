@@ -237,7 +237,7 @@ func TestAccountRepositoryDeletionReleasesOwnershipAndRemovesOwnResponses(t *tes
 	}
 
 	var eventID string
-	if err := tx.QueryRow(ctx, `INSERT INTO postgres_events (short_id, name, type, owner_platform_identity_id)
+	if err := tx.QueryRow(ctx, `INSERT INTO events (short_id, name, type, owner_platform_identity_id)
 VALUES ('AAAA0001', 'Owned', 'specific_dates', $1) RETURNING id`, account.PlatformIdentityID).Scan(&eventID); err != nil {
 		t.Fatal(err)
 	}
@@ -245,17 +245,17 @@ VALUES ('AAAA0001', 'Owned', 'specific_dates', $1) RETURNING id`, account.Platfo
 	if err := tx.QueryRow(ctx, `INSERT INTO event_visitor_identities (event_id, platform_identity_id) VALUES ($1, $2) RETURNING id`, eventID, account.PlatformIdentityID).Scan(&ownerVisitorID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tx.Exec(ctx, `UPDATE postgres_events SET owner_event_visitor_identity_id = $2 WHERE id = $1`, eventID, ownerVisitorID); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE events SET owner_event_visitor_identity_id = $2 WHERE id = $1`, eventID, ownerVisitorID); err != nil {
 		t.Fatal(err)
 	}
 	if err := tx.QueryRow(ctx, `INSERT INTO event_visitor_identities (event_id) VALUES ($1) RETURNING id`, eventID).Scan(&guestVisitorID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO postgres_event_responses (event_id, event_visitor_identity_id, respondent_kind, platform_identity_id, payload)
+	if _, err := tx.Exec(ctx, `INSERT INTO event_responses (event_id, event_visitor_identity_id, respondent_kind, platform_identity_id, payload)
 VALUES ($1, $2, 'account', $3, '{"name":"Owner"}')`, eventID, ownerVisitorID, account.PlatformIdentityID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO postgres_event_responses (event_id, event_visitor_identity_id, respondent_kind, payload)
+	if _, err := tx.Exec(ctx, `INSERT INTO event_responses (event_id, event_visitor_identity_id, respondent_kind, payload)
 VALUES ($1, $2, 'guest', '{"name":"Guest"}')`, eventID, guestVisitorID); err != nil {
 		t.Fatal(err)
 	}
@@ -266,11 +266,11 @@ VALUES ($1, $2, 'guest', '{"name":"Guest"}')`, eventID, guestVisitorID); err != 
 
 	var owned, ownerVisitor, guestVisitor, ownResponses, guestResponses int
 	if err := tx.QueryRow(ctx, `SELECT
- (SELECT count(*) FROM postgres_events WHERE id = $1 AND owner_platform_identity_id IS NULL AND owner_event_visitor_identity_id IS NULL),
+ (SELECT count(*) FROM events WHERE id = $1 AND owner_platform_identity_id IS NULL AND owner_event_visitor_identity_id IS NULL),
  (SELECT count(*) FROM event_visitor_identities WHERE id = $2),
  (SELECT count(*) FROM event_visitor_identities WHERE id = $3),
- (SELECT count(*) FROM postgres_event_responses WHERE platform_identity_id = $4),
- (SELECT count(*) FROM postgres_event_responses WHERE event_id = $1 AND respondent_kind = 'guest')`,
+ (SELECT count(*) FROM event_responses WHERE platform_identity_id = $4),
+ (SELECT count(*) FROM event_responses WHERE event_id = $1 AND respondent_kind = 'guest')`,
 		eventID, ownerVisitorID, guestVisitorID, account.PlatformIdentityID).Scan(&owned, &ownerVisitor, &guestVisitor, &ownResponses, &guestResponses); err != nil {
 		t.Fatal(err)
 	}
@@ -304,7 +304,7 @@ func TestAccountRepositoryDeletionRemovesOwnSignupResponses(t *testing.T) {
 	}
 
 	var eventID, ownerVisitorID, guestVisitorID string
-	if err := tx.QueryRow(ctx, `INSERT INTO postgres_events (short_id, name, type)
+	if err := tx.QueryRow(ctx, `INSERT INTO events (short_id, name, type)
 VALUES ($1, 'Signup', 'signup') RETURNING id`, signupTestShortID(t)).Scan(&eventID); err != nil {
 		t.Fatal(err)
 	}

@@ -351,7 +351,7 @@ func TestAccountUsageCounterTracksCreatedEvents(t *testing.T) {
 	cleanupOtpAccount(t, account)
 	t.Cleanup(func() {
 		if pgstore.Pool != nil {
-			_, _ = pgstore.Pool.Exec(context.Background(), `DELETE FROM postgres_events WHERE owner_platform_identity_id = $1`, account.PlatformIdentityID)
+			_, _ = pgstore.Pool.Exec(context.Background(), `DELETE FROM events WHERE owner_platform_identity_id = $1`, account.PlatformIdentityID)
 		}
 	})
 

@@ -37,7 +37,7 @@ func createPostgresGroup(t *testing.T, client *accountContractClient, name strin
 	}
 	t.Cleanup(func() {
 		if pgstore.Pool != nil {
-			_, _ = pgstore.Pool.Exec(context.Background(), `DELETE FROM postgres_events WHERE short_id = $1`, eventID)
+			_, _ = pgstore.Pool.Exec(context.Background(), `DELETE FROM events WHERE short_id = $1`, eventID)
 		}
 	})
 	stored, err := repositoryForTest(t).GetEventByShortID(context.Background(), eventID)
@@ -81,7 +81,7 @@ func seedGroupAccountResponse(t *testing.T, stored *pgstore.Event, platformIdent
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pgstore.Pool.Exec(ctx, `UPDATE postgres_events SET num_responses = num_responses + 1 WHERE id = $1`, stored.ID); err != nil {
+	if _, err := pgstore.Pool.Exec(ctx, `UPDATE events SET num_responses = num_responses + 1 WHERE id = $1`, stored.ID); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -342,7 +342,7 @@ func TestPostgresGroupEditMembershipRemovesDepartedResponses(t *testing.T) {
 		t.Fatalf("num_responses = %d, want 0 after removal", reloaded.NumResponses)
 	}
 	var remaining int
-	if err := pgstore.Pool.QueryRow(context.Background(), `SELECT count(*) FROM postgres_event_responses WHERE event_id = $1`, stored.ID).Scan(&remaining); err != nil {
+	if err := pgstore.Pool.QueryRow(context.Background(), `SELECT count(*) FROM event_responses WHERE event_id = $1`, stored.ID).Scan(&remaining); err != nil {
 		t.Fatal(err)
 	}
 	if remaining != 0 {
