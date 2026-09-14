@@ -341,21 +341,19 @@ func TestDeleteAccountResponsesRemovesOnlyMatchingRows(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, seeded := range []struct {
-		visitor        *EventVisitorIdentity
-		kind           string
-		platformID     *string
-		canonicalGuest *string
+		visitor    *EventVisitorIdentity
+		kind       string
+		platformID *string
 	}{
 		{visitor: firstVisitor, kind: RespondentKindAccount, platformID: &firstAccount.PlatformIdentityID},
 		{visitor: secondVisitor, kind: RespondentKindAccount, platformID: &secondAccount.PlatformIdentityID},
-		{visitor: guestVisitor, kind: RespondentKindGuest, canonicalGuest: boolStringPointer("Guest")},
+		{visitor: guestVisitor, kind: RespondentKindGuest},
 	} {
 		response := &Response{
 			EventID:                eventID,
 			EventVisitorIdentityID: seeded.visitor.ID,
 			RespondentKind:         seeded.kind,
 			PlatformIdentityID:     seeded.platformID,
-			CanonicalGuestName:     seeded.canonicalGuest,
 			Payload:                json.RawMessage(`{"name":"Respondent"}`),
 		}
 		if err := repo.CreateResponse(ctx, response); err != nil {
@@ -387,8 +385,6 @@ func TestDeleteAccountResponsesRemovesOnlyMatchingRows(t *testing.T) {
 		t.Fatalf("missing identity cleanup = %d, %v; want 0, nil", deleted, err)
 	}
 }
-
-func boolStringPointer(value string) *string { return &value }
 
 // TestAccountDeletionReleasesAttendeeRelations proves a deleted account's
 // email-keyed memberships survive with their account relation released and
@@ -468,12 +464,10 @@ func TestGroupResponseReusesResponseStoragePayload(t *testing.T) {
 	if err := tx.QueryRow(ctx, `INSERT INTO event_visitor_identities (event_id) VALUES ($1) RETURNING id`, event.ID).Scan(&visitorID); err != nil {
 		t.Fatal(err)
 	}
-	guestName := "Ada"
 	response := &Response{
 		EventID:                event.ID,
 		EventVisitorIdentityID: visitorID,
 		RespondentKind:         RespondentKindGuest,
-		CanonicalGuestName:     &guestName,
 		Payload: json.RawMessage(`{
 			"useCalendarAvailability": true,
 			"enabledCalendars": {"ada@example.com": ["primary", "work_google"]},

@@ -35,7 +35,7 @@ The all-zero UUID is the wire representation of an absent account identity, such
 
 Each [Calendar Connection](../../docs/terminology/glossary.md#calendar-connection) receives a UUIDv7 `calendar_accounts.id` and is owned by exactly one `platform_identities` row.
 Its runtime key is the `email_calendarType` map key: email-like identifiers are trimmed, normalized, and lowercased, ICS identifiers are trimmed without email normalization, and the key ends with `_<calendarType>`.
-Connection lookup resolves the stored key rather than recomputing it, so a connection recorded with a differently cased key still resolves.
+Connection lookup recomputes that canonical key, and every writer stores it, so a connection always resolves through its canonical key.
 Sub-calendars receive UUIDv7 identities scoped to their **Calendar Connection**, and each sub-calendar keeps its provider identifier as its runtime key.
 The connection, its encrypted credentials, its sub-calendars, and the calendar preferences are read and written only in PostgreSQL.
 

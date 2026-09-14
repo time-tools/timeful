@@ -255,8 +255,8 @@ VALUES ('AAAA0001', 'Owned', 'specific_dates', $1) RETURNING id`, account.Platfo
 VALUES ($1, $2, 'account', $3, '{"name":"Owner"}')`, eventID, ownerVisitorID, account.PlatformIdentityID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO postgres_event_responses (event_id, event_visitor_identity_id, respondent_kind, canonical_guest_name, payload)
-VALUES ($1, $2, 'guest', 'Guest', '{"name":"Guest"}')`, eventID, guestVisitorID); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO postgres_event_responses (event_id, event_visitor_identity_id, respondent_kind, payload)
+VALUES ($1, $2, 'guest', '{"name":"Guest"}')`, eventID, guestVisitorID); err != nil {
 		t.Fatal(err)
 	}
 

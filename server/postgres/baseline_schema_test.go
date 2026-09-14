@@ -11,7 +11,8 @@ import (
 // enforces the visitor identity and event owner relations the runtime depends
 // on: every response belongs to a visitor identity of its own event, an event
 // owner relation is event-scoped, and a base credential can never carry owner
-// powers. It also proves the compatibility response columns remain usable.
+// powers. It also proves the legacy response columns retained for the prior
+// release's rollback window keep accepting writes.
 func TestBaselineVisitorIdentityAndOwnerConstraints(t *testing.T) {
 	ctx, _, tx := newMigrationTestRepository(t)
 	eventID := seedSignupEvent(t, ctx, tx, signupTestShortID(t))
@@ -20,7 +21,7 @@ func TestBaselineVisitorIdentityAndOwnerConstraints(t *testing.T) {
 
 	// A response must carry a visitor identity scoped to the same event.
 	expectSavepointError(t, ctx, tx, func() error {
-		_, err := tx.Exec(ctx, `INSERT INTO postgres_event_responses (event_id, event_visitor_identity_id) VALUES ($1, $2)`, otherEventID, visitorID)
+		_, err := tx.Exec(ctx, `INSERT INTO postgres_event_responses (event_id, event_visitor_identity_id, respondent_kind) VALUES ($1, $2, 'guest')`, otherEventID, visitorID)
 		return err
 	})
 	var platformIdentityID string

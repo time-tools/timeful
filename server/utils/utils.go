@@ -207,7 +207,7 @@ func NormalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
 
-// GetCalendarAccountKey builds the map key for calendarAccounts. Email-like identifiers are lowercased;
+// GetCalendarAccountKey builds the canonical map key for calendarAccounts. Email-like identifiers are trimmed and lowercased;
 // ICS uses the feed label as the first segment and is only trimmed, not lowercased.
 func GetCalendarAccountKey(ident string, calendarType models.CalendarType) string {
 	keyPart := strings.TrimSpace(ident)
@@ -215,41 +215,4 @@ func GetCalendarAccountKey(ident string, calendarType models.CalendarType) strin
 		keyPart = NormalizeEmail(keyPart)
 	}
 	return fmt.Sprintf("%s_%s", keyPart, calendarType)
-}
-
-// ActualCalendarAccountMapKey returns the key already present in user.CalendarAccounts for this
-// account, or "" if none. Prefer this over recomputing from email when reading legacy documents
-// whose map keys used mixed-case emails.
-func ActualCalendarAccountMapKey(user *models.User, ident string, calendarType models.CalendarType) string {
-	if user == nil || user.CalendarAccounts == nil {
-		return ""
-	}
-	canonical := GetCalendarAccountKey(ident, calendarType)
-	if _, ok := user.CalendarAccounts[canonical]; ok {
-		return canonical
-	}
-	for k, acc := range user.CalendarAccounts {
-		if acc.CalendarType != calendarType {
-			continue
-		}
-		if calendarType == models.ICSCalendarType {
-			if strings.TrimSpace(acc.Email) == strings.TrimSpace(ident) {
-				return k
-			}
-			continue
-		}
-		if NormalizeEmail(acc.Email) == NormalizeEmail(ident) {
-			return k
-		}
-	}
-	return ""
-}
-
-func GetPrimaryAccountKey(user *models.User) string {
-	// Before primary account key was added, primary account was always the user's google calendar
-	if user.PrimaryAccountKey == nil {
-		return ActualCalendarAccountMapKey(user, user.Email, models.GoogleCalendarType)
-	}
-
-	return *user.PrimaryAccountKey
 }

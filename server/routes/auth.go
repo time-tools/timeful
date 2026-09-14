@@ -214,18 +214,9 @@ func signInHelper(c *gin.Context, token auth.TokenResponse, tokenOrigin models.T
 	canonicalKey := utils.GetCalendarAccountKey(email, calendarType)
 
 	// Reuse subcalendars already stored for this connection when present.
-	existingIntegrations := &models.User{CalendarAccounts: integrations.Accounts}
-	legacyKey := utils.ActualCalendarAccountMapKey(existingIntegrations, email, calendarType)
 	var oldSubCalendars *map[string]models.SubCalendar
-	if legacyKey != "" {
-		if oldAcc, ok := integrations.Accounts[legacyKey]; ok && oldAcc.SubCalendars != nil {
-			oldSubCalendars = oldAcc.SubCalendars
-		}
-	}
-	if oldSubCalendars == nil {
-		if existingAcc, ok := integrations.Accounts[canonicalKey]; ok && existingAcc.SubCalendars != nil {
-			oldSubCalendars = existingAcc.SubCalendars
-		}
+	if existingAcc, ok := integrations.Accounts[canonicalKey]; ok && existingAcc.SubCalendars != nil {
+		oldSubCalendars = existingAcc.SubCalendars
 	}
 	if oldSubCalendars != nil {
 		calendarAccount.SubCalendars = oldSubCalendars
@@ -236,12 +227,6 @@ func signInHelper(c *gin.Context, token auth.TokenResponse, tokenOrigin models.T
 		}
 	}
 
-	if legacyKey != "" && legacyKey != canonicalKey {
-		if err := accounts.DeleteCalendarAccount(ctx, account.PlatformIdentityID, legacyKey); err != nil {
-			logger.StdErr.Printf("Failed to retire legacy calendar key for %s: %v", account.PlatformIdentityID, err)
-			return models.User{}, err
-		}
-	}
 	if err := accounts.SaveCalendarAccount(ctx, account.PlatformIdentityID, canonicalKey, calendarAccount); err != nil {
 		logger.StdErr.Printf("Failed to save calendar connection for %s: %v", account.PlatformIdentityID, err)
 		return models.User{}, err

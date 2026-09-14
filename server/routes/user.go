@@ -567,15 +567,10 @@ func addCalendarAccount(c *gin.Context, args addCalendarAccountArgs) {
 		calendarAccount.ICSCalendarAuth = args.icsCalendarAuth
 	}
 	canonicalKey := utils.GetCalendarAccountKey(ident, args.calendarType)
-	legacyKey := utils.ActualCalendarAccountMapKey(authUser, ident, args.calendarType)
 
 	// Set subcalendars map based on whether calendar account already exists
 	var oldForSub *models.CalendarAccount
-	if legacyKey != "" {
-		if acc, ok := authUser.CalendarAccounts[legacyKey]; ok {
-			oldForSub = &acc
-		}
-	} else if acc, ok := authUser.CalendarAccounts[canonicalKey]; ok {
+	if acc, ok := authUser.CalendarAccounts[canonicalKey]; ok {
 		oldForSub = &acc
 	}
 	if oldForSub != nil && oldForSub.SubCalendars != nil {
@@ -590,9 +585,6 @@ func addCalendarAccount(c *gin.Context, args addCalendarAccountArgs) {
 	if authUser.CalendarAccounts == nil {
 		authUser.CalendarAccounts = make(map[string]models.CalendarAccount)
 	}
-	if legacyKey != "" && legacyKey != canonicalKey {
-		delete(authUser.CalendarAccounts, legacyKey)
-	}
 	authUser.CalendarAccounts[canonicalKey] = calendarAccount
 
 	// Calendar connections are PostgreSQL-authoritative; the profile is never
@@ -601,11 +593,6 @@ func addCalendarAccount(c *gin.Context, args addCalendarAccountArgs) {
 	if authAccount == nil {
 		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
 		return
-	}
-	if legacyKey != "" && legacyKey != canonicalKey {
-		if err := accounts.DeleteCalendarAccount(c.Request.Context(), authAccount.PlatformIdentityID, legacyKey); err != nil {
-			logger.StdErr.Panicln(err)
-		}
 	}
 	if err := accounts.SaveCalendarAccount(c.Request.Context(), authAccount.PlatformIdentityID, canonicalKey, calendarAccount); err != nil {
 		logger.StdErr.Panicln(err)
@@ -628,11 +615,7 @@ func removeCalendarAccount(c *gin.Context) {
 		return
 	}
 
-	authUser := utils.GetAuthUser(c)
-	calendarAccountKey := utils.ActualCalendarAccountMapKey(authUser, payload.Email, payload.CalendarType)
-	if calendarAccountKey == "" {
-		calendarAccountKey = utils.GetCalendarAccountKey(payload.Email, payload.CalendarType)
-	}
+	calendarAccountKey := utils.GetCalendarAccountKey(payload.Email, payload.CalendarType)
 
 	// Calendar connections are PostgreSQL-authoritative.
 	authAccount := utils.GetAuthAccount(c)
@@ -667,10 +650,7 @@ func toggleCalendar(c *gin.Context) {
 
 	// Update enabled status for the specified account
 	authUser := utils.GetAuthUser(c)
-	calendarAccountKey := utils.ActualCalendarAccountMapKey(authUser, payload.Email, payload.CalendarType)
-	if calendarAccountKey == "" {
-		calendarAccountKey = utils.GetCalendarAccountKey(payload.Email, payload.CalendarType)
-	}
+	calendarAccountKey := utils.GetCalendarAccountKey(payload.Email, payload.CalendarType)
 	if _, ok := authUser.CalendarAccounts[calendarAccountKey]; ok {
 		authAccount := utils.GetAuthAccount(c)
 		if authAccount == nil {
@@ -707,10 +687,7 @@ func toggleSubCalendar(c *gin.Context) {
 
 	// Update enabled status for the specified sub calendar
 	authUser := utils.GetAuthUser(c)
-	calendarAccountKey := utils.ActualCalendarAccountMapKey(authUser, payload.Email, payload.CalendarType)
-	if calendarAccountKey == "" {
-		calendarAccountKey = utils.GetCalendarAccountKey(payload.Email, payload.CalendarType)
-	}
+	calendarAccountKey := utils.GetCalendarAccountKey(payload.Email, payload.CalendarType)
 	if calendarAccount, ok := authUser.CalendarAccounts[calendarAccountKey]; ok && calendarAccount.SubCalendars != nil {
 		if _, ok := (*calendarAccount.SubCalendars)[payload.SubCalendarId]; ok {
 			authAccount := utils.GetAuthAccount(c)

@@ -225,10 +225,7 @@ func RefreshUserTokenIfNecessary(u *models.User, calendarAccounts models.Set[str
 
 		accessTokenExpireDate := utils.GetAccessTokenExpireDate(res.TokenResponse.ExpiresIn)
 
-		calendarAccountKey := utils.ActualCalendarAccountMapKey(u, res.Email, res.CalendarType)
-		if calendarAccountKey == "" {
-			calendarAccountKey = utils.GetCalendarAccountKey(res.Email, res.CalendarType)
-		}
+		calendarAccountKey := utils.GetCalendarAccountKey(res.Email, res.CalendarType)
 		if calendarAccount, ok := u.CalendarAccounts[calendarAccountKey]; ok {
 			calendarAccount.OAuth2CalendarAuth.AccessToken = res.TokenResponse.AccessToken
 			calendarAccount.OAuth2CalendarAuth.AccessTokenExpireDate = models.NewDateTimeFromTime(accessTokenExpireDate)

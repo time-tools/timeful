@@ -571,16 +571,12 @@ func postgresMutateGroupResponse(c *gin.Context, repository *pgstore.Repository,
 				return guestNameError{guestNameValidationErrorMessage(validated.Code)}
 			}
 			value.Name = validated.Name
-			if stored.RespondentKind == pgstore.RespondentKindGuest {
-				stored.CanonicalGuestName = &validated.Name
-			}
 		} else {
 			if input.CreateResponse {
 				if visitor.platformIdentityID != "" {
 					platformIdentityID := visitor.platformIdentityID
 					stored.RespondentKind = pgstore.RespondentKindAccount
 					stored.PlatformIdentityID = &platformIdentityID
-					stored.CanonicalGuestName = nil
 					value.Email = postgresAccountEmail(ctx, visitor.platformIdentityID)
 				} else {
 					if err := applyPostgresGroupGuestName(stored, value, input.Name); err != nil {
@@ -653,7 +649,6 @@ func applyPostgresGroupGuestName(stored *pgstore.Response, value *models.Respons
 	}
 	stored.RespondentKind = pgstore.RespondentKindGuest
 	stored.PlatformIdentityID = nil
-	stored.CanonicalGuestName = &validated.Name
 	value.Name = validated.Name
 	return nil
 }

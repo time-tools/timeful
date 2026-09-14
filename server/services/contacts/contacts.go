@@ -30,10 +30,7 @@ func SearchContacts(user *models.User, query string) ([]models.User, *errs.Googl
 	if user.CalendarAccounts == nil {
 		return nil, &errs.GoogleAPIError{Code: 400, Message: "No calendar accounts linked", Status: "FAILED_PRECONDITION"}
 	}
-	key := utils.ActualCalendarAccountMapKey(user, user.Email, models.GoogleCalendarType)
-	if key == "" {
-		key = utils.GetCalendarAccountKey(user.Email, models.GoogleCalendarType)
-	}
+	key := utils.GetCalendarAccountKey(user.Email, models.GoogleCalendarType)
 	account, ok := user.CalendarAccounts[key]
 	if !ok || account.OAuth2CalendarAuth == nil {
 		return nil, &errs.GoogleAPIError{Code: 400, Message: "No Google calendar account linked", Status: "FAILED_PRECONDITION"}

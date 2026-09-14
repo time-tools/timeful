@@ -19,9 +19,10 @@ The PostgreSQL UUID primary keys remain internal.
 ## Stored Relations
 
 Event columns hold the public identifier, soft-delete state, name, type, response count, schedule version, creator PostHog ID, ownership association, owner-token hash, and timestamps.
-Response columns hold the event relation, an [Event Visitor Identity](../../docs/terminology/glossary.md#event-visitor-identity) owner, the opaque public identifier, respondent metadata, and timestamps.
+Response columns hold the event relation, an [Event Visitor Identity](../../docs/terminology/glossary.md#event-visitor-identity) owner, the opaque public identifier, a NOT NULL respondent kind, account identity, and timestamps.
 [Platform Visitor Identities](../../docs/terminology/glossary.md#platform-visitor-identity) and **Event Visitor Identities** relate through internal UUID columns, and no external account identifier is stored or referenced.
-`canonical_guest_name` is produced by `respondents.NormalizeGuestName` in Go, and PostgreSQL must not reimplement guest-name normalization.
+Signup response `canonical_guest_name` is produced by `respondents.NormalizeGuestName` in Go, and PostgreSQL must not reimplement guest-name normalization; generic response guest names live in the JSONB payload.
+The generic-response columns `guest_id`, `canonical_guest_name`, `guest_edit_policy`, `guest_ownership_mode`, and `guest_edit_token` are retained only for the prior server release's rollback window, and the current server neither reads nor writes them.
 PostgreSQL permits multiple responses per **Event Visitor Identity**.
 Each response's event relation and its owner **Event Visitor Identity** must identify the same event through a composite database constraint.
 

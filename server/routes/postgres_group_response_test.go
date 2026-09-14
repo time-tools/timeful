@@ -131,8 +131,11 @@ func TestPostgresGroupAnonymousGuestResponse(t *testing.T) {
 		"availability": []string{"2026-01-05T14:00:00Z"},
 	})
 	response := loadGroupResponse(t, stored, responseID)
-	if response.RespondentKind != pgstore.RespondentKindGuest || response.CanonicalGuestName == nil || *response.CanonicalGuestName != "Guest One" {
+	if response.RespondentKind != pgstore.RespondentKindGuest {
 		t.Fatalf("guest response identity = %#v", response)
+	}
+	if value := decodeGroupResponsePayload(t, response); value.Name != "Guest One" {
+		t.Fatalf("guest response name = %q, want %q", value.Name, "Guest One")
 	}
 
 	guest.request(http.MethodPost, path+"/rename-user", map[string]any{
@@ -140,8 +143,8 @@ func TestPostgresGroupAnonymousGuestResponse(t *testing.T) {
 		"newName":    "Guest Renamed",
 	}, http.StatusOK)
 	renamed := loadGroupResponse(t, stored, responseID)
-	if renamed.CanonicalGuestName == nil || *renamed.CanonicalGuestName != "Guest Renamed" {
-		t.Fatalf("renamed guest identity = %#v", renamed)
+	if value := decodeGroupResponsePayload(t, renamed); value.Name != "Guest Renamed" {
+		t.Fatalf("renamed guest name = %q, want %q", value.Name, "Guest Renamed")
 	}
 }
 
