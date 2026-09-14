@@ -9,8 +9,10 @@ Create the canonical root development env file, then start the development stack
 
 ```sh
 cp .env.development.example .env.development
-docker compose --env-file .env.development -f compose.yaml -f compose.development.yaml up --build postgres server
+docker compose --env-file .env.development -f compose.yaml -f compose.development.yaml up --build postgres postgres-migrate server
 ```
+
+`postgres-migrate` is named on the command line because Compose `up --build` builds images only for the services listed there.
 
 See `docs/environments.md` for the complete configuration contract.
 Direct server execution and `server/.env` are unsupported.

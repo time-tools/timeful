@@ -217,10 +217,12 @@ Development:
 
 ```sh
 cp .env.development.example .env.development
-docker compose --env-file .env.development -f compose.yaml -f compose.development.yaml up --build postgres server
+docker compose --env-file .env.development -f compose.yaml -f compose.development.yaml up --build postgres postgres-migrate server
 cd frontend
 npm run dev
 ```
+
+Compose `up --build` builds images only for the services named on the command line, so `postgres-migrate` stays in the list to build its migration image on a cold image cache.
 
 Staging Docker Compose:
 
