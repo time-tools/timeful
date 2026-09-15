@@ -1406,7 +1406,7 @@ describe("RespondentsList", () => {
     expect(wrapper.text()).not.toContain("mdi-delete")
   })
 
-  it("deletes a PostgreSQL respondent through the explicit responseId contract", async () => {
+  it("deletes a respondent through the explicit responseId contract", async () => {
     isPhoneValue.value = false
     deleteMock.mockReset()
     deleteMock.mockResolvedValue(undefined)

@@ -585,7 +585,7 @@ export function useAvailabilityData(opts: UseAvailabilityDataOptions) {
     const responses = opts.event.value.responses
     if (
       opts.state.value === states.EDIT_AVAILABILITY &&
-      // PostgreSQL responses are keyed by opaque public IDs, so an authUser._id
+      // Responses are keyed by opaque public IDs, so an authUser._id
       // membership test cannot decide whether the visitor already responded.
       !opts.event.value.eventVisitorId &&
       authUser?._id &&

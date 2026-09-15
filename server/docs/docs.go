@@ -998,7 +998,7 @@ const docTemplate = `{
         },
         "/events/{eventId}/grant-association": {
             "post": {
-                "description": "PostgreSQL only. An active Granted EVCC and signed-in session are required. Association preserves source response ownership and does not associate event ownership.",
+                "description": "An active Granted EVCC and signed-in session are required. Association preserves source response ownership and does not associate event ownership.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1374,7 +1374,7 @@ const docTemplate = `{
         },
         "/events/{eventId}/transfers": {
             "post": {
-                "description": "PostgreSQL only. Requires a signed-in session or base EVCC; anonymous owners additionally prove their owner token. The link grants no authority.",
+                "description": "Requires a signed-in session or base EVCC; anonymous owners additionally prove their owner token. The link grants no authority.",
                 "produces": [
                     "application/json"
                 ],

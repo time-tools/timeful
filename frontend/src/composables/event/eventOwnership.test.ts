@@ -9,7 +9,7 @@ import {
 } from "./eventOwnership"
 
 describe("event ownership semantics", () => {
-  it("uses server-proven PostgreSQL settings authority and fails closed", () => {
+  it("uses server-proven settings authority and fails closed", () => {
     const event = { ownerId: guestUserId, eventVisitorId: "visitor" }
     expect(canEditEventMetadata(event, null)).toBe(false)
     expect(canEditEventMetadata(event, { _id: guestUserId })).toBe(false)

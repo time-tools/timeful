@@ -3740,7 +3740,7 @@ describe("Event guest edit action", () => {
     expect(wrapper.find('[data-invitation-open="true"]').exists()).toBe(true)
   })
 
-  it("does not auto-open the group invitation dialog for a PostgreSQL viewer reported as responded", async () => {
+  it("does not auto-open the group invitation dialog for a viewer reported as responded", async () => {
     routeState.value = { name: "group", query: {} }
     loaderEventState.value = {
       ...createDefaultEventState(),

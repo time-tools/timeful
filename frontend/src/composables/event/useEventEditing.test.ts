@@ -188,7 +188,7 @@ describe("useEventEditing", () => {
     expect(showInfoMock).not.toHaveBeenCalled()
   })
 
-  it("keeps the selected visitor response when a responded PostgreSQL viewer edits availability", () => {
+  it("keeps the selected visitor response when a responded viewer edits availability", () => {
     const clearSelectedGuestOwnership = vi.fn()
     const startEditing = vi.fn()
     const setAvailabilityAutomatically = vi.fn()
@@ -223,7 +223,7 @@ describe("useEventEditing", () => {
     expect(setAvailabilityAutomatically).not.toHaveBeenCalled()
   })
 
-  it("clears the selected visitor response when an unresponded PostgreSQL viewer adds availability", () => {
+  it("clears the selected visitor response when an unresponded viewer adds availability", () => {
     const clearSelectedGuestOwnership = vi.fn()
     const startEditing = vi.fn()
     const setAvailabilityAutomatically = vi.fn()

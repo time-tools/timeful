@@ -35,7 +35,7 @@ func provenGrant(c *gin.Context, repo *pgstore.Repository, event *pgstore.Event)
 }
 
 // @Summary Inspect or explicitly confirm granted response identity association
-// @Description PostgreSQL only. An active Granted EVCC and signed-in session are required. Association preserves source response ownership and does not associate event ownership.
+// @Description An active Granted EVCC and signed-in session are required. Association preserves source response ownership and does not associate event ownership.
 // @Tags events
 // @Accept json
 // @Produce json

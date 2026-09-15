@@ -204,7 +204,7 @@ describe("Dashboard", () => {
       {
         _id: "7Q2M4XKP",
         shortId: "7Q2M4XKP",
-        name: "PostgreSQL event",
+        name: "Canonical event",
       },
       {
         _id: "ABCD1234",
@@ -229,7 +229,7 @@ describe("Dashboard", () => {
     }>
 
     expect(teamEvents.map((event) => event.name)).toEqual([
-      "PostgreSQL event",
+      "Canonical event",
       "Second canonical event",
     ])
     expect(unfoldedEvents).toHaveLength(0)

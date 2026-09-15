@@ -269,7 +269,7 @@ describe("EventItem", () => {
     expect(wrapper.text()).toContain("Jan 1")
   })
 
-  it("copies a PostgreSQL event with its bare short identifier", async () => {
+  it("copies an event with its bare short identifier", async () => {
     const wrapper = mountEventItem({
       ...defaultEvent,
       _id: "7Q2M4XKP",

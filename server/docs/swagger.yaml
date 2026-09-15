@@ -1083,9 +1083,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: PostgreSQL only. An active Granted EVCC and signed-in session are
-        required. Association preserves source response ownership and does not associate
-        event ownership.
+      description: An active Granted EVCC and signed-in session are required. Association
+        preserves source response ownership and does not associate event ownership.
       parameters:
       - description: Event ID
         in: path
@@ -1338,8 +1337,8 @@ paths:
       - events
   /events/{eventId}/transfers:
     post:
-      description: PostgreSQL only. Requires a signed-in session or base EVCC; anonymous
-        owners additionally prove their owner token. The link grants no authority.
+      description: Requires a signed-in session or base EVCC; anonymous owners additionally
+        prove their owner token. The link grants no authority.
       parameters:
       - description: Event ID
         in: path

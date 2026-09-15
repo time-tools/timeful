@@ -47,7 +47,7 @@ func transferDenied(c *gin.Context, err error) {
 }
 
 // @Summary Create a five-minute source-confirmed access transfer
-// @Description PostgreSQL only. Requires a signed-in session or base EVCC; anonymous owners additionally prove their owner token. The link grants no authority.
+// @Description Requires a signed-in session or base EVCC; anonymous owners additionally prove their owner token. The link grants no authority.
 // @Tags events
 // @Produce json
 // @Param eventId path string true "Event ID"

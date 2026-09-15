@@ -4,7 +4,7 @@ title: 'Clean up migration-era docs, naming, and task-record claims'
 status: To Do
 assignee: []
 created_date: '2026-09-13 19:36'
-updated_date: '2026-09-14 19:01'
+updated_date: '2026-09-15 09:46'
 labels:
   - cleanup
   - docs
@@ -57,5 +57,11 @@ author: opencode
 created: 2026-09-14 19:01
 ---
 Coordination: TASK-0233.03 updates the PostgreSQL access-transfer qualifier wording in docs/ci.md and deliberately leaves the stale anonymous-event-creation flag sentence to this task (AC1). Coordinate if both run concurrently.
+---
+
+author: opencode
+created: 2026-09-15 09:46
+---
+Coordination from TASK-0233.04 (final cleanup verification, 2026-09-15): docs/ci.md was left untouched by the postgres-qualifier cleanup series; TASK-0233.03 only updated the access-transfer qualifier wording. The stale anonymous-event-creation flag sentence remains yours (AC #1). TASK-0216 is Done, satisfied by TASK-0233.02.
 ---
 <!-- COMMENTS:END -->

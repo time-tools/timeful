@@ -199,8 +199,8 @@ export interface VisitorGroupResponseSubmissionPayload
 
 // encodeVisitorGroupResponseSubmission keeps the explicit-selection visitor
 // contract and adds the availability-group manual availability and
-// calendar-derived fields so PostgreSQL group responses persist the same data as
-// legacy group responses.
+// calendar-derived fields so group responses persist the same data as the
+// non-visitor group path.
 export function encodeVisitorGroupResponseSubmission(input: {
   availability: Temporal.ZonedDateTime[]
   ifNeeded: Temporal.ZonedDateTime[]
@@ -231,7 +231,7 @@ export interface VisitorSignUpResponseSubmissionPayload {
 }
 
 // encodeVisitorSignUpResponseSubmission maps a sign-up block selection onto the
-// PostgreSQL explicit-selection contract: a new response carries
+// explicit-selection visitor contract: a new response carries
 // createResponse=true, and any later submission carries the target responseId so
 // the server edits instead of overwriting by name.
 export function encodeVisitorSignUpResponseSubmission(input: {

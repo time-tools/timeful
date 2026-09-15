@@ -211,7 +211,7 @@ describe("InvitationDialog", () => {
     expect(wrapper.emitted("update:modelValue")).toEqual([[false]])
   })
 
-  it("uses the explicit-selection visitor contract for a PostgreSQL group accept", async () => {
+  it("uses the explicit-selection visitor contract for a group accept with an Event Visitor Identity", async () => {
     localStorage.setItem("timeful.eventVisitor.group-1", "visitor-1")
     post.mockResolvedValueOnce({ responseId: "response-1" })
     const wrapper = mountInvitationDialog({ eventVisitorId: "visitor-1" })
