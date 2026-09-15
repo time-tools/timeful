@@ -27,8 +27,8 @@
             <v-icon
               :class="`tw:rotate-${showSubCalendars ? 90 : 0}`"
               class="tw:text-dark-gray tw:transition-all"
-              >mdi-chevron-right</v-icon
-            >
+              ><MdiChevronRight
+            /></v-icon>
           </div>
         </div>
         <UserAvatarContent v-else :size="24" :user="account" />
@@ -45,7 +45,7 @@
               v-bind="tooltipProps"
               @click="reauthenticateCalendarAccount"
             >
-              <v-icon>mdi-alert-circle</v-icon>
+              <v-icon><MdiAlertCircle /></v-icon>
             </v-btn>
           </template>
           <span>{{ reauthenticateBtnText }}</span>
@@ -60,8 +60,8 @@
         } ${!allowDelete ? 'tw:hidden' : ''}`"
         class="tw:group-hover:opacity-100"
         @click="openRemoveDialog"
-        ><v-icon color="#4F4F4F">mdi-close</v-icon></v-btn
-      >
+        ><v-icon color="#4F4F4F"><MdiClose /></v-icon
+      ></v-btn>
     </div>
 
     <v-expand-transition>
@@ -104,6 +104,9 @@ import { signInEnabled } from "@/utils/signInAvailability"
 import UserAvatarContent from "@/components/UserAvatarContent.vue"
 import type { CalendarAccount as CalendarAccountModel } from "@/types"
 import type { CalendarEventsMap } from "@/composables/schedule_overlap/types"
+import MdiAlertCircle from "~icons/mdi/alert-circle"
+import MdiChevronRight from "~icons/mdi/chevron-right"
+import MdiClose from "~icons/mdi/close"
 
 const props = withDefaults(
   defineProps<{

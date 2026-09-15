@@ -94,7 +94,7 @@
                   v-if="accountNotFound"
                   class="tw:text-error tw:mb-2 tw:flex tw:items-center tw:gap-2 tw:text-sm"
                 >
-                  <v-icon color="error" size="16">mdi-alert-circle</v-icon>
+                  <v-icon color="error" size="16"><MdiAlertCircle /></v-icon>
                   Couldn’t find this account.
                   <router-link
                     class="tw:font-medium tw:underline"
@@ -134,7 +134,7 @@
         <template v-else-if="step === 'onboarding'">
           <v-card-title class="tw:flex tw:items-center">
             <v-btn icon size="small" class="tw:mr-1" @click="step = 'select'">
-              <v-icon>mdi-arrow-left</v-icon>
+              <v-icon><MdiArrowLeft /></v-icon>
             </v-btn>
             Create your account
           </v-card-title>
@@ -208,7 +208,7 @@
               class="tw:mr-1"
               @click="step = isNewUser ? 'onboarding' : 'select'"
             >
-              <v-icon>mdi-arrow-left</v-icon>
+              <v-icon><MdiArrowLeft /></v-icon>
             </v-btn>
             Enter verification code
           </v-card-title>
@@ -314,6 +314,8 @@ import type { User } from "@/types"
 import { verifyOtpSignIn } from "@/utils/services/UserService"
 import { privacyPolicyEnabled } from "@/utils/privacyPolicy"
 import { feedbackUrl } from "@/utils/feedback"
+import MdiAlertCircle from "~icons/mdi/alert-circle"
+import MdiArrowLeft from "~icons/mdi/arrow-left"
 
 const props = defineProps<{
   initialIsSignUp?: boolean

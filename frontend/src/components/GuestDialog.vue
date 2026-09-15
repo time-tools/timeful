@@ -10,7 +10,7 @@
         <div>Continue as guest</div>
         <v-spacer />
         <v-btn icon @click="emit('update:modelValue', false)">
-          <v-icon>mdi-close</v-icon>
+          <v-icon><MdiClose /></v-icon>
         </v-btn>
       </v-card-title>
       <v-card-text>
@@ -28,7 +28,7 @@
             variant="outlined"
             class="timeful-invalid-field"
             :error-messages="nameErrorMessages"
-            append-inner-icon="mdi-alert-circle"
+            :append-inner-icon="MdiAlertCircle"
             autofocus
             hide-details="auto"
             @update:model-value="nameDirty = true"
@@ -82,6 +82,8 @@ import {
   getGuestNameValidationMessage,
   validateGuestName,
 } from "@/utils/guestName"
+import MdiAlertCircle from "~icons/mdi/alert-circle"
+import MdiClose from "~icons/mdi/close"
 
 type Rule = (val: string) => true | string
 

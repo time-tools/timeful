@@ -16,8 +16,8 @@
         :class="`${
           toggled ? 'tw:rotate-45 tw:text-green' : 'tw:rotate-0 tw:text-gray'
         }`"
-        >mdi-plus</v-icon
-      >
+        ><MdiPlus
+      /></v-icon>
     </div>
 
     <v-expand-transition>
@@ -67,6 +67,7 @@
 
 <script setup lang="ts">
 import { ref } from "vue"
+import MdiPlus from "~icons/mdi/plus"
 
 withDefaults(
   defineProps<{

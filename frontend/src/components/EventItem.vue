@@ -19,15 +19,7 @@
             'tw:bg-off-white': !isOwner,
           }"
         >
-          <v-icon :color="isOwner ? 'green' : 'grey'">{{
-            isGroup
-              ? "mdi-account-group"
-              : isDow
-                ? "mdi-calendar-range"
-                : event.daysOnly
-                  ? "mdi-calendar-month"
-                  : "mdi-calendar"
-          }}</v-icon>
+          <v-icon :color="isOwner ? 'green' : 'grey'" :icon="eventIcon" />
         </div>
         <div class="tw:ml-3">
           <div>{{ event.name }}</div>
@@ -48,7 +40,7 @@
           small
           class="tw:m-0.5 tw:bg-off-white tw:text-very-dark-gray"
         >
-          <v-icon left small> mdi-account-multiple </v-icon>
+          <v-icon left small><MdiAccountMultiple /></v-icon>
           {{ event.numResponses }}
         </v-chip>
         <v-menu
@@ -61,7 +53,7 @@
         >
           <template #activator="{ props: menuProps }">
             <v-btn variant="plain" icon v-bind="menuProps" @click.prevent>
-              <v-icon>mdi-dots-vertical</v-icon>
+              <v-icon><MdiDotsVertical /></v-icon>
             </v-btn>
           </template>
 
@@ -133,7 +125,7 @@
                 >
                   <v-list-item-title>Move to</v-list-item-title>
                   <template #append>
-                    <v-icon small>mdi-chevron-right</v-icon>
+                    <v-icon small><MdiChevronRight /></v-icon>
                   </template>
                 </v-list-item>
               </template>
@@ -141,7 +133,7 @@
                 <v-list-item class="tw:pr-1" @click="moveEventToFolder(null)">
                   <v-list-item-title>No folder</v-list-item-title>
                   <template v-if="folderId === null" #append>
-                    <v-icon small>mdi-check</v-icon>
+                    <v-icon small><MdiCheck /></v-icon>
                   </template>
                 </v-list-item>
                 <v-list-item
@@ -152,7 +144,7 @@
                 >
                   <v-list-item-title>{{ folder.name }}</v-list-item-title>
                   <template v-if="folder._id === folderId" #append>
-                    <v-icon small>mdi-check</v-icon>
+                    <v-icon small><MdiCheck /></v-icon>
                   </template>
                 </v-list-item>
               </v-list>
@@ -193,8 +185,8 @@
           </v-list>
         </v-menu>
         <v-icon v-else class="tw:ml-2 tw:mr-1 tw:opacity-75"
-          >mdi-chevron-right</v-icon
-        >
+          ><MdiChevronRight
+        /></v-icon>
       </div>
     </v-container>
   </router-link>
@@ -214,6 +206,14 @@ import { useMainStore } from "@/stores/main"
 import { posthog } from "@/plugins/posthog"
 import { isSignedInOwner } from "@/composables/event/eventOwnership"
 import type { Event } from "@/types"
+import MdiAccountGroup from "~icons/mdi/account-group"
+import MdiAccountMultiple from "~icons/mdi/account-multiple"
+import MdiCalendar from "~icons/mdi/calendar"
+import MdiCalendarMonth from "~icons/mdi/calendar-month"
+import MdiCalendarRange from "~icons/mdi/calendar-range"
+import MdiCheck from "~icons/mdi/check"
+import MdiChevronRight from "~icons/mdi/chevron-right"
+import MdiDotsVertical from "~icons/mdi/dots-vertical"
 
 const props = withDefaults(
   defineProps<{
@@ -252,6 +252,11 @@ const identifier = computed(() => {
 })
 const typeText = computed(() => (isGroup.value ? "group" : "event"))
 const userHasResponded = computed(() => props.event.hasResponded ?? false)
+const eventIcon = computed(() => {
+  if (isGroup.value) return MdiAccountGroup
+  if (isDow.value) return MdiCalendarRange
+  return props.event.daysOnly ? MdiCalendarMonth : MdiCalendar
+})
 
 const _archiveEvent = () => {
   void mainStore.archiveEvent({

@@ -9,7 +9,7 @@
         <div>Confirm details</div>
         <v-spacer />
         <v-btn icon @click="emit('update:modelValue', false)">
-          <v-icon>mdi-close</v-icon>
+          <v-icon><MdiClose /></v-icon>
         </v-btn>
       </v-card-title>
       <v-card-text class="tw:px-0">
@@ -60,7 +60,7 @@
                             class="tw:-ml-3 tw:-mr-1 tw:h-4 tw:w-4"
                           ></UserAvatarContent>
                           <v-icon v-else class="tw:ml-1 tw:mr-3" small>
-                            mdi-account
+                            <MdiAccount />
                           </v-icon>
 
                           {{ respondent.firstName }} {{ respondent.lastName }}
@@ -99,7 +99,7 @@
                                   :src="internalItem.picture"
                                   referrerpolicy="no-referrer"
                                 />
-                                <v-icon v-else>mdi-account</v-icon>
+                                <v-icon v-else><MdiAccount /></v-icon>
                               </template>
                               <v-list-item-title
                                 >{{ internalItem.firstName ?? "" }}
@@ -127,14 +127,14 @@
             <v-expansion-panel-text>
               <v-text-field
                 v-model="location"
-                prepend-icon="mdi-map-marker"
+                :prepend-icon="MdiMapMarker"
                 placeholder="Location"
                 variant="outlined"
                 density="compact"
               />
               <v-textarea
                 v-model="description"
-                prepend-icon="mdi-text"
+                :prepend-icon="MdiText"
                 placeholder="Description"
                 variant="outlined"
                 density="compact"
@@ -166,6 +166,10 @@ import { validateEmail } from "@/utils"
 import { signInEnabled } from "@/utils/signInAvailability"
 import { useContactsAccess } from "@/composables/useContactsAccess"
 import { useDebouncedContactLookup } from "@/composables/useDebouncedContactLookup"
+import MdiAccount from "~icons/mdi/account"
+import MdiClose from "~icons/mdi/close"
+import MdiMapMarker from "~icons/mdi/map-marker"
+import MdiText from "~icons/mdi/text"
 
 export interface Respondent {
   email: string

@@ -13,7 +13,7 @@
         class="tw:text-very-dark-gray"
         @click="openCreateFolderDialog"
       >
-        <v-icon class="tw:text-lg">mdi-folder-plus</v-icon>
+        <v-icon class="tw:text-lg"><MdiFolderPlus /></v-icon>
         <span class="tw:ml-2">New folder</span>
       </v-btn>
     </div>
@@ -26,9 +26,7 @@
       >
         <div class="tw:flex tw:items-center">
           <v-btn icon size="small" @click="toggleFolder(folder.id)">
-            <v-icon>{{
-              folderOpenState[folder.id] ? "mdi-menu-down" : "mdi-menu-right"
-            }}</v-icon>
+            <v-icon :icon="folderToggleIcon(folder.id)" />
           </v-btn>
           <v-chip
             v-if="folder.type === 'regular'"
@@ -49,7 +47,7 @@
             <v-menu offset-y>
               <template #activator="{ props }">
                 <v-btn icon size="small" v-bind="props" @click.stop.prevent>
-                  <v-icon small>mdi-dots-horizontal</v-icon>
+                  <v-icon small><MdiDotsHorizontal /></v-icon>
                 </v-btn>
               </template>
               <v-list density="compact" class="tw:py-1">
@@ -68,7 +66,7 @@
               size="small"
               @click.stop.prevent="createEventInFolder(folder.id)"
             >
-              <v-icon small>mdi-plus</v-icon>
+              <v-icon small><MdiPlus /></v-icon>
             </v-btn>
           </div>
         </div>
@@ -189,6 +187,11 @@ import { useMainStore } from "@/stores/main"
 import { posthog } from "@/plugins/posthog"
 import type { Event, Folder } from "@/types"
 import { useDashboardFolderOpenState } from "./useDashboardFolderOpenState"
+import MdiDotsHorizontal from "~icons/mdi/dots-horizontal"
+import MdiFolderPlus from "~icons/mdi/folder-plus"
+import MdiMenuDown from "~icons/mdi/menu-down"
+import MdiMenuRight from "~icons/mdi/menu-right"
+import MdiPlus from "~icons/mdi/plus"
 
 interface DragEvent {
   item: { id: string }
@@ -207,6 +210,9 @@ const newFolderColor = ref<string>(folderColors[3])
 const isEditingFolder = ref(false)
 const folderToEdit = ref<Folder | null>(null)
 const { folderOpenState, toggleFolder } = useDashboardFolderOpenState(folders)
+
+const folderToggleIcon = (folderId: string) =>
+  folderOpenState.value[folderId] ? MdiMenuDown : MdiMenuRight
 
 const allEvents = computed(() => events.value)
 

@@ -64,8 +64,8 @@
           variant="outlined"
           icon
           @click="sidebar.nextPage"
-          ><v-icon>mdi-chevron-right</v-icon></v-btn
-        >
+          ><v-icon><MdiChevronRight /></v-icon
+        ></v-btn>
       </div>
       <ToolRow
         v-if="!sidebar.isPhone && !sidebar.isSignUp && !sidebar.event.daysOnly"
@@ -139,7 +139,7 @@
             <v-btn
               v-if="!sidebar.isPhone"
               variant="outlined"
-              prepend-icon="mdi-calendar"
+              :prepend-icon="MdiCalendar"
               class="calendar-options-button tw:w-full tw:border-outline-neutral tw:text-sm"
               @click="emit('update:calendarOptionsDialog', true)"
             >
@@ -159,7 +159,7 @@
                     icon
                     @click="emit('update:calendarOptionsDialog', false)"
                   >
-                    <v-icon>mdi-close</v-icon>
+                    <v-icon><MdiClose /></v-icon>
                   </v-btn>
                 </v-card-title>
                 <v-card-text
@@ -245,6 +245,9 @@ import WorkingHoursToggle from "./WorkingHoursToggle.vue"
 import ScheduleOverlapRespondentsPanel from "./ScheduleOverlapRespondentsPanel.vue"
 import type { ScheduleOverlapRespondentsPanelExposed } from "./scheduleOverlapContracts"
 import type { ScheduleOverlapSidebarViewModel } from "./scheduleOverlapViewModelContracts"
+import MdiCalendar from "~icons/mdi/calendar"
+import MdiChevronRight from "~icons/mdi/chevron-right"
+import MdiClose from "~icons/mdi/close"
 const props = defineProps<{
   sidebar: ScheduleOverlapSidebarViewModel
 }>()

@@ -32,12 +32,14 @@
       </div>
     </div>
     <div v-if="chevron">
-      <v-icon class="mt-2">mdi-chevron-right</v-icon>
+      <v-icon class="mt-2"><MdiChevronRight /></v-icon>
     </div>
   </v-container>
 </template>
 
 <script setup lang="ts">
+import MdiChevronRight from "~icons/mdi/chevron-right"
+
 interface Friend {
   name: string
   status: string

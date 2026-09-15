@@ -19,6 +19,7 @@ import type * as UtilsModule from "@/utils"
 import NewEvent from "./NewEvent.vue"
 import newEventSource from "./NewEvent.vue?raw"
 import timeRangePickerSource from "./TimeRangePicker.vue?raw"
+import MdiAlertCircle from "~icons/mdi/alert-circle"
 
 const mountedWrappers: ReturnType<typeof baseShallowMount>[] = []
 const shallowMount: typeof baseShallowMount = (...args) => {
@@ -240,7 +241,7 @@ const VTextFieldCaptureStub = {
       default: undefined,
     },
     appendInnerIcon: {
-      type: String,
+      type: null,
       default: undefined,
     },
     maxlength: {
@@ -328,7 +329,7 @@ describe("NewEvent", () => {
     )
     const importedComponents = Array.from(
       newEventSource.matchAll(
-        /import (\w+)(?:, \{[^}]*\})? from "[^"]+\.vue"/g,
+        /import (\w+)(?:, \{[^}]*\})? from "(?:[^"]+\.vue|~icons\/[^"]+)"/g,
       ),
     ).map((match) => match[1])
 
@@ -1152,11 +1153,9 @@ describe("NewEvent", () => {
   })
 
   it("uses crossed-out Vuetify 3 false-icon for disabled unchecked gated checkboxes", () => {
-    expect(newEventSource).toContain(
-      'false-icon="mdi-checkbox-blank-off-outline"',
-    )
+    expect(newEventSource).toContain(':false-icon="MdiCheckboxBlankOffOutline"')
     expect(newEventSource).not.toContain(
-      'off-icon="mdi-checkbox-blank-off-outline"',
+      'off-icon="MdiCheckboxBlankOffOutline"',
     )
   })
 
@@ -1401,7 +1400,7 @@ describe("NewEvent", () => {
       .find((field) => field.props("label") === "Event name (required)")
     expect(nameField).toBeDefined()
     expect(nameField?.props("variant")).toBe("outlined")
-    expect(nameField?.props("appendInnerIcon")).toBe("mdi-alert-circle")
+    expect(nameField?.props("appendInnerIcon")).toBe(MdiAlertCircle)
     expect(nameField?.props("placeholder")).toBe("Name your event ...")
     expect(nameField?.props("maxlength")).toBe(100)
 

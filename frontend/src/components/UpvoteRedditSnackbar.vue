@@ -20,11 +20,11 @@
       @click="trackRedditClick"
     >
       Upvote
-      <v-icon small class="tw:-mr-px tw:-mt-px">mdi-arrow-up-bold</v-icon>
+      <v-icon small class="tw:-mr-px tw:-mt-px"><MdiArrowUpBold /></v-icon>
     </v-btn>
     <template #actions>
       <v-btn icon class="tw:-ml-2 tw:mr-2" @click="dismiss">
-        <v-icon>mdi-close</v-icon>
+        <v-icon><MdiClose /></v-icon>
       </v-btn>
     </template>
   </v-snackbar>
@@ -34,6 +34,8 @@
 import { useDisplayHelpers } from "@/utils/useDisplayHelpers"
 import { posthog } from "@/plugins/posthog"
 import { useRouteDismissibleVisibility } from "@/composables/useRouteDismissibleVisibility"
+import MdiArrowUpBold from "~icons/mdi/arrow-up-bold"
+import MdiClose from "~icons/mdi/close"
 
 const { isPhone } = useDisplayHelpers()
 

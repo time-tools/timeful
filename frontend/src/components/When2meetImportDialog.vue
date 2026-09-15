@@ -12,7 +12,7 @@
           class="tw:right-0 tw:mr-2 tw:self-center"
           @click="emit('update:modelValue', false)"
         >
-          <v-icon>mdi-close</v-icon>
+          <v-icon><MdiClose /></v-icon>
         </v-btn>
       </v-card-title>
       <v-card-text class="tw:text-very-dark-gray">
@@ -65,6 +65,7 @@
 
 <script setup lang="ts">
 import { computed } from "vue"
+import MdiClose from "~icons/mdi/close"
 
 const props = defineProps<{ modelValue: boolean }>()
 const emit = defineEmits<{ "update:modelValue": [value: boolean] }>()

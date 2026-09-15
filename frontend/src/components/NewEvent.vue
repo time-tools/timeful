@@ -44,7 +44,7 @@
             hide-details="auto"
             variant="outlined"
             class="timeful-invalid-field"
-            append-inner-icon="mdi-alert-circle"
+            :append-inner-icon="MdiAlertCircle"
             :rules="eventNameRules"
             autofocus
             required
@@ -235,7 +235,7 @@
             class="gated-feature-checkbox tw:mt-2"
             disabled
             messages="test"
-            false-icon="mdi-checkbox-blank-off-outline"
+            :false-icon="MdiCheckboxBlankOffOutline"
           >
             <template #label>
               <span class="advanced-options-disabled-label tw:text-sm"
@@ -296,7 +296,7 @@
                       >
                         <template #activator="{ props: tooltipProps }">
                           <v-icon small v-bind="tooltipProps"
-                            >mdi-information-outline
+                            ><MdiInformationOutline />
                           </v-icon>
                         </template>
                         <div>
@@ -350,7 +350,7 @@
                 disabled
                 density="compact"
                 messages="test"
-                false-icon="mdi-checkbox-blank-off-outline"
+                :false-icon="MdiCheckboxBlankOffOutline"
               >
                 <template #label>
                   <span class="advanced-options-disabled-label tw:text-sm"
@@ -404,7 +404,7 @@
                 disabled
                 density="compact"
                 messages="Only show responses to event creator. "
-                false-icon="mdi-checkbox-blank-off-outline"
+                :false-icon="MdiCheckboxBlankOffOutline"
               >
                 <template #label>
                   <span class="advanced-options-disabled-label tw:text-sm"
@@ -567,6 +567,9 @@ import DatePicker from "@/components/DatePicker.vue"
 import SlideToggle from "./SlideToggle.vue"
 import AlertText from "@/components/AlertText.vue"
 import OverflowGradient from "@/components/OverflowGradient.vue"
+import MdiAlertCircle from "~icons/mdi/alert-circle"
+import MdiCheckboxBlankOffOutline from "~icons/mdi/checkbox-blank-off-outline"
+import MdiInformationOutline from "~icons/mdi/information-outline"
 import EditorDialogHeader from "./EditorDialogHeader.vue"
 import type { Event as EventModel } from "@/types"
 import type { Timezone } from "@/composables/schedule_overlap/types"

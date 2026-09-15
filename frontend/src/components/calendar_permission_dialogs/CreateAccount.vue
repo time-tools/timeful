@@ -37,8 +37,8 @@
         class="tw:flex tw:items-center tw:justify-center tw:text-sm tw:text-dark-gray"
       >
         <v-icon class="tw:mx-2 tw:text-green" size="16"
-          >mdi-check-circle</v-icon
-        >
+          ><MdiCheckCircle
+        /></v-icon>
         Timeful account created
       </div>
     </div>
@@ -60,6 +60,7 @@ import { storeToRefs } from "pinia"
 import SignInGoogleBtn from "../SignInGoogleBtn.vue"
 import { useMainStore } from "@/stores/main"
 import { privacyPolicyEnabled } from "@/utils/privacyPolicy"
+import MdiCheckCircle from "~icons/mdi/check-circle"
 
 const emit = defineEmits<{
   back: []

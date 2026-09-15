@@ -14,7 +14,7 @@
             ]"
             v-bind="activatorProps"
           >
-            <v-icon size="18" class="tw:mr-1">mdi-tune-vertical</v-icon>
+            <v-icon size="18" class="tw:mr-1"><MdiTuneVertical /></v-icon>
             {{ menuButtonLabel }}
           </v-btn>
         </template>
@@ -204,6 +204,7 @@ import { computed } from "vue"
 import { useDisplayHelpers } from "@/utils/useDisplayHelpers"
 import { eventTypes } from "@/constants"
 import type { ScheduleOverlapEvent } from "@/composables/schedule_overlap/types"
+import MdiTuneVertical from "~icons/mdi/tune-vertical"
 
 const props = withDefaults(
   defineProps<{

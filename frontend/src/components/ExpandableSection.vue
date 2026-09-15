@@ -15,9 +15,8 @@
       <v-icon
         :class="`tw:rotate-${modelValue ? '180' : '0'} ${iconClass}`"
         :size="30"
-        >mdi-chevron-down</v-icon
-      ></v-btn
-    >
+        ><MdiChevronDown /></v-icon
+    ></v-btn>
     <v-expand-transition>
       <div v-if="modelValue">
         <slot></slot>
@@ -29,6 +28,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from "vue"
+import MdiChevronDown from "~icons/mdi/chevron-down"
 
 const props = withDefaults(
   defineProps<{

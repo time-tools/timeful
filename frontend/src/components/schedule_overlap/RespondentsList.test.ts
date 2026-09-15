@@ -16,6 +16,10 @@ import type * as UtilsModule from "@/utils"
 import type { TimedCellState } from "@/composables/schedule_overlap/types"
 import RespondentsList from "./RespondentsList.vue"
 import respondentsListSource from "./RespondentsList.vue?raw"
+import MdiDelete from "~icons/mdi/delete"
+import MdiDotsVertical from "~icons/mdi/dots-vertical"
+import MdiLock from "~icons/mdi/lock"
+import MdiPencil from "~icons/mdi/pencil"
 
 const { deleteMock } = vi.hoisted(() => ({
   deleteMock: vi.fn(),
@@ -915,7 +919,7 @@ describe("RespondentsList", () => {
 
     const pencilButton = wrapper
       .findAll("button")
-      .find((node) => node.text().includes("mdi-pencil"))
+      .find((node) => node.findComponent(MdiPencil).exists())
 
     expect(pencilButton).toBeDefined()
     if (!pencilButton) {
@@ -1011,7 +1015,7 @@ describe("RespondentsList", () => {
     expect(lockStatus.classes()).toContain("tw:h-5")
     expect(lockStatus.classes()).toContain("tw:w-5")
     expect(lockStatus.classes()).toContain("tw:text-sm")
-    expect(lockStatus.text()).toContain("mdi-lock")
+    expect(lockStatus.findComponent(MdiLock).exists()).toBe(true)
     isPhoneValue.value = true
   })
 
@@ -1097,7 +1101,7 @@ describe("RespondentsList", () => {
 
     const pencilButtons = wrapper
       .findAll("button")
-      .filter((node) => node.text().includes("mdi-pencil"))
+      .filter((node) => node.findComponent(MdiPencil).exists())
 
     expect(pencilButtons).toHaveLength(1)
     expect(wrapper.text()).toContain("Legacy Ada")
@@ -1183,7 +1187,7 @@ describe("RespondentsList", () => {
       },
     })
 
-    expect(wrapper.text()).toContain("mdi-pencil")
+    expect(wrapper.findComponent(MdiPencil).exists()).toBe(true)
     isPhoneValue.value = true
   })
 
@@ -1257,8 +1261,8 @@ describe("RespondentsList", () => {
     expect(pencilStatus.classes()).toContain("tw:h-5")
     expect(pencilStatus.classes()).toContain("tw:w-5")
     expect(pencilStatus.classes()).toContain("tw:text-sm")
-    expect(pencilStatus.text()).toContain("mdi-pencil")
-    expect(wrapper.text()).not.toContain("mdi-dots-vertical")
+    expect(pencilStatus.findComponent(MdiPencil).exists()).toBe(true)
+    expect(wrapper.findComponent(MdiDotsVertical).exists()).toBe(false)
   })
 
   it("shows a direct lock on mobile without an overflow menu for non-editable responses", () => {
@@ -1337,8 +1341,8 @@ describe("RespondentsList", () => {
     expect(lockStatus.classes()).toContain("tw:h-5")
     expect(lockStatus.classes()).toContain("tw:w-5")
     expect(lockStatus.classes()).toContain("tw:text-sm")
-    expect(lockStatus.text()).toContain("mdi-lock")
-    expect(wrapper.text()).not.toContain("mdi-dots-vertical")
+    expect(lockStatus.findComponent(MdiLock).exists()).toBe(true)
+    expect(wrapper.findComponent(MdiDotsVertical).exists()).toBe(false)
   })
 
   it("does not render mobile row-level delete for owners", () => {
@@ -1403,7 +1407,7 @@ describe("RespondentsList", () => {
       },
     })
 
-    expect(wrapper.text()).not.toContain("mdi-delete")
+    expect(wrapper.findComponent(MdiDelete).exists()).toBe(false)
   })
 
   it("deletes a respondent through the explicit responseId contract", async () => {
@@ -1423,7 +1427,7 @@ describe("RespondentsList", () => {
 
       const rowDeleteButton = wrapper
         .findAll("button")
-        .find((node) => node.text().includes("mdi-delete"))
+        .find((node) => node.findComponent(MdiDelete).exists())
       if (!rowDeleteButton) {
         throw new Error("Expected owner row delete action to be rendered")
       }
@@ -1461,7 +1465,7 @@ describe("RespondentsList", () => {
 
       const rowDeleteButton = wrapper
         .findAll("button")
-        .find((node) => node.text().includes("mdi-delete"))
+        .find((node) => node.findComponent(MdiDelete).exists())
       if (!rowDeleteButton) {
         throw new Error("Expected owner row delete action to be rendered")
       }

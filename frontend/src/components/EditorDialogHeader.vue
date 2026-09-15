@@ -21,7 +21,7 @@
         class="tw:text-dark-gray"
         @click="helpDialog = true"
       >
-        <v-icon color="#4F4F4F">mdi-information-outline</v-icon>
+        <v-icon color="#4F4F4F"><MdiInformationOutline /></v-icon>
       </v-btn>
       <v-btn
         v-else
@@ -30,7 +30,7 @@
         class="tw:text-dark-gray"
         @click="emit('close')"
       >
-        <v-icon color="#4F4F4F">mdi-close</v-icon>
+        <v-icon color="#4F4F4F"><MdiClose /></v-icon>
       </v-btn>
       <HelpDialog v-model="helpDialog">
         <template #header>{{ helpHeader }}</template>
@@ -43,6 +43,8 @@
 <script setup lang="ts">
 import { computed, ref } from "vue"
 import HelpDialog from "./HelpDialog.vue"
+import MdiClose from "~icons/mdi/close"
+import MdiInformationOutline from "~icons/mdi/information-outline"
 
 const props = defineProps<{
   title: string

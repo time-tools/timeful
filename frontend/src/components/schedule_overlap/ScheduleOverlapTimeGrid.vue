@@ -15,9 +15,10 @@
           class="tw:h-8 tw:w-8 tw:min-w-8 tw:border-outline-neutral tw:sm:h-[36px] tw:sm:w-[36px] tw:sm:min-w-[36px]"
           variant="outlined"
           icon
+          aria-label="Previous page"
           @click="timedGrid.actions.prevPage"
-          ><v-icon>mdi-chevron-left</v-icon></v-btn
-        >
+          ><v-icon><MdiChevronLeft /></v-icon
+        ></v-btn>
       </div>
     </div>
 
@@ -131,7 +132,7 @@
                   <span class="tw:font-mono"
                     >{{ row.startLabel }}-{{ row.endLabel }}</span
                   >
-                  <v-icon size="18">mdi-chevron-down</v-icon>
+                  <v-icon size="18"><MdiChevronDown /></v-icon>
                 </button>
                 <template v-else>
                   <template
@@ -371,12 +372,12 @@
           class="tw:mt-2 tw:flex tw:w-full tw:items-center tw:justify-between tw:gap-1 tw:rounded-md tw:bg-off-white tw:p-2 tw:px-[7px] tw:text-sm tw:text-very-dark-gray"
         >
           <div class="tw:flex tw:items-center tw:gap-1">
-            <v-icon small>mdi-information-outline</v-icon>
+            <v-icon small><MdiInformationOutline /></v-icon>
             {{ timedGrid.hintText }}
           </div>
           <v-icon small @click="timedGrid.actions.closeHint()"
-            >mdi-close</v-icon
-          >
+            ><MdiClose
+          /></v-icon>
         </div>
       </div>
     </v-expand-transition>
@@ -395,9 +396,10 @@
         class="tw:h-8 tw:w-8 tw:min-w-8 tw:border-outline-neutral"
         variant="outlined"
         icon
+        aria-label="Next page"
         @click="timedGrid.actions.nextPage"
-        ><v-icon>mdi-chevron-right</v-icon></v-btn
-      >
+        ><v-icon><MdiChevronRight /></v-icon
+      ></v-btn>
     </div>
   </div>
 </template>
@@ -408,6 +410,11 @@ import type { ScheduleOverlapTimeGridViewModel } from "./scheduleOverlapViewMode
 import CalendarEventBlock from "./CalendarEventBlock.vue"
 import SignUpCalendarBlock from "@/components/sign_up_form/SignUpCalendarBlock.vue"
 import ZigZag from "./ZigZag.vue"
+import MdiChevronDown from "~icons/mdi/chevron-down"
+import MdiChevronLeft from "~icons/mdi/chevron-left"
+import MdiChevronRight from "~icons/mdi/chevron-right"
+import MdiClose from "~icons/mdi/close"
+import MdiInformationOutline from "~icons/mdi/information-outline"
 
 defineOptions({
   name: "ScheduleOverlapTimeGrid",

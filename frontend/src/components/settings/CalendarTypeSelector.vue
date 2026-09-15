@@ -49,7 +49,7 @@
             <v-btn block @click="openIcsCredentials">
               <div class="tw:flex tw:w-full tw:items-center tw:gap-2">
                 <v-icon class="tw:flex-initial" size="20">
-                  mdi-calendar-sync
+                  <MdiCalendarSync />
                 </v-icon>
                 <v-spacer />
                 ICS Calendar Feed
@@ -81,6 +81,7 @@
 import { ref, watch } from "vue"
 import AppleCredentials from "@/components/calendar_permission_dialogs/AppleCredentials.vue"
 import ICSCredentials from "@/components/calendar_permission_dialogs/ICSCredentials.vue"
+import MdiCalendarSync from "~icons/mdi/calendar-sync"
 
 const props = withDefaults(
   defineProps<{

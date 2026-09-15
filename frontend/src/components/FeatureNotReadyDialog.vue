@@ -15,7 +15,7 @@
           class="tw:right-0 tw:mr-2 tw:self-center"
           @click="emit('update:modelValue', false)"
         >
-          <v-icon>mdi-close</v-icon>
+          <v-icon><MdiClose /></v-icon>
         </v-btn>
       </v-card-title>
       <v-card-text class="tw:text-very-dark-gray">
@@ -45,6 +45,7 @@
 import { ref } from "vue"
 import { useMainStore } from "@/stores/main"
 import { posthog } from "@/plugins/posthog"
+import MdiClose from "~icons/mdi/close"
 
 defineProps<{
   modelValue: boolean

@@ -70,7 +70,7 @@
                 v-if="accountNotFound"
                 class="tw:text-error tw:mb-2 tw:flex tw:items-center tw:gap-2 tw:text-sm"
               >
-                <v-icon color="error" size="16">mdi-alert-circle</v-icon>
+                <v-icon color="error" size="16"><MdiAlertCircle /></v-icon>
                 Couldn’t find this account.
                 <router-link
                   class="tw:font-medium tw:underline"
@@ -109,7 +109,7 @@
             class="tw:mr-1"
             @click="returnToProviderSelection"
           >
-            <v-icon>mdi-arrow-left</v-icon>
+            <v-icon><MdiArrowLeft /></v-icon>
           </v-btn>
           Create your account
         </v-card-title>
@@ -178,7 +178,7 @@
       <template v-else-if="step === 'otp'">
         <v-card-title class="tw:flex tw:items-center">
           <v-btn icon size="small" class="tw:mr-1" @click="returnFromOtp">
-            <v-icon>mdi-arrow-left</v-icon>
+            <v-icon><MdiArrowLeft /></v-icon>
           </v-btn>
           Enter verification code
         </v-card-title>
@@ -250,6 +250,8 @@ import type { User } from "@/types"
 import { useSignInDialogState } from "@/composables/useSignInDialogState"
 import { privacyPolicyEnabled } from "@/utils/privacyPolicy"
 import { feedbackUrl } from "@/utils/feedback"
+import MdiAlertCircle from "~icons/mdi/alert-circle"
+import MdiArrowLeft from "~icons/mdi/arrow-left"
 
 defineProps<{ modelValue: boolean }>()
 

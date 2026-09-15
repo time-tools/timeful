@@ -1,7 +1,13 @@
 // @vitest-environment happy-dom
 
 import { mount, shallowMount } from "@vue/test-utils"
-import { h, nextTick, ref, type ComponentPublicInstance } from "vue"
+import {
+  defineComponent,
+  h,
+  nextTick,
+  ref,
+  type ComponentPublicInstance,
+} from "vue"
 import { describe, expect, it, vi } from "vitest"
 import { states } from "@/composables/schedule_overlap/types"
 import ColorLegend from "./ColorLegend.vue"
@@ -17,6 +23,18 @@ import {
   buildScheduleOverlapSidebarViewModel,
   scheduleOverlapGlobalStubs,
 } from "./scheduleOverlapTestUtils"
+import MdiCalendar from "~icons/mdi/calendar"
+
+const VBtnStub = defineComponent({
+  name: "VBtn",
+  props: {
+    prependIcon: {
+      type: null,
+      default: undefined,
+    },
+  },
+  template: "<button><slot /></button>",
+})
 
 type ExposeFn<T> = (exposed?: T) => void
 
@@ -86,19 +104,22 @@ describe("ScheduleOverlapSidebar", () => {
       global: {
         stubs: {
           ...scheduleOverlapGlobalStubs,
-          "v-btn": {
-            template: "<button><slot /></button>",
-          },
+          "v-btn": VBtnStub,
         },
       },
     })
 
-    const calendarOptionsButton = wrapper.get(".calendar-options-button")
+    const calendarOptionsButton = wrapper
+      .findAllComponents(VBtnStub)
+      .find((button) => button.classes().includes("calendar-options-button"))
+
+    expect(calendarOptionsButton).toBeDefined()
+    if (!calendarOptionsButton) {
+      throw new Error("Expected calendar options button to be rendered")
+    }
 
     expect(calendarOptionsButton.text()).toBe("Calendar options")
-    expect(calendarOptionsButton.attributes("prepend-icon")).toBe(
-      "mdi-calendar",
-    )
+    expect(calendarOptionsButton.props("prependIcon")).toBe(MdiCalendar)
     expect(calendarOptionsButton.classes()).toContain("tw:w-full")
     expect(wrapper.find("expandable-section-stub").exists()).toBe(false)
 

@@ -31,7 +31,7 @@
         absolute
         class="timeful-elevated-button tw:bottom-4 tw:left-0 tw:right-0 tw:mx-auto tw:bg-blue tw:text-white"
       >
-        <v-icon>mdi-account-plus</v-icon>
+        <v-icon><MdiAccountPlus /></v-icon>
       </v-btn>
     </v-scale-transition>
   </div>
@@ -40,6 +40,7 @@
 <script setup lang="ts">
 import { useRouter } from "vue-router"
 import FriendItem from "@/components/FriendItem.vue"
+import MdiAccountPlus from "~icons/mdi/account-plus"
 
 defineOptions({ name: "AppFriends" })
 

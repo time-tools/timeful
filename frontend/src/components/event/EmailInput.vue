@@ -31,7 +31,7 @@
               :src="internalItem.picture"
               referrerpolicy="no-referrer"
             />
-            <v-icon v-else>mdi-account</v-icon>
+            <v-icon v-else><MdiAccount /></v-icon>
           </template>
           <v-list-item-title
             >{{ internalItem.firstName }}
@@ -71,6 +71,7 @@ import { signInEnabled } from "@/utils/signInAvailability"
 import { useContactsAccess } from "@/composables/useContactsAccess"
 import { useDebouncedContactLookup } from "@/composables/useDebouncedContactLookup"
 import { type ContactSearchSuggestion } from "./contactSuggestions"
+import MdiAccount from "~icons/mdi/account"
 
 interface EmailEntry {
   email: string

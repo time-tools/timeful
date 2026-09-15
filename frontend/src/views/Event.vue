@@ -212,7 +212,7 @@
                       class="tw:mr-1 tw:text-very-dark-gray tw:sm:mr-2.5"
                       @click="resetWeekOffset"
                     >
-                      <v-icon class="tw:sm:mr-2">mdi-calendar-today</v-icon>
+                      <v-icon class="tw:sm:mr-2"><MdiCalendarToday /></v-icon>
                       <span v-if="!isPhone">Today</span>
                     </v-btn>
                     <v-btn
@@ -223,10 +223,12 @@
                       @click="refreshCalendar"
                     >
                       <v-icon v-if="!isPhone" class="tw:mr-1"
-                        >mdi-refresh</v-icon
-                      >
+                        ><MdiRefresh
+                      /></v-icon>
                       <span v-if="!isPhone" class="tw:mr-2">Refresh</span>
-                      <v-icon v-else class="tw:text-green">mdi-refresh</v-icon>
+                      <v-icon v-else class="tw:text-green"
+                        ><MdiRefresh
+                      /></v-icon>
                     </v-btn>
                   </div>
                   <div
@@ -257,7 +259,7 @@
                               :disabled="isScheduling"
                               @click="triggerSecondaryAddAvailability"
                             >
-                              <v-icon>mdi-plus</v-icon>
+                              <v-icon><MdiPlus /></v-icon>
                               <span class="tw:ml-1">{{
                                 secondaryAddAvailabilityButtonText
                               }}</span>
@@ -283,9 +285,9 @@
                                       'Edit',
                                     )
                                   "
-                                  >mdi-pencil</v-icon
-                                >
-                                <v-icon v-else>mdi-plus</v-icon>
+                                  ><MdiPencil
+                                /></v-icon>
+                                <v-icon v-else><MdiPlus /></v-icon>
                                 <span class="tw:ml-1">{{
                                   primaryAvailabilityButtonText
                                 }}</span>
@@ -343,9 +345,9 @@
                                     'Edit',
                                   )
                                 "
-                                >mdi-pencil</v-icon
-                              >
-                              <v-icon v-else>mdi-plus</v-icon>
+                                ><MdiPencil
+                              /></v-icon>
+                              <v-icon v-else><MdiPlus /></v-icon>
                               <span class="tw:ml-1">{{
                                 primaryAvailabilityButtonText
                               }}</span>
@@ -424,7 +426,7 @@
                       :disabled="isScheduling"
                       @click="editEvent"
                     >
-                      <v-icon class="tw:text-green">mdi-pencil</v-icon>
+                      <v-icon class="tw:text-green"><MdiPencil /></v-icon>
                       <span class="tw:ml-1 tw:text-green"
                         >Edit {{ isGroup ? "group" : "event" }}</span
                       >
@@ -444,7 +446,7 @@
                     class="event-metadata-action-button"
                     @click="copyLink"
                   >
-                    <v-icon class="tw:text-green">mdi-content-copy</v-icon>
+                    <v-icon class="tw:text-green"><MdiContentCopy /></v-icon>
                     <span class="tw:ml-1 tw:text-green">Copy link</span>
                   </v-btn>
                 </div>
@@ -679,7 +681,7 @@
                     class="destructive-outlined-button desktop-editing-delete-button desktop-event-header-control tw:normal-case"
                     @click="deleteAvailabilityDialog = true"
                   >
-                    <v-icon>mdi-trash-can-outline</v-icon>
+                    <v-icon><MdiTrashCanOutline /></v-icon>
                     <span class="tw:ml-1">Delete</span>
                   </v-btn>
                 </div>
@@ -700,7 +702,7 @@
                     :class="desktopScheduleEventButtonClass"
                     @click="scheduleEvent"
                   >
-                    <v-icon small>mdi-calendar-check</v-icon>
+                    <v-icon small><MdiCalendarCheck /></v-icon>
                     <span class="tw:ml-2">{{
                       hasSavedTimefulSchedule
                         ? "Reschedule event"
@@ -901,7 +903,7 @@
                 class="tw:border-blue tw:px-2 tw:text-[13px] tw:text-blue tw:max-sm:px-1 tw:max-sm:text-xs"
                 @click="scheduleEvent"
               >
-                <v-icon>mdi-calendar-check</v-icon>
+                <v-icon><MdiCalendarCheck /></v-icon>
                 <span class="tw:ml-1">{{
                   hasSavedTimefulSchedule ? "Reschedule" : "Schedule"
                 }}</span>
@@ -918,7 +920,7 @@
                 class="tw:min-w-0 tw:whitespace-nowrap tw:border-green tw:px-2 tw:text-[13px] tw:text-green tw:max-sm:px-1 tw:max-sm:text-xs"
                 @click="triggerSecondaryAddAvailability"
               >
-                <v-icon>mdi-plus</v-icon>
+                <v-icon><MdiPlus /></v-icon>
                 <span class="tw:ml-1">{{
                   secondaryAddAvailabilityButtonText
                 }}</span>
@@ -939,9 +941,9 @@
               >
                 <v-icon
                   v-if="mobilePrimaryAvailabilityButtonText.startsWith('Edit')"
-                  >mdi-pencil</v-icon
-                >
-                <v-icon v-else>mdi-plus</v-icon>
+                  ><MdiPencil
+                /></v-icon>
+                <v-icon v-else><MdiPlus /></v-icon>
                 <span class="tw:ml-1">{{
                   mobilePrimaryAvailabilityButtonText
                 }}</span>
@@ -955,7 +957,7 @@
               class="destructive-outlined-button tw:text-sm tw:normal-case"
               @click="deleteAvailabilityDialog = true"
             >
-              <v-icon>mdi-trash-can-outline</v-icon>
+              <v-icon><MdiTrashCanOutline /></v-icon>
               <span class="tw:ml-1">Delete</span>
             </v-btn>
             <v-spacer />
@@ -1006,7 +1008,7 @@
                   "
                   v-bind="activatorProps"
                 >
-                  <v-icon>mdi-calendar-check</v-icon>
+                  <v-icon><MdiCalendarCheck /></v-icon>
                   <span class="tw:ml-1">Schedule</span>
                 </v-btn>
               </template>
@@ -1126,6 +1128,13 @@ import HelpDialog from "@/components/HelpDialog.vue"
 import EventDescription from "@/components/event/EventDescription.vue"
 import EventOptions from "@/components/schedule_overlap/EventOptions.vue"
 import { privacyPolicyEnabled } from "@/utils/privacyPolicy"
+import MdiCalendarCheck from "~icons/mdi/calendar-check"
+import MdiCalendarToday from "~icons/mdi/calendar-today"
+import MdiContentCopy from "~icons/mdi/content-copy"
+import MdiPencil from "~icons/mdi/pencil"
+import MdiPlus from "~icons/mdi/plus"
+import MdiRefresh from "~icons/mdi/refresh"
+import MdiTrashCanOutline from "~icons/mdi/trash-can-outline"
 
 import { useMainStore } from "@/stores/main"
 import { useDisplayHelpers } from "@/utils/useDisplayHelpers"
