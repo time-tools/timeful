@@ -1,12 +1,13 @@
 import { vi } from "vitest"
+import type { Mock } from "vitest"
 import type * as UtilsModule from "@/utils"
 
 export const viewportWidth = { value: 1024 }
 
-export const putMock = vi.fn()
-export const refreshAuthUserMock = vi.fn()
-export const showInfoMock = vi.fn()
-export const showErrorMock = vi.fn()
+export const putMock: Mock = vi.fn()
+export const refreshAuthUserMock: Mock = vi.fn()
+export const showInfoMock: Mock = vi.fn()
+export const showErrorMock: Mock = vi.fn()
 
 vi.mock("vuetify", () => ({
   useDisplay: () => ({
