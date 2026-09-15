@@ -14,7 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"timeful/server/accounts"
 	"timeful/server/errs"
-	"timeful/server/eventsource"
+	"timeful/server/eventid"
 	"timeful/server/logger"
 	"timeful/server/middleware"
 	"timeful/server/models"
@@ -244,7 +244,7 @@ func dashboardEvent(event pgstore.Event, owned bool, platformIdentityID string, 
 // @Router /user/events/{eventId}/set-folder [post]
 func setEventFolder(c *gin.Context) {
 	eventID := c.Param("eventId")
-	if !eventsource.Canonical(eventID) {
+	if !eventid.Canonical(eventID) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID"})
 		return
 	}

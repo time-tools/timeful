@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"timeful/server/eventsource"
+	"timeful/server/eventid"
 	"timeful/server/models"
 	pgstore "timeful/server/postgres"
 )
@@ -60,7 +60,7 @@ func TestSignedInEventLifecycle(t *testing.T) {
 	if eventID == "" {
 		t.Fatal("signed-in creation did not return an event identifier")
 	}
-	if !eventsource.Canonical(eventID) {
+	if !eventid.Canonical(eventID) {
 		t.Fatalf("expected a canonical event identifier, got %q", eventID)
 	}
 	t.Cleanup(func() {

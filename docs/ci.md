@@ -25,7 +25,6 @@ Parallel jobs duplicate setup compute on purpose, which is the accepted trade-of
 - The Firefox desktop job runs `firefox-desktop` at two Playwright workers and sets `E2E_FRONTEND=bundled` so the recorded access-transfer journeys stay within budget.
 - The Firefox touch job runs `firefox-touch` at one worker because it matches a single serial spec file that cannot parallelize further.
 
-Only the Firefox desktop job enables PostgreSQL anonymous event creation, because that flag is a stack-level setting consumed at global setup and must not be shared with the other suites.
 Every matrix job restores the Nix, Go, npm, and migrator-image caches; only the Chromium job saves them, so concurrent same-key saves cannot race.
 Each job uploads Playwright failure artifacts under `playwright-failure-artifacts-<suite>` so parallel uploads do not collide.
 

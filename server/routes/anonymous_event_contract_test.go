@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"timeful/server/eventsource"
+	"timeful/server/eventid"
 	"timeful/server/models"
 	pgstore "timeful/server/postgres"
 )
@@ -93,7 +93,7 @@ func assertEventIDsResolve(t *testing.T, router http.Handler, eventID string) st
 		ShortID string `json:"shortId"`
 		LongID  string `json:"longId"`
 	}](t, longRecorder)
-	if !eventsource.Canonical(eventID) {
+	if !eventid.Canonical(eventID) {
 		t.Fatalf("expected a canonical event identifier, got %q", eventID)
 	}
 	if ids.LongID != eventID || ids.ShortID != eventID {

@@ -1,4 +1,4 @@
-package eventsource
+package eventid
 
 import "testing"
 
