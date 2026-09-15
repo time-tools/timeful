@@ -24,7 +24,7 @@
         @pointerdown.stop.prevent
         @click.stop="emit('reset')"
       >
-        <UndoIcon />
+        <MdiBackupRestore class="timezone-select__reset-icon" />
       </v-btn>
       <v-select
         id="timezone-select"
@@ -97,7 +97,7 @@
         @pointerdown.stop.prevent
         @click.stop="emit('reset')"
       >
-        <UndoIcon />
+        <MdiBackupRestore class="timezone-select__reset-icon" />
       </v-btn>
     </div>
   </div>
@@ -106,13 +106,13 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { Temporal } from "temporal-polyfill"
-import UndoIcon from "@/components/icons/UndoIcon.vue"
 import type { Timezone } from "@/composables/schedule_overlap/types"
 import {
   normalizeTimezone,
   buildTimezonesForReferenceDate,
   formatTimezoneOffsetShort,
 } from "@/utils/timezone_utils"
+import MdiBackupRestore from "~icons/mdi/backup-restore"
 
 interface TimezoneSelectItem {
   title: string
@@ -395,6 +395,12 @@ function onChangeValue(val: string | null) {
 
 .timezone-select__reset-button {
   margin-inline-end: -2px;
+}
+
+.timezone-select__reset-icon {
+  display: block;
+  height: 22px;
+  width: 22px;
 }
 
 .timezone-select__reset-button--right {
