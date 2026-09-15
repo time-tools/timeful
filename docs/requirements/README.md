@@ -254,5 +254,9 @@ Read [`quality/README.md`](quality/README.md) before creating or changing a qual
 | [QR-012](quality/qr/QR-012.md) | Preserve authorization when migrating core records (deprecated)                       | backend, infrastructure |
 | [QR-013](quality/qr/QR-013.md) | Protect provider credentials at rest and keep them out of responses                   | backend, infrastructure |
 | [QR-014](quality/qr/QR-014.md) | Require authenticated PostgreSQL access in staging and production                     | infrastructure          |
+| [QR-015](quality/qr/QR-015.md) | Bound observability resource use                                                      | infrastructure          |
+| [QR-016](quality/qr/QR-016.md) | Keep observability endpoints private and authenticated                                | infrastructure          |
+| [QR-017](quality/qr/QR-017.md) | Keep serving requests when observability ingestion fails                              | backend, infrastructure |
+| [QR-018](quality/qr/QR-018.md) | Delete observability data after its retention window                                  | infrastructure          |
 
 When a requirement is migrated, add its row to the matching table with a stable relative link, for example `[FR-001](functional/fr/FR-001.md)`.

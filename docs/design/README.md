@@ -48,6 +48,7 @@ The inactive statuses are `deprecated`, `superseded`, and `rejected`.
 | [ADR-018](architecture/adr/ADR-018.md) | Backend, Infrastructure           | accepted | PostgreSQL Is The Single Authoritative Store                        |
 | [ADR-020](architecture/adr/ADR-020.md) | Backend, Infrastructure           | accepted | Encrypt Provider Credentials At Rest With Authenticated AES-256-GCM |
 | [ADR-021](architecture/adr/ADR-021.md) | Frontend, Backend, Infrastructure | accepted | Use The Platform Identity UUID As The Account Identifier            |
+| [ADR-022](architecture/adr/ADR-022.md) | Backend, Infrastructure           | accepted | Use OpenObserve As The Self-Hosted Observability Platform           |
 
 ### Inactive records
 
