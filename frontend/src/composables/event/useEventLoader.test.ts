@@ -29,7 +29,7 @@ vi.mock("./calendarEventsBoundary", () => ({
 
 describe("useEventLoader", () => {
   beforeEach(() => {
-    globalThis.localStorage = createLocalStorageMock()
+    vi.stubGlobal("localStorage", createLocalStorageMock())
     getMock.mockReset()
     fetchEventFromPathMock.mockReset()
     fetchCalendarEventsMapMock.mockReset()

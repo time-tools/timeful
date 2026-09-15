@@ -1,13 +1,13 @@
 // @vitest-environment happy-dom
 
 import { computed } from "vue"
-import { beforeEach, describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { createLocalStorageMock } from "@/test/localStorage"
 import { useScheduleOverlapPreferences } from "./useScheduleOverlapPreferences"
 
 describe("useScheduleOverlapPreferences", () => {
   beforeEach(() => {
-    globalThis.localStorage = createLocalStorageMock()
+    vi.stubGlobal("localStorage", createLocalStorageMock())
   })
 
   it("clears the in-memory guest name when the trimmed input is blank", () => {

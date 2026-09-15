@@ -17,7 +17,7 @@ vi.mock("@/utils/fetch_utils", async (original) => ({
 }))
 beforeEach(() => {
   vi.useFakeTimers()
-  globalThis.localStorage = createLocalStorageMock()
+  vi.stubGlobal("localStorage", createLocalStorageMock())
   post
     .mockReset()
     .mockImplementation((url: string) =>

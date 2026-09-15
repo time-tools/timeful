@@ -134,7 +134,7 @@ describe("InvitationDialog", () => {
     post.mockReset()
     push.mockReset()
     replace.mockReset()
-    globalThis.localStorage = createLocalStorageMock()
+    vi.stubGlobal("localStorage", createLocalStorageMock())
     const calendarAccounts: Record<string, CalendarAccount> = {
       "owner@example.com_google": {
         email: "owner@example.com",

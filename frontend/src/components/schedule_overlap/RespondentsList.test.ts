@@ -1410,11 +1410,13 @@ describe("RespondentsList", () => {
     isPhoneValue.value = false
     deleteMock.mockReset()
     deleteMock.mockResolvedValue(undefined)
-    const previousStorage = globalThis.localStorage
-    globalThis.localStorage = createLocalStorageMock({
-      "timeful.eventVisitor.evt-1": "visitor-1",
-      "timeful.selectedResponse.evt-1": "public-1",
-    })
+    vi.stubGlobal(
+      "localStorage",
+      createLocalStorageMock({
+        "timeful.eventVisitor.evt-1": "visitor-1",
+        "timeful.selectedResponse.evt-1": "public-1",
+      }),
+    )
 
     try {
       const wrapper = mountOwnerDeleteFixture({ eventVisitorId: "visitor-1" })
@@ -1444,7 +1446,7 @@ describe("RespondentsList", () => {
       expect(wrapper.emitted("guestAvailabilityDeleted")).toEqual([["user-1"]])
       expect(wrapper.emitted("refreshEvent")).toHaveLength(1)
     } finally {
-      globalThis.localStorage = previousStorage
+      vi.unstubAllGlobals()
       isPhoneValue.value = true
     }
   })
