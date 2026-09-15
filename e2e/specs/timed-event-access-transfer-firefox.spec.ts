@@ -12,6 +12,10 @@ const payload = {
   blindAvailabilityEnabled: true,
 }
 
+// Recorded multi-context journeys exceed Playwright's 30-second default under
+// the default two-worker Firefox desktop run; the lighter checks stay on it.
+const TRANSFER_JOURNEY_TIMEOUT_MS = 40_000
+
 function expireTransfer(transferId: string) {
   if (!/^[0-9a-f-]{36}$/.test(transferId))
     throw new Error("Invalid test transfer ID")
@@ -92,6 +96,7 @@ for (const mode of ["guest", "owner", "signed-in"] as const) {
     page,
     actorContext,
   }) => {
+    test.setTimeout(TRANSFER_JOURNEY_TIMEOUT_MS)
     const owner = await actorContext("owner")
     const target = await actorContext("target")
     const stranger = await actorContext("stranger")
@@ -367,6 +372,7 @@ for (const mode of ["guest", "account-switch"] as const) {
     page,
     actorContext,
   }) => {
+    test.setTimeout(TRANSFER_JOURNEY_TIMEOUT_MS)
     const owner = await actorContext("owner")
     const target = await actorContext("target")
     const { eventId, api, sourceAccount, targetAccount, transferApi, link } =
