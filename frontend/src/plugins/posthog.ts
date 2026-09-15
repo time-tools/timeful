@@ -2,6 +2,9 @@ import type posthogJs from "posthog-js"
 
 type PosthogClient = typeof posthogJs
 
+type IdentifyProperties = Parameters<PosthogClient["identify"]>[1]
+type IdentifyPropertiesOnce = Parameters<PosthogClient["identify"]>[2]
+
 type PendingCall = (client: PosthogClient) => void
 
 const POSTHOG_DISTINCT_ID_KEY = "timeful.posthogDistinctId"
@@ -90,9 +93,17 @@ export const posthog = {
     })
   },
 
-  identify(...args: Parameters<PosthogClient["identify"]>) {
+  identify(
+    distinctId: string | undefined,
+    properties?: IdentifyProperties,
+    propertiesOnce?: IdentifyPropertiesOnce,
+  ) {
+    if (!distinctId) {
+      return
+    }
+
     enqueueOrRun((client) => {
-      client.identify(...args)
+      client.identify(distinctId, properties, propertiesOnce)
     })
   },
 
