@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"timeful/server/eventsource"
+	"timeful/server/eventid"
 	"timeful/server/models"
 	pgstore "timeful/server/postgres"
 )
@@ -32,7 +32,7 @@ func createGroup(t *testing.T, client *accountContractClient, name string, atten
 	if eventID == "" {
 		t.Fatal("group creation did not return an event identifier")
 	}
-	if !eventsource.Canonical(eventID) {
+	if !eventid.Canonical(eventID) {
 		t.Fatalf("group creation returned a noncanonical identifier %q", eventID)
 	}
 	t.Cleanup(func() {

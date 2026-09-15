@@ -30,12 +30,12 @@ func TestAccountDeletionRemovesAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { deleteAccountTestFixtures(t, account.PlatformIdentityID) })
-	objectID := accountObjectID(t, account.PlatformIdentityID)
+	identityUUID := accountUUID(t, account.PlatformIdentityID)
 
 	// Account data: a daily log shared with another account, and a log that only
 	// the deleted account used.
-	sharedDate := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, int(objectID[0])*256+int(objectID[1]))
-	soloDate := time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, int(objectID[2])*256+int(objectID[3]))
+	sharedDate := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, int(identityUUID[0])*256+int(identityUUID[1]))
+	soloDate := time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, int(identityUUID[2])*256+int(identityUUID[3]))
 	otherAccountID := newSessionAccount(t)
 	var sharedLogID, soloLogID string
 	if err := pgstore.Pool.QueryRow(ctx, `INSERT INTO daily_user_logs (log_date) VALUES ($1)

@@ -4,6 +4,7 @@ title: Align code naming with canonical glossary terminology
 status: To Do
 assignee: []
 created_date: '2026-08-27 11:22'
+updated_date: '2026-09-15 12:23'
 labels:
   - terminology
   - refactoring
@@ -46,3 +47,13 @@ Read docs/terminology/README.md before starting; it defines the canonicalization
 - [ ] #3 All required e2e tests pass. Documentation-only changes are exempt unless the user requests e2e tests
 - [ ] #4 Changed Markdown files are formatted with npm run format:markdown
 <!-- DOD:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: opencode
+created: 2026-09-15 12:23
+---
+Coordination (TASK-0228, 2026-09-15): TASK-0228 renamed `server/eventsource` to `server/eventid` and the `accounts_test.go` helper `accountObjectID` to `accountUUID`, because both names carried retired Mongo event-source, dispatch, and ObjectID vocabulary. Treat `eventid.Canonical` and `accountUUID` as the current names in this task's naming inventory rather than re-litigating or reverting the cleanup. The glossary has no controlled term for the public event identifier yet, so TASK-0228 did not add one; a future glossary-derived rename may supersede these names.
+---
+<!-- COMMENTS:END -->

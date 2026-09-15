@@ -480,11 +480,12 @@ func newSessionAccount(t *testing.T) string {
 	return account.PlatformIdentityID
 }
 
-func accountObjectID(t *testing.T, value string) models.UUID {
+// accountUUID parses the platform identity UUID minted for an account fixture.
+func accountUUID(t *testing.T, value string) models.UUID {
 	t.Helper()
-	objectID, ok := models.ParseUUID(value)
+	uuid, ok := models.ParseUUID(value)
 	if !ok {
 		t.Fatalf("invalid account identifier %q", value)
 	}
-	return objectID
+	return uuid
 }
