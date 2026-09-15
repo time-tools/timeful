@@ -9,7 +9,6 @@ import (
 	"github.com/emersion/go-ical"
 	"github.com/jonyTF/go-webdav"
 	"github.com/jonyTF/go-webdav/caldav"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"timeful/server/models"
 	"timeful/server/utils"
 )
@@ -123,8 +122,8 @@ func (calendar *AppleCalendar) GetCalendarEvents(calendarId string, timeMin time
 			Id:         event.Data.Children[0].Props.Get("UID").Value,
 			CalendarId: calendarId,
 			Summary:    event.Data.Children[0].Props.Get("SUMMARY").Value,
-			StartDate:  primitive.NewDateTimeFromTime(startTime),
-			EndDate:    primitive.NewDateTimeFromTime(endTime),
+			StartDate:  models.NewDateTimeFromTime(startTime),
+			EndDate:    models.NewDateTimeFromTime(endTime),
 			AllDay:     allDay,
 		})
 	}
@@ -133,12 +132,10 @@ func (calendar *AppleCalendar) GetCalendarEvents(calendarId string, timeMin time
 }
 
 func (calendar *AppleCalendar) getClients() (*webdav.Client, *caldav.Client, error) {
-	decryptedPassword, err := utils.Decrypt(calendar.Password)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	httpClient := webdav.HTTPClientWithBasicAuth(nil, calendar.Email, decryptedPassword)
+	// The Apple app password arrives decrypted from the PostgreSQL repository,
+	// which owns encryption at rest; request paths never see the legacy AES-CFB
+	// value.
+	httpClient := webdav.HTTPClientWithBasicAuth(nil, calendar.Email, calendar.Password)
 
 	webdavClient, err := webdav.NewClient(httpClient, "https://caldav.icloud.com")
 	if err != nil {

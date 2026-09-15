@@ -9,12 +9,8 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"timeful/server/db"
 	"timeful/server/logger"
-	"timeful/server/models"
+	pgstore "timeful/server/postgres"
 	"timeful/server/utils"
 )
 
@@ -49,81 +45,19 @@ var activeUsers Command = Command{
 			}
 		}
 
-		// Query for daily user logs starting from `days` days before the current date
+		// Read daily user logs starting from `days` days before the current
+		// date from the authoritative PostgreSQL store. Empty days are padded by
+		// the repository so the list and chart output are unchanged.
 		startDate := time.Now().AddDate(0, 0, -days)
 		startDate = utils.GetDateAtTime(startDate, "00:00:00")
-		query := bson.M{"date": bson.M{"$gte": primitive.NewDateTimeFromTime(startDate)}}
-		sort := bson.M{"date": -1}
 
-		var logs []models.DailyUserLog
-		if list {
-			// Find and populate
-			cursor, err := db.DailyUserLogCollection.Aggregate(context.Background(), []bson.M{
-				{"$match": query},
-				{"$sort": sort},
-				{"$lookup": bson.M{
-					"from":         "users",
-					"localField":   "userIds",
-					"foreignField": "_id",
-					"as":           "users",
-				}},
-				{"$project": bson.M{
-					"date":            1,
-					"users._id":       1,
-					"users.firstName": 1,
-					"users.lastName":  1,
-					"users.email":     1,
-				}},
-			})
-			if err != nil {
-				logger.StdErr.Panicln(err)
-			}
-			if err := cursor.All(context.Background(), &logs); err != nil {
-				logger.StdErr.Panicln(err)
-			}
-		} else {
-			// Find matches
-			cursor, err := db.DailyUserLogCollection.Find(context.Background(), query, &options.FindOptions{
-				Sort: sort,
-			})
-			if err != nil {
-				logger.StdErr.Panicln(err)
-			}
-			if err := cursor.All(context.Background(), &logs); err != nil {
-				logger.StdErr.Panicln(err)
-			}
+		repository, err := pgstore.DefaultRepository()
+		if err != nil {
+			logger.StdErr.Panicln(err)
 		}
-
-		// Add empty days
-		curDate := startDate
-		for i := len(logs) - 1; i >= 0; i-- {
-			// Add all dates up to the current log date
-			for !logs[i].Date.Time().Equal(curDate) && curDate.Before(time.Now()) {
-				// Insert curDate into logs, with an empty users array
-				logs, err = utils.Insert(logs, i+1, models.DailyUserLog{
-					Date:  primitive.NewDateTimeFromTime(curDate),
-					Users: make([]models.User, 0),
-				})
-				if err != nil {
-					logger.StdErr.Panicln(err)
-				}
-				curDate = curDate.AddDate(0, 0, 1)
-			}
-
-			// Increase curDate by a day
-			curDate = curDate.AddDate(0, 0, 1)
-		}
-
-		// Add all dates up to the current date
-		for curDate.Before(time.Now()) {
-			logs, err = utils.Insert(logs, 0, models.DailyUserLog{
-				Date:  primitive.NewDateTimeFromTime(curDate),
-				Users: make([]models.User, 0),
-			})
-			if err != nil {
-				logger.StdErr.Panicln(err)
-			}
-			curDate = curDate.AddDate(0, 0, 1)
+		logs, err := repository.ListActiveUserDays(context.Background(), startDate, time.Now())
+		if err != nil {
+			logger.StdErr.Panicln(err)
 		}
 
 		// Define constants
@@ -134,12 +68,12 @@ var activeUsers Command = Command{
 			sendMessage(s, m, "Active Users:\n")
 			message := ""
 			for _, log := range logs {
-				date := log.Date.Time()
+				date := log.LogDate
 				message += dayStrings[date.Weekday()] + " "
 				message += utils.GetDateString(date) + " | "
-				message += fmt.Sprintf("Count: %d\n", len(log.Users))
+				message += fmt.Sprintf("Count: %d\n", len(log.Members))
 
-				for _, user := range log.Users {
+				for _, user := range log.Members {
 					message += fmt.Sprintf("\t- %s %s (%s)\n", user.FirstName, user.LastName, user.Email)
 				}
 			}
@@ -154,24 +88,24 @@ var activeUsers Command = Command{
 			labels := make([]string, 0)
 			data := make([]int, 0)
 			for i := len(logs) - 1; i >= 0; i-- {
-				labels = append(labels, utils.GetDateString(logs[i].Date.Time()))
-				data = append(data, len(logs[i].UserIds))
+				labels = append(labels, utils.GetDateString(logs[i].LogDate))
+				data = append(data, len(logs[i].Members))
 			}
 
 			// Generate chart using QuickChart API
-			chart := bson.M{
+			chart := map[string]any{
 				"type": "bar",
-				"data": bson.M{
+				"data": map[string]any{
 					"labels": labels,
-					"datasets": bson.A{bson.M{
+					"datasets": []any{map[string]any{
 						"label": "Active Users",
 						"data":  data,
 					}},
 				},
-				"options": bson.M{
-					"scales": bson.M{
-						"yAxes": bson.A{bson.M{
-							"ticks": bson.M{
+				"options": map[string]any{
+					"scales": map[string]any{
+						"yAxes": []any{map[string]any{
+							"ticks": map[string]any{
 								"stepSize": 1,
 							},
 						}},

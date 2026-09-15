@@ -5,7 +5,6 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/text/unicode/norm"
 	"timeful/server/models"
 )
@@ -18,7 +17,7 @@ const (
 	GuestNameValid             GuestNameValidationCode = ""
 	GuestNameRequired          GuestNameValidationCode = "required"
 	GuestNameInvalidFormatting GuestNameValidationCode = "invalid_formatting"
-	GuestNameObjectIDLike      GuestNameValidationCode = "object_id_like"
+	GuestNameAccountIDLike     GuestNameValidationCode = "account_id_like"
 	GuestNameTooLong           GuestNameValidationCode = "too_long"
 )
 
@@ -65,8 +64,8 @@ func ValidateGuestName(input string) GuestNameValidationResult {
 		return GuestNameValidationResult{Code: GuestNameTooLong}
 	}
 
-	if _, err := primitive.ObjectIDFromHex(normalized); err == nil {
-		return GuestNameValidationResult{Code: GuestNameObjectIDLike}
+	if _, ok := models.ParseUUID(normalized); ok {
+		return GuestNameValidationResult{Code: GuestNameAccountIDLike}
 	}
 
 	return GuestNameValidationResult{

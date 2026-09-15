@@ -1,10 +1,11 @@
 export const GUEST_NAME_MAX_LENGTH = 100
 const DISALLOWED_NAME_CHARACTERS_PATTERN = /[\p{Cc}\p{Cf}]/gu
-const OBJECT_ID_LIKE_PATTERN = /^[a-f\d]{24}$/iu
+const ACCOUNT_ID_LIKE_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export type GuestNameValidationCode =
   | "required"
   | "invalidFormatting"
-  | "objectIdLike"
+  | "accountIdLike"
   | "tooLong"
 
 export interface GuestNameValidationResult {
@@ -51,8 +52,8 @@ export function validateGuestName(
     return { code: "tooLong" }
   }
 
-  if (OBJECT_ID_LIKE_PATTERN.test(normalizedName)) {
-    return { code: "objectIdLike" }
+  if (ACCOUNT_ID_LIKE_PATTERN.test(normalizedName)) {
+    return { code: "accountIdLike" }
   }
 
   return { normalizedName }
@@ -70,7 +71,7 @@ export function getGuestNameValidationMessage(
       return "Name must be non-empty"
     case "invalidFormatting":
       return "Name contains only unsupported formatting characters"
-    case "objectIdLike":
+    case "accountIdLike":
       return "Name cannot look like an account ID"
     case "tooLong":
       return "Name must be 100 characters or fewer"

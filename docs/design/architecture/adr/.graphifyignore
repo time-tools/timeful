@@ -1,0 +1,10 @@
+# Inactive ADRs are retained for decision history but excluded from the knowledge graph.
+ADR-003.md
+ADR-011.md
+ADR-012.md
+ADR-013.md
+ADR-014.md
+ADR-015.md
+ADR-016.md
+ADR-017.md
+ADR-019.md

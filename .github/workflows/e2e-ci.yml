@@ -58,26 +58,22 @@ jobs:
               --project=chromium-production-mobile
             workers: "2"
             frontend: ""
-            postgres-anonymous: "false"
             save-cache: true
-          # PostgreSQL anonymous event creation is a stack-level setting read at
-          # global setup, so this suite stays its own job and never shares an
-          # invocation with the Mongo-backed suites. Bundled mode keeps the
-          # heavier access-transfer journeys within budget at two workers.
+          # All browser suites create events in PostgreSQL by default now, so
+          # each suite is its own job on its own isolated stack. Bundled mode
+          # keeps the heavier access-transfer journeys within budget at two
+          # workers.
           - suite: firefox-desktop
             projects: --project=firefox-desktop
             workers: "2"
             frontend: bundled
-            postgres-anonymous: "true"
             save-cache: false
           # The touch suite matches a single serial spec file that cannot
-          # parallelize further, and it keeps Mongo-backed creation because its
-          # spec seeds guest responses through the standalone request fixture.
+          # parallelize further.
           - suite: firefox-touch
             projects: --project=firefox-touch
             workers: "1"
             frontend: ""
-            postgres-anonymous: "false"
             save-cache: false
 
     steps:
@@ -125,19 +121,19 @@ jobs:
       - name: Configure isolated test environment
         run: cp .env.test.example .env.test
 
-      - name: Validate dual-database Compose configuration
+      - name: Validate PostgreSQL-only Compose configuration
         run: docker compose --env-file .env.test -f compose.yaml -f compose.test.yaml config --quiet
 
       # Hosted runners are ephemeral, so the default docker-driver BuildKit
       # cache never persists across runs. Keep building the server test image
       # with a docker-container builder backed by the GitHub Actions cache,
       # sharing this cache scope with Backend CI so both workflows stay warm.
-      # The testbase target bakes no RUN layer at all (the E2E test container
-      # mounts a cached GOMODCACHE volume instead), so the gha cache only
-      # carries small blobs; buildx gha re-uploads every layer blob on each
-      # run, so large layers would make cache I/O the bottleneck. Only the
-      # designated single-writer job exports to the cache; every job still
-      # imports from it.
+      # The testbase-pg target adds only the small PostgreSQL-client layer
+      # needed by the backup/restore rehearsal (the E2E test container mounts
+      # a cached GOMODCACHE volume instead), so the gha cache only carries
+      # small blobs; buildx gha re-uploads every layer blob on each run, so
+      # large layers would make cache I/O the bottleneck. Only the designated
+      # single-writer job exports to the cache; every job still imports from it.
       - name: Set up Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
@@ -145,7 +141,7 @@ jobs:
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: ./server
-          target: testbase
+          target: testbase-pg
           tags: timeful-test-server-route-test
           cache-from: type=gha
           cache-to: ${{ matrix['save-cache'] && 'type=gha,mode=max' || '' }}
@@ -246,20 +242,18 @@ jobs:
       # the goose image. No `--build` here: the buildable services above
       # already have their Compose image names present in the docker daemon
       # (loaded from the Buildx and tarball steps), so Compose uses them as-is.
-      - name: Start MongoDB and PostgreSQL test services
-        run: docker compose --env-file .env.test -f compose.yaml -f compose.test.yaml up -d mongo-test postgres-test postgres-test-bootstrap postgres-test-migrate
+      - name: Start PostgreSQL test services
+        run: docker compose --env-file .env.test -f compose.yaml -f compose.test.yaml up -d postgres-test postgres-test-bootstrap postgres-test-migrate
 
       # Playwright writes each run's artifacts (traces, screenshots, videos)
       # under E2E_ARTIFACTS_DIR (see e2e/config/tooling.ts); the upload step
       # below collects them after failures. `--workers` overrides the CI
       # default of one worker per project. `E2E_FRONTEND=bundled` makes the
-      # webServer build and preview a test-mode frontend, and the PostgreSQL
-      # creation flag only takes effect in the firefox-desktop entry.
+      # webServer build and preview a test-mode frontend.
       - name: Run ${{ matrix.suite }} browser E2E suite
         env:
           E2E_ARTIFACTS_DIR: ${{ runner.temp }}/e2e-artifacts
           E2E_FRONTEND: ${{ matrix.frontend }}
-          E2E_POSTGRES_ANONYMOUS_EVENT_CREATION_ENABLED: ${{ matrix['postgres-anonymous'] }}
         run: nix run .#e2e -- ${{ matrix.projects }} --workers=${{ matrix.workers }}
 
       # Parallel jobs upload under distinct names so the artifacts do not

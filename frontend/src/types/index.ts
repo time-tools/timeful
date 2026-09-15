@@ -60,12 +60,12 @@ export type Event = Omit<
 }
 
 export interface Folder {
-  _id?: Schemas["models.Folder"]["_id"]
-  color?: Schemas["models.Folder"]["color"]
-  eventIds?: Schemas["models.Folder"]["eventIds"]
-  isDeleted?: Schemas["models.Folder"]["isDeleted"]
-  name?: Schemas["models.Folder"]["name"]
-  userId?: Schemas["models.Folder"]["userId"]
+  _id?: Schemas["routes.FolderResponse"]["_id"]
+  color?: Schemas["routes.FolderResponse"]["color"]
+  eventIds?: Schemas["routes.FolderResponse"]["eventIds"]
+  isDeleted?: Schemas["routes.FolderResponse"]["isDeleted"]
+  name?: Schemas["routes.FolderResponse"]["name"]
+  userId?: Schemas["routes.FolderResponse"]["userId"]
 }
 
 export type Response = Omit<
@@ -133,11 +133,12 @@ export interface Remindee {
   responded?: Schemas["models.Remindee"]["responded"]
 }
 
+// Group event reads inject the attendee list alongside the event payload.
 export interface Attendee {
-  _id?: Schemas["models.Attendee"]["_id"]
-  declined?: Schemas["models.Attendee"]["declined"]
-  email?: Schemas["models.Attendee"]["email"]
-  eventId?: Schemas["models.Attendee"]["eventId"]
+  _id?: string
+  declined?: boolean
+  email?: string
+  eventId?: string
 }
 
 export interface BufferTimeOptions {

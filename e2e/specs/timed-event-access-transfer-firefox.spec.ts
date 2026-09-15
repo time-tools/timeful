@@ -1,13 +1,9 @@
-import { execFile, execFileSync } from "node:child_process"
-import { promisify } from "node:util"
+import { execFileSync } from "node:child_process"
 import { fileURLToPath } from "node:url"
 import { expect, type APIRequestContext } from "@playwright/test"
 import { test } from "../helpers/actor-context"
+import { seedOtpChallenge } from "../helpers/database-inspect"
 
-test.skip(
-  process.env.E2E_POSTGRES_ANONYMOUS_EVENT_CREATION_ENABLED !== "true",
-  "requires PostgreSQL creation",
-)
 const payload = {
   name: "Transfer browser coverage",
   type: "specific_dates",
@@ -15,6 +11,10 @@ const payload = {
   dates: ["2026-10-05T00:00:00Z"],
   blindAvailabilityEnabled: true,
 }
+
+// Recorded multi-context journeys exceed Playwright's 30-second default under
+// the default two-worker Firefox desktop run; the lighter checks stay on it.
+const TRANSFER_JOURNEY_TIMEOUT_MS = 40_000
 
 function expireTransfer(transferId: string) {
   if (!/^[0-9a-f-]{36}$/.test(transferId))
@@ -65,46 +65,30 @@ function expireTransfer(transferId: string) {
   )
 }
 
-const execFileAsync = promisify(execFile)
-
 // Prepare accounts independently of the browser journey; only OTP verification
 // signs an actor in, at the scenario's required point.
-async function seedAccount(label: string) {
+function seedAccount(label: string) {
   const email = `transfer-${label}-${crypto.randomUUID()}@example.invalid`
-  await execFileAsync(
-    "docker",
-    [
-      "compose",
-      "--env-file",
-      ".env.test",
-      "-f",
-      "compose.yaml",
-      "-f",
-      "compose.test.yaml",
-      "exec",
-      "-T",
-      "mongo-test",
-      "mongosh",
-      "--quiet",
-      "mongodb://localhost:27017/timeful-test",
-      "--eval",
-      `db.users.insertOne({email:${JSON.stringify(email)},firstName:"Transfer",lastName:"Test",calendarAccounts:{}}); db.otpCodes.insertOne({email:${JSON.stringify(email)},code:"123456",expiresAt:new Date(Date.now()+600000),attempts:0});`,
-    ],
-    { cwd: fileURLToPath(new URL("../../", import.meta.url)) },
-  )
+  seedOtpChallenge(email, "123456")
   return email
 }
 
 async function verifySignIn(request: APIRequestContext, email: string) {
   const result = await request.post("/api/auth/otp/verify", {
-    data: { email, code: "123456", timezoneOffset: 0 },
+    data: {
+      email,
+      code: "123456",
+      timezoneOffset: 0,
+      firstName: "Transfer",
+      lastName: "Test",
+    },
   })
   expect(result.status()).toBe(200)
   return (await result.json()) as { _id: string }
 }
 
 async function signIn(request: APIRequestContext, label: string) {
-  return verifySignIn(request, await seedAccount(label))
+  return verifySignIn(request, seedAccount(label))
 }
 
 for (const mode of ["guest", "owner", "signed-in"] as const) {
@@ -112,6 +96,7 @@ for (const mode of ["guest", "owner", "signed-in"] as const) {
     page,
     actorContext,
   }) => {
+    test.setTimeout(TRANSFER_JOURNEY_TIMEOUT_MS)
     const owner = await actorContext("owner")
     const target = await actorContext("target")
     const stranger = await actorContext("stranger")
@@ -387,6 +372,7 @@ for (const mode of ["guest", "account-switch"] as const) {
     page,
     actorContext,
   }) => {
+    test.setTimeout(TRANSFER_JOURNEY_TIMEOUT_MS)
     const owner = await actorContext("owner")
     const target = await actorContext("target")
     const { eventId, api, sourceAccount, targetAccount, transferApi, link } =

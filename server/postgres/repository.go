@@ -33,6 +33,13 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{db: pool}
 }
 
+// NewRepositoryFromTx binds a repository to an existing transaction so a caller
+// that owns the transaction can compose repository operations with its own SQL
+// in one atomic unit of work.
+func NewRepositoryFromTx(tx pgx.Tx) *Repository {
+	return &Repository{db: tx}
+}
+
 // DefaultRepository uses the package-global pool initialized by Init.
 func DefaultRepository() (*Repository, error) {
 	if Pool == nil {
@@ -55,6 +62,16 @@ func (r *Repository) WithTransaction(ctx context.Context, fn func(context.Contex
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+// withTransaction runs fn in a single transaction. A repository that is already
+// transaction-scoped runs fn in its existing transaction so a lock taken by fn
+// spans the work instead of being rejected or silently split across statements.
+func (r *Repository) withTransaction(ctx context.Context, fn func(context.Context, *Repository) error) error {
+	if _, ok := r.db.(*pgxpool.Pool); !ok {
+		return fn(ctx, r)
+	}
+	return r.WithTransaction(ctx, fn)
 }
 
 // WithTransaction runs fn against the package-global pool in one transaction.
@@ -115,9 +132,9 @@ func (r *Repository) CreateEvent(ctx context.Context, event *Event) error {
 				return err
 			}
 		}
-		err = r.db.QueryRow(ctx, `INSERT INTO postgres_events (short_id, owner_external_id, name, type, is_archived, is_deleted, num_responses, schedule_version, creator_posthog_id, payload)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-RETURNING id, created_at, updated_at`, event.ShortID, event.OwnerExternalID, event.Name, event.Type, event.IsArchived, event.IsDeleted, event.NumResponses, event.ScheduleVersion, event.CreatorPosthogID, payload).Scan(&event.ID, &event.CreatedAt, &event.UpdatedAt)
+		err = r.db.QueryRow(ctx, `INSERT INTO events (short_id, name, type, is_archived, is_deleted, num_responses, schedule_version, creator_posthog_id, payload)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING id, created_at, updated_at`, event.ShortID, event.Name, event.Type, event.IsArchived, event.IsDeleted, event.NumResponses, event.ScheduleVersion, event.CreatorPosthogID, payload).Scan(&event.ID, &event.CreatedAt, &event.UpdatedAt)
 		if err == nil || !isUniqueViolation(err) || !generatedShortID {
 			event.Payload = decodePayload(payload)
 			return err
@@ -135,14 +152,20 @@ func (r *Repository) GetEventByID(ctx context.Context, id string) (*Event, error
 	return r.getEvent(ctx, "id", id)
 }
 
-func (r *Repository) getEvent(ctx context.Context, column, value string) (*Event, error) {
+const eventColumns = `id, short_id, owner_edit_token_hash, owner_platform_identity_id, owner_event_visitor_identity_id, name, type, is_archived, is_deleted, num_responses, schedule_version, creator_posthog_id, created_at, updated_at, payload`
+
+func scanEvent(row interface{ Scan(...any) error }) (*Event, error) {
 	event := &Event{}
-	err := r.db.QueryRow(ctx, `SELECT id, short_id, owner_edit_token_hash, owner_platform_identity_id, owner_event_visitor_identity_id, owner_external_id, name, type, is_archived, is_deleted, num_responses, schedule_version, creator_posthog_id, created_at, updated_at, payload FROM postgres_events WHERE `+column+` = $1`, value).Scan(&event.ID, &event.ShortID, &event.OwnerEditTokenHash, &event.OwnerPlatformIdentityID, &event.OwnerEventVisitorIdentityID, &event.OwnerExternalID, &event.Name, &event.Type, &event.IsArchived, &event.IsDeleted, &event.NumResponses, &event.ScheduleVersion, &event.CreatorPosthogID, &event.CreatedAt, &event.UpdatedAt, &event.Payload)
+	err := row.Scan(&event.ID, &event.ShortID, &event.OwnerEditTokenHash, &event.OwnerPlatformIdentityID, &event.OwnerEventVisitorIdentityID, &event.Name, &event.Type, &event.IsArchived, &event.IsDeleted, &event.NumResponses, &event.ScheduleVersion, &event.CreatorPosthogID, &event.CreatedAt, &event.UpdatedAt, &event.Payload)
 	if err != nil {
 		return nil, err
 	}
 	event.Payload = decodePayload(event.Payload)
 	return event, nil
+}
+
+func (r *Repository) getEvent(ctx context.Context, column, value string) (*Event, error) {
+	return scanEvent(r.db.QueryRow(ctx, `SELECT `+eventColumns+` FROM events WHERE `+column+` = $1`, value))
 }
 
 func (r *Repository) UpdateEvent(ctx context.Context, event *Event) error {
@@ -153,11 +176,68 @@ func (r *Repository) UpdateEvent(ctx context.Context, event *Event) error {
 	if err != nil {
 		return err
 	}
-	err = r.db.QueryRow(ctx, `UPDATE postgres_events SET owner_external_id = $2, name = $3, type = $4, is_archived = $5, is_deleted = $6, num_responses = $7, schedule_version = $8, creator_posthog_id = $9, payload = $10, owner_event_visitor_identity_id = $11, updated_at = clock_timestamp() WHERE id = $1 RETURNING updated_at`, event.ID, event.OwnerExternalID, event.Name, event.Type, event.IsArchived, event.IsDeleted, event.NumResponses, event.ScheduleVersion, event.CreatorPosthogID, payload, event.OwnerEventVisitorIdentityID).Scan(&event.UpdatedAt)
+	err = r.db.QueryRow(ctx, `UPDATE events SET name = $2, type = $3, is_archived = $4, is_deleted = $5, num_responses = $6, schedule_version = $7, creator_posthog_id = $8, payload = $9, owner_event_visitor_identity_id = $10, updated_at = clock_timestamp() WHERE id = $1 RETURNING updated_at`, event.ID, event.Name, event.Type, event.IsArchived, event.IsDeleted, event.NumResponses, event.ScheduleVersion, event.CreatorPosthogID, payload, event.OwnerEventVisitorIdentityID).Scan(&event.UpdatedAt)
 	if err != nil {
 		return err
 	}
 	event.Payload = decodePayload(payload)
+	return nil
+}
+
+// AdjustEventResponseCount applies a relative change to an event's response
+// count without rewriting the payload. The result is clamped at zero so a stale
+// count cannot violate the non-negative check when a response row is removed.
+// Callers hold the event row lock so the adjustment cannot race another
+// response mutation.
+func (r *Repository) AdjustEventResponseCount(ctx context.Context, eventID string, delta int) error {
+	if eventID == "" {
+		return errors.New("event ID is required")
+	}
+	tag, err := r.db.Exec(ctx, `UPDATE events
+SET num_responses = GREATEST(num_responses + $2, 0), updated_at = clock_timestamp()
+WHERE id = $1`, eventID, delta)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
+}
+
+// SetEventArchived writes only the archive flag, leaving the event payload
+// untouched. A missing event is reported as pgx.ErrNoRows.
+func (r *Repository) SetEventArchived(ctx context.Context, eventID string, archived bool) error {
+	if eventID == "" {
+		return errors.New("event ID is required")
+	}
+	tag, err := r.db.Exec(ctx, `UPDATE events
+SET is_archived = $2, updated_at = clock_timestamp()
+WHERE id = $1`, eventID, archived)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
+}
+
+// SetEventDeleted writes only the soft-delete flag, leaving the event payload
+// untouched. A missing event is reported as pgx.ErrNoRows.
+func (r *Repository) SetEventDeleted(ctx context.Context, eventID string, deleted bool) error {
+	if eventID == "" {
+		return errors.New("event ID is required")
+	}
+	tag, err := r.db.Exec(ctx, `UPDATE events
+SET is_deleted = $2, updated_at = clock_timestamp()
+WHERE id = $1`, eventID, deleted)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
 	return nil
 }
 
@@ -169,8 +249,8 @@ func (r *Repository) CreateResponse(ctx context.Context, response *Response) err
 	if err != nil {
 		return err
 	}
-	err = r.db.QueryRow(ctx, `INSERT INTO postgres_event_responses (event_id, event_visitor_identity_id, respondent_kind, account_user_id, guest_id, canonical_guest_name, guest_edit_policy, guest_ownership_mode, guest_edit_token, payload)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, public_id, created_at, updated_at`, response.EventID, response.EventVisitorIdentityID, response.RespondentKind, response.AccountUserID, response.GuestID, response.CanonicalGuestName, response.GuestEditPolicy, response.GuestOwnershipMode, response.GuestEditToken, payload).Scan(&response.ID, &response.PublicID, &response.CreatedAt, &response.UpdatedAt)
+	err = r.db.QueryRow(ctx, `INSERT INTO event_responses (event_id, event_visitor_identity_id, respondent_kind, platform_identity_id, payload)
+VALUES ($1, $2, $3, $4, $5) RETURNING id, public_id, created_at, updated_at`, response.EventID, response.EventVisitorIdentityID, response.RespondentKind, response.PlatformIdentityID, payload).Scan(&response.ID, &response.PublicID, &response.CreatedAt, &response.UpdatedAt)
 	if err == nil {
 		response.Payload = decodePayload(payload)
 	}
@@ -181,17 +261,13 @@ func (r *Repository) GetResponseByID(ctx context.Context, id string) (*Response,
 	return r.getResponse(ctx, `id = $1`, id)
 }
 
-func (r *Repository) GetResponseByAccountUserID(ctx context.Context, eventID, accountUserID string) (*Response, error) {
-	return r.getResponse(ctx, `event_id = $1 AND respondent_kind = 'account' AND account_user_id = $2`, eventID, accountUserID)
-}
-
-func (r *Repository) GetResponseByGuestID(ctx context.Context, eventID, guestID string) (*Response, error) {
-	return r.getResponse(ctx, `event_id = $1 AND respondent_kind = 'guest' AND guest_id = $2`, eventID, guestID)
+func (r *Repository) GetResponseByPlatformIdentityID(ctx context.Context, eventID, platformIdentityID string) (*Response, error) {
+	return r.getResponse(ctx, `event_id = $1 AND respondent_kind = 'account' AND platform_identity_id = $2`, eventID, platformIdentityID)
 }
 
 func (r *Repository) getResponse(ctx context.Context, predicate string, values ...any) (*Response, error) {
 	response := &Response{}
-	err := r.db.QueryRow(ctx, `SELECT id, public_id, event_visitor_identity_id, event_id, COALESCE(respondent_kind, ''), account_user_id, guest_id, canonical_guest_name, guest_edit_policy, guest_ownership_mode, guest_edit_token, payload, created_at, updated_at FROM postgres_event_responses WHERE `+predicate, values...).Scan(&response.ID, &response.PublicID, &response.EventVisitorIdentityID, &response.EventID, &response.RespondentKind, &response.AccountUserID, &response.GuestID, &response.CanonicalGuestName, &response.GuestEditPolicy, &response.GuestOwnershipMode, &response.GuestEditToken, &response.Payload, &response.CreatedAt, &response.UpdatedAt)
+	err := r.db.QueryRow(ctx, `SELECT id, public_id, event_visitor_identity_id, event_id, respondent_kind, platform_identity_id, payload, created_at, updated_at FROM event_responses WHERE `+predicate, values...).Scan(&response.ID, &response.PublicID, &response.EventVisitorIdentityID, &response.EventID, &response.RespondentKind, &response.PlatformIdentityID, &response.Payload, &response.CreatedAt, &response.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -199,8 +275,12 @@ func (r *Repository) getResponse(ctx context.Context, predicate string, values .
 	return response, nil
 }
 
+// listResponsesQuery lists one event's responses in write order. The
+// supporting-index forced-plan test runs this statement directly.
+const listResponsesQuery = `SELECT id, public_id, event_visitor_identity_id, event_id, respondent_kind, platform_identity_id, payload, created_at, updated_at FROM event_responses WHERE event_id = $1 ORDER BY created_at, id`
+
 func (r *Repository) ListResponses(ctx context.Context, eventID string) ([]Response, error) {
-	rows, err := r.db.Query(ctx, `SELECT id, public_id, event_visitor_identity_id, event_id, COALESCE(respondent_kind, ''), account_user_id, guest_id, canonical_guest_name, guest_edit_policy, guest_ownership_mode, guest_edit_token, payload, created_at, updated_at FROM postgres_event_responses WHERE event_id = $1 ORDER BY created_at, id`, eventID)
+	rows, err := r.db.Query(ctx, listResponsesQuery, eventID)
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +288,7 @@ func (r *Repository) ListResponses(ctx context.Context, eventID string) ([]Respo
 	responses := []Response{}
 	for rows.Next() {
 		var response Response
-		if err := rows.Scan(&response.ID, &response.PublicID, &response.EventVisitorIdentityID, &response.EventID, &response.RespondentKind, &response.AccountUserID, &response.GuestID, &response.CanonicalGuestName, &response.GuestEditPolicy, &response.GuestOwnershipMode, &response.GuestEditToken, &response.Payload, &response.CreatedAt, &response.UpdatedAt); err != nil {
+		if err := rows.Scan(&response.ID, &response.PublicID, &response.EventVisitorIdentityID, &response.EventID, &response.RespondentKind, &response.PlatformIdentityID, &response.Payload, &response.CreatedAt, &response.UpdatedAt); err != nil {
 			return nil, err
 		}
 		response.Payload = decodePayload(response.Payload)
@@ -225,7 +305,7 @@ func (r *Repository) UpdateResponse(ctx context.Context, response *Response) err
 	if err != nil {
 		return err
 	}
-	err = r.db.QueryRow(ctx, `UPDATE postgres_event_responses SET respondent_kind = $2, account_user_id = $3, guest_id = $4, canonical_guest_name = $5, guest_edit_policy = $6, guest_ownership_mode = $7, guest_edit_token = $8, payload = $9, updated_at = clock_timestamp() WHERE id = $1 RETURNING updated_at`, response.ID, response.RespondentKind, response.AccountUserID, response.GuestID, response.CanonicalGuestName, response.GuestEditPolicy, response.GuestOwnershipMode, response.GuestEditToken, payload).Scan(&response.UpdatedAt)
+	err = r.db.QueryRow(ctx, `UPDATE event_responses SET respondent_kind = $2, platform_identity_id = $3, payload = $4, updated_at = clock_timestamp() WHERE id = $1 RETURNING updated_at`, response.ID, response.RespondentKind, response.PlatformIdentityID, payload).Scan(&response.UpdatedAt)
 	if err != nil {
 		return err
 	}
@@ -235,13 +315,28 @@ func (r *Repository) UpdateResponse(ctx context.Context, response *Response) err
 
 // DeleteResponse removes one response by its hidden primary key.
 func (r *Repository) DeleteResponse(ctx context.Context, id string) error {
-	_, err := r.db.Exec(ctx, `DELETE FROM postgres_event_responses WHERE id = $1`, id)
+	_, err := r.db.Exec(ctx, `DELETE FROM event_responses WHERE id = $1`, id)
 	return err
 }
 
-// GetResponseByGuestName looks up a guest by its canonical display name.
-func (r *Repository) GetResponseByGuestName(ctx context.Context, eventID, name string) (*Response, error) {
-	return r.getResponse(ctx, `event_id = $1 AND respondent_kind = 'guest' AND canonical_guest_name = $2`, eventID, name)
+// DeleteAccountResponses removes every account response owned by the given
+// platform identities on one event in one statement and reports the deleted row
+// count so the caller can adjust the event response count exactly. Unlike the
+// former per-identity lookup and delete, this removes every matching response,
+// including more than one response for the same platform identity.
+func (r *Repository) DeleteAccountResponses(ctx context.Context, eventID string, platformIdentityIDs []string) (int64, error) {
+	if eventID == "" {
+		return 0, errors.New("response event ID is required")
+	}
+	if len(platformIdentityIDs) == 0 {
+		return 0, nil
+	}
+	tag, err := r.db.Exec(ctx, `DELETE FROM event_responses
+WHERE event_id = $1 AND respondent_kind = 'account' AND platform_identity_id = ANY($2::uuid[])`, eventID, platformIdentityIDs)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
 }
 
 func isUniqueViolation(err error) bool {

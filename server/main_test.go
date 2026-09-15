@@ -10,11 +10,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func TestHealthRouteReportsDatabaseAvailability(t *testing.T) {
-	previousMongoPing := mongoPing
+// TestHealthRouteReportsPostgresAvailability proves that /api/health depends on
+// PostgreSQL alone and succeeds with no retained-store dependency.
+func TestHealthRouteReportsPostgresAvailability(t *testing.T) {
 	previousPostgresPing := postgresPing
 	t.Cleanup(func() {
-		mongoPing = previousMongoPing
 		postgresPing = previousPostgresPing
 	})
 
@@ -23,9 +23,6 @@ func TestHealthRouteReportsDatabaseAvailability(t *testing.T) {
 	initHealthRoute(router.Group("/api"))
 
 	t.Run("available", func(t *testing.T) {
-		mongoPing = func(context.Context) error {
-			return nil
-		}
 		postgresPing = func(context.Context) error {
 			return nil
 		}
@@ -38,21 +35,7 @@ func TestHealthRouteReportsDatabaseAvailability(t *testing.T) {
 		}
 	})
 
-	t.Run("unavailable", func(t *testing.T) {
-		mongoPing = func(context.Context) error {
-			return errors.New("database unavailable")
-		}
-
-		response := httptest.NewRecorder()
-		router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/health", nil))
-
-		if response.Code != http.StatusServiceUnavailable {
-			t.Fatalf("status = %d, want %d", response.Code, http.StatusServiceUnavailable)
-		}
-	})
-
 	t.Run("postgres unavailable", func(t *testing.T) {
-		mongoPing = func(context.Context) error { return nil }
 		postgresPing = func(context.Context) error {
 			return errors.New("postgres unavailable")
 		}

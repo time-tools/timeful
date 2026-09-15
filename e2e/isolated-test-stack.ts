@@ -15,8 +15,6 @@ const persistDatabases =
   "TEST_DB_PERSIST" in testEnv &&
   testEnv.TEST_DB_PERSIST.trim().toLowerCase() === "true"
 const postgresTestDatabase = `timeful-test-${randomUUID().replaceAll("-", "")}`
-const postgresAnonymousCreationEnabled =
-  process.env.E2E_POSTGRES_ANONYMOUS_EVENT_CREATION_ENABLED ?? "false"
 const goBuildCacheVolume = "timeful-test-go-build-cache"
 const goModCacheVolume = "timeful-test-go-mod-cache"
 
@@ -39,8 +37,6 @@ async function runCompose(...args: string[]): Promise<void> {
     env: {
       ...process.env,
       POSTGRES_TEST_DATABASE: postgresTestDatabase,
-      POSTGRES_ANONYMOUS_EVENT_CREATION_ENABLED:
-        postgresAnonymousCreationEnabled,
     },
   })
 }
@@ -56,7 +52,7 @@ async function waitForHealthcheck(): Promise<void> {
         return
       }
     } catch {
-      // The server can still be compiling or waiting for either database.
+      // The server can still be compiling or waiting for PostgreSQL.
     }
     await new Promise((resolve) => setTimeout(resolve, 500))
   }
@@ -80,7 +76,6 @@ async function start(): Promise<void> {
       "up",
       "-d",
       "--build",
-      "mongo-test",
       "postgres-test",
       "postgres-test-bootstrap",
       "server-test",

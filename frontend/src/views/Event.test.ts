@@ -62,9 +62,14 @@ interface EventTestState {
   _id: string
   shortId: string
   ownerId: string
+  eventVisitorId?: string
+  canEditSettings?: boolean
+  canManageEvent?: boolean
+  isArchived?: boolean
   name: string
   type: string
   daysOnly?: boolean
+  hasResponded?: boolean
   dates?: Temporal.PlainDate[]
   responses: Record<string, EventTestResponse>
   blindAvailabilityEnabled: boolean
@@ -92,6 +97,10 @@ function createDefaultEventState(): EventTestState {
     _id: "evt-1",
     shortId: "dEeaF",
     ownerId: "owner-1",
+    eventVisitorId: "visitor-1",
+    canEditSettings: true,
+    canManageEvent: true,
+    isArchived: false,
     name: "dfg",
     type: "specific_dates",
     responses: {
@@ -608,6 +617,37 @@ describe("Event guest edit action", () => {
     vi.runAllTimers()
     await nextTick()
     await nextTick()
+  }
+
+  const scheduleGateStubs = {
+    ScheduleOverlap: ScheduleOverlapStub,
+    NewDialog: true,
+    GuestDialog: true,
+    SignUpForSlotDialog: true,
+    SignInNotSupportedDialog: true,
+    MarkAvailabilityDialog: true,
+    InvitationDialog: true,
+    HelpDialog: true,
+    EventDescription: true,
+    AccessDenied: true,
+    NotSignedIn: true,
+    RouterLink: true,
+    "v-chip": true,
+    "v-icon": true,
+    "v-card": true,
+    "v-card-title": true,
+    "v-card-text": true,
+    "v-card-actions": true,
+    "v-dialog": true,
+    "v-spacer": true,
+    "v-btn": buttonSemanticStub,
+  }
+
+  function mountScheduleGateEvent() {
+    return shallowMount(EventView, {
+      props: { eventId: "dEeaF" },
+      global: { stubs: scheduleGateStubs },
+    })
   }
 
   it("renders a durable inline not-found state for missing event fetches", async () => {
@@ -1301,6 +1341,56 @@ describe("Event guest edit action", () => {
     expect(scheduleEventButton.classes()).not.toContain(
       "desktop-event-header-single-column",
     )
+  })
+
+  it("hides the Schedule event controls from visitors without owner authority", async () => {
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      canEditSettings: false,
+      canManageEvent: false,
+    }
+
+    const desktopWrapper = mountScheduleGateEvent()
+    await flushDeferredMount()
+
+    expect(desktopWrapper.find("#desktop-schedule-event-btn").exists()).toBe(
+      false,
+    )
+
+    isPhoneState.value = true
+    const mobileWrapper = mountScheduleGateEvent()
+    await flushDeferredMount()
+
+    expect(
+      mobileWrapper
+        .findAll("button")
+        .some((button) => button.text().includes("Schedule")),
+    ).toBe(false)
+  })
+
+  it("hides the Schedule event controls from an archived owner", async () => {
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      isArchived: true,
+      canEditSettings: false,
+    }
+
+    const desktopWrapper = mountScheduleGateEvent()
+    await flushDeferredMount()
+
+    expect(desktopWrapper.find("#desktop-schedule-event-btn").exists()).toBe(
+      false,
+    )
+
+    isPhoneState.value = true
+    const mobileWrapper = mountScheduleGateEvent()
+    await flushDeferredMount()
+
+    expect(
+      mobileWrapper
+        .findAll("button")
+        .some((button) => button.text().includes("Schedule")),
+    ).toBe(false)
   })
 
   it("triggers add guest availability from the new secondary desktop action", async () => {
@@ -3423,6 +3513,52 @@ describe("Event guest edit action", () => {
     expect(wrapper.find("#copy-link-btn").exists()).toBe(false)
   })
 
+  it("renders the availability action for group events so members can add availability", async () => {
+    routeState.value = { name: "group", query: {} }
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      type: eventTypes.GROUP,
+      responses: {},
+    }
+
+    const wrapper = shallowMount(EventView, {
+      props: {
+        eventId: "dEeaF",
+      },
+      global: {
+        stubs: {
+          ScheduleOverlap: ScheduleOverlapStub,
+          NewDialog: true,
+          GuestDialog: true,
+          SignUpForSlotDialog: true,
+          SignInNotSupportedDialog: true,
+          MarkAvailabilityDialog: true,
+          InvitationDialog: true,
+          HelpDialog: true,
+          EventDescription: true,
+          AccessDenied: true,
+          NotSignedIn: true,
+          RouterLink: true,
+          "v-chip": true,
+          "v-icon": true,
+          "v-card": true,
+          "v-card-title": true,
+          "v-card-text": true,
+          "v-card-actions": true,
+          "v-dialog": true,
+          "v-spacer": true,
+          "v-btn": buttonSemanticStub,
+        },
+      },
+    })
+
+    await flushDeferredMount()
+
+    expect(wrapper.find("#desktop-primary-availability-btn").exists()).toBe(
+      true,
+    )
+  })
+
   it("keeps metadata editing available for events created while not signed in", async () => {
     loaderEventState.value = {
       ...loaderEventState.value,
@@ -3562,6 +3698,8 @@ describe("Event guest edit action", () => {
       ...createDefaultEventState(),
       type: eventTypes.GROUP,
       ownerId: "owner-1",
+      canEditSettings: false,
+      canManageEvent: false,
       responses: {},
     }
 
@@ -3600,6 +3738,52 @@ describe("Event guest edit action", () => {
 
     expect(wrapper.find("#event-description-stub").exists()).toBe(false)
     expect(wrapper.find('[data-invitation-open="true"]').exists()).toBe(true)
+  })
+
+  it("does not auto-open the group invitation dialog for a viewer reported as responded", async () => {
+    routeState.value = { name: "group", query: {} }
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      type: eventTypes.GROUP,
+      ownerId: "owner-1",
+      hasResponded: true,
+      responses: {},
+    }
+
+    const wrapper = shallowMount(EventView, {
+      props: {
+        eventId: "dEeaF",
+      },
+      global: {
+        stubs: {
+          ScheduleOverlap: ScheduleOverlapStub,
+          NewDialog: true,
+          GuestDialog: true,
+          SignUpForSlotDialog: true,
+          SignInNotSupportedDialog: true,
+          MarkAvailabilityDialog: true,
+          InvitationDialog: invitationDialogStub,
+          HelpDialog: true,
+          EventDescription: eventDescriptionStub,
+          AccessDenied: true,
+          NotSignedIn: true,
+          RouterLink: true,
+          "v-chip": true,
+          "v-icon": true,
+          "v-card": true,
+          "v-card-title": true,
+          "v-card-text": true,
+          "v-card-actions": true,
+          "v-dialog": true,
+          "v-spacer": true,
+          "v-btn": true,
+        },
+      },
+    })
+
+    await flushDeferredMount()
+
+    expect(wrapper.find('[data-invitation-open="true"]').exists()).toBe(false)
   })
 
   it("owns global listeners from mount through unmount and runs bootstrap on mount", async () => {

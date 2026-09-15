@@ -55,12 +55,12 @@ Stop the staging-only edge before starting the shared production-and-staging edg
 
 ## Ports
 
-| Environment        | Frontend         | Backend host binding | Backend container port | MongoDB host binding |
-| ------------------ | ---------------- | -------------------- | ---------------------- | -------------------- |
-| Development        | `127.0.0.1:4173` | `127.0.0.1:3002`     | `3002`                 | none                 |
-| Test / browser E2E | `127.0.0.1:4174` | `127.0.0.1:3003`     | `3003`                 | none                 |
-| Staging            | Caddy            | `127.0.0.1:3004`     | `3004`                 | none                 |
-| Production         | Caddy            | `127.0.0.1:3005`     | `3005`                 | none                 |
+| Environment        | Frontend         | Backend host binding | Backend container port | PostgreSQL host binding |
+| ------------------ | ---------------- | -------------------- | ---------------------- | ----------------------- |
+| Development        | `127.0.0.1:4173` | `127.0.0.1:3002`     | `3002`                 | `127.0.0.1:5432`        |
+| Test / browser E2E | `127.0.0.1:4174` | `127.0.0.1:3003`     | `3003`                 | `127.0.0.1:5433`        |
+| Staging            | Caddy            | `127.0.0.1:3004`     | `3004`                 | `127.0.0.1:5434`        |
+| Production         | Caddy            | `127.0.0.1:3005`     | `3005`                 | `127.0.0.1:5435`        |
 
 The shared Caddy edge owns public TCP ports `80` and `443` and UDP port `443`. `VITE_PREVIEW_PORT=4173` in the staging and production app env files only configures local `vite preview`; Docker deployments serve frontend artifacts through Caddy.
 
@@ -104,7 +104,7 @@ Caddy logs an ACME DNS error and cannot issue HTTPS certificates until every con
 > [!CAUTION]
 > Use `down -v` only when intentionally discarding the Docker-managed data volumes for the selected environment.
 >
-> For production, this deletes the MongoDB data volume unless a backup is restored afterward.
+> For production, this deletes the PostgreSQL data volume unless a backup is restored afterward.
 
 ```bash
 docker compose --project-name timeful-production --env-file .env.production -f compose.yaml -f compose.production.yaml up -d              # Start services
@@ -125,16 +125,10 @@ docker compose --project-name timeful-staging --env-file .env.staging -f compose
 
 ## Upgrading an Existing Deployment
 
-Back up MongoDB before changing the database authentication contract.
-Existing deployments that only define `MONGODB_URI` must add the `MONGODB_ROOT_*`, `MONGODB_APP_*`, and `MONGODB_DATABASE` values from the current environment template.
+Back up PostgreSQL before changing the database authentication contract.
 
 ```bash
 git pull --autostash origin main
-docker compose --project-name timeful-production --env-file .env.production -f compose.yaml -f compose.production.yaml up -d mongo
-scripts/mongo/bootstrap-existing-users.sh production
-# Or, for staging:
-docker compose --project-name timeful-staging --env-file .env.staging -f compose.yaml -f compose.staging.yaml up -d mongo
-scripts/mongo/bootstrap-existing-users.sh staging
 ```
 
 If the pull reports a conflict for the retired root `Caddyfile`, retain the new `caddy/` layout and move any custom host rules into a file under `caddy/sites/`.
@@ -152,25 +146,29 @@ docker compose --env-file .env.edge -f compose.edge.staging.yaml logs --tail=50 
 
 ## Data & Backup
 
-Data is persisted in Docker volumes: `mongo_data`, `postgres_data`, `frontend_dist`, `server_logs`.
+Data is persisted in Docker volumes: `postgres_data`, `frontend_dist`, `server_logs`.
 
 PostgreSQL uses a digest-pinned 18.6 image and a one-shot Goose migration service before the server starts.
 Its bootstrap, migrator, application, and backup roles require separate credentials and role-specific connection URIs.
-Phase one intentionally does not provide PostgreSQL backup automation, restore drills, replication, RPO, or RTO; do not treat the provisioned backup role as an implemented recovery mechanism.
+PostgreSQL backups use a custom-format `pg_dump` executed with the least-privilege backup role, and restores use `pg_restore`.
+The commands run inside the database container, so role names and the database name come from the container environment and local socket authentication applies.
+Reconcile the restored schema and representative records after every restore, and the full procedure lives in [PostgreSQL Operations Runbook](docs/postgres-operations.md).
+Off-host replication, automated scheduling, recovery objectives, and destructive restore drills remain later operational work, so do not treat the provisioned backup role as a complete recovery mechanism.
 
-The restore command below uses `--drop`.
+The restore command below uses `--clean --if-exists` for PostgreSQL.
 
 > [!CAUTION]
-> Run it only when you intend to replace the configured `MONGODB_DATABASE` database with the backup archive.
+> Run them only when you intend to replace the configured database with the backup archive.
 
 ```bash
-# Backup MongoDB
-docker compose --project-name timeful-production --env-file .env.production -f compose.yaml -f compose.production.yaml exec mongo sh -c 'mongodump --username "$MONGO_INITDB_ROOT_USERNAME" --password "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --db="$MONGODB_DATABASE" --archive=/data/db/backup.archive'
-docker compose --project-name timeful-production --env-file .env.production -f compose.yaml -f compose.production.yaml cp mongo:/data/db/backup.archive ./backup.archive
+# Backup PostgreSQL with the least-privilege backup role
+docker compose --project-name timeful-production --env-file .env.production -f compose.yaml -f compose.production.yaml exec -T postgres \
+  sh -ec 'pg_dump --format=custom --no-owner --username "$POSTGRES_BACKUP_USERNAME" --dbname "$POSTGRES_DB"' \
+  > "timeful-$(date -u +%Y%m%dT%H%M%SZ).dump"
 
-# Restore MongoDB
-docker compose --project-name timeful-production --env-file .env.production -f compose.yaml -f compose.production.yaml cp ./backup.archive mongo:/data/db/backup.archive
-docker compose --project-name timeful-production --env-file .env.production -f compose.yaml -f compose.production.yaml exec mongo sh -c 'mongorestore --username "$MONGO_INITDB_ROOT_USERNAME" --password "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --drop --db="$MONGODB_DATABASE" --archive=/data/db/backup.archive'
+# Restore PostgreSQL into the configured database
+docker compose --project-name timeful-production --env-file .env.production -f compose.yaml -f compose.production.yaml exec -T postgres \
+  sh -ec 'pg_restore --clean --if-exists --no-owner --exit-on-error --username "$POSTGRES_USER" --dbname "$POSTGRES_DB"' < "timeful-<timestamp>.dump"
 ```
 
 ## Troubleshooting
@@ -179,10 +177,6 @@ docker compose --project-name timeful-production --env-file .env.production -f c
 # Container won't start
 docker compose --project-name timeful-production --env-file .env.production -f compose.yaml -f compose.production.yaml logs server
 ls -la .env.production
-
-# MongoDB connection issues
-docker compose --project-name timeful-production --env-file .env.production -f compose.yaml -f compose.production.yaml ps
-docker compose --project-name timeful-production --env-file .env.production -f compose.yaml -f compose.production.yaml exec mongo sh -c 'mongosh --username "$MONGO_INITDB_ROOT_USERNAME" --password "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --eval "db.adminCommand(\"ping\")"'
 
 # Frontend not loading
 docker compose --project-name timeful-production --env-file .env.production -f compose.yaml -f compose.production.yaml logs frontend-artifacts
@@ -211,19 +205,16 @@ Its canonical production and staging domains must match the hostnames in the res
 
 #### Required To Start
 
-| Variable                                              | Description                                                                                               |
-| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `ENCRYPTION_KEY`                                      | Key for encrypting sensitive data (generate with `openssl rand -base64 32`)                               |
-| `SESSION_SECRET`                                      | Session cookie encryption key (generate with `openssl rand -base64 32`)                                   |
-| `APP_BASE_URL`                                        | Canonical public HTTPS origin used in generated links and payment redirects                               |
-| `MONGODB_ROOT_USERNAME` / `MONGODB_ROOT_PASSWORD`     | MongoDB administrative account for backups and maintenance                                                |
-| `MONGODB_APP_USERNAME` / `MONGODB_APP_PASSWORD`       | MongoDB application account with access only to `MONGODB_DATABASE`                                        |
-| `MONGODB_DATABASE`                                    | Application database name; defaults are environment-specific (`timeful-staging` and `timeful-production`) |
-| `POSTGRES_DATABASE`                                   | PostgreSQL database name; defaults are environment-specific                                               |
-| `POSTGRES_BOOTSTRAP_*`                                | PostgreSQL container bootstrap account                                                                    |
-| `POSTGRES_MIGRATOR_*` / `POSTGRES_MIGRATOR_URI`       | Goose migration role and URL-encoded connection URI                                                       |
-| `POSTGRES_APPLICATION_*` / `POSTGRES_APPLICATION_URI` | Runtime role and URL-encoded connection URI                                                               |
-| `POSTGRES_BACKUP_*`                                   | Reserved least-privilege role for future backup operations                                                |
+| Variable                                              | Description                                                                 |
+| ----------------------------------------------------- | --------------------------------------------------------------------------- |
+| `ENCRYPTION_KEY`                                      | Key for encrypting sensitive data (generate with `openssl rand -base64 32`) |
+| `SESSION_SECRET`                                      | Session cookie encryption key (generate with `openssl rand -base64 32`)     |
+| `APP_BASE_URL`                                        | Canonical public HTTPS origin used in generated links and payment redirects |
+| `POSTGRES_DATABASE`                                   | PostgreSQL database name; defaults are environment-specific                 |
+| `POSTGRES_BOOTSTRAP_*`                                | PostgreSQL container bootstrap account                                      |
+| `POSTGRES_MIGRATOR_*` / `POSTGRES_MIGRATOR_URI`       | Goose migration role and URL-encoded connection URI                         |
+| `POSTGRES_APPLICATION_*` / `POSTGRES_APPLICATION_URI` | Runtime role and URL-encoded connection URI                                 |
+| `POSTGRES_BACKUP_*`                                   | Least-privilege read-only role for PostgreSQL backups                       |
 
 `CADDY_PRODUCTION_DOMAIN`, `CADDY_PRODUCTION_WWW_DOMAIN`, and `CADDY_PRODUCTION_UPSTREAM`, or their staging equivalents, are required in `.env.edge` by the Caddy edge that serves that environment.
 The upstream must match the server port selected by that app file's `APP_ENV`.

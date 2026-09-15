@@ -1,37 +1,33 @@
 package models
 
-import (
-	"go.mongodb.org/mongo-driver/bson/primitive"
-)
-
-// Representation of a User in the mongoDB database
+// Representation of an authenticated user profile.
 type User struct {
-	TimezoneOffset int `json:"timezoneOffset" bson:"timezoneOffset"`
+	TimezoneOffset int `json:"timezoneOffset"`
 
 	// Profile info
-	Id        primitive.ObjectID `json:"_id" bson:"_id,omitempty"`
-	Email     string             `json:"email" bson:"email,omitempty"`
-	FirstName string             `json:"firstName" bson:"firstName,omitempty"`
-	LastName  string             `json:"lastName" bson:"lastName,omitempty"`
-	Picture   string             `json:"picture" bson:"picture,omitempty"`
+	Id        UUID   `json:"_id"`
+	Email     string `json:"email"`
+	FirstName string `json:"firstName"`
+	LastName  string `json:"lastName"`
+	Picture   string `json:"picture"`
 
 	// Whether the user has set a custom name for themselves, i.e. don't change their name when they sign in
-	HasCustomName *bool `json:"hasCustomName" bson:"hasCustomName,omitempty"`
+	HasCustomName *bool `json:"hasCustomName"`
 
 	// CalendarAccounts is a mapping from {`email_CALENDARTYPE` => CalendarAccount} that contains all the
 	// additional accounts the user wants to see google calendar events for
-	CalendarAccounts map[string]CalendarAccount `json:"calendarAccounts" bson:"calendarAccounts,omitempty"`
+	CalendarAccounts map[string]CalendarAccount `json:"calendarAccounts"`
 
 	// The calendarAccountKey of the account the user first signed in with
-	PrimaryAccountKey *string `json:"primaryAccountKey" bson:"primaryAccountKey,omitempty"`
+	PrimaryAccountKey *string `json:"primaryAccountKey"`
 
 	// Google OAuth stuff
-	TokenOrigin TokenOriginType `json:"-" bson:"tokenOrigin,omitempty"`
+	TokenOrigin TokenOriginType `json:"-"`
 
 	// Calendar options
-	CalendarOptions *CalendarOptions `json:"calendarOptions" bson:"calendarOptions,omitempty"`
+	CalendarOptions *CalendarOptions `json:"calendarOptions"`
 
-	NumEventsCreated int `json:"numEventsCreated" bson:"numEventsCreated,omitempty"`
+	NumEventsCreated int `json:"numEventsCreated"`
 }
 
 // Declare the possible types of TokenOrigin

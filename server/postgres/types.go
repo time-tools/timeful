@@ -1,5 +1,5 @@
 // Package postgres contains persistence types for PostgreSQL-owned anonymous
-// events. These types deliberately do not reuse MongoDB BSON models.
+// events.
 package postgres
 
 import (
@@ -10,6 +10,8 @@ import (
 const (
 	EventTypeSpecificDates = "specific_dates"
 	EventTypeDayOfWeek     = "dow"
+	EventTypeSignup        = "signup"
+	EventTypeGroup         = "group"
 
 	RespondentKindAccount = "account"
 	RespondentKindGuest   = "guest"
@@ -24,7 +26,6 @@ type Event struct {
 	OwnerEditTokenHash          []byte
 	OwnerPlatformIdentityID     *string
 	ShortID                     string
-	OwnerExternalID             *string
 	Name                        string
 	Type                        string
 	IsArchived                  bool
@@ -39,29 +40,27 @@ type Event struct {
 
 // Response is stored independently so response mutations and event response
 // counts can be committed in one transaction. Identity columns drive lookup
-// and uniqueness; Payload retains the current response wire shape.
+// and uniqueness; Payload retains the current response wire shape. The legacy
+// guest columns on event_responses are retained only for the prior
+// release's rollback window and are neither read nor written here.
 type Response struct {
 	ID                     string
 	PublicID               string
 	EventVisitorIdentityID string
 	EventID                string
 	RespondentKind         string
-	AccountUserID          *string
-	GuestID                *string
-	CanonicalGuestName     *string
-	GuestEditPolicy        *string
-	GuestOwnershipMode     *string
-	GuestEditToken         *string
+	PlatformIdentityID     *string
 	Payload                json.RawMessage
 	CreatedAt              time.Time
 	UpdatedAt              time.Time
 }
 
-// PlatformIdentity is private and resolved only from an authenticated session.
+// PlatformIdentity is the account identifier. Its native UUIDv7 primary key is
+// the sole account identifier, and it is resolved only from an authenticated
+// session.
 type PlatformIdentity struct {
-	ID             string
-	ExternalUserID string
-	CreatedAt      time.Time
+	ID        string
+	CreatedAt time.Time
 }
 
 // EventVisitorIdentity is event-scoped. PublicID conveys no authority.

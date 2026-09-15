@@ -2,10 +2,12 @@ package microsoftgraph
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"timeful/server/logger"
 	"timeful/server/models"
 	"timeful/server/services"
+	"timeful/server/services/providerconfig"
 )
 
 type UserInfo struct {
@@ -19,7 +21,7 @@ func GetUserInfo(user *models.User, calendarAuth *models.OAuth2CalendarAuth) Use
 		user,
 		calendarAuth,
 		"GET",
-		"https://graph.microsoft.com/v1.0/me?$select=givenName,surname,mail",
+		fmt.Sprintf("%s/me?$select=givenName,surname,mail", providerconfig.MicrosoftGraphAPIBaseURL()),
 		nil,
 	)
 	defer response.Body.Close()

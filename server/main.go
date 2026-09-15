@@ -17,8 +17,6 @@ import (
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"timeful/server/appenv"
-	"timeful/server/db"
-	"timeful/server/eventsource"
 	"timeful/server/logger"
 	"timeful/server/postgres"
 	"timeful/server/routes"
@@ -34,7 +32,6 @@ import (
 
 const defaultLogPath = "logs/server.log"
 
-var mongoPing = db.Ping
 var postgresPing = postgres.Ping
 
 // @title Timeful API
@@ -116,8 +113,6 @@ func main() {
 	}))
 
 	// Init database
-	closeConnection := db.Init()
-	defer closeConnection()
 	closePostgres := postgres.Init()
 	defer closePostgres()
 
@@ -180,10 +175,6 @@ func initHealthRoute(apiRouter *gin.RouterGroup) {
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
 		defer cancel()
 
-		if err := mongoPing(ctx); err != nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "unavailable"})
-			return
-		}
 		if err := postgresPing(ctx); err != nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "unavailable"})
 			return
@@ -241,33 +232,7 @@ func eventPageHandler(hasFrontendIndex bool) gin.HandlerFunc {
 			return
 		}
 
-		params := gin.H{}
-
-		eventId := c.Param("eventId")
-		var eventName string
-		var when2meetHref *string
-		foundEvent := false
-		source, storageID := eventsource.Parse(eventId)
-		if source == eventsource.MongoDB {
-			event := db.GetEventByEitherId(storageID)
-			if event != nil {
-				eventName = event.Name
-				when2meetHref = event.When2meetHref
-				foundEvent = true
-			}
-		}
-
-		if foundEvent {
-			title := fmt.Sprintf("%s - Timeful", eventName)
-			params["title"] = title
-			params["ogTitle"] = title
-
-			if len(utils.Coalesce(when2meetHref)) > 0 {
-				params["ogImage"] = "/img/when2meetOgImage2.png"
-			}
-		}
-
-		c.HTML(http.StatusOK, "index.html", params)
+		c.HTML(http.StatusOK, "index.html", gin.H{})
 	}
 }
 

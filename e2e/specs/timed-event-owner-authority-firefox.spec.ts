@@ -1,9 +1,5 @@
 import { expect, test } from "@playwright/test"
 
-test.skip(
-  process.env.E2E_POSTGRES_ANONYMOUS_EVENT_CREATION_ENABLED !== "true",
-  "requires PostgreSQL creation",
-)
 const payload = {
   name: "Owner authority",
   type: "specific_dates",
@@ -11,7 +7,7 @@ const payload = {
   dates: ["2026-10-05T00:00:00Z", "2026-10-06T00:00:00Z"],
 }
 
-test("Only the PostgreSQL owner can edit settings; a base EVCC never grants owner actions", async ({
+test("Only the event owner can edit settings; a base EVCC never grants owner actions", async ({
   page,
   browser,
   baseURL,
@@ -86,7 +82,7 @@ test("Only the PostgreSQL owner can edit settings; a base EVCC never grants owne
   }
 })
 
-test("PostgreSQL owner archives, restores, and deletes an event through the event page", async ({
+test("The event owner archives, restores, and deletes an event through the event page", async ({
   page,
 }) => {
   const created = await page.request.post("/api/events", { data: payload })

@@ -28,7 +28,7 @@
 
 ## Risk and impact
 
-<!-- Breaking changes, env var contract changes (`docs/environments.md`), DB migrations (backfill behavior, downgrade policy, rollout notes in `docs/postgres-staging-rollout.md`), browser-plugin `window.postMessage` payload changes (`PLUGIN_API_README.md`), stale docs to update, and follow-ups. Remove this section if empty. -->
+<!-- Breaking changes, env var contract changes (`docs/environments.md`), DB migrations (backfill behavior, downgrade policy, rollout notes in `docs/postgres-operations.md`), browser-plugin `window.postMessage` payload changes (`PLUGIN_API_README.md`), stale docs to update, and follow-ups. Remove this section if empty. -->
 
 ## Reviewer notes
 

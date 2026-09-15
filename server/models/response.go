@@ -1,38 +1,28 @@
 package models
 
-import "go.mongodb.org/mongo-driver/bson/primitive"
-
-type EventResponse struct {
-	Id      primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	EventId primitive.ObjectID `json:"eventId" bson:"eventId"`
-
-	UserId   string    `json:"userId" bson:"userId"`
-	Response *Response `json:"response" bson:"response"`
-}
-
 // A response object containing an array of times that the given user is available
 type Response struct {
 	// Guest information
-	Name               string `json:"name" bson:"name,omitempty"`
-	Email              string `json:"email" bson:"email,omitempty"`
-	GuestId            string `json:"guestId,omitempty" bson:"guestId,omitempty"`
-	GuestEditToken     string `json:"-" bson:"guestEditToken,omitempty"`
-	GuestEditPolicy    string `json:"guestEditPolicy,omitempty" bson:"guestEditPolicy,omitempty"`
-	GuestOwnershipMode string `json:"guestOwnershipMode,omitempty" bson:"guestOwnershipMode,omitempty"`
+	Name               string `json:"name"`
+	Email              string `json:"email"`
+	GuestId            string `json:"guestId,omitempty"`
+	GuestEditToken     string `json:"-"`
+	GuestEditPolicy    string `json:"guestEditPolicy,omitempty"`
+	GuestOwnershipMode string `json:"guestOwnershipMode,omitempty"`
 
 	// User information
-	UserId primitive.ObjectID `json:"userId" bson:"userId,omitempty"`
-	User   *User              `json:"user" bson:",omitempty"`
+	UserId UUID  `json:"userId"`
+	User   *User `json:"user"`
 
 	// Availability
-	Availability []primitive.DateTime `json:"availability" bson:"availability"`
-	IfNeeded     []primitive.DateTime `json:"ifNeeded" bson:"ifNeeded"`
+	Availability []DateTime `json:"availability"`
+	IfNeeded     []DateTime `json:"ifNeeded"`
 
 	// Mapping from the start date of a day to the available times for that day
-	ManualAvailability *map[primitive.DateTime][]primitive.DateTime `json:"manualAvailability" bson:"manualAvailability,omitempty"`
+	ManualAvailability *map[DateTime][]DateTime `json:"manualAvailability"`
 
 	// Calendar availability variables for Availability Groups feature
-	UseCalendarAvailability *bool                `json:"useCalendarAvailability" bson:"useCalendarAvailability,omitempty"`
-	EnabledCalendars        *map[string][]string `json:"enabledCalendars" bson:"enabledCalendars,omitempty"` // Maps email to an array of sub calendar ids
-	CalendarOptions         *CalendarOptions     `json:"calendarOptions" bson:"calendarOptions,omitempty"`
+	UseCalendarAvailability *bool                `json:"useCalendarAvailability"`
+	EnabledCalendars        *map[string][]string `json:"enabledCalendars"` // Maps email to an array of sub calendar ids
+	CalendarOptions         *CalendarOptions     `json:"calendarOptions"`
 }

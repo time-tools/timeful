@@ -1406,7 +1406,7 @@ describe("RespondentsList", () => {
     expect(wrapper.text()).not.toContain("mdi-delete")
   })
 
-  it("deletes a PostgreSQL respondent through the explicit responseId contract", async () => {
+  it("deletes a respondent through the explicit responseId contract", async () => {
     isPhoneValue.value = false
     deleteMock.mockReset()
     deleteMock.mockResolvedValue(undefined)
@@ -1449,7 +1449,7 @@ describe("RespondentsList", () => {
     }
   })
 
-  it("keeps the legacy delete payload for MongoDB respondents", async () => {
+  it("keeps the response-map delete payload for events without an Event Visitor Identity", async () => {
     isPhoneValue.value = false
     deleteMock.mockReset()
     deleteMock.mockResolvedValue(undefined)

@@ -2,22 +2,11 @@ import { describe, expect, it } from "vitest"
 import { Temporal } from "temporal-polyfill"
 
 import { UTC } from "@/constants"
-import {
-  convertToUTC,
-  convertUTCSlotsToLocalISO,
-  dateFromObjectId,
-} from "./dateBoundaryAdapters"
+import { convertToUTC, convertUTCSlotsToLocalISO } from "./dateBoundaryAdapters"
 
 describe("dateBoundaryAdapters", () => {
   const zdt = (iso: string) =>
     Temporal.Instant.from(iso).toZonedDateTimeISO(UTC)
-
-  it("converts MongoDB object ids to UTC Temporal dates", () => {
-    const date = dateFromObjectId("000000000000000000000000")
-
-    expect(date.toInstant().toString()).toBe("1970-01-01T00:00:00Z")
-    expect(date.timeZoneId).toBe(UTC)
-  })
 
   it("converts timezone-tagged local strings without invalid Temporal bags", () => {
     const result = convertToUTC("2026-01-01T09:30:00", "America/New_York")

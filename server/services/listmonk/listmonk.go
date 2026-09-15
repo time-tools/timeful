@@ -8,7 +8,6 @@ import (
 	"os"
 	"strconv"
 
-	"go.mongodb.org/mongo-driver/bson"
 	"timeful/server/logger"
 )
 
@@ -31,11 +30,11 @@ func AddUserToListmonk(email string, firstName string, lastName string, picture 
 	}
 
 	// Create new subscriber
-	args := bson.M{
+	args := map[string]any{
 		"email":  email,
 		"name":   firstName + " " + lastName,
 		"status": "enabled",
-		"attribs": bson.M{
+		"attribs": map[string]any{
 			"firstName": firstName,
 			"lastName":  lastName,
 			"picture":   picture,
@@ -43,7 +42,7 @@ func AddUserToListmonk(email string, firstName string, lastName string, picture 
 		"preconfirm_subscriptions": true,
 	}
 	if sendMarketingEmails {
-		args["lists"] = bson.A{listId}
+		args["lists"] = []any{listId}
 	}
 	body, _ := json.Marshal(args)
 	bodyBuffer := bytes.NewBuffer(body)
@@ -111,7 +110,7 @@ func DoesUserExist(email string) (bool, *int) {
 
 // Send a transactional email using the specified template and data.
 // fromEmail is optional; if non-empty, overrides the default sender address.
-func SendEmail(email string, templateId int, data bson.M, fromEmail ...string) {
+func SendEmail(email string, templateId int, data map[string]any, fromEmail ...string) {
 	if os.Getenv("LISTMONK_ENABLED") == "false" {
 		return
 	}
@@ -122,7 +121,7 @@ func SendEmail(email string, templateId int, data bson.M, fromEmail ...string) {
 	listmonkPassword := os.Getenv("LISTMONK_PASSWORD")
 
 	// Construct body
-	payload := bson.M{
+	payload := map[string]any{
 		"subscriber_email": email,
 		"template_id":      templateId,
 		"data":             data,
@@ -151,7 +150,7 @@ func SendEmail(email string, templateId int, data bson.M, fromEmail ...string) {
 }
 
 // Send a transactional email using the specified template and data. Adds subscriber if they don't exist
-func SendEmailAddSubscriberIfNotExist(email string, templateId int, data bson.M, sendMarketingEmails bool, fromEmail ...string) {
+func SendEmailAddSubscriberIfNotExist(email string, templateId int, data map[string]any, sendMarketingEmails bool, fromEmail ...string) {
 	if os.Getenv("LISTMONK_ENABLED") == "false" {
 		return
 	}

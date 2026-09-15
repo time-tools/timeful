@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"timeful/server/models"
 	"timeful/server/services"
+	"timeful/server/services/providerconfig"
 	"timeful/server/utils"
 )
 
@@ -17,7 +16,7 @@ type OutlookCalendar struct {
 }
 
 func (calendar *OutlookCalendar) GetCalendarList() (map[string]models.SubCalendar, error) {
-	response := services.CallApi(nil, &calendar.OAuth2CalendarAuth, "GET", "https://graph.microsoft.com/v1.0/me/calendars?$select=id,name", nil)
+	response := services.CallApi(nil, &calendar.OAuth2CalendarAuth, "GET", fmt.Sprintf("%s/me/calendars?$select=id,name", providerconfig.MicrosoftGraphAPIBaseURL()), nil)
 	defer response.Body.Close()
 
 	responseBody := struct {
@@ -25,7 +24,7 @@ func (calendar *OutlookCalendar) GetCalendarList() (map[string]models.SubCalenda
 			Id   string `json:"id"`
 			Name string `json:"name"`
 		} `json:"value"`
-		Error bson.M `json:"error"`
+		Error map[string]any `json:"error"`
 	}{}
 
 	err := json.NewDecoder(response.Body).Decode(&responseBody)
@@ -49,7 +48,8 @@ func (calendar *OutlookCalendar) GetCalendarList() (map[string]models.SubCalenda
 }
 
 func (calendar *OutlookCalendar) GetCalendarEvents(calendarId string, timeMin time.Time, timeMax time.Time) ([]models.CalendarEvent, error) {
-	url := fmt.Sprintf("https://graph.microsoft.com/v1.0/me/calendars/%s/calendarview?startdatetime=%s&enddatetime=%s&$select=id,subject,start,end,showAs",
+	url := fmt.Sprintf("%s/me/calendars/%s/calendarview?startdatetime=%s&enddatetime=%s&$select=id,subject,start,end,showAs",
+		providerconfig.MicrosoftGraphAPIBaseURL(),
 		calendarId,
 		timeMin.Format(time.RFC3339),
 		timeMax.Format(time.RFC3339))
@@ -68,7 +68,7 @@ func (calendar *OutlookCalendar) GetCalendarEvents(calendarId string, timeMin ti
 			} `json:"end"`
 			ShowAs string `json:"showAs"`
 		} `json:"value"`
-		Error bson.M `json:"error"`
+		Error map[string]any `json:"error"`
 	}{}
 	err := json.NewDecoder(response.Body).Decode(&responseBody)
 	if err != nil {
@@ -97,8 +97,8 @@ func (calendar *OutlookCalendar) GetCalendarEvents(calendarId string, timeMin ti
 			Id:         event.Id,
 			CalendarId: calendarId,
 			Summary:    event.Subject,
-			StartDate:  primitive.NewDateTimeFromTime(startTime),
-			EndDate:    primitive.NewDateTimeFromTime(endTime),
+			StartDate:  models.NewDateTimeFromTime(startTime),
+			EndDate:    models.NewDateTimeFromTime(endTime),
 			Free:       event.ShowAs == "free",
 		})
 	}

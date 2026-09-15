@@ -5,27 +5,22 @@ import (
 	"fmt"
 
 	"github.com/bwmarrin/discordgo"
-	"go.mongodb.org/mongo-driver/bson"
-	"timeful/server/db"
 	"timeful/server/logger"
+	pgstore "timeful/server/postgres"
 )
 
 var numUsers Command = Command{
 	Name:        "!num_users",
 	Description: "Returns the number of signed up users",
 	Execute: func(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
-		var results []bson.M
-		cursor, err := db.UsersCollection.Aggregate(context.Background(), []bson.M{
-			{"$match": bson.M{}},
-			{"$group": bson.M{"_id": nil, "n": bson.M{"$sum": 1}}},
-		})
+		repository, err := pgstore.DefaultRepository()
 		if err != nil {
 			logger.StdErr.Panicln(err)
 		}
-		if err := cursor.All(context.Background(), &results); err != nil {
+		n, err := repository.CountAccounts(context.Background())
+		if err != nil {
 			logger.StdErr.Panicln(err)
 		}
-		n := results[0]["n"]
 
 		sendMessage(s, m, fmt.Sprintf("Number of currently signed up users: %v", n))
 	},

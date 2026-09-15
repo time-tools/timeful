@@ -7,6 +7,7 @@ export * from "./plugin_utils"
 export * from "./appEnv"
 export * from "./landingAvailability"
 export * from "./signInAvailability"
+export * from "./eventIdentity"
 export {
   getEventDateSeeds,
   getEventMembershipDayOfWeekValues,
@@ -68,11 +69,7 @@ export {
   timeNumToTimeString,
   timeNumToTimeText,
 } from "./dateFormatting"
-export {
-  convertToUTC,
-  convertUTCSlotsToLocalISO,
-  dateFromObjectId,
-} from "./dateBoundaryAdapters"
+export { convertToUTC, convertUTCSlotsToLocalISO } from "./dateBoundaryAdapters"
 export {
   doesDstExist,
   getCurrentTimezone,

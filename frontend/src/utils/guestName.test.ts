@@ -18,9 +18,12 @@ describe("guestName boundary", () => {
     expect(hasGuestName("   ")).toBe(false)
   })
 
-  it("rejects object-id-like and overlength guest names", () => {
-    expect(validateGuestName("507f1f77bcf86cd799439011").code).toBe(
-      "objectIdLike",
+  it("rejects account-id-like and overlength guest names", () => {
+    expect(validateGuestName("0197c9a2-6c3f-7b8e-9f01-2f3a4b5c6d7e").code).toBe(
+      "accountIdLike",
+    )
+    expect(validateGuestName("507f1f77bcf86cd799439011").normalizedName).toBe(
+      "507f1f77bcf86cd799439011",
     )
     expect(validateGuestName("a".repeat(101)).code).toBe("tooLong")
     expect(validateGuestName("e\u0301".repeat(101)).code).toBe("tooLong")
@@ -33,7 +36,7 @@ describe("guestName boundary", () => {
     expect(getGuestNameValidationMessage("invalidFormatting")).toContain(
       "formatting",
     )
-    expect(getGuestNameValidationMessage("objectIdLike")).toContain(
+    expect(getGuestNameValidationMessage("accountIdLike")).toContain(
       "account ID",
     )
     expect(getGuestNameValidationMessage("tooLong")).toContain("100")

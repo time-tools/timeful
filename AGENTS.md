@@ -55,21 +55,21 @@ Unless the user explicitly asks for server changes:
 
 ## Server Test Workflow
 
-For backend work that touches Mongo-backed route tests:
+For backend work that touches PostgreSQL-backed route tests:
 
 - use the isolated test overlay in `compose.test.yaml` as the default path
 - create the external Go cache volumes first (`docker volume create timeful-test-go-build-cache timeful-test-go-mod-cache`); compose never creates external volumes, `docker volume create` is idempotent, and `docker volume rm timeful-test-go-build-cache timeful-test-go-mod-cache` resets them
-- start test Mongo with `docker compose --env-file .env.test -f compose.yaml -f compose.test.yaml up -d mongo-test`
-- run the scoped route suite with `docker compose --env-file .env.test -f compose.yaml -f compose.test.yaml run --rm server-route-test`
+- start test PostgreSQL with `docker compose --env-file .env.test -f compose.yaml -f compose.test.yaml up -d postgres-test`
+- run the backend test suite, including the account repository packages, with `docker compose --env-file .env.test -f compose.yaml -f compose.test.yaml run --rm server-route-test`
 - retain test state by default; remove it only with `docker compose --env-file .env.test -f compose.yaml -f compose.test.yaml down -v`
-- prefer the isolated Compose stack over host Mongo for repeatable local and CI-friendly runs
-- if Mongo-backed tests are run directly on the host, require explicit `MONGODB_URI` and `MONGODB_DATABASE`; the database must be `timeful-test` or have a `timeful-test-` prefix
+- prefer the isolated Compose stack over host PostgreSQL for repeatable local and CI-friendly runs
+- if PostgreSQL-backed tests are run directly on the host, require an explicit `POSTGRES_APPLICATION_URI`; the database must be `timeful-test` or have a `timeful-test-` prefix
 
 ## Backend Conventions
 
 - The Go module path is `timeful/server`; use that prefix for internal imports.
-- Keep MongoDB access in `server/db/`; route handlers and services should not access MongoDB directly.
-- Put one-off MongoDB migrations in dated `server/scripts/YYYYMMDD_description/` directories.
+- Keep PostgreSQL access in `server/postgres/`; route handlers and services should not access PostgreSQL directly.
+- Put one-off PostgreSQL data migrations in dated `server/scripts/YYYYMMDD_description/` directories.
   Run them manually; do not import them into runtime code.
 - Add Swag annotations to API handlers.
   When route annotations change, from `server/` run `go run github.com/swaggo/swag/cmd/swag@v1.16.6 init --parseDependency`, then from `frontend/` run `npm run gen:api`.
@@ -125,7 +125,8 @@ The canonical env-file contract lives in `docs/environments.md`.
 
 Browser E2E always uses the isolated test stack and must never target either development database:
 
-- run Playwright from `e2e/` with `npm run test:e2e -- --project=firefox-desktop`; it starts `mongo-test`, `postgres-test`, and `server-test` on `3003`, then Vite on `4174`
+- run Playwright from `e2e/` with `npm run test:e2e -- --project=firefox-desktop`; it starts `postgres-test` and `server-test` on `3003`, then Vite on `4174`
+- run E2E so its full output streams: never pipe a run through `tail` or `head`; when a persistent full log is needed, append `2>&1 | tee /tmp/opencode/<name>.log`
 - `TEST_DB_PERSIST` defaults to `false`, removing the test stack and database volumes; set it to `true` to retain database state after successful or failed E2E setup
 - Playwright owns the isolated test stack and Vite process; do not use an existing server for browser E2E.
 - the test stack keeps persistent Go caches in the external `timeful-test-go-build-cache` and `timeful-test-go-mod-cache` volumes, so `go run .` inside `server-test` compiles incrementally across runs; `down -v` retains them, and `docker volume rm timeful-test-go-build-cache timeful-test-go-mod-cache` resets them

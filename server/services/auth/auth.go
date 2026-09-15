@@ -11,11 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"timeful/server/db"
+	"timeful/server/accounts"
 	"timeful/server/logger"
 	"timeful/server/models"
+	"timeful/server/services/providerconfig"
 	"timeful/server/utils"
 )
 
@@ -188,20 +187,20 @@ func RefreshAccessTokenAsync(email string, accountAuth *models.OAuth2CalendarAut
 }
 
 // If access token has expired, get a new token for the primary account as well as all other calendar accounts, update the user object, and save it to the database
-// `accounts` specifies for which accounts to refresh access tokens. If `accounts` is nil or empty, then update tokens for all accounts
-func RefreshUserTokenIfNecessary(u *models.User, accounts models.Set[string]) {
+// `calendarAccounts` specifies for which accounts to refresh access tokens. If `calendarAccounts` is nil or empty, then update tokens for all accounts
+func RefreshUserTokenIfNecessary(u *models.User, calendarAccounts models.Set[string]) {
 	refreshTokenChan := make(chan RefreshAccessTokenData)
 	numAccountsToUpdate := 0
 
-	// If `accounts` is nil, then update tokens for all accounts
-	updateAllAccounts := len(accounts) == 0
+	// If `calendarAccounts` is nil, then update tokens for all accounts
+	updateAllAccounts := len(calendarAccounts) == 0
 
 	// Refresh calendar account access tokens if necessary
 	for accountKey, account := range u.CalendarAccounts {
 		if account.OAuth2CalendarAuth != nil { // Only refresh access tokens for OAuth2 calendar accounts
 			accountAuth := account.OAuth2CalendarAuth
 
-			if _, ok := accounts[accountKey]; ok || updateAllAccounts {
+			if _, ok := calendarAccounts[accountKey]; ok || updateAllAccounts {
 				if time.Now().After(accountAuth.AccessTokenExpireDate.Time()) && len(accountAuth.RefreshToken) > 0 {
 					go RefreshAccessTokenAsync(account.Email, accountAuth, account.CalendarType, refreshTokenChan)
 					numAccountsToUpdate++
@@ -211,6 +210,12 @@ func RefreshUserTokenIfNecessary(u *models.User, accounts models.Set[string]) {
 	}
 
 	// Update access tokens as responses are received
+	type refreshedAccessToken struct {
+		calendarKey string
+		accessToken string
+		expiresAt   time.Time
+	}
+	refreshed := make([]refreshedAccessToken, 0, numAccountsToUpdate)
 	for i := 0; i < numAccountsToUpdate; i++ {
 		res := <-refreshTokenChan
 
@@ -220,24 +225,28 @@ func RefreshUserTokenIfNecessary(u *models.User, accounts models.Set[string]) {
 
 		accessTokenExpireDate := utils.GetAccessTokenExpireDate(res.TokenResponse.ExpiresIn)
 
-		calendarAccountKey := utils.ActualCalendarAccountMapKey(u, res.Email, res.CalendarType)
-		if calendarAccountKey == "" {
-			calendarAccountKey = utils.GetCalendarAccountKey(res.Email, res.CalendarType)
-		}
+		calendarAccountKey := utils.GetCalendarAccountKey(res.Email, res.CalendarType)
 		if calendarAccount, ok := u.CalendarAccounts[calendarAccountKey]; ok {
 			calendarAccount.OAuth2CalendarAuth.AccessToken = res.TokenResponse.AccessToken
-			calendarAccount.OAuth2CalendarAuth.AccessTokenExpireDate = primitive.NewDateTimeFromTime(accessTokenExpireDate)
+			calendarAccount.OAuth2CalendarAuth.AccessTokenExpireDate = models.NewDateTimeFromTime(accessTokenExpireDate)
 			u.CalendarAccounts[calendarAccountKey] = calendarAccount
+			refreshed = append(refreshed, refreshedAccessToken{
+				calendarKey: calendarAccountKey,
+				accessToken: res.TokenResponse.AccessToken,
+				expiresAt:   accessTokenExpireDate,
+			})
 		}
 	}
 
-	// Update user object if accounts were updated
-	if numAccountsToUpdate > 0 {
-		db.UsersCollection.FindOneAndUpdate(
-			context.Background(),
-			bson.M{"_id": u.Id},
-			bson.M{"$set": u},
-		)
+	// Persist refreshed access tokens to PostgreSQL; the refresh path does not
+	// write the account profile.
+	if len(refreshed) > 0 {
+		platformIdentityID := u.Id.String()
+		for _, token := range refreshed {
+			if err := accounts.UpdateCalendarAccessToken(context.Background(), platformIdentityID, token.calendarKey, token.accessToken, token.expiresAt); err != nil {
+				logger.StdErr.Println(err)
+			}
+		}
 	}
 }
 
@@ -253,9 +262,9 @@ func getCredentialsFromCalendarType(calendarType models.CalendarType) (string, s
 
 func getTokenEndpointFromCalendarType(calendarType models.CalendarType) string {
 	if calendarType == models.GoogleCalendarType {
-		return "https://oauth2.googleapis.com/token"
+		return providerconfig.GoogleOAuthTokenEndpoint()
 	} else if calendarType == models.OutlookCalendarType {
-		return "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+		return providerconfig.MicrosoftOAuthTokenEndpoint()
 	}
 
 	return ""

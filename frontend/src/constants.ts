@@ -199,7 +199,7 @@ export const allTimezones = {
 } as const
 export type Timezone = keyof typeof allTimezones
 
-export const guestUserId = "000000000000000000000000"
+export const guestUserId = "00000000-0000-0000-0000-000000000000"
 
 export const urlRegex =
   /https?:\/\/(www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)/

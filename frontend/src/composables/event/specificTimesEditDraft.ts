@@ -5,7 +5,6 @@ import type { Event } from "@/types"
 import {
   generateTimedSlotsForDay,
   getEventEnabledSlots,
-  getTimedEventTimezone,
   getTimedRecurrence,
   getTimedSlotGeneration,
   hasCanonicalTimedSlots,
@@ -57,13 +56,6 @@ const hasCanonicalTimedState = (event: Event): boolean =>
     event.eventTimezone != null ||
     event.slotGeneration != null ||
     event.timedRecurrence != null)
-
-const sortAndUniquePlainDates = (
-  days: Temporal.PlainDate[],
-): Temporal.PlainDate[] =>
-  [...new Map(days.map((day) => [day.toString(), day])).values()].sort((a, b) =>
-    Temporal.PlainDate.compare(a, b),
-  )
 
 // Keeps only the active subset that belongs to a prior picked membership day.
 // Added dates are enabled-only (no full-day auto-activation), and out-of-domain
@@ -187,7 +179,7 @@ export const buildSpecificTimesEditDraft = ({
 
   const resetExistingTimes =
     !hasCanonicalTimedState(event) || !slotWindowMatches
-  let specificTimesSchedule = fullDaySpecificTimesSchedule(
+  const specificTimesSchedule = fullDaySpecificTimesSchedule(
     {
       ...schedule,
       timedRecurrence: preservedTimedRecurrence,
@@ -196,48 +188,17 @@ export const buildSpecificTimesEditDraft = ({
   )
   const enteredActiveSlots =
     event.activeSlots ?? event.times ?? schedule.activeSlots
-  const reanchoredMembershipDays =
-    schedule.eventTimezone !== getTimedEventTimezone(event) &&
-    schedule.timedRecurrence.kind === "specific_dates" &&
-    enteredActiveSlots.length > 0 &&
-    normalizeActiveSlots({
-      enabledSlots: specificTimesSchedule.enabledSlots,
-      activeSlots: enteredActiveSlots,
-    }).activeSlots.length < enteredActiveSlots.length
-      ? sortAndUniquePlainDates(
-          enteredActiveSlots.map((slot) =>
-            slot
-              .withTimeZone(specificTimesSchedule.eventTimezone)
-              .toPlainDate(),
-          ),
-        )
-      : undefined
-  if (reanchoredMembershipDays) {
-    specificTimesSchedule = fullDaySpecificTimesSchedule(
-      {
-        ...schedule,
-        timedRecurrence: preservedTimedRecurrence,
-        normalizedSelectedDays: reanchoredMembershipDays,
-      },
-      timeIncrementMinutes,
-    )
-  }
   const nextActiveSlots = resetExistingTimes
     ? []
-    : reanchoredMembershipDays
-      ? normalizeActiveSlots({
-          enabledSlots: specificTimesSchedule.enabledSlots,
-          activeSlots: enteredActiveSlots,
-        }).activeSlots
-      : preserveActiveSlotsForPriorMembershipDays({
-          enabledSlots: specificTimesSchedule.enabledSlots,
-          activeSlots: enteredActiveSlots,
-          timeZone: specificTimesSchedule.eventTimezone,
-          priorMembershipDays:
-            getTimedRecurrence(event).kind === "specific_dates"
-              ? getTimedRecurrence(event).selectedDays
-              : undefined,
-        })
+    : preserveActiveSlotsForPriorMembershipDays({
+        enabledSlots: specificTimesSchedule.enabledSlots,
+        activeSlots: enteredActiveSlots,
+        timeZone: specificTimesSchedule.eventTimezone,
+        priorMembershipDays:
+          getTimedRecurrence(event).kind === "specific_dates"
+            ? getTimedRecurrence(event).selectedDays
+            : undefined,
+      })
   const normalizedSlots = normalizeActiveSlots({
     enabledSlots: specificTimesSchedule.enabledSlots,
     activeSlots: nextActiveSlots,

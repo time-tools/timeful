@@ -1,7 +1,4 @@
 definitions:
-  bson.M:
-    additionalProperties: true
-    type: object
   calendar.CalendarEventsWithError:
     properties:
       calendarEvents:
@@ -14,7 +11,8 @@ definitions:
     properties:
       blocks:
         items:
-          $ref: '#/definitions/bson.M'
+          additionalProperties: {}
+          type: object
         type: array
       response_type:
         description: ephemeral or in_channel
@@ -23,17 +21,6 @@ definitions:
         type: string
     type: object
   models.AppleCalendarAuth:
-    type: object
-  models.Attendee:
-    properties:
-      _id:
-        type: string
-      declined:
-        type: boolean
-      email:
-        type: string
-      eventId:
-        type: string
     type: object
   models.BufferTimeOptions:
     properties:
@@ -110,11 +97,6 @@ definitions:
         items:
           type: integer
         type: array
-      attendees:
-        description: Attendees for an availability group (fetched from Attendees collection)
-        items:
-          $ref: '#/definitions/models.Attendee'
-        type: array
       blindAvailabilityEnabled:
         description: Whether to enable blind availability
         type: boolean
@@ -139,8 +121,8 @@ definitions:
       eventTimezone:
         type: string
       hasResponded:
-        description: Whether the user has responded to the availability group (fetched
-          based on whether user is in Attendees)
+        description: Whether the current viewer has responded to the availability
+          group
         type: boolean
       hasSpecificTimes:
         description: Used for specific times for specific dates feature
@@ -169,8 +151,7 @@ definitions:
       responses:
         additionalProperties:
           $ref: '#/definitions/models.Response'
-        description: Availability responses - old format for backward compatibility
-          (fetched from eventResponses collection)
+        description: Availability responses
         type: object
       scheduledEvent:
         allOf:
@@ -217,23 +198,6 @@ definitions:
     - SPECIFIC_DATES
     - DOW
     - GROUP
-  models.Folder:
-    properties:
-      _id:
-        type: string
-      color:
-        type: string
-      eventIds:
-        items:
-          type: string
-        type: array
-      isDeleted:
-        type: boolean
-      name:
-        type: string
-      userId:
-        type: string
-    type: object
   models.ICSCalendarAuth:
     properties:
       label:
@@ -317,6 +281,11 @@ definitions:
   models.SignUpBlock:
     properties:
       _id:
+        description: |-
+          Id is a client-provided opaque block identity. The server owns block
+          identities in event_signup_blocks: only a canonical UUID that names an
+          existing block on the event keeps that identity, and every other value is
+          ignored on write.
         type: string
       capacity:
         type: integer
@@ -431,6 +400,23 @@ definitions:
   routes.CreateFolderResponse:
     properties:
       id:
+        type: string
+    type: object
+  routes.FolderResponse:
+    properties:
+      _id:
+        type: string
+      color:
+        type: string
+      eventIds:
+        items:
+          type: string
+        type: array
+      isDeleted:
+        type: boolean
+      name:
+        type: string
+      userId:
         type: string
     type: object
 host: localhost:3002/api
@@ -850,9 +836,8 @@ paths:
       - application/json
       responses:
         "201":
-          description: PostgreSQL creation returns eventVisitorId and issues separate
-            HttpOnly EVCC and Event Owner Edit Token cookies; MongoDB credentials
-            are unchanged
+          description: Creation returns eventVisitorId and issues separate HttpOnly
+            EVCC and Event Owner Edit Token cookies
           schema:
             properties:
               eventId:
@@ -860,14 +845,17 @@ paths:
               eventVisitorId:
                 type: string
             type: object
+        "400":
+          description: Event name must be 100 characters or fewer
+          schema:
+            $ref: '#/definitions/responses.Error'
       summary: Creates a new event
       tags:
       - events
   /events/{eventId}:
     delete:
-      description: PostgreSQL requires the same owner credentials as settings edits;
-        deleted events and responses stop resolving. MongoDB requires its legacy authenticated
-        owner.
+      description: Requires the same owner credentials as settings edits; deleted
+        events and responses stop resolving.
       parameters:
       - description: Event ID
         in: path
@@ -897,7 +885,7 @@ paths:
         name: eventId
         required: true
         type: string
-      - description: PostgreSQL browser Event Visitor Identity public ID
+      - description: Browser Event Visitor Identity public ID
         in: query
         name: eventVisitorId
         type: string
@@ -905,9 +893,8 @@ paths:
       - application/json
       responses:
         "200":
-          description: PostgreSQL returns server-proven owner capabilities and browser
-            eventVisitorId; response entries add publicId and canEdit. MongoDB payloads
-            are unchanged.
+          description: Returns server-proven owner capabilities and browser eventVisitorId;
+            response entries add publicId and canEdit.
           schema:
             allOf:
             - $ref: '#/definitions/models.Event'
@@ -925,10 +912,9 @@ paths:
       tags:
       - events
     put:
-      description: PostgreSQL requires Event Owner Edit Token proof, the associated
-        Platform Visitor Identity session, or an owner-issued Granted EVCC; base EVCCs
-        never authorize settings edits. Archived PostgreSQL events are read-only.
-        MongoDB authorization is unchanged.
+      description: Requires Event Owner Edit Token proof, the associated Platform
+        Visitor Identity session, or an owner-issued Granted EVCC; base EVCCs never
+        authorize settings edits. Archived events are read-only.
       parameters:
       - description: Event ID
         in: path
@@ -988,6 +974,10 @@ paths:
       responses:
         "200":
           description: OK
+        "400":
+          description: Event name must be 100 characters or fewer
+          schema:
+            $ref: '#/definitions/responses.Error'
         "403":
           description: Owner authority required or event archived
           schema:
@@ -1003,9 +993,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: PostgreSQL requires the same owner credentials as settings edits;
-        archive makes the event read-only and unarchive restores mutations. MongoDB
-        requires its legacy authenticated owner.
+      description: Requires the same owner credentials as settings edits; archive
+        makes the event read-only and unarchive restores mutations.
       parameters:
       - description: Event ID
         in: path
@@ -1090,40 +1079,12 @@ paths:
       summary: Decline the current user's invite to the event
       tags:
       - events
-  /events/{eventId}/duplicate:
-    post:
-      parameters:
-      - description: Event ID
-        in: path
-        name: eventId
-        required: true
-        type: string
-      - description: Object containing options for the duplicated event
-        in: body
-        name: payload
-        required: true
-        schema:
-          properties:
-            copyAvailability:
-              type: boolean
-            eventName:
-              type: string
-          type: object
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-      summary: Duplicate event
-      tags:
-      - events
   /events/{eventId}/grant-association:
     post:
       consumes:
       - application/json
-      description: PostgreSQL only. An active Granted EVCC and signed-in session are
-        required. Association preserves source response ownership and does not associate
-        event ownership.
+      description: An active Granted EVCC and signed-in session are required. Association
+        preserves source response ownership and does not associate event ownership.
       parameters:
       - description: Event ID
         in: path
@@ -1191,12 +1152,12 @@ paths:
         name: eventId
         required: true
         type: string
-      - description: PostgreSQL browser Event Visitor Identity public ID
+      - description: Browser Event Visitor Identity public ID
         in: query
         name: eventVisitorId
         type: string
-      - description: Object containing info about the guest response to rename; PostgreSQL
-          events require the opaque responseId instead of oldName
+      - description: Object containing info about the guest response to rename; events
+          require the opaque responseId instead of oldName
         in: body
         name: payload
         required: true
@@ -1221,33 +1182,6 @@ paths:
       summary: Rename a guest response
       tags:
       - events
-  /events/{eventId}/responded:
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Event ID
-        in: path
-        name: eventId
-        required: true
-        type: string
-      - description: Object containing the user's email
-        in: body
-        name: payload
-        required: true
-        schema:
-          properties:
-            email:
-              type: string
-          type: object
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-      summary: Mark the user as having responded to this event
-      tags:
-      - events
   /events/{eventId}/response:
     delete:
       consumes:
@@ -1258,12 +1192,12 @@ paths:
         name: eventId
         required: true
         type: string
-      - description: PostgreSQL browser Event Visitor Identity public ID
+      - description: Browser Event Visitor Identity public ID
         in: query
         name: eventVisitorId
         type: string
-      - description: Object containing info about the event response to delete; PostgreSQL
-          events require the opaque responseId
+      - description: Object containing info about the event response to delete; events
+          require the opaque responseId
         in: body
         name: payload
         required: true
@@ -1295,13 +1229,14 @@ paths:
         name: eventId
         required: true
         type: string
-      - description: PostgreSQL browser Event Visitor Identity public ID
+      - description: Browser Event Visitor Identity public ID
         in: query
         name: eventVisitorId
         type: string
-      - description: Object containing info about the event response to update; PostgreSQL
-          events require responseId or createResponse=true and return responseId with
-          eventVisitorId
+      - description: Object containing info about the event response to update; events
+          require responseId or createResponse=true and return responseId with eventVisitorId;
+          signup form blocks require explicit-selection authority and validate membership
+          under atomic capacity
         in: body
         name: payload
         required: true
@@ -1352,8 +1287,13 @@ paths:
         "200":
           description: OK
         "400":
-          description: select-response-or-explicitly-create when a PostgreSQL mutation
-            omits both responseId and createResponse
+          description: select-response-or-explicitly-create when a mutation omits
+            both responseId and createResponse, or signup-block-not-found
+          schema:
+            $ref: '#/definitions/responses.Error'
+        "409":
+          description: signup-slot-full when a selected signup block is already at
+            capacity
           schema:
             $ref: '#/definitions/responses.Error'
       summary: Updates the current user's availability
@@ -1367,7 +1307,7 @@ paths:
         name: eventId
         required: true
         type: string
-      - description: PostgreSQL browser Event Visitor Identity public ID
+      - description: Browser Event Visitor Identity public ID
         in: query
         name: eventVisitorId
         type: string
@@ -1385,8 +1325,8 @@ paths:
       - application/json
       responses:
         "200":
-          description: PostgreSQL responses are keyed by opaque publicId and each
-            entry adds publicId and canEdit
+          description: Responses are keyed by opaque publicId and each entry adds
+            publicId and canEdit
           schema:
             additionalProperties:
               $ref: '#/definitions/models.Response'
@@ -1397,8 +1337,8 @@ paths:
       - events
   /events/{eventId}/transfers:
     post:
-      description: PostgreSQL only. Requires a signed-in session or base EVCC; anonymous
-        owners additionally prove their owner token. The link grants no authority.
+      description: Requires a signed-in session or base EVCC; anonymous owners additionally
+        prove their owner token. The link grants no authority.
       parameters:
       - description: Event ID
         in: path
@@ -1499,35 +1439,6 @@ paths:
       summary: Advance a source-confirmed transfer
       tags:
       - events
-  /events/import:
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Object containing the URL of the remote event
-        in: body
-        name: payload
-        required: true
-        schema:
-          properties:
-            url:
-              type: string
-          type: object
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            properties:
-              eventId:
-                type: string
-              shortId:
-                type: string
-            type: object
-      summary: Import a Timeful event from a remote instance
-      tags:
-      - events
   /slackbot:
     post:
       consumes:
@@ -1544,11 +1455,31 @@ paths:
       - slackbot
   /user:
     delete:
+      consumes:
+      - application/json
+      description: 'Requires the account email address as confirmation. Deletion is
+        permanent and immediate: the account profile, platform identity, calendar
+        connections, and historical user logs are removed, and events the account
+        organized survive with ownership released.'
+      parameters:
+      - description: The account email address that must match the signed-in account
+        in: body
+        name: payload
+        required: true
+        schema:
+          properties:
+            email:
+              type: string
+          type: object
       produces:
       - application/json
       responses:
         "200":
           description: OK
+        "400":
+          description: The supplied email does not match the account
+          schema:
+            $ref: '#/definitions/responses.Error'
       summary: Deletes the currently signed in user
       tags:
       - user
@@ -1753,7 +1684,7 @@ paths:
           description: A list of all folders for the user
           schema:
             items:
-              $ref: '#/definitions/models.Folder'
+              $ref: '#/definitions/routes.FolderResponse'
             type: array
         "400":
           description: Invalid user ID
@@ -1826,6 +1757,12 @@ paths:
             additionalProperties:
               type: string
             type: object
+        "404":
+          description: Folder not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
         "500":
           description: Failed to delete folder
           schema:
@@ -1848,7 +1785,7 @@ paths:
         "200":
           description: The folder object with events
           schema:
-            $ref: '#/definitions/models.Folder'
+            $ref: '#/definitions/routes.FolderResponse'
         "400":
           description: Invalid user ID or folder ID
           schema:
@@ -1897,6 +1834,12 @@ paths:
           description: OK
         "400":
           description: Invalid user ID or folder ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Folder not found
           schema:
             additionalProperties:
               type: string

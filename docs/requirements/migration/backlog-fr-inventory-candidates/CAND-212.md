@@ -1,9 +1,9 @@
 ---
 id: CAND-212
 title: Secure Production And Staging MongoDB Access
-verdict: needs-decision
+verdict: excluded
 related_requirements: []
-confidence: needs-product-decision
+confidence: confirmed
 ---
 
 # CAND-212: Secure Production And Staging MongoDB Access
@@ -18,32 +18,32 @@ confidence: needs-product-decision
 
 ## Candidate behavior
 
-The source asserts that production and staging MongoDB deployments require authenticated access, but does not establish independently testable configuration or credential-handling boundaries.
+No durable requirement behavior remains; the source describes authentication for a MongoDB deployment that the system retired.
 
 ## Applicability
 
 Actor: operator.
-Location: production and staging MongoDB deployments.
+Location: production and staging MongoDB deployments, removed with the MongoDB retirement.
 Event kind: not applicable.
 Interaction mode: deployment configuration.
 Viewport: not applicable.
-State: configuring database access.
-Exclusions: development and test environments.
+State: retired store.
+Exclusions: every current deployment, which uses PostgreSQL.
 
 ## Classification
 
-needs product decision
+implementation detail
 
 ## Existing Requirements and Confidence
 
-None identified.
-Confidence: needs product decision.
+None.
+Confidence: confirmed.
 
 ## Disposition
 
-Retain for later quality-requirement triage.
+Deprecated on 2026-09-11 with the MongoDB retirement; the MongoDB runtime, Compose services, environment variables, and credentials were removed, so no MongoDB access requirement remains.
+Reformulated as [QR-014](../../quality/qr/QR-014.md) for staging and production PostgreSQL access.
 
 ## Open Questions
 
-- Which deployments, authentication mechanisms, application roles, and credential-storage boundaries are required?
-- Does the existing deployment-configuration QR cover any part of this outcome?
+None.

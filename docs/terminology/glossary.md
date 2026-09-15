@@ -58,7 +58,6 @@ Its definitions are concise references; the linked authoritative context defines
   - [Event Visitor Control Credential (EVCC)](#event-visitor-control-credential-evcc)
   - [Granted Event Visitor Control Credential (Granted EVCC)](#granted-event-visitor-control-credential-granted-evcc)
   - [Event Owner Edit Token](#event-owner-edit-token)
-  - [Event Response Edit Credential](#event-response-edit-credential)
   - [Access Transfer](#access-transfer)
   - [Event Sign-In](#event-sign-in)
   - [Platform Sign-In](#platform-sign-in)
@@ -384,6 +383,13 @@ It can be associated with [Event Visitor Identities](#event-visitor-identity) fo
 
 Authoritative context: [FR-079](../requirements/functional/fr/FR-079.md).
 
+### Account Profile
+
+The account's profile fields: email, first name, last name, picture, timezone offset, custom-name preference, and usage counter.
+It is distinct from the [Platform Visitor Identity](#platform-visitor-identity).
+
+Authoritative context: [FR-123](../requirements/functional/fr/FR-123.md).
+
 ### Authenticated Platform Visitor
 
 A [Platform Visitor](#platform-visitor) signed in with a [Platform Visitor Identity](#platform-visitor-identity).
@@ -442,9 +448,9 @@ Authoritative context: [FR-018](../requirements/functional/fr/FR-018.md) and [FR
 
 ### Event Visitor Control Credential (EVCC)
 
-A private browser-held credential that authorizes an [Event Visitor](#event-visitor) of a PostgreSQL event to manage every [Event Response](#event-response) owned by the visitor's [Event Visitor Identity](#event-visitor-identity) for that event.
+A private browser-held credential that authorizes an [Event Visitor](#event-visitor) of an event to manage every [Event Response](#event-response) owned by the visitor's [Event Visitor Identity](#event-visitor-identity) for that event.
 It authorizes response management only and never authorizes [Event Settings](#event-settings) edits; this restriction does not apply to the [Granted Event Visitor Control Credential (Granted EVCC)](#granted-event-visitor-control-credential-granted-evcc) that an [Event Owner](#event-owner) issues.
-It is distinct from the public, non-authorizing `eventVisitorId`, a [Platform Visitor Identity](#platform-visitor-identity), and legacy MongoDB response credentials.
+It is distinct from the public, non-authorizing `eventVisitorId` and a [Platform Visitor Identity](#platform-visitor-identity).
 
 Authoritative context: [FR-081](../requirements/functional/fr/FR-081.md), [QR-006](../requirements/quality/qr/QR-006.md), and [ADR-010](../design/architecture/adr/ADR-010.md).
 
@@ -460,21 +466,13 @@ Authoritative context: [FR-018](../requirements/functional/fr/FR-018.md), [FR-08
 ### Event Owner Edit Token
 
 An opaque, event-scoped credential that authorizes an [Event Owner's](#event-owner) [Event Settings](#event-settings) edits.
-It is a PostgreSQL-only credential; MongoDB events retain their legacy owner authorization unchanged.
 It is distinct from guest-response credentials and does not authorize guest-response edits.
 
 Authoritative context: [FR-018](../requirements/functional/fr/FR-018.md) and [FR-063](../requirements/functional/fr/FR-063.md).
 
-### Event Response Edit Credential
-
-The applicable opaque MongoDB credential that proves authority to edit a [Protected Event Response](#protected-event-response) before its owner is recoverable through an associated [Platform Visitor Identity](#platform-visitor-identity).
-It is scoped to legacy MongoDB events and is distinct from an [Event Owner Edit Token](#event-owner-edit-token) and the PostgreSQL EVCC model.
-
-Authoritative context: [FR-062](../requirements/functional/fr/FR-062.md).
-
 ### Access Transfer
 
-A PostgreSQL-only, source-confirmed browser-to-browser process for granting another browser either a [Platform Visitor Identity](#platform-visitor-identity) session or delegated event authority.
+A source-confirmed browser-to-browser process for granting another browser either a [Platform Visitor Identity](#platform-visitor-identity) session or delegated event authority.
 The target displays a matching code that the source approves; the pending transfer is single-use and expires five minutes after creation.
 The transfer delegates authority; it never transfers response, event, or [Event Visitor Identity](#event-visitor-identity) ownership.
 
@@ -499,6 +497,14 @@ Authoritative context: [FR-007](../requirements/functional/fr/FR-007.md).
 A registration or sign-in link sent by email that authenticates its recipient for the linked flow.
 
 Authoritative context: [FR-031](../requirements/functional/fr/FR-031.md) and [FR-032](../requirements/functional/fr/FR-032.md).
+
+## Integrations
+
+### Calendar Connection
+
+A linked external calendar together with the provider credentials and visibility preferences the account uses to read it.
+
+Authoritative context: [FR-123](../requirements/functional/fr/FR-123.md).
 
 ## Responses
 
@@ -544,7 +550,7 @@ Authoritative context: [FR-006](../requirements/functional/fr/FR-006.md) and [FR
 ### Protected Event Response
 
 The default [Event Response](#event-response) access mode.
-Only the [Event Guest](#event-guest) that owns the response may edit it through the applicable PostgreSQL EVCC authority, MongoDB [Event Response Edit Credential](#event-response-edit-credential), or associated [Platform Visitor Identity](#platform-visitor-identity).
+Only the [Event Guest](#event-guest) that owns the response may edit it through the applicable [Event Visitor Control Credential (EVCC)](#event-visitor-control-credential-evcc) authority or an associated [Platform Visitor Identity](#platform-visitor-identity).
 
 Authoritative context: [FR-060](../requirements/functional/fr/FR-060.md), [FR-062](../requirements/functional/fr/FR-062.md), and [FR-073](../requirements/functional/fr/FR-073.md).
 

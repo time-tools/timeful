@@ -368,7 +368,7 @@ describe("specificTimesEditDraft", () => {
     })
   })
 
-  it("re-anchors specific-date membership days to the actives' new local dates after a cross-midnight timezone change", () => {
+  it("discards all actives when a cross-midnight timezone change leaves none in the rebuilt domain", () => {
     const event: Event = {
       ...buildEvent(),
       eventTimezone: "America/Los_Angeles",
@@ -415,13 +415,71 @@ describe("specificTimesEditDraft", () => {
     })
 
     expect(draft?.resetExistingTimes).toBe(false)
-    expect(draft?.dates?.map((day) => day.toString())).toEqual(["2026-01-05"])
+    expect(draft?.dates?.map((day) => day.toString())).toEqual(["2026-01-04"])
     expect(
       draft?.timedRecurrence?.selectedDays?.map((day) => day.toString()),
-    ).toEqual(["2026-01-05"])
+    ).toEqual(["2026-01-04"])
     expect(
       draft?.activeSlots?.map((slot) => slot.toInstant().toString()),
-    ).toEqual(["2026-01-05T07:30:00Z", "2026-01-05T08:00:00Z"])
+    ).toEqual([])
+  })
+
+  it("keeps only in-domain actives when a cross-midnight timezone change discards the rest", () => {
+    const event: Event = {
+      ...buildEvent(),
+      eventTimezone: "America/Los_Angeles",
+      dates: [Temporal.PlainDate.from("2026-01-04")],
+      timedRecurrence: {
+        kind: "specific_dates",
+        selectedDays: [Temporal.PlainDate.from("2026-01-04")],
+        selectedDaysOfWeek: [],
+        startOnMonday: true,
+      },
+      activeSlots: [
+        Temporal.Instant.from("2026-01-04T18:00:00Z").toZonedDateTimeISO(UTC),
+        Temporal.Instant.from("2026-01-05T07:30:00Z").toZonedDateTimeISO(UTC),
+        Temporal.Instant.from("2026-01-05T08:00:00Z").toZonedDateTimeISO(UTC),
+      ],
+      times: [
+        Temporal.Instant.from("2026-01-04T18:00:00Z").toZonedDateTimeISO(UTC),
+        Temporal.Instant.from("2026-01-05T07:30:00Z").toZonedDateTimeISO(UTC),
+        Temporal.Instant.from("2026-01-05T08:00:00Z").toZonedDateTimeISO(UTC),
+      ],
+      slotGeneration: {
+        startTimeLocal: Temporal.PlainTime.from("23:30"),
+        endTimeLocal: Temporal.PlainTime.from("01:30"),
+        timeIncrement: Temporal.Duration.from({ minutes: 30 }),
+      },
+    }
+
+    const schedule = buildEventEditorSchedule({
+      daysOnly: false,
+      daysOnlyType: "specific_dates",
+      selectedDateOption: "Specific dates",
+      selectedDays: [Temporal.PlainDate.from("2026-01-04")],
+      selectedDaysOfWeek: [],
+      startOnMonday: true,
+      startTime: Temporal.PlainTime.from("23:30"),
+      endTime: Temporal.PlainTime.from("01:30"),
+      timezoneValue: UTC,
+      timeIncrementMinutes: 30,
+    })
+
+    const draft = buildSpecificTimesEditDraft({
+      event,
+      schedule,
+      timeIncrementMinutes: 30,
+      specificTimesEnabled: true,
+    })
+
+    expect(draft?.resetExistingTimes).toBe(false)
+    expect(draft?.dates?.map((day) => day.toString())).toEqual(["2026-01-04"])
+    expect(
+      draft?.timedRecurrence?.selectedDays?.map((day) => day.toString()),
+    ).toEqual(["2026-01-04"])
+    expect(
+      draft?.activeSlots?.map((slot) => slot.toInstant().toString()),
+    ).toEqual(["2026-01-04T18:00:00Z"])
   })
 
   it("keeps picked dates stable and filters the active subset when only the canonical timezone changes", () => {

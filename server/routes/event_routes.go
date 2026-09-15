@@ -1,0 +1,1285 @@
+package routes
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"time"
+	"unicode/utf8"
+
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
+	"timeful/server/accounts"
+	"timeful/server/errs"
+	"timeful/server/logger"
+	"timeful/server/models"
+	pgstore "timeful/server/postgres"
+	"timeful/server/respondents"
+	"timeful/server/responses"
+	"timeful/server/utils"
+)
+
+func defaultRepository(c *gin.Context) *pgstore.Repository {
+	repository, err := pgstore.DefaultRepository()
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, responses.Error{Error: "event-store-unavailable"})
+		return nil
+	}
+	return repository
+}
+
+func loadEvent(c *gin.Context, repository *pgstore.Repository) *pgstore.Event {
+	event, err := repository.GetEventByShortID(c.Request.Context(), c.Param("eventId"))
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && event.IsDeleted) {
+		c.JSON(http.StatusNotFound, responses.Error{Error: errs.EventNotFound})
+		return nil
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed-to-load-event"})
+		return nil
+	}
+	return event
+}
+
+func eventModel(event *pgstore.Event) (models.Event, error) {
+	var value models.Event
+	if err := json.Unmarshal(event.Payload, &value); err != nil {
+		return value, err
+	}
+	value.Id = models.ZeroUUID()
+	value.ShortId = &event.ShortID
+	value.OwnerId = models.ZeroUUID()
+	value.IsArchived = &event.IsArchived
+	value.IsDeleted = &event.IsDeleted
+	value.Name = event.Name
+	value.Type = models.EventType(event.Type)
+	// Signup forms persist a dedicated event kind but keep the legacy wire type
+	// and isSignUpForm flag the frontend routes on.
+	if event.Type == pgstore.EventTypeSignup {
+		value.Type = models.SPECIFIC_DATES
+		value.IsSignUpForm = utils.TruePtr()
+	}
+	value.ScheduleVersion = event.ScheduleVersion
+	value.NumResponses = &event.NumResponses
+	value.CreatorPosthogId = event.CreatorPosthogID
+	return value, nil
+}
+
+func responseModel(stored pgstore.Response) (*models.Response, string, error) {
+	var value models.Response
+	if err := json.Unmarshal(stored.Payload, &value); err != nil {
+		return nil, "", err
+	}
+	value.UserId = models.ZeroUUID()
+	value.User = nil
+	value.GuestId, value.GuestEditToken, value.GuestEditPolicy, value.GuestOwnershipMode = "", "", "", ""
+	return &value, stored.PublicID, nil
+}
+
+// signupBlock is the signup-block wire shape: the canonical UUID is
+// exposed as _id and start/end instants keep the legacy RFC3339 encoding the
+// frontend already consumes.
+type signupBlock struct {
+	ID        string     `json:"_id"`
+	Name      string     `json:"name,omitempty"`
+	Capacity  *int       `json:"capacity,omitempty"`
+	StartDate *time.Time `json:"startDate,omitempty"`
+	EndDate   *time.Time `json:"endDate,omitempty"`
+}
+
+func signupBlockPayload(block pgstore.SignupBlock) signupBlock {
+	return signupBlock{ID: block.ID, Name: block.Name, Capacity: block.Capacity, StartDate: block.StartDate, EndDate: block.EndDate}
+}
+
+// signupResponsePayload is the signup-response wire shape. It mirrors the
+// legacy models.SignUpResponse fields while carrying block UUIDs as
+// strings instead of the client block identity. PublicID is the opaque response
+// identifier the explicit-selection contract uses for mutation, and CanEdit
+// reports whether the calling visitor may update or delete the response.
+type signupResponsePayload struct {
+	SignUpBlockIDs []string     `json:"signUpBlockIds,omitempty"`
+	Name           string       `json:"name,omitempty"`
+	Email          string       `json:"email,omitempty"`
+	UserID         string       `json:"userId,omitempty"`
+	User           *models.User `json:"user,omitempty"`
+	PublicID       string       `json:"publicId"`
+	CanEdit        bool         `json:"canEdit"`
+}
+
+// signupInstant accepts either an epoch-millisecond number or an
+// RFC3339 string so the edit endpoint remains compatible with both the legacy
+// models.SignUpBlock encoding and the frontend transport encoding.
+type signupInstant struct {
+	Value *time.Time
+}
+
+func (instant *signupInstant) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		return nil
+	}
+	var millis int64
+	if err := json.Unmarshal(data, &millis); err == nil {
+		value := time.UnixMilli(millis).UTC()
+		instant.Value = &value
+		return nil
+	}
+	var raw string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	value, err := time.Parse(time.RFC3339Nano, raw)
+	if err != nil {
+		return err
+	}
+	instant.Value = &value
+	return nil
+}
+
+// signupBlockInput decodes a block from the edit payload. The _id is a
+// client hint: only a canonical UUID can name a stored block, so any other
+// value is treated as a new block instead of reaching the uuid key.
+type signupBlockInput struct {
+	ID        string         `json:"_id"`
+	Name      string         `json:"name"`
+	Capacity  *int           `json:"capacity"`
+	StartDate *signupInstant `json:"startDate"`
+	EndDate   *signupInstant `json:"endDate"`
+}
+
+// canonicalSignupBlockID forwards a client block identity only when it is the
+// canonical UUID form of a stored identity; every other value is an opaque
+// client identifier and maps to a new block.
+func canonicalSignupBlockID(id string) string {
+	if _, ok := models.ParseUUID(id); !ok {
+		return ""
+	}
+	return id
+}
+
+func signupBlocksFromModels(blocks []models.SignUpBlock) []pgstore.SignupBlock {
+	converted := make([]pgstore.SignupBlock, 0, len(blocks))
+	for _, block := range blocks {
+		converted = append(converted, pgstore.SignupBlock{
+			Name:      block.Name,
+			Capacity:  block.Capacity,
+			StartDate: signupModelInstant(block.StartDate),
+			EndDate:   signupModelInstant(block.EndDate),
+		})
+	}
+	return converted
+}
+
+func signupBlocksFromInput(blocks []signupBlockInput) []pgstore.SignupBlock {
+	converted := make([]pgstore.SignupBlock, 0, len(blocks))
+	for _, block := range blocks {
+		converted = append(converted, pgstore.SignupBlock{
+			ID:        canonicalSignupBlockID(block.ID),
+			Name:      block.Name,
+			Capacity:  block.Capacity,
+			StartDate: signupInputInstant(block.StartDate),
+			EndDate:   signupInputInstant(block.EndDate),
+		})
+	}
+	return converted
+}
+
+func signupModelInstant(value *models.DateTime) *time.Time {
+	if value == nil {
+		return nil
+	}
+	instant := value.Time()
+	return &instant
+}
+
+func signupInputInstant(value *signupInstant) *time.Time {
+	if value == nil {
+		return nil
+	}
+	return value.Value
+}
+
+// signupResponses renders the event's signup responses keyed by account
+// UUID or canonical guest name, reusing the shared payload identity and
+// guest-name exposure rules. Email visibility follows collectEmails plus owner
+// authority, matching the legacy endpoint. Each entry carries its opaque
+// publicId and a server-proven canEdit for the calling visitor.
+func signupResponses(ctx context.Context, repository *pgstore.Repository, event *pgstore.Event, value models.Event, visitor *visitor) (map[string]signupResponsePayload, error) {
+	stored, err := repository.ListSignupResponses(ctx, event.ID)
+	if err != nil {
+		return nil, err
+	}
+	showEmails := visitor.owner && utils.Coalesce(value.CollectEmails)
+
+	identityIDs := make([]string, 0, len(stored))
+	for _, response := range stored {
+		if response.RespondentKind == pgstore.RespondentKindAccount && response.PlatformIdentityID != nil {
+			if _, ok := models.ParseUUID(*response.PlatformIdentityID); ok {
+				identityIDs = append(identityIDs, *response.PlatformIdentityID)
+			}
+		}
+	}
+	liveUsers := map[string]*models.User{}
+	accountsByID, err := repository.ListAccountsByPlatformIdentityIDs(ctx, identityIDs)
+	if err != nil {
+		// The batched read is all-or-nothing, so a transient failure cannot be
+		// attributed per response. Fall back to the stored response identity for
+		// every account response, matching the previous missing-account fallback.
+		logger.StdErr.Printf("signup response account lookup failed: %v", err)
+	} else {
+		for platformIdentityID, account := range accountsByID {
+			liveUsers[platformIdentityID] = accounts.UserFromAccount(account)
+		}
+	}
+
+	visitorIDs := make([]string, 0, len(stored))
+	for _, response := range stored {
+		visitorIDs = append(visitorIDs, response.EventVisitorIdentityID)
+	}
+	authorization, err := visitor.controlsBatch(ctx, repository, visitorIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]signupResponsePayload, len(stored))
+	for _, response := range stored {
+		model := &models.SignUpResponse{Name: response.Name, Email: response.Email}
+		if response.RespondentKind == pgstore.RespondentKindAccount && response.PlatformIdentityID != nil {
+			identityID, ok := models.ParseUUID(*response.PlatformIdentityID)
+			if !ok {
+				continue
+			}
+			model.UserId = identityID
+		}
+		lookupKey, keep := populateSignUpResponsePayloadIdentity(model, liveUsers)
+		if !keep || !shouldExposeGuestSignUpResponsePayload(lookupKey, model) {
+			continue
+		}
+		payload := signupResponsePayload{
+			SignUpBlockIDs: response.BlockIDs,
+			Name:           model.Name,
+			Email:          model.Email,
+			User:           model.User,
+			PublicID:       response.PublicID,
+			CanEdit:        authorization[response.EventVisitorIdentityID] && !event.IsArchived,
+		}
+		if !model.UserId.IsZero() {
+			payload.UserID = model.UserId.String()
+		}
+		stripSensitiveUserFields(payload.User)
+		if !showEmails {
+			payload.Email = ""
+			if payload.User != nil {
+				payload.User.Email = ""
+			}
+		}
+		result[lookupKey] = payload
+	}
+	return result, nil
+}
+
+func dereference(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+type publicResponse struct {
+	*models.Response
+	PublicID string `json:"publicId"`
+	CanEdit  bool   `json:"canEdit"`
+}
+
+func eventResponses(c *gin.Context, repository *pgstore.Repository, event *pgstore.Event, visitor *visitor) (map[string]*publicResponse, bool, error) {
+	value, err := eventModel(event)
+	if err != nil {
+		return nil, false, err
+	}
+	filtered := utils.Coalesce(value.BlindAvailabilityEnabled) && !visitor.owner
+	stored, err := repository.ListResponses(c.Request.Context(), event.ID)
+	if err != nil {
+		return nil, false, err
+	}
+	visitorIDs := make([]string, 0, len(stored))
+	for _, response := range stored {
+		visitorIDs = append(visitorIDs, response.EventVisitorIdentityID)
+	}
+	authorization, err := visitor.controlsBatch(c.Request.Context(), repository, visitorIDs)
+	if err != nil {
+		return nil, false, err
+	}
+	result := make(map[string]*publicResponse)
+	for _, response := range stored {
+		authorized := authorization[response.EventVisitorIdentityID]
+		if filtered && !authorized {
+			continue
+		}
+		value, key, err := responseModel(response)
+		if err != nil {
+			return nil, false, err
+		}
+		result[key] = &publicResponse{Response: value, PublicID: key, CanEdit: authorized && !event.IsArchived}
+	}
+	return result, filtered, nil
+}
+
+func eventPayload(event *pgstore.Event, responseMap map[string]*publicResponse) (map[string]any, error) {
+	value, err := eventModel(event)
+	if err != nil {
+		return nil, err
+	}
+	value.ResponsesMap = nil
+	payload, err := value.MarshalAPIJSON()
+	if err != nil {
+		return nil, err
+	}
+	var result map[string]any
+	if err := json.Unmarshal(payload, &result); err != nil {
+		return nil, err
+	}
+	result["responses"] = responseMap
+	result["_id"] = event.ShortID
+	result["shortId"] = event.ShortID
+	result["ownerId"] = models.ZeroUUID().String()
+	return result, nil
+}
+
+// @Summary Resolves an event identifier to its public ID
+// @Tags events
+// @Produce json
+// @Param eventId path string true "Event public ID"
+// @Success 200 {object} object{shortId=string,longId=string}
+// @Failure 404 {object} responses.Error
+// @Router /events/{eventId}/ids [get]
+func getEventIDs(c *gin.Context) {
+	repository := defaultRepository(c)
+	if repository == nil {
+		return
+	}
+	event := loadEvent(c, repository)
+	if event == nil {
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"shortId": event.ShortID, "longId": event.ShortID})
+}
+
+// @Summary Gets an event based on its id
+// @Tags events
+// @Produce json
+// @Param eventId path string true "Event ID"
+// @Param eventVisitorId query string false "Browser Event Visitor Identity public ID"
+// @Success 200 {object} models.Event{eventVisitorId=string,canCreateResponse=bool,canManageEvent=bool,canEditSettings=bool} "Returns server-proven owner capabilities and browser eventVisitorId; response entries add publicId and canEdit."
+// @Router /events/{eventId} [get]
+func getEvent(c *gin.Context) {
+	repository := defaultRepository(c)
+	if repository == nil {
+		return
+	}
+	event := loadEvent(c, repository)
+	if event == nil {
+		return
+	}
+	visitor, err := resolveVisitor(c, repository, event)
+	if err != nil {
+		mutationError(c, err)
+		return
+	}
+	responseMap, filtered, err := eventResponses(c, repository, event, visitor)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed-to-load-responses"})
+		return
+	}
+	value, err := eventModel(event)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed-to-serialize-event"})
+		return
+	}
+	var groupAttendees []pgstore.Attendee
+	if event.Type == pgstore.EventTypeGroup {
+		groupAttendees, err = repository.ListAttendees(c.Request.Context(), event.ID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed-to-load-attendees"})
+			return
+		}
+	}
+	for key, response := range responseMap {
+		stripSensitiveUserFields(response.User)
+		response.Availability = nil
+		response.IfNeeded = nil
+		response.ManualAvailability = nil
+		responseMap[key] = response
+	}
+	if event.Type == pgstore.EventTypeGroup {
+		groupEmailVisibility(c.Request.Context(), repository, event.ID, value, visitor, responseMap)
+	} else {
+		for key, response := range responseMap {
+			response.Email = ""
+			if response.User != nil {
+				response.User.Email = ""
+			}
+			responseMap[key] = response
+		}
+	}
+	payload, err := eventPayload(event, responseMap)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed-to-serialize-event"})
+		return
+	}
+	if event.Type == pgstore.EventTypeGroup {
+		payload["attendees"] = groupAttendeePayloads(event.ShortID, groupAttendees)
+		payload["hasResponded"] = groupViewerHasResponded(c.Request.Context(), repository, event, visitor)
+	}
+	if event.Type == pgstore.EventTypeSignup {
+		blocks, err := repository.ListSignupBlocks(c.Request.Context(), event.ID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed-to-load-signup-blocks"})
+			return
+		}
+		blockPayloads := make([]signupBlock, 0, len(blocks))
+		for _, block := range blocks {
+			blockPayloads = append(blockPayloads, signupBlockPayload(block))
+		}
+		payload["signUpBlocks"] = blockPayloads
+		signupResponses, err := signupResponses(c.Request.Context(), repository, event, value, visitor)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed-to-load-signup-responses"})
+			return
+		}
+		payload["signUpResponses"] = signupResponses
+	}
+	payload["eventVisitorId"] = visitor.identity.PublicID
+	payload["canCreateResponse"] = visitor.authorized && !event.IsArchived
+	payload["canManageEvent"] = visitor.owner
+	payload["canEditSettings"] = visitor.owner && !event.IsArchived
+	if filtered {
+		delete(payload, "numResponses")
+		if responseMap == nil {
+			delete(payload, "responses")
+		}
+	}
+	c.JSON(http.StatusOK, payload)
+}
+
+// @Summary Gets responses for an event, filtering availability to be within the date ranges
+// @Tags events
+// @Produce json
+// @Param eventId path string true "Event ID"
+// @Param eventVisitorId query string false "Browser Event Visitor Identity public ID"
+// @Param timeMin query string true "Lower bound for start time to filter availability by"
+// @Param timeMax query string true "Upper bound for end time to filter availability by"
+// @Success 200 {object} map[string]models.Response "Responses are keyed by opaque publicId and each entry adds publicId and canEdit"
+// @Router /events/{eventId}/responses [get]
+func getResponses(c *gin.Context) {
+	query := struct {
+		TimeMin time.Time `form:"timeMin" binding:"required"`
+		TimeMax time.Time `form:"timeMax" binding:"required"`
+	}{}
+	if err := c.BindQuery(&query); err != nil {
+		return
+	}
+	repository := defaultRepository(c)
+	if repository == nil {
+		return
+	}
+	event := loadEvent(c, repository)
+	if event == nil {
+		return
+	}
+	visitor, err := resolveVisitor(c, repository, event)
+	if err != nil {
+		mutationError(c, err)
+		return
+	}
+	responseMap, _, err := eventResponses(c, repository, event, visitor)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed-to-load-responses"})
+		return
+	}
+	for key, response := range responseMap {
+		response.Availability = filterResponseSlots(response.Availability, query.TimeMin, query.TimeMax)
+		response.IfNeeded = filterResponseSlots(response.IfNeeded, query.TimeMin, query.TimeMax)
+		stripSensitiveUserFields(response.User)
+		responseMap[key] = response
+	}
+	if event.Type == pgstore.EventTypeGroup {
+		value, err := eventModel(event)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed-to-serialize-event"})
+			return
+		}
+		groupEmailVisibility(c.Request.Context(), repository, event.ID, value, visitor, responseMap)
+	} else {
+		for key, response := range responseMap {
+			response.Email = ""
+			if response.User != nil {
+				response.User.Email = ""
+			}
+			responseMap[key] = response
+		}
+	}
+	c.JSON(http.StatusOK, responseMap)
+}
+
+func filterResponseSlots(slots []models.DateTime, minimum, maximum time.Time) []models.DateTime {
+	filtered := make([]models.DateTime, 0, len(slots))
+	for _, slot := range slots {
+		if !slot.Time().Before(minimum) && !slot.Time().After(maximum) {
+			filtered = append(filtered, slot)
+		}
+	}
+	return filtered
+}
+
+func activeSlotSetsEqual(left, right []models.DateTime) bool {
+	normalizedLeft := normalizeDateTimes(left)
+	normalizedRight := normalizeDateTimes(right)
+	if len(normalizedLeft) != len(normalizedRight) {
+		return false
+	}
+	for index := range normalizedLeft {
+		if normalizedLeft[index] != normalizedRight[index] {
+			return false
+		}
+	}
+	return true
+}
+
+func discardResponseSlotsOutsideActiveSet(ctx context.Context, tx *pgstore.Repository, eventID string, activeSlots []models.DateTime) error {
+	active := make(map[models.DateTime]struct{}, len(activeSlots))
+	for _, slot := range activeSlots {
+		active[slot] = struct{}{}
+	}
+	responses, err := tx.ListResponses(ctx, eventID)
+	if err != nil {
+		return err
+	}
+	for index := range responses {
+		response := &responses[index]
+		next, changed, err := filterResponseSlotsOutsideActiveSet(response.Payload, active)
+		if err != nil {
+			return err
+		}
+		if !changed {
+			continue
+		}
+		response.Payload = next
+		if err := tx.UpdateResponse(ctx, response); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// filterResponseSlotsOutsideActiveSet filters only the payload's availability and
+// ifNeeded keys, preserving every other key. It returns the original payload and
+// false when nothing changed.
+func filterResponseSlotsOutsideActiveSet(payload json.RawMessage, active map[models.DateTime]struct{}) (json.RawMessage, bool, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(payload, &fields); err != nil {
+		return nil, false, err
+	}
+	changed := false
+	for _, key := range []string{"availability", "ifNeeded"} {
+		raw, present := fields[key]
+		if !present {
+			continue
+		}
+		var slots []models.DateTime
+		if err := json.Unmarshal(raw, &slots); err != nil {
+			return nil, false, err
+		}
+		kept := make([]models.DateTime, 0, len(slots))
+		for _, slot := range slots {
+			if _, ok := active[slot]; ok {
+				kept = append(kept, slot)
+			}
+		}
+		if len(kept) == len(slots) {
+			continue
+		}
+		encoded, err := json.Marshal(kept)
+		if err != nil {
+			return nil, false, err
+		}
+		fields[key] = encoded
+		changed = true
+	}
+	if !changed {
+		return payload, false, nil
+	}
+	next, err := json.Marshal(fields)
+	if err != nil {
+		return nil, false, err
+	}
+	return next, true, nil
+}
+
+// @Summary Edits an event based on its id
+// @Description Requires Event Owner Edit Token proof, the associated Platform Visitor Identity session, or an owner-issued Granted EVCC; base EVCCs never authorize settings edits. Archived events are read-only.
+// @Tags events
+// @Produce json
+// @Param eventId path string true "Event ID"
+// @Param payload body object{name=string,description=string,dates=[]string,type=models.EventType,signUpBlocks=[]models.SignUpBlock,notificationsEnabled=bool,blindAvailabilityEnabled=bool,daysOnly=bool,remindees=[]string,sendEmailAfterXResponses=int,activeSlots=[]string,eventTimezone=string,slotGeneration=models.SlotGeneration,timedRecurrence=models.TimedRecurrence,attendees=[]string} true "Timed events require the complete canonical slot contract; day-only events require dates"
+// @Success 200
+// @Failure 400 {object} responses.Error "Event name must be 100 characters or fewer"
+// @Failure 403 {object} responses.Error "Owner authority required or event archived"
+// @Failure 404 {object} responses.Error "Event not found"
+// @Router /events/{eventId} [put]
+func editEvent(c *gin.Context) {
+	if err := rejectLegacyTimedScheduleFields(c); err != nil {
+		c.JSON(http.StatusBadRequest, responses.Error{Error: err.Error()})
+		return
+	}
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.Status(http.StatusBadRequest)
+		return
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(body, &raw); err != nil {
+		c.Status(http.StatusBadRequest)
+		return
+	}
+	// Extract signup blocks before binding: block identities are UUID
+	// strings, so they are decoded separately from models.SignUpBlock.Id.
+	var signupBlocks []signupBlockInput
+	signupBlocksPresent := false
+	if rawBlocks, present := raw["signUpBlocks"]; present {
+		signupBlocksPresent = true
+		if err := json.Unmarshal(rawBlocks, &signupBlocks); err != nil {
+			c.Status(http.StatusBadRequest)
+			return
+		}
+		delete(raw, "signUpBlocks")
+		if body, err = json.Marshal(raw); err != nil {
+			c.Status(http.StatusBadRequest)
+			return
+		}
+	}
+	c.Request.Body = io.NopCloser(bytes.NewReader(body))
+	var input eventInput
+	if err := c.Bind(&input); err != nil {
+		return
+	}
+	update := input.Event
+	if update.Name == "" || update.Type == "" {
+		c.Status(http.StatusBadRequest)
+		return
+	}
+	if utf8.RuneCountInString(update.Name) > models.MaxEventNameLength {
+		c.JSON(http.StatusBadRequest, responses.Error{Error: errs.EventNameTooLong})
+		return
+	}
+	requestGroup := update.Type == models.GROUP
+	timedEvent := !requestGroup && (update.DaysOnly == nil || !*update.DaysOnly)
+	if timedEvent {
+		fields, err := normalizeTimedEventPayloadFields(timedEventPayloadFields{ActiveSlots: update.ActiveSlots, EventTimezone: update.EventTimezone, SlotGeneration: update.SlotGeneration, TimedRecurrence: update.TimedRecurrence})
+		if err != nil {
+			c.JSON(http.StatusBadRequest, responses.Error{Error: err.Error()})
+			return
+		}
+		update.ActiveSlots, update.EventTimezone, update.SlotGeneration, update.TimedRecurrence = fields.ActiveSlots, fields.EventTimezone, fields.SlotGeneration, fields.TimedRecurrence
+	} else if !requestGroup && len(update.Dates) == 0 {
+		c.JSON(http.StatusBadRequest, responses.Error{Error: "days-only-events-require-dates"})
+		return
+	}
+	var groupPlan groupEmailPlan
+	groupEventShortID := ""
+	applied := ownerMutation(c, false, func(ctx context.Context, tx *pgstore.Repository, event *pgstore.Event) error {
+		current, err := eventModel(event)
+		if err != nil {
+			return err
+		}
+		if _, present := raw["description"]; !present {
+			update.Description = current.Description
+		}
+		if slots, present := raw["activeSlots"]; present && string(slots) == "[]" && len(current.ActiveSlots) > 0 {
+			update.ActiveSlots = current.ActiveSlots
+			if timedEvent {
+				filtered, err := discardActiveSlotsOutsideEnabledDomain(timedEventPayloadFields{
+					ActiveSlots:     current.ActiveSlots,
+					EventTimezone:   update.EventTimezone,
+					SlotGeneration:  update.SlotGeneration,
+					TimedRecurrence: update.TimedRecurrence,
+				})
+				if err != nil {
+					return err
+				}
+				update.ActiveSlots = filtered
+			}
+		}
+		update.Id, update.ShortId, update.OwnerId, update.NumResponses, update.ResponsesMap = models.ZeroUUID(), nil, models.ZeroUUID(), nil, nil
+		update.SignUpBlocks = nil
+		update.HasResponded = nil
+		// Lifecycle state is changed only through the dedicated owner actions.
+		update.IsArchived, update.IsDeleted = nil, nil
+		isSignup := event.Type == pgstore.EventTypeSignup
+		isGroup := event.Type == pgstore.EventTypeGroup
+		eventType := string(update.Type)
+		if isSignup {
+			update.Type, update.IsSignUpForm = models.SPECIFIC_DATES, utils.TruePtr()
+			eventType = pgstore.EventTypeSignup
+		}
+		if isGroup {
+			eventType = pgstore.EventTypeGroup
+			// The manual-availability day window derives from the canonical
+			// generation window. An edit without generation settings, such as a
+			// legacy group shape, keeps the previously stored duration.
+			update.Duration = groupDurationHours(update.SlotGeneration)
+			if update.SlotGeneration == nil {
+				update.Duration = current.Duration
+			}
+		}
+		payload, err := json.Marshal(update)
+		if err != nil {
+			return err
+		}
+		event.Name, event.Type, event.Payload, event.ScheduleVersion = update.Name, eventType, payload, 1
+		if isGroup {
+			// Diff the requested attendee set, send the added and update emails
+			// after commit, and remove departed members' responses so the
+			// response count stays correct.
+			plan, err := applyGroupAttendeeEdits(ctx, tx, event, input.Attendees)
+			if err != nil {
+				return err
+			}
+			groupPlan = plan
+			groupEventShortID = event.ShortID
+		}
+		if err := tx.UpdateEvent(ctx, event); err != nil {
+			return err
+		}
+		if timedEvent && !activeSlotSetsEqual(current.ActiveSlots, update.ActiveSlots) {
+			if err := discardResponseSlotsOutsideActiveSet(ctx, tx, event.ID, update.ActiveSlots); err != nil {
+				return err
+			}
+		}
+		if isSignup {
+			// An omitted signUpBlocks preserves the existing block set, matching
+			// legacy BSON omitempty behavior; only an explicit list replaces it.
+			if signupBlocksPresent {
+				if _, err := tx.ReplaceSignupBlocks(ctx, event.ID, signupBlocksFromInput(signupBlocks)); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+	if applied && groupEventShortID != "" {
+		sendGroupUpdateEmails(groupPlan.ownerName, groupPlan.groupName, groupURL(groupEventShortID), groupPlan.added, groupPlan.kept)
+	}
+}
+
+func saveSchedule(c *gin.Context)  { updateSchedule(c, false) }
+func clearSchedule(c *gin.Context) { updateSchedule(c, true) }
+
+func updateSchedule(c *gin.Context, clear bool) {
+	repository := defaultRepository(c)
+	if repository == nil {
+		return
+	}
+	if loadEvent(c, repository) == nil {
+		return
+	}
+	var input struct {
+		StartDate models.DateTime `json:"startDate" binding:"required"`
+		EndDate   models.DateTime `json:"endDate" binding:"required"`
+	}
+	if !clear {
+		if err := c.Bind(&input); err != nil {
+			return
+		}
+		if input.EndDate <= input.StartDate {
+			c.JSON(http.StatusBadRequest, responses.Error{Error: "scheduled-event-end-must-follow-start"})
+			return
+		}
+	}
+	ownerMutation(c, false, func(ctx context.Context, tx *pgstore.Repository, event *pgstore.Event) error {
+		value, err := eventModel(event)
+		if err != nil {
+			return err
+		}
+		value.ScheduledEvent = nil
+		if !clear {
+			value.ScheduledEvent = &models.CalendarEvent{Summary: event.Name, StartDate: input.StartDate, EndDate: input.EndDate}
+		}
+		value.Id, value.ShortId, value.OwnerId, value.NumResponses, value.ResponsesMap = models.ZeroUUID(), nil, models.ZeroUUID(), nil, nil
+		event.Payload, err = json.Marshal(value)
+		if err != nil {
+			return err
+		}
+		return tx.UpdateEvent(ctx, event)
+	})
+}
+
+type responseInput struct {
+	ResponseID     string            `json:"responseId"`
+	CreateResponse bool              `json:"createResponse"`
+	Name           string            `json:"name"`
+	NewName        string            `json:"newName"`
+	Email          string            `json:"email"`
+	Availability   []models.DateTime `json:"availability"`
+	IfNeeded       []models.DateTime `json:"ifNeeded"`
+	SignUpBlockIDs []string          `json:"signUpBlockIds"`
+
+	// Availability-group calendar fields. ManualAvailability stays raw so the
+	// boundary can accept both the legacy millisecond-keyed map and the
+	// frontend ZonedDateTime-keyed transport encoding.
+	UseCalendarAvailability *bool                   `json:"useCalendarAvailability"`
+	EnabledCalendars        *map[string][]string    `json:"enabledCalendars"`
+	CalendarOptions         *models.CalendarOptions `json:"calendarOptions"`
+	ManualAvailability      json.RawMessage         `json:"manualAvailability"`
+}
+
+// @Summary Updates the current user's availability
+// @Tags events
+// @Accept json
+// @Produce json
+// @Param eventId path string true "Event ID"
+// @Param eventVisitorId query string false "Browser Event Visitor Identity public ID"
+// @Param payload body object{responseId=string,createResponse=bool,availability=[]string,ifNeeded=[]string,guest=bool,name=string,email=string,useCalendarAvailability=bool,enabledCalendars=map[string][]string,manualAvailability=map[string][]string,calendarOptions=models.CalendarOptions,signUpBlockIds=[]string} true "Object containing info about the event response to update; events require responseId or createResponse=true and return responseId with eventVisitorId; signup form blocks require explicit-selection authority and validate membership under atomic capacity"
+// @Success 200
+// @Failure 400 {object} responses.Error "select-response-or-explicitly-create when a mutation omits both responseId and createResponse, or signup-block-not-found"
+// @Failure 409 {object} responses.Error "signup-slot-full when a selected signup block is already at capacity"
+// @Router /events/{eventId}/response [post]
+func updateResponse(c *gin.Context) { mutateResponse(c, "save") }
+
+// @Summary Delete the current user's availability
+// @Tags events
+// @Accept json
+// @Produce json
+// @Param eventId path string true "Event ID"
+// @Param eventVisitorId query string false "Browser Event Visitor Identity public ID"
+// @Param payload body object{responseId=string,userId=string,guest=bool,name=string} true "Object containing info about the event response to delete; events require the opaque responseId"
+// @Success 200
+// @Router /events/{eventId}/response [delete]
+func deleteResponse(c *gin.Context) { mutateResponse(c, "delete") }
+
+// @Summary Rename a guest response
+// @Tags events
+// @Accept json
+// @Produce json
+// @Param eventId path string true "Event ID"
+// @Param eventVisitorId query string false "Browser Event Visitor Identity public ID"
+// @Param payload body object{responseId=string,oldName=string,newName=string} true "Object containing info about the guest response to rename; events require the opaque responseId instead of oldName"
+// @Success 200
+// @Failure 400 {object} responses.Error "Guest name already exists"
+// @Router /events/{eventId}/rename-user [post]
+func renameUser(c *gin.Context) { mutateResponse(c, "rename") }
+
+type guestNameError struct{ message string }
+
+func (e guestNameError) Error() string { return e.message }
+
+type guestForbidden struct{ message string }
+
+func (e guestForbidden) Error() string { return e.message }
+
+func mutateResponse(c *gin.Context, operation string) {
+	var input responseInput
+	if err := c.BindJSON(&input); err != nil {
+		return
+	}
+	if (input.CreateResponse && input.ResponseID != "") || (input.ResponseID == "" && (!input.CreateResponse || operation != "save")) {
+		c.JSON(http.StatusBadRequest, responses.Error{Error: "select-response-or-explicitly-create"})
+		return
+	}
+	repository := defaultRepository(c)
+	if repository == nil {
+		return
+	}
+	event := loadEvent(c, repository)
+	if event == nil {
+		return
+	}
+	visitor, err := resolveVisitor(c, repository, event)
+	if err != nil {
+		mutationError(c, err)
+		return
+	}
+	if event.Type == pgstore.EventTypeSignup {
+		mutateSignupResponse(c, repository, event, visitor, input, operation)
+		return
+	}
+	if event.Type == pgstore.EventTypeGroup {
+		mutateGroupResponse(c, repository, event, visitor, input, operation)
+		return
+	}
+	publicID := input.ResponseID
+	err = repository.WithTransaction(c.Request.Context(), func(ctx context.Context, tx *pgstore.Repository) error {
+		locked, err := tx.LockEvent(ctx, event.ID)
+		if err != nil {
+			return err
+		}
+		if err := writableEvent(locked); err != nil {
+			return err
+		}
+		var stored *pgstore.Response
+		value := &models.Response{}
+		if input.CreateResponse {
+			if !visitor.authorized {
+				return guestForbidden{"visitor-credential-required"}
+			}
+			stored = &pgstore.Response{EventID: event.ID, EventVisitorIdentityID: visitor.identity.ID, RespondentKind: pgstore.RespondentKindGuest}
+		} else {
+			stored, err = tx.GetResponseByPublicID(ctx, event.ID, input.ResponseID)
+			if err != nil {
+				return err
+			}
+			authorized, err := visitor.controls(ctx, tx, stored.EventVisitorIdentityID)
+			if err != nil {
+				return err
+			}
+			if !authorized {
+				return guestForbidden{"response-credential-required"}
+			}
+			value, _, err = responseModel(*stored)
+			if err != nil {
+				return err
+			}
+		}
+		if operation == "delete" {
+			if err := tx.DeleteResponse(ctx, stored.ID); err != nil {
+				return err
+			}
+			return tx.AdjustEventResponseCount(ctx, locked.ID, -1)
+		}
+		name := input.Name
+		if operation == "rename" {
+			name = input.NewName
+		}
+		if name == "" && !input.CreateResponse {
+			name = value.Name
+		}
+		validated := respondents.ValidateGuestName(name)
+		if validated.Code != respondents.GuestNameValid {
+			return guestNameError{guestNameValidationErrorMessage(validated.Code)}
+		}
+		value.Name = validated.Name
+		if operation == "save" {
+			value.Email = input.Email
+			value.Availability, value.IfNeeded = normalizeTimedResponseAvailabilitySlots(input.Availability, input.IfNeeded)
+		}
+		stored.Payload, err = json.Marshal(value)
+		if err != nil {
+			return err
+		}
+		if input.CreateResponse {
+			if err := tx.CreateResponse(ctx, stored); err != nil {
+				return err
+			}
+			publicID = stored.PublicID
+			return tx.AdjustEventResponseCount(ctx, locked.ID, 1)
+		}
+		return tx.UpdateResponse(ctx, stored)
+	})
+	if err != nil {
+		mutationError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"responseId": publicID, "eventVisitorId": visitor.identity.PublicID})
+}
+
+// mutateSignupResponse applies the explicit-selection contract to a
+// signup event. A create carries createResponse=true and is owned by the
+// calling Event Visitor Identity; every edit, rename, and deletion carries the
+// target opaque responseId and is authorized by proven visitor control or an
+// associated account, never by a client-supplied name. Capacity and duplicate
+// names are enforced by the repository under the event row lock.
+func mutateSignupResponse(c *gin.Context, repository *pgstore.Repository, event *pgstore.Event, visitor *visitor, input responseInput, operation string) {
+	publicID := input.ResponseID
+	err := repository.WithTransaction(c.Request.Context(), func(ctx context.Context, tx *pgstore.Repository) error {
+		locked, err := tx.LockEvent(ctx, event.ID)
+		if err != nil {
+			return err
+		}
+		if err := writableEvent(locked); err != nil {
+			return err
+		}
+		stored := &pgstore.SignupResponse{EventID: event.ID, EventVisitorIdentityID: visitor.identity.ID}
+		if input.CreateResponse {
+			if !visitor.authorized {
+				return guestForbidden{"visitor-credential-required"}
+			}
+		} else {
+			stored, err = tx.GetSignupResponseByPublicID(ctx, event.ID, input.ResponseID)
+			if err != nil {
+				return err
+			}
+			authorized, err := visitor.controls(ctx, tx, stored.EventVisitorIdentityID)
+			if err != nil {
+				return err
+			}
+			if !authorized {
+				return guestForbidden{"response-credential-required"}
+			}
+		}
+		if operation == "delete" {
+			return tx.DeleteSignupResponse(ctx, event.ID, stored.PublicID)
+		}
+		if operation == "rename" {
+			validated := respondents.ValidateGuestName(input.NewName)
+			if validated.Code != respondents.GuestNameValid {
+				return guestNameError{guestNameValidationErrorMessage(validated.Code)}
+			}
+			if stored.RespondentKind == pgstore.RespondentKindAccount {
+				stored.Name = validated.Name
+				return tx.UpdateSignupResponse(ctx, stored)
+			}
+			stored.RespondentKind = pgstore.RespondentKindGuest
+			stored.PlatformIdentityID = nil
+			stored.Name = validated.Name
+			stored.CanonicalGuestName = &validated.Name
+			return tx.UpdateSignupResponse(ctx, stored)
+		}
+		stored.BlockIDs = input.SignUpBlockIDs
+		stored.Email = input.Email
+		if input.CreateResponse {
+			if visitor.platformIdentityID != "" {
+				platformIdentityID := visitor.platformIdentityID
+				stored.RespondentKind = pgstore.RespondentKindAccount
+				stored.PlatformIdentityID = &platformIdentityID
+				stored.CanonicalGuestName = nil
+			} else {
+				name := canonicalSignupResponseName(input.Name, stored)
+				if name == "" {
+					return guestNameError{guestNameValidationErrorMessage(respondents.GuestNameRequired)}
+				}
+				stored.RespondentKind = pgstore.RespondentKindGuest
+				stored.PlatformIdentityID = nil
+				stored.Name = name
+				stored.CanonicalGuestName = &name
+			}
+			if err := tx.CreateSignupResponse(ctx, stored); err != nil {
+				return err
+			}
+			publicID = stored.PublicID
+			return nil
+		}
+		switch stored.RespondentKind {
+		case pgstore.RespondentKindAccount:
+			if stored.PlatformIdentityID == nil || *stored.PlatformIdentityID == "" {
+				platformIdentityID := visitor.platformIdentityID
+				stored.PlatformIdentityID = &platformIdentityID
+			}
+			stored.CanonicalGuestName = nil
+		default:
+			stored.RespondentKind = pgstore.RespondentKindGuest
+			stored.PlatformIdentityID = nil
+			name := canonicalSignupResponseName(input.Name, stored)
+			if name == "" {
+				return guestNameError{guestNameValidationErrorMessage(respondents.GuestNameRequired)}
+			}
+			stored.Name = name
+			stored.CanonicalGuestName = &name
+		}
+		return tx.UpdateSignupResponse(ctx, stored)
+	})
+	if err != nil {
+		mutationError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"responseId": publicID, "eventVisitorId": visitor.identity.PublicID})
+}
+
+// canonicalSignupResponseName resolves the guest name for a signup mutation,
+// preferring the supplied name and falling back to the stored canonical name so
+// an explicit-selection edit can omit the unchanged name.
+func canonicalSignupResponseName(supplied string, stored *pgstore.SignupResponse) string {
+	if name := canonicalGuestName(supplied); name != "" {
+		return name
+	}
+	if stored == nil {
+		return ""
+	}
+	if stored.CanonicalGuestName != nil {
+		return *stored.CanonicalGuestName
+	}
+	return canonicalGuestName(stored.Name)
+}
+
+func mutationError(c *gin.Context, err error) {
+	if errors.Is(err, pgx.ErrNoRows) {
+		c.JSON(http.StatusNotFound, responses.Error{Error: errs.EventNotFound})
+		return
+	}
+	var forbidden guestForbidden
+	if errors.As(err, &forbidden) {
+		c.JSON(http.StatusForbidden, responses.Error{Error: forbidden.message})
+		return
+	}
+	var nameError guestNameError
+	if errors.As(err, &nameError) {
+		c.JSON(http.StatusBadRequest, responses.Error{Error: nameError.message})
+		return
+	}
+	if errors.Is(err, pgstore.ErrSignupBlockNotFound) {
+		c.JSON(http.StatusBadRequest, responses.Error{Error: "signup-block-not-found"})
+		return
+	}
+	if errors.Is(err, pgstore.ErrSignupCapacityExceeded) {
+		c.JSON(http.StatusConflict, responses.Error{Error: "signup-slot-full"})
+		return
+	}
+	if pgstore.IsUniqueViolation(err) {
+		c.JSON(http.StatusBadRequest, responses.Error{Error: "A guest with this name already exists for this event"})
+		return
+	}
+	c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed-to-update-response"})
+}
+
+// @Summary Creates a new event
+// @Tags events
+// @Accept json
+// @Produce json
+// @Param payload body object{name=string,description=string,type=models.EventType,isSignUpForm=bool,signUpBlocks=[]models.SignUpBlock,notificationsEnabled=bool,blindAvailabilityEnabled=bool,daysOnly=bool,dates=[]string,remindees=[]string,sendEmailAfterXResponses=int,when2meetHref=string,activeSlots=[]string,eventTimezone=string,slotGeneration=models.SlotGeneration,timedRecurrence=models.TimedRecurrence,attendees=[]string} true "Timed events require the complete canonical slot contract; day-only events require dates"
+// @Success 201 {object} object{eventId=string,eventVisitorId=string} "Creation returns eventVisitorId and issues separate HttpOnly EVCC and Event Owner Edit Token cookies"
+// @Failure 400 {object} responses.Error "Event name must be 100 characters or fewer"
+// @Router /events [post]
+func createEvent(c *gin.Context) {
+	if err := rejectLegacyTimedScheduleFields(c); err != nil {
+		c.JSON(http.StatusBadRequest, responses.Error{Error: err.Error()})
+		return
+	}
+	var input eventInput
+	if err := c.Bind(&input); err != nil {
+		return
+	}
+	event := input.Event
+	isSignup := event.IsSignUpForm != nil && *event.IsSignUpForm
+	isGroup := event.Type == models.GROUP
+	if event.Name == "" || (!isSignup && !isGroup && event.Type != models.SPECIFIC_DATES && event.Type != models.DOW) {
+		c.Status(http.StatusBadRequest)
+		return
+	}
+	if utf8.RuneCountInString(event.Name) > models.MaxEventNameLength {
+		c.JSON(http.StatusBadRequest, responses.Error{Error: errs.EventNameTooLong})
+		return
+	}
+	if isSignup {
+		// Signup forms are not timed polls; their block schedule is the contract.
+		event.Type = models.SPECIFIC_DATES
+		event.IsSignUpForm = utils.TruePtr()
+	} else if isGroup {
+		// Availability groups carry the legacy timed canvas fields but persist
+		// their membership separately, so they skip timed validation. The
+		// manual-availability day window derives from the canonical generation
+		// window because the transport no longer carries the legacy duration.
+		event.Duration = groupDurationHours(event.SlotGeneration)
+	} else if event.DaysOnly == nil || !*event.DaysOnly {
+		fields, err := normalizeTimedEventPayloadFields(timedEventPayloadFields{ActiveSlots: event.ActiveSlots, EventTimezone: event.EventTimezone, SlotGeneration: event.SlotGeneration, TimedRecurrence: event.TimedRecurrence})
+		if err != nil {
+			c.JSON(http.StatusBadRequest, responses.Error{Error: err.Error()})
+			return
+		}
+		event.ActiveSlots, event.EventTimezone, event.SlotGeneration, event.TimedRecurrence = fields.ActiveSlots, fields.EventTimezone, fields.SlotGeneration, fields.TimedRecurrence
+	} else if len(event.Dates) == 0 {
+		c.JSON(http.StatusBadRequest, responses.Error{Error: "days-only-events-require-dates"})
+		return
+	}
+	var initialBlocks []models.SignUpBlock
+	if isSignup && event.SignUpBlocks != nil {
+		initialBlocks = *event.SignUpBlocks
+	}
+	// Blocks and attendees own their own tables; the payload must not carry a
+	// second copy.
+	event.SignUpBlocks = nil
+	event.HasResponded = nil
+	event.Id, event.ShortId, event.OwnerId, event.NumResponses, event.ResponsesMap = models.ZeroUUID(), nil, models.ZeroUUID(), nil, nil
+	encoded, err := json.Marshal(event)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed-to-serialize-event"})
+		return
+	}
+	repository := defaultRepository(c)
+	if repository == nil {
+		return
+	}
+	// A signed-in creator owns the event through the authoritative
+	// account, while anonymous creation relies on the issued owner token.
+	platformIdentityID, signedIn := sessions.Default(c).Get("userId").(string)
+	if !signedIn || platformIdentityID == "" {
+		signedIn = false
+		platformIdentityID = ""
+	}
+	eventType := string(event.Type)
+	if isSignup {
+		eventType = pgstore.EventTypeSignup
+	}
+	invitees := input.Attendees
+	ownerEmail := ""
+	ownerName := "Somebody"
+	if isGroup && signedIn {
+		ownerEmail = accountEmail(c.Request.Context(), platformIdentityID)
+		ownerName = groupOwnerName(c.Request.Context(), &platformIdentityID)
+	}
+	stored := &pgstore.Event{Name: event.Name, Type: eventType, ScheduleVersion: 1, CreatorPosthogID: event.CreatorPosthogId, Payload: encoded}
+	var visitor *pgstore.EventVisitorIdentity
+	var credential, ownerToken string
+	err = repository.WithTransaction(c.Request.Context(), func(ctx context.Context, tx *pgstore.Repository) error {
+		if err := tx.CreateEvent(ctx, stored); err != nil {
+			return err
+		}
+		if isSignup && len(initialBlocks) > 0 {
+			if _, err := tx.ReplaceSignupBlocks(ctx, stored.ID, signupBlocksFromModels(initialBlocks)); err != nil {
+				return err
+			}
+		}
+		if signedIn {
+			platform, err := resolveSessionPlatformIdentity(ctx, tx, platformIdentityID)
+			if err != nil {
+				return err
+			}
+			if platform != nil {
+				if err := tx.AssociateEventOwner(ctx, stored.ID, platform.ID); err != nil {
+					return err
+				}
+				stored.OwnerPlatformIdentityID = &platform.ID
+				if err := tx.IncrementAccountEventsCreated(ctx, platformIdentityID); err != nil {
+					return err
+				}
+			}
+		}
+		if isGroup {
+			// The owner membership is inserted first so a duplicate invitee
+			// keeps the owner's row and insertion order.
+			attendeeEmails := make([]string, 0, len(invitees)+1)
+			if ownerEmail != "" {
+				attendeeEmails = append(attendeeEmails, ownerEmail)
+			}
+			attendeeEmails = append(attendeeEmails, invitees...)
+			if err := tx.AddAttendees(ctx, stored.ID, attendeeEmails, utils.FalsePtr()); err != nil {
+				return err
+			}
+		}
+		var err error
+		visitor, err = tx.CreateEventVisitorIdentity(ctx, stored.ID)
+		if err != nil {
+			return err
+		}
+		credential, err = issueCredential(ctx, tx, visitor.ID)
+		if err != nil {
+			return err
+		}
+		ownerToken, err = issueOwnerToken(ctx, tx, stored)
+		if err != nil {
+			return err
+		}
+		stored.OwnerEventVisitorIdentityID = &visitor.ID
+		return tx.UpdateEvent(ctx, stored)
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed-to-create-event"})
+		return
+	}
+	if isGroup {
+		sendGroupInviteEmails(ownerName, stored.Name, groupURL(stored.ShortID), invitees)
+	}
+	setCredentialCookie(c, stored.ShortID, visitor.PublicID, credential)
+	setOwnerCookie(c, stored.ShortID, ownerToken)
+	c.JSON(http.StatusCreated, gin.H{"eventId": stored.ShortID, "shortId": stored.ShortID, "eventVisitorId": visitor.PublicID})
+}

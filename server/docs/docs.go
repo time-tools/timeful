@@ -636,7 +636,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "PostgreSQL creation returns eventVisitorId and issues separate HttpOnly EVCC and Event Owner Edit Token cookies; MongoDB credentials are unchanged",
+                        "description": "Creation returns eventVisitorId and issues separate HttpOnly EVCC and Event Owner Edit Token cookies",
                         "schema": {
                             "type": "object",
                             "properties": {
@@ -648,51 +648,11 @@ const docTemplate = `{
                                 }
                             }
                         }
-                    }
-                }
-            }
-        },
-        "/events/import": {
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "events"
-                ],
-                "summary": "Import a Timeful event from a remote instance",
-                "parameters": [
-                    {
-                        "description": "Object containing the URL of the remote event",
-                        "name": "payload",
-                        "in": "body",
-                        "required": true,
+                    },
+                    "400": {
+                        "description": "Event name must be 100 characters or fewer",
                         "schema": {
-                            "type": "object",
-                            "properties": {
-                                "url": {
-                                    "type": "string"
-                                }
-                            }
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "eventId": {
-                                    "type": "string"
-                                },
-                                "shortId": {
-                                    "type": "string"
-                                }
-                            }
+                            "$ref": "#/definitions/responses.Error"
                         }
                     }
                 }
@@ -717,14 +677,14 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "PostgreSQL browser Event Visitor Identity public ID",
+                        "description": "Browser Event Visitor Identity public ID",
                         "name": "eventVisitorId",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "PostgreSQL returns server-proven owner capabilities and browser eventVisitorId; response entries add publicId and canEdit. MongoDB payloads are unchanged.",
+                        "description": "Returns server-proven owner capabilities and browser eventVisitorId; response entries add publicId and canEdit.",
                         "schema": {
                             "allOf": [
                                 {
@@ -753,7 +713,7 @@ const docTemplate = `{
                 }
             },
             "put": {
-                "description": "PostgreSQL requires Event Owner Edit Token proof, the associated Platform Visitor Identity session, or an owner-issued Granted EVCC; base EVCCs never authorize settings edits. Archived PostgreSQL events are read-only. MongoDB authorization is unchanged.",
+                "description": "Requires Event Owner Edit Token proof, the associated Platform Visitor Identity session, or an owner-issued Granted EVCC; base EVCCs never authorize settings edits. Archived events are read-only.",
                 "produces": [
                     "application/json"
                 ],
@@ -845,6 +805,12 @@ const docTemplate = `{
                     "200": {
                         "description": "OK"
                     },
+                    "400": {
+                        "description": "Event name must be 100 characters or fewer",
+                        "schema": {
+                            "$ref": "#/definitions/responses.Error"
+                        }
+                    },
                     "403": {
                         "description": "Owner authority required or event archived",
                         "schema": {
@@ -860,7 +826,7 @@ const docTemplate = `{
                 }
             },
             "delete": {
-                "description": "PostgreSQL requires the same owner credentials as settings edits; deleted events and responses stop resolving. MongoDB requires its legacy authenticated owner.",
+                "description": "Requires the same owner credentials as settings edits; deleted events and responses stop resolving.",
                 "produces": [
                     "application/json"
                 ],
@@ -898,7 +864,7 @@ const docTemplate = `{
         },
         "/events/{eventId}/archive": {
             "post": {
-                "description": "PostgreSQL requires the same owner credentials as settings edits; archive makes the event read-only and unarchive restores mutations. MongoDB requires its legacy authenticated owner.",
+                "description": "Requires the same owner credentials as settings edits; archive makes the event read-only and unarchive restores mutations.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1030,51 +996,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/events/{eventId}/duplicate": {
-            "post": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "events"
-                ],
-                "summary": "Duplicate event",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Event ID",
-                        "name": "eventId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Object containing options for the duplicated event",
-                        "name": "payload",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "copyAvailability": {
-                                    "type": "boolean"
-                                },
-                                "eventName": {
-                                    "type": "string"
-                                }
-                            }
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK"
-                    }
-                }
-            }
-        },
         "/events/{eventId}/grant-association": {
             "post": {
-                "description": "PostgreSQL only. An active Granted EVCC and signed-in session are required. Association preserves source response ownership and does not associate event ownership.",
+                "description": "An active Granted EVCC and signed-in session are required. Association preserves source response ownership and does not associate event ownership.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1190,12 +1114,12 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "PostgreSQL browser Event Visitor Identity public ID",
+                        "description": "Browser Event Visitor Identity public ID",
                         "name": "eventVisitorId",
                         "in": "query"
                     },
                     {
-                        "description": "Object containing info about the guest response to rename; PostgreSQL events require the opaque responseId instead of oldName",
+                        "description": "Object containing info about the guest response to rename; events require the opaque responseId instead of oldName",
                         "name": "payload",
                         "in": "body",
                         "required": true,
@@ -1228,48 +1152,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/events/{eventId}/responded": {
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "events"
-                ],
-                "summary": "Mark the user as having responded to this event",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Event ID",
-                        "name": "eventId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Object containing the user's email",
-                        "name": "payload",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "email": {
-                                    "type": "string"
-                                }
-                            }
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK"
-                    }
-                }
-            }
-        },
         "/events/{eventId}/response": {
             "post": {
                 "consumes": [
@@ -1292,12 +1174,12 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "PostgreSQL browser Event Visitor Identity public ID",
+                        "description": "Browser Event Visitor Identity public ID",
                         "name": "eventVisitorId",
                         "in": "query"
                     },
                     {
-                        "description": "Object containing info about the event response to update; PostgreSQL events require responseId or createResponse=true and return responseId with eventVisitorId",
+                        "description": "Object containing info about the event response to update; events require responseId or createResponse=true and return responseId with eventVisitorId; signup form blocks require explicit-selection authority and validate membership under atomic capacity",
                         "name": "payload",
                         "in": "body",
                         "required": true,
@@ -1370,7 +1252,13 @@ const docTemplate = `{
                         "description": "OK"
                     },
                     "400": {
-                        "description": "select-response-or-explicitly-create when a PostgreSQL mutation omits both responseId and createResponse",
+                        "description": "select-response-or-explicitly-create when a mutation omits both responseId and createResponse, or signup-block-not-found",
+                        "schema": {
+                            "$ref": "#/definitions/responses.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "signup-slot-full when a selected signup block is already at capacity",
                         "schema": {
                             "$ref": "#/definitions/responses.Error"
                         }
@@ -1398,12 +1286,12 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "PostgreSQL browser Event Visitor Identity public ID",
+                        "description": "Browser Event Visitor Identity public ID",
                         "name": "eventVisitorId",
                         "in": "query"
                     },
                     {
-                        "description": "Object containing info about the event response to delete; PostgreSQL events require the opaque responseId",
+                        "description": "Object containing info about the event response to delete; events require the opaque responseId",
                         "name": "payload",
                         "in": "body",
                         "required": true,
@@ -1452,7 +1340,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "PostgreSQL browser Event Visitor Identity public ID",
+                        "description": "Browser Event Visitor Identity public ID",
                         "name": "eventVisitorId",
                         "in": "query"
                     },
@@ -1473,7 +1361,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "PostgreSQL responses are keyed by opaque publicId and each entry adds publicId and canEdit",
+                        "description": "Responses are keyed by opaque publicId and each entry adds publicId and canEdit",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1486,7 +1374,7 @@ const docTemplate = `{
         },
         "/events/{eventId}/transfers": {
             "post": {
-                "description": "PostgreSQL only. Requires a signed-in session or base EVCC; anonymous owners additionally prove their owner token. The link grants no authority.",
+                "description": "Requires a signed-in session or base EVCC; anonymous owners additionally prove their owner token. The link grants no authority.",
                 "produces": [
                     "application/json"
                 ],
@@ -1656,6 +1544,10 @@ const docTemplate = `{
         },
         "/user": {
             "delete": {
+                "description": "Requires the account email address as confirmation. Deletion is permanent and immediate: the account profile, platform identity, calendar connections, and historical user logs are removed, and events the account organized survive with ownership released.",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -1663,9 +1555,31 @@ const docTemplate = `{
                     "user"
                 ],
                 "summary": "Deletes the currently signed in user",
+                "parameters": [
+                    {
+                        "description": "The account email address that must match the signed-in account",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "email": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK"
+                    },
+                    "400": {
+                        "description": "The supplied email does not match the account",
+                        "schema": {
+                            "$ref": "#/definitions/responses.Error"
+                        }
                     }
                 }
             }
@@ -1985,7 +1899,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/models.Folder"
+                                "$ref": "#/definitions/routes.FolderResponse"
                             }
                         }
                     },
@@ -2089,7 +2003,7 @@ const docTemplate = `{
                     "200": {
                         "description": "The folder object with events",
                         "schema": {
-                            "$ref": "#/definitions/models.Folder"
+                            "$ref": "#/definitions/routes.FolderResponse"
                         }
                     },
                     "400": {
@@ -2151,6 +2065,15 @@ const docTemplate = `{
                             }
                         }
                     },
+                    "404": {
+                        "description": "Folder not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
                     "500": {
                         "description": "Failed to delete folder",
                         "schema": {
@@ -2205,6 +2128,15 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Invalid user ID or folder ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Folder not found",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -2459,10 +2391,6 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "bson.M": {
-            "type": "object",
-            "additionalProperties": true
-        },
         "calendar.CalendarEventsWithError": {
             "type": "object",
             "properties": {
@@ -2481,7 +2409,8 @@ const docTemplate = `{
                 "blocks": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/bson.M"
+                        "type": "object",
+                        "additionalProperties": {}
                     }
                 },
                 "response_type": {
@@ -2495,23 +2424,6 @@ const docTemplate = `{
         },
         "models.AppleCalendarAuth": {
             "type": "object"
-        },
-        "models.Attendee": {
-            "type": "object",
-            "properties": {
-                "_id": {
-                    "type": "string"
-                },
-                "declined": {
-                    "type": "boolean"
-                },
-                "email": {
-                    "type": "string"
-                },
-                "eventId": {
-                    "type": "string"
-                }
-            }
         },
         "models.BufferTimeOptions": {
             "type": "object",
@@ -2623,13 +2535,6 @@ const docTemplate = `{
                         "type": "integer"
                     }
                 },
-                "attendees": {
-                    "description": "Attendees for an availability group (fetched from Attendees collection)",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.Attendee"
-                    }
-                },
                 "blindAvailabilityEnabled": {
                     "description": "Whether to enable blind availability",
                     "type": "boolean"
@@ -2664,7 +2569,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "hasResponded": {
-                    "description": "Whether the user has responded to the availability group (fetched based on whether user is in Attendees)",
+                    "description": "Whether the current viewer has responded to the availability group",
                     "type": "boolean"
                 },
                 "hasSpecificTimes": {
@@ -2702,7 +2607,7 @@ const docTemplate = `{
                     }
                 },
                 "responses": {
-                    "description": "Availability responses - old format for backward compatibility (fetched from eventResponses collection)",
+                    "description": "Availability responses",
                     "type": "object",
                     "additionalProperties": {
                         "$ref": "#/definitions/models.Response"
@@ -2773,32 +2678,6 @@ const docTemplate = `{
                 "DOW",
                 "GROUP"
             ]
-        },
-        "models.Folder": {
-            "type": "object",
-            "properties": {
-                "_id": {
-                    "type": "string"
-                },
-                "color": {
-                    "type": "string"
-                },
-                "eventIds": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "isDeleted": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "userId": {
-                    "type": "string"
-                }
-            }
         },
         "models.ICSCalendarAuth": {
             "type": "object",
@@ -2921,6 +2800,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "_id": {
+                    "description": "Id is a client-provided opaque block identity. The server owns block\nidentities in event_signup_blocks: only a canonical UUID that names an\nexisting block on the event keeps that identity, and every other value is\nignored on write.",
                     "type": "string"
                 },
                 "capacity": {
@@ -3088,6 +2968,32 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "id": {
+                    "type": "string"
+                }
+            }
+        },
+        "routes.FolderResponse": {
+            "type": "object",
+            "properties": {
+                "_id": {
+                    "type": "string"
+                },
+                "color": {
+                    "type": "string"
+                },
+                "eventIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "isDeleted": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "userId": {
                     "type": "string"
                 }
             }

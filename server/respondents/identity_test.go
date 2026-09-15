@@ -25,9 +25,9 @@ func TestValidateGuestNameRejectsBlankAndFormattingOnlyValues(t *testing.T) {
 	}
 }
 
-func TestValidateGuestNameRejectsObjectIDLikeAndOverlengthValues(t *testing.T) {
-	if result := ValidateGuestName("507f1f77bcf86cd799439011"); result.Code != GuestNameObjectIDLike {
-		t.Fatalf("expected object-id-like validation error, got %q", result.Code)
+func TestValidateGuestNameRejectsIdentifierLikeAndOverlengthValues(t *testing.T) {
+	if result := ValidateGuestName(models.NewUUID().String()); result.Code != GuestNameAccountIDLike {
+		t.Fatalf("expected identifier-like validation error, got %q", result.Code)
 	}
 
 	tooLong := strings.Repeat("a", MaxGuestNameLength+1)

@@ -37,7 +37,7 @@ describe('table-safe sentences-per-line formatter', () => {
       '| Scenario element | Requirement |',
       '| --- | --- |',
       '| Response | The system shall issue target-browser access only after the source browser approves the exact matching code. It shall accept a transfer at most once and only during its five-minute validity period. It shall reject expired, cancelled, reused, code-mismatched, unapproved, and unauthorized transfers, and reject use of a revoked Granted EVCC. Anonymous initiation shall require a valid [Event Visitor Control Credential](../../../terminology/glossary.md#event-visitor-control-credential-evcc), plus an [Event Owner Edit Token](../../../terminology/glossary.md#event-owner-edit-token) when owner authority is requested. |',
-      "| Response measure | Automated route and browser tests demonstrate a successful approved transfer and rejection for every invalid transfer state, including source revocation. MongoDB transfer behavior is outside this requirement's scope. |",
+      '| Response measure | Automated route and browser tests demonstrate a successful approved transfer and rejection for every invalid transfer state, including source revocation. |',
       '',
     ].join('\n')
 
@@ -51,9 +51,7 @@ describe('table-safe sentences-per-line formatter', () => {
     expect(once).toContain(
       'five-minute validity period. It shall reject expired',
     )
-    expect(once).toContain(
-      'including source revocation. MongoDB transfer behavior',
-    )
+    expect(once).toMatch(/including source revocation\. +\|/)
   })
 
   it('passes custom abbreviations through to the upstream formatter', async () => {

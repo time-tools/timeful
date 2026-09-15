@@ -1,18 +1,6 @@
 name: timeful-development
 
 services:
-  mongo:
-    image: mongo:7
-    restart: unless-stopped
-    volumes:
-      - mongo_data:/data/db
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-
   postgres:
     image: postgres:18.6-bookworm@sha256:7d2695c3aa88e792e8b3b233e7e4adb296a20412c6c0ca361e3edaaacfada108
     restart: unless-stopped
@@ -125,10 +113,7 @@ services:
       MAILJET_LIST_ID: ${MAILJET_LIST_ID?MAILJET_LIST_ID must be declared}
       MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID?MICROSOFT_CLIENT_ID must be declared}
       MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET?MICROSOFT_CLIENT_SECRET must be declared}
-      MONGODB_DATABASE: ${MONGODB_DATABASE:?MONGODB_DATABASE is required}
-      MONGODB_URI: ${MONGODB_URI:?MONGODB_URI is required}
       POSTGRES_APPLICATION_URI: ${POSTGRES_APPLICATION_URI:?POSTGRES_APPLICATION_URI is required}
-      POSTGRES_ANONYMOUS_EVENT_CREATION_ENABLED: ${POSTGRES_ANONYMOUS_EVENT_CREATION_ENABLED:?POSTGRES_ANONYMOUS_EVENT_CREATION_ENABLED is required}
       POSTGRES_CONNECT_TIMEOUT_SECONDS: ${POSTGRES_CONNECT_TIMEOUT_SECONDS:?POSTGRES_CONNECT_TIMEOUT_SECONDS is required}
       POSTGRES_MAX_CONNS: ${POSTGRES_MAX_CONNS:?POSTGRES_MAX_CONNS is required}
       TIMEFUL_EMAIL_ADDRESS: ${TIMEFUL_EMAIL_ADDRESS?TIMEFUL_EMAIL_ADDRESS must be declared}
@@ -140,8 +125,6 @@ services:
       - frontend_dist:/app/frontend/dist:ro
       - server_logs:/app/logs
     depends_on:
-      mongo:
-        condition: service_healthy
       postgres-migrate:
         condition: service_completed_successfully
       frontend-artifacts:
@@ -155,7 +138,6 @@ services:
       start_period: 10s
 
 volumes:
-  mongo_data:
   postgres_data:
   frontend_dist:
   server_logs:

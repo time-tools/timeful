@@ -1,5 +1,4 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue"
-import ObjectID from "bson-objectid"
 import { getTimeBlock, put, splitTimeBlocksByDay } from "@/utils"
 import { useMainStore } from "@/stores/main"
 import { Temporal } from "temporal-polyfill"
@@ -17,6 +16,17 @@ export interface UseSignUpFormOptions {
   days: ComputedRef<DayItem[]>
   isOwner: ComputedRef<boolean>
   dragStart: Ref<RowCol | null>
+}
+
+// Local sign-up block identities key unsaved blocks in the editing session.
+// The server owns stored block identities, so a local key deliberately stays
+// outside the canonical UUID form and is replaced with the stored identity
+// when the event is reloaded.
+let nextLocalSignUpBlockId = 0
+
+const mintLocalSignUpBlockId = (): string => {
+  nextLocalSignUpBlockId += 1
+  return `local-signup-block-${String(nextLocalSignUpBlockId)}`
 }
 
 export function useSignUpForm(opts: UseSignUpFormOptions) {
@@ -76,7 +86,7 @@ export function useSignUpForm(opts: UseSignUpFormOptions) {
     const dayItem = opts.days.value[dayIndex]
     const timeBlock = getTimeBlock(dayItem.dateObject, hoursOffset, hoursLength)
     return {
-      _id: ObjectID().toHexString(),
+      _id: mintLocalSignUpBlockId(),
       capacity: 1,
       name: newSignUpBlockName.value,
       startDate: timeBlock.startDate,

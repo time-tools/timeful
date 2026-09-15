@@ -9,7 +9,7 @@ import { settlePage } from "./settle"
 
 export interface CanonicalTimedSeedInput {
   name: string
-  type: "specific_dates" | "weekly" | "group"
+  type: "specific_dates" | "dow" | "group"
   enabledSlots?: string[]
   activeSlots?: string[]
   eventTimezone: string
@@ -33,7 +33,7 @@ export interface CanonicalTimedSeedInput {
 export interface EventApiPayload {
   shortId: string
   name?: string
-  type?: "specific_dates" | "weekly" | "group"
+  type?: "specific_dates" | "dow" | "group"
   dates?: string[]
   times?: string[]
   activeSlots?: string[]
@@ -391,7 +391,7 @@ export async function fetchEventByShortId(
     name: typeof rawEvent.name === "string" ? rawEvent.name : undefined,
     type:
       rawEvent.type === "specific_dates" ||
-      rawEvent.type === "weekly" ||
+      rawEvent.type === "dow" ||
       rawEvent.type === "group"
         ? rawEvent.type
         : undefined,

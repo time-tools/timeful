@@ -4,6 +4,7 @@ package routes
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"math/big"
 	"net/http"
@@ -14,15 +15,12 @@ import (
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"timeful/server/db"
+	"timeful/server/accounts"
 	"timeful/server/errs"
-	"timeful/server/eventsource"
 	"timeful/server/logger"
 	"timeful/server/middleware"
 	"timeful/server/models"
+	pgstore "timeful/server/postgres"
 	"timeful/server/responses"
 	"timeful/server/services/auth"
 	"timeful/server/services/calendar"
@@ -38,7 +36,7 @@ func InitAuth(router *gin.RouterGroup) {
 	authRouter.POST("/sign-in-mobile", signInMobile)
 	authRouter.POST("/sign-out", signOut)
 	authRouter.GET("/status", middleware.AuthRequired(), getStatus)
-	authRouter.POST("/visitor-identities", associatePostgresVisitorIdentities)
+	authRouter.POST("/visitor-identities", associateVisitorIdentities)
 
 	authRouter.POST("/otp/check-email", checkEmail)
 	authRouter.POST("/otp/send", sendOtp)
@@ -59,7 +57,6 @@ func signIn(c *gin.Context) {
 		Scope          string              `json:"scope" binding:"required"`
 		CalendarType   models.CalendarType `json:"calendarType" binding:"required"`
 		TimezoneOffset *int                `json:"timezoneOffset" binding:"required"`
-		EventsToLink   []string            `json:"eventsToLink"`
 	}{}
 	if err := c.BindJSON(&payload); err != nil {
 		return
@@ -71,19 +68,6 @@ func signIn(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.InvalidIdToken})
 		return
-	}
-
-	// Link events to user
-	for _, eventIdString := range payload.EventsToLink {
-		// PostgreSQL events have no account-adoption path in phase one.
-		source, storageID := eventsource.Parse(eventIdString)
-		if source != eventsource.MongoDB {
-			continue
-		}
-		eventId, err := primitive.ObjectIDFromHex(storageID)
-		if err == nil {
-			db.EventsCollection.UpdateOne(context.Background(), bson.M{"_id": eventId, "ownerId": nil}, bson.M{"$set": bson.M{"ownerId": user.Id}})
-		}
 	}
 
 	c.JSON(http.StatusOK, user)
@@ -141,7 +125,7 @@ func signInHelper(c *gin.Context, token auth.TokenResponse, tokenOrigin models.T
 	// Construct calendar auth object
 	calendarAuth := models.OAuth2CalendarAuth{
 		AccessToken:           token.AccessToken,
-		AccessTokenExpireDate: primitive.NewDateTimeFromTime(accessTokenExpireDate),
+		AccessTokenExpireDate: models.NewDateTimeFromTime(accessTokenExpireDate),
 		RefreshToken:          token.RefreshToken,
 		Scope:                 token.Scope,
 	}
@@ -180,17 +164,43 @@ func signInHelper(c *gin.Context, token auth.TokenResponse, tokenOrigin models.T
 
 	primaryAccountKey := utils.GetCalendarAccountKey(email, calendarType)
 
-	// Create user object to create new user or update existing user
-	userData := models.User{
-		Email:     email,
-		FirstName: firstName,
-		LastName:  lastName,
-		Picture:   picture,
+	ctx := context.Background()
 
-		PrimaryAccountKey: &primaryAccountKey,
-
+	// The database is authoritative for account identity and profile. A matching
+	// account is adopted instead of duplicated.
+	account, _, err := accounts.ResolveForSignIn(ctx, accounts.Profile{
+		Email:          email,
+		FirstName:      firstName,
+		LastName:       lastName,
+		Picture:        picture,
 		TimezoneOffset: timezoneOffset,
-		TokenOrigin:    tokenOrigin,
+	})
+	if err != nil {
+		logger.StdErr.Printf("Failed to resolve account for %s: %v", email, err)
+		return models.User{}, err
+	}
+
+	// A custom name set by the user is preserved; otherwise the provider name
+	// wins.
+	if account.HasCustomName == nil || !*account.HasCustomName {
+		account.FirstName = firstName
+		account.LastName = lastName
+	}
+	if picture != "" {
+		account.Picture = picture
+	}
+	account.Email = email
+	account.TimezoneOffset = timezoneOffset
+	if err := accounts.UpdateProfile(ctx, account); err != nil {
+		logger.StdErr.Panicln(err)
+	}
+
+	// Calendar connections, tokens, sub-calendars, and preferences are
+	// authoritative and resolve through the accounts boundary.
+	integrations, err := accounts.LoadCalendarIntegrations(ctx, account.PlatformIdentityID)
+	if err != nil {
+		logger.StdErr.Printf("Failed to load calendar integrations for %s: %v", account.PlatformIdentityID, err)
+		return models.User{}, err
 	}
 
 	calendarAccount := models.CalendarAccount{
@@ -203,88 +213,31 @@ func signInHelper(c *gin.Context, token auth.TokenResponse, tokenOrigin models.T
 	}
 	canonicalKey := utils.GetCalendarAccountKey(email, calendarType)
 
-	var userId primitive.ObjectID
-	existing := db.GetUserByEmail(email)
-	// If user doesn't exist, create a new user
-	if existing == nil {
-		// Fetch subcalendars
+	// Reuse subcalendars already stored for this connection when present.
+	var oldSubCalendars *map[string]models.SubCalendar
+	if existingAcc, ok := integrations.Accounts[canonicalKey]; ok && existingAcc.SubCalendars != nil {
+		oldSubCalendars = existingAcc.SubCalendars
+	}
+	if oldSubCalendars != nil {
+		calendarAccount.SubCalendars = oldSubCalendars
+	} else {
 		subCalendars, err := calendar.GetCalendarProvider(calendarAccount).GetCalendarList()
 		if err == nil {
 			calendarAccount.SubCalendars = &subCalendars
 		}
+	}
 
-		// Set calendar accounts
-		userData.CalendarAccounts = map[string]models.CalendarAccount{
-			canonicalKey: calendarAccount,
-		}
-
-		// Create user
-		res, err := db.UsersCollection.InsertOne(context.Background(), userData)
-		if err != nil {
-			logger.StdErr.Panicln(err)
-		}
-
-		userId = res.InsertedID.(primitive.ObjectID)
-
-		// slackbot.SendTextMessage(fmt.Sprintf(":wave: %s %s (%s) has joined Timeful!", firstName, lastName, email))
-	} else {
-		user := existing
-		userId = user.Id
-
-		// If user has custom name, do not override first name and last name
-		if user.HasCustomName != nil && *user.HasCustomName {
-			userData.FirstName = ""
-			userData.LastName = ""
-		}
-
-		legacyKey := utils.ActualCalendarAccountMapKey(user, email, calendarType)
-
-		var oldSubCalendars *map[string]models.SubCalendar
-		if legacyKey != "" {
-			if oldAcc, ok := user.CalendarAccounts[legacyKey]; ok && oldAcc.SubCalendars != nil {
-				oldSubCalendars = oldAcc.SubCalendars
-			}
-		} else if user.CalendarAccounts != nil {
-			if existingAcc, ok := user.CalendarAccounts[canonicalKey]; ok && existingAcc.SubCalendars != nil {
-				oldSubCalendars = existingAcc.SubCalendars
-			}
-		}
-
-		var calAccounts map[string]models.CalendarAccount
-		if user.CalendarAccounts == nil {
-			calAccounts = make(map[string]models.CalendarAccount)
-		} else {
-			calAccounts = make(map[string]models.CalendarAccount, len(user.CalendarAccounts))
-			for k, v := range user.CalendarAccounts {
-				calAccounts[k] = v
-			}
-		}
-		if legacyKey != "" && legacyKey != canonicalKey {
-			delete(calAccounts, legacyKey)
-		}
-
-		if oldSubCalendars != nil {
-			calendarAccount.SubCalendars = oldSubCalendars
-		} else {
-			subCalendars, err := calendar.GetCalendarProvider(calendarAccount).GetCalendarList()
-			if err == nil {
-				calendarAccount.SubCalendars = &subCalendars
-			}
-		}
-
-		calAccounts[canonicalKey] = calendarAccount
-		userData.CalendarAccounts = calAccounts
-		userData.Email = email
-
-		// Update user if exists
-		_, err := db.UsersCollection.UpdateByID(
-			context.Background(),
-			userId,
-			bson.M{"$set": userData},
-		)
-		if err != nil {
-			logger.StdErr.Panicln(err)
-		}
+	if err := accounts.SaveCalendarAccount(ctx, account.PlatformIdentityID, canonicalKey, calendarAccount); err != nil {
+		logger.StdErr.Printf("Failed to save calendar connection for %s: %v", account.PlatformIdentityID, err)
+		return models.User{}, err
+	}
+	if err := accounts.SaveCalendarPreferences(ctx, account.PlatformIdentityID, accounts.CalendarPreferences{
+		PrimaryAccountKey: &primaryAccountKey,
+		TokenOrigin:       tokenOrigin,
+		CalendarOptions:   integrations.CalendarOptions,
+	}); err != nil {
+		logger.StdErr.Printf("Failed to save calendar preferences for %s: %v", account.PlatformIdentityID, err)
+		return models.User{}, err
 	}
 
 	if exists, userId := listmonk.DoesUserExist(email); exists {
@@ -295,11 +248,15 @@ func signInHelper(c *gin.Context, token auth.TokenResponse, tokenOrigin models.T
 
 	// Set session variables
 	session := sessions.Default(c)
-	session.Set("userId", userId.Hex())
+	session.Set("userId", account.PlatformIdentityID)
 	session.Save()
 
-	userData.Id = userId
-	return userData, nil
+	integrations, err = accounts.LoadCalendarIntegrations(ctx, account.PlatformIdentityID)
+	if err != nil {
+		logger.StdErr.Printf("Failed to reload calendar integrations for %s: %v", account.PlatformIdentityID, err)
+		return models.User{}, err
+	}
+	return *accounts.CalendarUser(account, integrations), nil
 }
 
 // @Summary Signs user out
@@ -352,7 +309,13 @@ func checkEmail(c *gin.Context) {
 	}
 
 	email := strings.ToLower(strings.TrimSpace(payload.Email))
-	isNewUser := db.GetUserByEmail(email) == nil
+
+	isNewUser, err := accounts.IsNewUser(email)
+	if err != nil {
+		logger.StdErr.Printf("failed to check account existence for %s: %v", email, err)
+		c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed to check account existence"})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{"isNewUser": isNewUser})
 }
@@ -389,25 +352,28 @@ func sendOtp(c *gin.Context) {
 		return
 	}
 
-	// Delete any existing OTP codes for this email
-	db.OtpCodesCollection.DeleteMany(context.Background(), bson.M{"email": email})
-
-	code := generateOtpCode()
-	otpDoc := models.OtpCode{
-		Email:     email,
-		Code:      code,
-		ExpiresAt: time.Now().Add(10 * time.Minute),
-		Attempts:  0,
-	}
-
-	_, err = db.OtpCodesCollection.InsertOne(context.Background(), otpDoc)
+	// Delete any existing OTP codes for this email and sweep expired challenges.
+	repository, err := pgstore.DefaultRepository()
 	if err != nil {
 		logger.StdErr.Println(err)
 		c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed to store the verification code"})
 		return
 	}
+	ctx := context.Background()
+	if _, err := repository.DeleteExpiredOtpChallenges(ctx); err != nil {
+		logger.StdErr.Println(err)
+		c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed to store the verification code"})
+		return
+	}
 
-	listmonk.SendEmailAddSubscriberIfNotExist(email, otpTemplateId, bson.M{
+	code := generateOtpCode()
+	if err := repository.CreateOtpChallenge(ctx, email, code, time.Now().Add(10*time.Minute)); err != nil {
+		logger.StdErr.Println(err)
+		c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed to store the verification code"})
+		return
+	}
+
+	listmonk.SendEmailAddSubscriberIfNotExist(email, otpTemplateId, map[string]any{
 		"code": code,
 	}, false, fromAddress)
 
@@ -435,76 +401,57 @@ func verifyOtp(c *gin.Context) {
 
 	email := strings.ToLower(strings.TrimSpace(payload.Email))
 
-	// Find the OTP document
-	var otpDoc models.OtpCode
-	err := db.OtpCodesCollection.FindOne(context.Background(), bson.M{
-		"email":     email,
-		"expiresAt": bson.M{"$gt": time.Now()},
-	}).Decode(&otpDoc)
-
-	if err == mongo.ErrNoDocuments {
+	// Verify the challenge. Attempts are incremented atomically, and
+	// the challenge is deleted on success or lockout.
+	repository, err := pgstore.DefaultRepository()
+	if err != nil {
+		logger.StdErr.Panicln(err)
+	}
+	switch err := repository.VerifyOtpChallenge(context.Background(), email, payload.Code); {
+	case errors.Is(err, pgstore.ErrOtpExpired):
 		c.JSON(http.StatusBadRequest, responses.Error{Error: errs.OtpExpired})
 		return
-	} else if err != nil {
+	case errors.Is(err, pgstore.ErrOtpTooManyAttempts):
+		c.JSON(http.StatusTooManyRequests, responses.Error{Error: errs.OtpTooManyAttempts})
+		return
+	case errors.Is(err, pgstore.ErrOtpInvalidCode):
+		c.JSON(http.StatusBadRequest, responses.Error{Error: errs.OtpInvalidCode})
+		return
+	case err != nil:
 		logger.StdErr.Panicln(err)
 	}
 
-	// Rate-limit: max 5 attempts per code
-	if otpDoc.Attempts >= 5 {
-		db.OtpCodesCollection.DeleteOne(context.Background(), bson.M{"_id": otpDoc.Id})
-		c.JSON(http.StatusTooManyRequests, responses.Error{Error: errs.OtpTooManyAttempts})
-		return
-	}
+	firstName := strings.TrimSpace(payload.FirstName)
+	lastName := strings.TrimSpace(payload.LastName)
 
-	// Increment attempts
-	db.OtpCodesCollection.UpdateByID(context.Background(), otpDoc.Id, bson.M{
-		"$inc": bson.M{"attempts": 1},
+	// Successful authentication resolves an authoritative account.
+	ctx := context.Background()
+	account, created, err := accounts.ResolveForSignIn(ctx, accounts.Profile{
+		Email:          email,
+		FirstName:      firstName,
+		LastName:       lastName,
+		TimezoneOffset: *payload.TimezoneOffset,
 	})
-
-	if otpDoc.Code != payload.Code {
-		c.JSON(http.StatusBadRequest, responses.Error{Error: errs.OtpInvalidCode})
-		return
+	if err != nil {
+		logger.StdErr.Panicln(err)
 	}
 
-	// OTP verified — delete it
-	db.OtpCodesCollection.DeleteOne(context.Background(), bson.M{"_id": otpDoc.Id})
-
-	// Find or create user
-	var userId primitive.ObjectID
-	existing := db.GetUserByEmail(email)
-
-	if existing == nil {
-		firstName := strings.TrimSpace(payload.FirstName)
-		lastName := strings.TrimSpace(payload.LastName)
-
-		userData := models.User{
-			Email:          email,
-			FirstName:      firstName,
-			LastName:       lastName,
-			TimezoneOffset: *payload.TimezoneOffset,
-			TokenOrigin:    models.WEB,
-		}
-
-		res, err := db.UsersCollection.InsertOne(context.Background(), userData)
-		if err != nil {
-			logger.StdErr.Panicln(err)
-		}
-		userId = res.InsertedID.(primitive.ObjectID)
-
+	if created {
 		if exists, listmonkUserId := listmonk.DoesUserExist(email); exists {
 			listmonk.AddUserToListmonk(email, firstName, lastName, "", listmonkUserId, true)
 		} else {
 			listmonk.AddUserToListmonk(email, firstName, lastName, "", nil, true)
 		}
-	} else {
-		userId = existing.Id
 	}
 
 	// Set session — same mechanism as OAuth sign-in
 	session := sessions.Default(c)
-	session.Set("userId", userId.Hex())
+	session.Set("userId", account.PlatformIdentityID)
 	session.Save()
 
-	user := db.GetUserById(userId.Hex())
+	user, err := accounts.LoadSessionUser(ctx, account)
+	if err != nil {
+		logger.StdErr.Panicln(err)
+	}
 	c.JSON(http.StatusOK, user)
 }

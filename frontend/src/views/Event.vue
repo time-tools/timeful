@@ -230,7 +230,7 @@
                     </v-btn>
                   </div>
                   <div
-                    v-else-if="
+                    v-if="
                       !isPhone &&
                       (!isSignUp || canEditAvailability) &&
                       !isReadOnlyEvent
@@ -1284,6 +1284,10 @@ const canEditMetadata = computed(() =>
 )
 const userHasResponded = computed(() => {
   const ev = loader.event.value
+  // The API serves account responses under their opaque public identifiers, so
+  // the server-derived flag is authoritative; the response-map key check remains
+  // as a fallback when the event carries no server-derived flag.
+  if (ev?.hasResponded) return true
   return Boolean(
     authUser.value?._id && ev?.responses && authUser.value._id in ev.responses,
   )
@@ -1375,7 +1379,11 @@ const showSecondaryAddAvailabilityAction = computed(() => {
   )
 })
 const showScheduleEventButton = computed(
-  () => !isEditing.value && !isSignUp.value && !isReadOnlyEvent.value,
+  () =>
+    canEditMetadata.value &&
+    !isEditing.value &&
+    !isSignUp.value &&
+    !isReadOnlyEvent.value,
 )
 const desktopScheduleEventButtonClass = computed(() =>
   numResponses.value > 0 ? "tw:w-full" : "desktop-event-header-single-column",
@@ -1914,9 +1922,9 @@ async function setSlots(e: MessageEvent<PluginMessageData>) {
   let guestEmail = ""
   let visitorResponseId: string | undefined
   if (ev.eventVisitorId) {
-    // PostgreSQL events own responses through Event Visitor Identities, so the
+    // Events with an Event Visitor Identity own responses through it, so the
     // plugin acts on the browser visitor's selected or named response instead
-    // of MongoDB guest credentials.
+    // of guest credentials.
     const responses = ev.responses ?? {}
     const namedResponseId = hasGuestName
       ? Object.keys(responses).find(

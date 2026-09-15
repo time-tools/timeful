@@ -5,7 +5,6 @@ on:
     paths:
       - "server/**"
       - "postgres/**"
-      - "mongo/**"
       - "compose*.yaml"
       - ".env.test.example"
       - ".github/workflows/backend-ci.yml"
@@ -15,7 +14,6 @@ on:
     paths:
       - "server/**"
       - "postgres/**"
-      - "mongo/**"
       - "compose*.yaml"
       - ".env.test.example"
       - ".github/workflows/backend-ci.yml"
@@ -37,7 +35,7 @@ jobs:
       - name: Configure isolated test environment
         run: cp .env.test.example .env.test
 
-      - name: Validate dual-database Compose configuration
+      - name: Validate PostgreSQL-only Compose configuration
         run: docker compose --env-file .env.test -f compose.yaml -f compose.test.yaml config --quiet
 
       # Hosted runners are ephemeral, so the default docker-driver BuildKit
@@ -45,10 +43,11 @@ jobs:
       # with a docker-container builder backed by the GitHub Actions cache,
       # tagged with Compose's computed image name (<project>-<service>) so
       # the later `compose up` and `compose run` steps use it as-is instead
-      # of rebuilding. The testbase target bakes no RUN layer at all (the test
-      # containers mount a cached GOMODCACHE volume instead), so the gha cache
-      # only carries small blobs; buildx gha re-uploads every layer blob on
-      # each run, so large layers would make cache I/O the bottleneck.
+      # of rebuilding. The testbase-pg target adds only the small
+      # PostgreSQL-client layer needed by the backup/restore rehearsal (the
+      # test containers mount a cached GOMODCACHE volume instead), so the gha
+      # cache only carries small blobs; buildx gha re-uploads every layer blob
+      # on each run, so large layers would make cache I/O the bottleneck.
       - name: Set up Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
@@ -56,7 +55,7 @@ jobs:
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: ./server
-          target: testbase
+          target: testbase-pg
           tags: timeful-test-server-route-test
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -132,8 +131,8 @@ jobs:
       # No `--build`: both buildable services above already have their Compose
       # image names present in the docker daemon (loaded from the Buildx and
       # tarball steps), so Compose uses them as-is.
-      - name: Start MongoDB and PostgreSQL test services
-        run: docker compose --env-file .env.test -f compose.yaml -f compose.test.yaml up -d mongo-test postgres-test postgres-test-bootstrap postgres-test-migrate
+      - name: Start PostgreSQL test services
+        run: docker compose --env-file .env.test -f compose.yaml -f compose.test.yaml up -d postgres-test postgres-test-bootstrap postgres-test-migrate
 
       # Migration completion is enforced by server-route-test's depends_on
       # condition (service_completed_successfully) when compose run starts it.

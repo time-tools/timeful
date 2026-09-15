@@ -42,6 +42,8 @@ updated_date: 2026-05-05
 - `status` is one of `proposed`, `accepted`, `deprecated`, `superseded`, or
   `rejected`.
   A superseded ADR also declares `superseded_by: ADR-###`.
+- Inactive statuses are `deprecated`, `superseded`, and `rejected`.
+  An inactive ADR carries a status banner immediately after the H1, appears in the inactive table in [`../README.md`](../README.md), and stays out of the repository knowledge graph through `adr/.graphifyignore`.
 - `created_date` is the immutable date the decision record was created.
 - `updated_date` is the date of its most recent material revision.
   Do not

@@ -4,6 +4,7 @@ title: Enforce FR-118 past-date rules in the event editor date picker
 status: To Do
 assignee: []
 created_date: '2026-09-01 10:34'
+updated_date: '2026-09-13 15:22'
 labels:
   - date-picker
   - temporal
@@ -47,7 +48,7 @@ Known verification risks:
 - [ ] #3 While editing, a date before the current date in the Event Timezone cannot be picked by click or by drag-select
 - [ ] #4 The current-date-in-a-timezone derivation uses one centralized Temporal-based helper, not ad hoc conversions at call sites
 - [ ] #5 Unit tests cover the earliest-selectable-date derivation for create vs edit mode and for timezone-change reactivity
-- [ ] #6 An e2e regression spec under frontend/e2e covers keeping existing past dates while editing
+- [ ] #6 An e2e regression spec under e2e/ covers keeping existing past dates while editing
 - [ ] #7 npm run lint, npm run typecheck, npm run build, and npm run test:unit pass in frontend/
 <!-- AC:END -->
 
@@ -58,3 +59,13 @@ Known verification risks:
 - [ ] #3 All required e2e tests pass. Documentation-only changes are exempt unless the user requests e2e tests
 - [ ] #4 Changed Markdown files are formatted with npm run format:markdown
 <!-- DOD:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: opencode
+created: 2026-09-13 15:22
+---
+2026-09-13: updated paths for the root e2e package move (TASK-0164); repo-tracked browser specs now live under e2e/.
+---
+<!-- COMMENTS:END -->

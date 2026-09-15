@@ -1,15 +1,6 @@
-import { UTC } from "@/constants"
 import { Temporal } from "temporal-polyfill"
 
 import type { ZonedDateTime } from "./temporalPrimitives"
-
-/** Returns a Temporal.ZonedDateTime from the given mongodb objectId. */
-export const dateFromObjectId = (objectId: string): Temporal.ZonedDateTime => {
-  const timestamp = parseInt(objectId.substring(0, 8), 16) * 1000
-  return Temporal.Instant.fromEpochMilliseconds(timestamp).toZonedDateTimeISO(
-    UTC,
-  )
-}
 
 /** Converts a timestamp from a specified timezone to a ZonedDateTime on that timezone. */
 export const convertToUTC = (

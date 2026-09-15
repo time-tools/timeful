@@ -19,7 +19,7 @@ Original implementation: <https://github.com/schej-it/timeful.app>
 
 <!-- Hosted version of the site: <https://timeful.fun> -->
 
-Built with [Vue 3](https://github.com/vuejs/core), [MongoDB](https://github.com/mongodb/mongo), [Go](https://github.com/golang/go), and [TailwindCSS](https://github.com/tailwindlabs/tailwindcss)
+Built with [Vue 3](https://github.com/vuejs/core), [PostgreSQL](https://www.postgresql.org/), [Go](https://github.com/golang/go), and [TailwindCSS](https://github.com/tailwindlabs/tailwindcss)
 
 ## Demo
 

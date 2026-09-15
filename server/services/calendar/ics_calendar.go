@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/emersion/go-ical"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"timeful/server/models"
 	"timeful/server/utils"
 )
@@ -105,8 +104,8 @@ func (cal *ICSCalendar) GetCalendarEvents(calendarId string, timeMin time.Time, 
 			Id:         uidStr,
 			CalendarId: calendarId,
 			Summary:    summaryStr,
-			StartDate:  primitive.NewDateTimeFromTime(startTime),
-			EndDate:    primitive.NewDateTimeFromTime(endTime),
+			StartDate:  models.NewDateTimeFromTime(startTime),
+			EndDate:    models.NewDateTimeFromTime(endTime),
 			Free:       free,
 			AllDay:     allDay,
 		})

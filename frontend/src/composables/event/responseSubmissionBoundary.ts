@@ -53,11 +53,9 @@ export interface GuestResponseMutationResult {
   guestCredentials?: GuestResponseCredentials
 }
 
-export interface GroupResponseSubmissionPayload {
-  guest?: false
+export interface GroupResponseSubmissionPayload extends GroupAvailabilityPayloadBase {
   manualAvailability: Record<string, number[]>
   calendarOptions: RawCalendarOptions
-  [key: string]: unknown
 }
 
 export interface SignUpBlockResponseSubmissionPayload {
@@ -187,6 +185,66 @@ export function encodeVisitorResponseSubmission(input: {
     responseId: input.responseId,
     createResponse: !input.responseId,
     name: validateGuestName(input.name).normalizedName,
+    email: input.email,
+  }
+}
+
+export interface VisitorGroupResponseSubmissionPayload
+  extends
+    ReturnType<typeof encodeVisitorResponseSubmission>,
+    GroupAvailabilityPayloadBase {
+  manualAvailability: Record<string, number[]>
+  calendarOptions: RawCalendarOptions
+}
+
+// encodeVisitorGroupResponseSubmission keeps the explicit-selection visitor
+// contract and adds the availability-group manual availability and
+// calendar-derived fields so group responses persist the same data as the
+// non-visitor group path.
+export function encodeVisitorGroupResponseSubmission(input: {
+  availability: Temporal.ZonedDateTime[]
+  ifNeeded: Temporal.ZonedDateTime[]
+  responseId?: string
+  name: string
+  email?: string
+  sharedCalendarAccounts: SharedCalendarAccounts
+  manualAvailability: ZdtMap<ZdtSet>
+  calendarOptions: CalendarOptions
+}): VisitorGroupResponseSubmissionPayload {
+  const groupPayload = toGroupResponseSubmissionPayload({
+    sharedCalendarAccounts: input.sharedCalendarAccounts,
+    manualAvailability: input.manualAvailability,
+    calendarOptions: input.calendarOptions,
+  })
+  return {
+    ...encodeVisitorResponseSubmission(input),
+    ...groupPayload,
+  }
+}
+
+export interface VisitorSignUpResponseSubmissionPayload {
+  responseId?: string
+  createResponse: boolean
+  signUpBlockIds: string[]
+  name?: string
+  email?: string
+}
+
+// encodeVisitorSignUpResponseSubmission maps a sign-up block selection onto the
+// explicit-selection visitor contract: a new response carries
+// createResponse=true, and any later submission carries the target responseId so
+// the server edits instead of overwriting by name.
+export function encodeVisitorSignUpResponseSubmission(input: {
+  responseId?: string
+  signUpBlockId: string
+  name?: string
+  email?: string
+}): VisitorSignUpResponseSubmissionPayload {
+  return {
+    responseId: input.responseId,
+    createResponse: !input.responseId,
+    signUpBlockIds: [input.signUpBlockId],
+    name: input.name ? validateGuestName(input.name).normalizedName : undefined,
     email: input.email,
   }
 }

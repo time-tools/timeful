@@ -144,7 +144,10 @@ describe("EditingAvailabilityAs", () => {
   it("keeps a non-required invalid name silent until blur", async () => {
     const wrapper = mountIndicator(
       { editableGuestName: "Dana" },
-      { editGuestNameDialog: true, newGuestName: "a".repeat(24) },
+      {
+        editGuestNameDialog: true,
+        newGuestName: "0197c9a2-6c3f-7b8e-9f01-2f3a4b5c6d7e",
+      },
     )
 
     const field = wrapper.get("v-text-field-stub")
@@ -247,7 +250,10 @@ describe("EditingAvailabilityAs", () => {
   it("clears the save validation error when the dialog is reopened", async () => {
     const wrapper = mountIndicator(
       { editableGuestName: "Dana" },
-      { editGuestNameDialog: true, newGuestName: "a".repeat(24) },
+      {
+        editGuestNameDialog: true,
+        newGuestName: "0197c9a2-6c3f-7b8e-9f01-2f3a4b5c6d7e",
+      },
     )
 
     await getDialogButton(wrapper, "Save").trigger("click")

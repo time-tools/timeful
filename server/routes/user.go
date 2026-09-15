@@ -2,22 +2,23 @@
 package routes
 
 import (
-	"context"
+	"encoding/json"
+	"errors"
+	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"timeful/server/db"
+	"github.com/jackc/pgx/v5"
+	"timeful/server/accounts"
 	"timeful/server/errs"
 	"timeful/server/eventsource"
 	"timeful/server/logger"
 	"timeful/server/middleware"
 	"timeful/server/models"
+	pgstore "timeful/server/postgres"
 	"timeful/server/responses"
 	"timeful/server/services/auth"
 	"timeful/server/services/calendar"
@@ -56,11 +57,21 @@ func getProfile(c *gin.Context) {
 	userInterface, _ := c.Get("authUser")
 	user := userInterface.(*models.User)
 
-	// Get number of events created this month
-	eventsCreatedThisMonth := db.GetEventsCreatedThisMonth(user.Id)
-	user.NumEventsCreated = eventsCreatedThisMonth
-
-	db.UpdateDailyUserLog(user)
+	// The usage counter is authoritative.
+	account := utils.GetAuthAccount(c)
+	if account == nil {
+		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
+		return
+	}
+	repository, err := pgstore.DefaultRepository()
+	if err != nil {
+		logger.StdErr.Panicln(err)
+	}
+	// Sign-in activity is recorded in the daily log using the
+	// authoritative account identifier and timezone offset.
+	if err := repository.RecordDailyUserLogMembership(c.Request.Context(), account.PlatformIdentityID, account.TimezoneOffset); err != nil {
+		logger.StdErr.Panicln(err)
+	}
 
 	c.JSON(http.StatusOK, user)
 }
@@ -81,12 +92,17 @@ func updateName(c *gin.Context) {
 		return
 	}
 
-	authUser := utils.GetAuthUser(c)
+	account := utils.GetAuthAccount(c)
+	if account == nil {
+		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
+		return
+	}
+	account.FirstName = payload.FirstName
+	account.LastName = payload.LastName
+	account.HasCustomName = utils.TruePtr()
 
-	_, err := db.UsersCollection.UpdateByID(context.Background(), authUser.Id, bson.M{
-		"$set": bson.M{"firstName": payload.FirstName, "lastName": payload.LastName, "hasCustomName": true},
-	})
-	if err != nil {
+	// The profile is authoritative; this path does not write it.
+	if err := accounts.UpdateProfile(c.Request.Context(), account); err != nil {
 		logger.StdErr.Panicln(err)
 	}
 
@@ -134,11 +150,17 @@ func updateCalendarOptions(c *gin.Context) {
 		authUser.CalendarOptions.WorkingHours = *payload.WorkingHours
 	}
 
-	// Update database
-	_, err := db.UsersCollection.UpdateByID(context.Background(), authUser.Id, bson.M{
-		"$set": bson.M{"calendarOptions": authUser.CalendarOptions},
-	})
-	if err != nil {
+	// Calendar preferences are authoritative.
+	authAccount := utils.GetAuthAccount(c)
+	if authAccount == nil {
+		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
+		return
+	}
+	if err := accounts.SaveCalendarPreferences(c.Request.Context(), authAccount.PlatformIdentityID, accounts.CalendarPreferences{
+		PrimaryAccountKey: authUser.PrimaryAccountKey,
+		TokenOrigin:       authUser.TokenOrigin,
+		CalendarOptions:   authUser.CalendarOptions,
+	}); err != nil {
 		logger.StdErr.Panicln(err)
 	}
 
@@ -155,83 +177,61 @@ func getEvents(c *gin.Context) {
 	user := utils.GetAuthUser(c)
 	userId := user.Id
 
-	// Get the events associated with the current user
-	events := make([]models.Event, 0)
-	opts := options.Find().SetSort(bson.M{"_id": -1})
-
-	// Get all the event ids that the user has responded to
-	cursor, err := db.EventResponsesCollection.Find(context.Background(), bson.M{"userId": userId.Hex()})
-	if err != nil {
-		logger.StdErr.Panicln(err)
+	repository := defaultRepository(c)
+	if repository == nil {
+		return
 	}
-	defer cursor.Close(context.Background())
-	eventIds := make([]primitive.ObjectID, 0)
-	for cursor.Next(context.Background()) {
-		var eventResponse models.EventResponse
-		if err := cursor.Decode(&eventResponse); err != nil {
+	dashboardEvents, err := repository.ListDashboardEvents(c.Request.Context(), userId.String(), user.Email)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed-to-load-events"})
+		return
+	}
+	result := make([]any, 0, len(dashboardEvents))
+	for _, item := range dashboardEvents {
+		payload, err := dashboardEvent(item.Event, item.Owned, userId.String(), item.Responded && item.Member)
+		if err != nil {
 			logger.StdErr.Panicln(err)
 		}
-		eventIds = append(eventIds, eventResponse.EventId)
+		result = append(result, payload)
 	}
 
-	// Get all the event ids that the user is an attendee of
-	cursor, err = db.AttendeesCollection.Find(context.Background(), bson.M{"email": user.Email, "declined": false})
+	c.JSON(http.StatusOK, result)
+}
+
+// dashboardEvent renders an event in the dashboard wire
+// shape. The canonical public identifier is exposed as both _id and shortId so
+// the frontend opens the event without a store prefix and uses it as a stable
+// list key. ownerId carries the account identifier only for owned events;
+// responded-only events stay anonymous. Group entries carry the derived
+// responded state the dashboard sets.
+func dashboardEvent(event pgstore.Event, owned bool, platformIdentityID string, responded bool) (map[string]any, error) {
+	value, err := eventModel(&event)
 	if err != nil {
-		logger.StdErr.Panicln(err)
+		return nil, err
 	}
-	defer cursor.Close(context.Background())
-	hasRespondedEventIds := make(models.Set[primitive.ObjectID])
-	for cursor.Next(context.Background()) {
-		var attendee models.Attendee
-		if err := cursor.Decode(&attendee); err != nil {
-			logger.StdErr.Panicln(err)
-		}
-		if utils.Contains(eventIds, attendee.EventId) {
-			hasRespondedEventIds[attendee.EventId] = struct{}{}
-		} else {
-			eventIds = append(eventIds, attendee.EventId)
-		}
-	}
-
-	cursor, err = db.EventsCollection.Find(
-		context.Background(),
-		bson.M{
-			"$and": bson.A{
-				bson.M{
-					"$or": bson.A{
-						bson.M{"_id": bson.M{"$in": eventIds}},
-						bson.M{"ownerId": userId},
-					},
-				},
-				bson.M{
-					"$or": bson.A{
-						bson.M{"isDeleted": bson.M{"$exists": false}},
-						bson.M{"isDeleted": false},
-					},
-				},
-			},
-		},
-		opts,
-	)
+	value.ResponsesMap = nil
+	value.HasResponded = nil
+	encoded, err := value.MarshalAPIJSON()
 	if err != nil {
-		logger.StdErr.Panicln(err)
+		return nil, err
 	}
-	if err := cursor.All(context.Background(), &events); err != nil {
-		logger.StdErr.Panicln(err)
+	result := map[string]any{}
+	if err := json.Unmarshal(encoded, &result); err != nil {
+		return nil, err
 	}
-
-	for i, event := range events {
-		// Set the hasResponded field for availability groups
-		if event.Type == models.GROUP {
-			if _, ok := hasRespondedEventIds[event.Id]; ok {
-				events[i].HasResponded = utils.TruePtr()
-			} else {
-				events[i].HasResponded = utils.FalsePtr()
-			}
+	result["_id"] = event.ShortID
+	result["shortId"] = event.ShortID
+	ownerID := models.ZeroUUID().String()
+	if owned {
+		if _, ok := models.ParseUUID(platformIdentityID); ok {
+			ownerID = platformIdentityID
 		}
 	}
-
-	c.JSON(http.StatusOK, events)
+	result["ownerId"] = ownerID
+	if event.Type == pgstore.EventTypeGroup {
+		result["hasResponded"] = responded
+	}
+	return result, nil
 }
 
 // @Summary Sets the folder for the specified event
@@ -243,18 +243,8 @@ func getEvents(c *gin.Context) {
 // @Success 200
 // @Router /user/events/{eventId}/set-folder [post]
 func setEventFolder(c *gin.Context) {
-	source, storageID := eventsource.Parse(c.Param("eventId"))
-	if source == eventsource.PostgreSQL {
-		c.JSON(http.StatusUnprocessableEntity, responses.Error{Error: errs.PostgreSQLEventUnsupported})
-		return
-	}
-	if source != eventsource.MongoDB {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID"})
-		return
-	}
-
-	eventId, err := primitive.ObjectIDFromHex(storageID)
-	if err != nil {
+	eventID := c.Param("eventId")
+	if !eventsource.Canonical(eventID) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID"})
 		return
 	}
@@ -268,24 +258,43 @@ func setEventFolder(c *gin.Context) {
 	}
 
 	session := sessions.Default(c)
-	userIdString := session.Get("userId").(string)
-	userId, err := primitive.ObjectIDFromHex(userIdString)
-	if err != nil {
+	platformIdentityID, ok := session.Get("userId").(string)
+	if !ok || platformIdentityID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
 	}
 
-	var folderId *primitive.ObjectID
+	var folderId *string
 	if body.FolderId != nil {
-		id, err := primitive.ObjectIDFromHex(*body.FolderId)
-		if err != nil {
+		if !validFolderID(*body.FolderId) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid folder ID"})
 			return
 		}
-		folderId = &id
+		folderId = body.FolderId
 	}
 
-	err = db.SetEventFolder(eventId, folderId, userId)
+	repository := defaultRepository(c)
+	if repository == nil {
+		return
+	}
+
+	event, err := repository.GetEventByShortID(c.Request.Context(), eventID)
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && event.IsDeleted) {
+		c.JSON(http.StatusNotFound, responses.Error{Error: errs.EventNotFound})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed-to-load-event"})
+		return
+	}
+	eventIDValue := event.ID
+	member := pgstore.FolderMember{EventID: &eventIDValue}
+
+	err = repository.AssignEventToFolder(c.Request.Context(), platformIdentityID, folderId, member)
+	if errors.Is(err, pgx.ErrNoRows) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Folder not found"})
+		return
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add event to folder"})
 		return
@@ -314,23 +323,31 @@ func getCalendars(c *gin.Context) {
 		return
 	}
 
-	var accounts []string
+	var requestedAccounts []string
 	if len(payload.Accounts) == 0 {
-		accounts = make([]string, 0)
+		requestedAccounts = make([]string, 0)
 	} else {
-		accounts = utils.ParseArrayQueryParam(payload.Accounts)
+		requestedAccounts = utils.ParseArrayQueryParam(payload.Accounts)
 	}
-	accountsSet := utils.ArrayToSet(accounts)
+	accountsSet := utils.ArrayToSet(requestedAccounts)
 	user := utils.GetAuthUser(c)
 
 	calendarEvents, editedCalendarAccounts := calendar.GetUsersCalendarEvents(user, accountsSet, payload.TimeMin, payload.TimeMax)
 
 	if editedCalendarAccounts {
-		db.UsersCollection.FindOneAndUpdate(
-			context.Background(),
-			bson.M{"_id": user.Id},
-			bson.M{"$set": user},
-		)
+		// The provider refresh may add or drop sub-calendars; persist the
+		// reconciled set.
+		authAccount := utils.GetAuthAccount(c)
+		if authAccount != nil {
+			for calendarAccountKey, calendarAccount := range user.CalendarAccounts {
+				if calendarAccount.SubCalendars == nil {
+					continue
+				}
+				if err := accounts.SyncCalendarSubCalendars(c.Request.Context(), authAccount.PlatformIdentityID, calendarAccountKey, *calendarAccount.SubCalendars); err != nil {
+					logger.StdErr.Panicln(err)
+				}
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, calendarEvents)
@@ -365,7 +382,7 @@ func addGoogleCalendarAccount(c *gin.Context) {
 
 	calendarAuth := &models.OAuth2CalendarAuth{
 		AccessToken:           tokens.AccessToken,
-		AccessTokenExpireDate: primitive.NewDateTimeFromTime(accessTokenExpireDate),
+		AccessTokenExpireDate: models.NewDateTimeFromTime(accessTokenExpireDate),
 		RefreshToken:          tokens.RefreshToken,
 	}
 
@@ -395,21 +412,18 @@ func addAppleCalendarAccount(c *gin.Context) {
 		return
 	}
 
-	encryptedPassword, err := utils.Encrypt(payload.Password)
-	if err != nil {
-		logger.StdErr.Panicln(err)
-	}
-
+	// The repository encrypts the app password at rest, so the route
+	// passes plaintext and the provider consumes plaintext.
 	auth := &models.AppleCalendarAuth{
 		Email:    payload.Email,
-		Password: encryptedPassword,
+		Password: payload.Password,
 	}
 
 	// Check if the provided credentials are valid
 	calendarProvider := calendar.AppleCalendar{
 		AppleCalendarAuth: *auth,
 	}
-	_, err = calendarProvider.GetCalendarList()
+	_, err := calendarProvider.GetCalendarList()
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.InvalidCredentials})
 		return
@@ -453,7 +467,7 @@ func addOutlookCalendarAccount(c *gin.Context) {
 	// Construct calendarAuth object
 	calendarAuth := &models.OAuth2CalendarAuth{
 		AccessToken:           tokens.AccessToken,
-		AccessTokenExpireDate: primitive.NewDateTimeFromTime(accessTokenExpireDate),
+		AccessTokenExpireDate: models.NewDateTimeFromTime(accessTokenExpireDate),
 		RefreshToken:          tokens.RefreshToken,
 		Scope:                 payload.Scope,
 	}
@@ -553,15 +567,10 @@ func addCalendarAccount(c *gin.Context, args addCalendarAccountArgs) {
 		calendarAccount.ICSCalendarAuth = args.icsCalendarAuth
 	}
 	canonicalKey := utils.GetCalendarAccountKey(ident, args.calendarType)
-	legacyKey := utils.ActualCalendarAccountMapKey(authUser, ident, args.calendarType)
 
 	// Set subcalendars map based on whether calendar account already exists
 	var oldForSub *models.CalendarAccount
-	if legacyKey != "" {
-		if acc, ok := authUser.CalendarAccounts[legacyKey]; ok {
-			oldForSub = &acc
-		}
-	} else if acc, ok := authUser.CalendarAccounts[canonicalKey]; ok {
+	if acc, ok := authUser.CalendarAccounts[canonicalKey]; ok {
 		oldForSub = &acc
 	}
 	if oldForSub != nil && oldForSub.SubCalendars != nil {
@@ -576,17 +585,18 @@ func addCalendarAccount(c *gin.Context, args addCalendarAccountArgs) {
 	if authUser.CalendarAccounts == nil {
 		authUser.CalendarAccounts = make(map[string]models.CalendarAccount)
 	}
-	if legacyKey != "" && legacyKey != canonicalKey {
-		delete(authUser.CalendarAccounts, legacyKey)
-	}
 	authUser.CalendarAccounts[canonicalKey] = calendarAccount
 
-	// Perform mongo update
-	db.UsersCollection.FindOneAndUpdate(
-		context.Background(),
-		bson.M{"_id": authUser.Id},
-		bson.M{"$set": authUser},
-	)
+	// Calendar connections are authoritative; the profile is never
+	// written from this path.
+	authAccount := utils.GetAuthAccount(c)
+	if authAccount == nil {
+		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
+		return
+	}
+	if err := accounts.SaveCalendarAccount(c.Request.Context(), authAccount.PlatformIdentityID, canonicalKey, calendarAccount); err != nil {
+		logger.StdErr.Panicln(err)
+	}
 }
 
 // @Summary Removes an existing calendar account
@@ -605,23 +615,17 @@ func removeCalendarAccount(c *gin.Context) {
 		return
 	}
 
-	authUser := utils.GetAuthUser(c)
-	calendarAccountKey := utils.ActualCalendarAccountMapKey(authUser, payload.Email, payload.CalendarType)
-	if calendarAccountKey == "" {
-		calendarAccountKey = utils.GetCalendarAccountKey(payload.Email, payload.CalendarType)
-	}
+	calendarAccountKey := utils.GetCalendarAccountKey(payload.Email, payload.CalendarType)
 
-	db.UsersCollection.UpdateByID(context.Background(), authUser.Id, bson.A{
-		bson.M{"$set": bson.M{
-			"calendarAccounts": bson.M{
-				"$setField": bson.M{
-					"field": calendarAccountKey,
-					"input": "$$ROOT.calendarAccounts",
-					"value": "$$REMOVE",
-				},
-			},
-		}},
-	})
+	// Calendar connections are authoritative.
+	authAccount := utils.GetAuthAccount(c)
+	if authAccount == nil {
+		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
+		return
+	}
+	if err := accounts.DeleteCalendarAccount(c.Request.Context(), authAccount.PlatformIdentityID, calendarAccountKey); err != nil {
+		logger.StdErr.Panicln(err)
+	}
 
 	c.JSON(http.StatusOK, gin.H{})
 }
@@ -646,20 +650,14 @@ func toggleCalendar(c *gin.Context) {
 
 	// Update enabled status for the specified account
 	authUser := utils.GetAuthUser(c)
-	calendarAccountKey := utils.ActualCalendarAccountMapKey(authUser, payload.Email, payload.CalendarType)
-	if calendarAccountKey == "" {
-		calendarAccountKey = utils.GetCalendarAccountKey(payload.Email, payload.CalendarType)
-	}
-	if account, ok := authUser.CalendarAccounts[calendarAccountKey]; ok {
-		account.Enabled = payload.Enabled
-		authUser.CalendarAccounts[calendarAccountKey] = account
-
-		_, err := db.UsersCollection.UpdateOne(context.Background(), bson.M{
-			"_id": authUser.Id,
-		}, bson.M{
-			"$set": authUser,
-		})
-		if err != nil {
+	calendarAccountKey := utils.GetCalendarAccountKey(payload.Email, payload.CalendarType)
+	if _, ok := authUser.CalendarAccounts[calendarAccountKey]; ok {
+		authAccount := utils.GetAuthAccount(c)
+		if authAccount == nil {
+			c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
+			return
+		}
+		if err := accounts.SetCalendarAccountEnabled(c.Request.Context(), authAccount.PlatformIdentityID, calendarAccountKey, *payload.Enabled); err != nil {
 			logger.StdErr.Panicln(err)
 			return
 		}
@@ -689,22 +687,15 @@ func toggleSubCalendar(c *gin.Context) {
 
 	// Update enabled status for the specified sub calendar
 	authUser := utils.GetAuthUser(c)
-	calendarAccountKey := utils.ActualCalendarAccountMapKey(authUser, payload.Email, payload.CalendarType)
-	if calendarAccountKey == "" {
-		calendarAccountKey = utils.GetCalendarAccountKey(payload.Email, payload.CalendarType)
-	}
-	if account, ok := authUser.CalendarAccounts[calendarAccountKey]; ok {
-		if subCalendar, ok := (*account.SubCalendars)[payload.SubCalendarId]; ok {
-			subCalendar.Enabled = payload.Enabled
-			(*account.SubCalendars)[payload.SubCalendarId] = subCalendar
-			authUser.CalendarAccounts[calendarAccountKey] = account
-
-			_, err := db.UsersCollection.UpdateOne(context.Background(), bson.M{
-				"_id": authUser.Id,
-			}, bson.M{
-				"$set": authUser,
-			})
-			if err != nil {
+	calendarAccountKey := utils.GetCalendarAccountKey(payload.Email, payload.CalendarType)
+	if calendarAccount, ok := authUser.CalendarAccounts[calendarAccountKey]; ok && calendarAccount.SubCalendars != nil {
+		if _, ok := (*calendarAccount.SubCalendars)[payload.SubCalendarId]; ok {
+			authAccount := utils.GetAuthAccount(c)
+			if authAccount == nil {
+				c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
+				return
+			}
+			if err := accounts.SetSubCalendarEnabled(c.Request.Context(), authAccount.PlatformIdentityID, calendarAccountKey, payload.SubCalendarId, *payload.Enabled); err != nil {
 				logger.StdErr.Panicln(err)
 				return
 			}
@@ -742,23 +733,48 @@ func searchContacts(c *gin.Context) {
 }
 
 // @Summary Deletes the currently signed in user
+// @Description Requires the account email address as confirmation. Deletion is permanent and immediate: the account profile, platform identity, calendar connections, and historical user logs are removed, and events the account organized survive with ownership released.
 // @Tags user
+// @Accept json
 // @Produce json
+// @Param payload body object{email=string} true "The account email address that must match the signed-in account"
 // @Success 200
+// @Failure 400 {object} responses.Error "The supplied email does not match the account"
 // @Router /user [delete]
 func deleteUser(c *gin.Context) {
-	userInterface, _ := c.Get("authUser")
-	user := userInterface.(*models.User)
-
-	_, err := db.UsersCollection.DeleteOne(context.Background(), bson.M{"_id": user.Id})
-	if err != nil {
-		logger.StdErr.Panicln(err)
+	payload := struct {
+		Email string `json:"email"`
+	}{}
+	if err := c.BindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, responses.Error{Error: errs.AccountEmailMismatch})
+		return
 	}
 
-	// Delete session
+	account := utils.GetAuthAccount(c)
+	if account == nil {
+		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
+		return
+	}
+	if !strings.EqualFold(strings.TrimSpace(payload.Email), strings.TrimSpace(account.Email)) {
+		c.JSON(http.StatusBadRequest, responses.Error{Error: errs.AccountEmailMismatch})
+		return
+	}
+
+	// The deletion transaction removes the account authority,
+	// platform identity, calendar connections, responses, folders, and
+	// daily-log membership. The session is cleared only after the whole unit
+	// succeeds, so a failure leaves the visitor signed in and able to retry.
+	if err := accounts.DeleteAccount(c.Request.Context(), account.PlatformIdentityID); err != nil {
+		log.Printf("account deletion failed for %s: %v", account.PlatformIdentityID, err)
+		c.JSON(http.StatusInternalServerError, responses.Error{Error: "account-deletion-failed"})
+		return
+	}
+
 	session := sessions.Default(c)
 	session.Delete("userId")
-	session.Save()
+	if err := session.Save(); err != nil {
+		logger.StdErr.Panicln(err)
+	}
 
 	c.JSON(http.StatusOK, gin.H{})
 }

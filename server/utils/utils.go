@@ -2,10 +2,6 @@ package utils
 
 import (
 	"bytes"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,15 +10,14 @@ import (
 	"net/mail"
 	"net/url"
 	"os"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/brianvoe/sjwt"
 	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"timeful/server/logger"
 	"timeful/server/models"
+	pgstore "timeful/server/postgres"
 )
 
 // Returns whether running on production server
@@ -49,20 +44,21 @@ func ParseJWT(jwt string) sjwt.Claims {
 	return claims
 }
 
-func StringToObjectID(s string) primitive.ObjectID {
-	objectID, err := primitive.ObjectIDFromHex(s)
-	if err != nil {
-		logger.StdErr.Panicln(err)
-	}
-
-	return objectID
-}
-
 // Returns the currently signed in user
 func GetAuthUser(c *gin.Context) *models.User {
 	userInterface, _ := c.Get("authUser")
 	user := userInterface.(*models.User)
 	return user
+}
+
+// Returns the authoritative PostgreSQL account for the current session.
+func GetAuthAccount(c *gin.Context) *pgstore.Account {
+	accountInterface, ok := c.Get("authAccount")
+	if !ok {
+		return nil
+	}
+	account, _ := accountInterface.(*pgstore.Account)
+	return account
 }
 
 // Gets the access token expire date from an "expiresIn" int representing the number of seconds
@@ -89,12 +85,6 @@ func GetDateAtTime(date time.Time, timeString string) time.Time {
 		logger.StdErr.Panicln(err)
 	}
 	return newDate
-}
-
-// Escapes regex for a string
-func EscapeRegExp(str string) string {
-	check := regexp.MustCompile(`([.*+?^${}()|[\]\\])`)
-	return check.ReplaceAllString(str, "\\${1}")
 }
 
 // Returns the correct client id given the token origin
@@ -217,7 +207,7 @@ func NormalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
 
-// GetCalendarAccountKey builds the map key for calendarAccounts. Email-like identifiers are lowercased;
+// GetCalendarAccountKey builds the canonical map key for calendarAccounts. Email-like identifiers are trimmed and lowercased;
 // ICS uses the feed label as the first segment and is only trimmed, not lowercased.
 func GetCalendarAccountKey(ident string, calendarType models.CalendarType) string {
 	keyPart := strings.TrimSpace(ident)
@@ -225,98 +215,4 @@ func GetCalendarAccountKey(ident string, calendarType models.CalendarType) strin
 		keyPart = NormalizeEmail(keyPart)
 	}
 	return fmt.Sprintf("%s_%s", keyPart, calendarType)
-}
-
-// ActualCalendarAccountMapKey returns the key already present in user.CalendarAccounts for this
-// account, or "" if none. Prefer this over recomputing from email when reading legacy documents
-// whose map keys used mixed-case emails.
-func ActualCalendarAccountMapKey(user *models.User, ident string, calendarType models.CalendarType) string {
-	if user == nil || user.CalendarAccounts == nil {
-		return ""
-	}
-	canonical := GetCalendarAccountKey(ident, calendarType)
-	if _, ok := user.CalendarAccounts[canonical]; ok {
-		return canonical
-	}
-	for k, acc := range user.CalendarAccounts {
-		if acc.CalendarType != calendarType {
-			continue
-		}
-		if calendarType == models.ICSCalendarType {
-			if strings.TrimSpace(acc.Email) == strings.TrimSpace(ident) {
-				return k
-			}
-			continue
-		}
-		if NormalizeEmail(acc.Email) == NormalizeEmail(ident) {
-			return k
-		}
-	}
-	return ""
-}
-
-func GetPrimaryAccountKey(user *models.User) string {
-	// Before primary account key was added, primary account was always the user's google calendar
-	if user.PrimaryAccountKey == nil {
-		return ActualCalendarAccountMapKey(user, user.Email, models.GoogleCalendarType)
-	}
-
-	return *user.PrimaryAccountKey
-}
-
-func Encode(b []byte) string {
-	return base64.StdEncoding.EncodeToString(b)
-}
-
-func Decode(s string) []byte {
-	data, err := base64.StdEncoding.DecodeString(s)
-	if err != nil {
-		panic(err)
-	}
-	return data
-}
-
-// Encrypts the given text using the given secret
-func Encrypt(text string) (string, error) {
-	block, err := aes.NewCipher([]byte(os.Getenv("ENCRYPTION_KEY")))
-	if err != nil {
-		return "", err
-	}
-	plainText := []byte(text)
-	cipherText := make([]byte, aes.BlockSize+len(plainText))
-	iv := cipherText[:aes.BlockSize]
-	if _, err := rand.Read(iv); err != nil {
-		return "", err
-	}
-	cfb := cipher.NewCFBEncrypter(block, iv)
-	cfb.XORKeyStream(cipherText[aes.BlockSize:], plainText)
-	return Encode(cipherText), nil
-}
-
-// Decrypts the given text using the given secret
-func Decrypt(text string) (string, error) {
-	block, err := aes.NewCipher([]byte(os.Getenv("ENCRYPTION_KEY")))
-	if err != nil {
-		return "", err
-	}
-	cipherText := Decode(text)
-	if len(cipherText) < aes.BlockSize {
-		return "", errors.New("ciphertext too short")
-	}
-	iv := cipherText[:aes.BlockSize]
-	cipherText = cipherText[aes.BlockSize:]
-	cfb := cipher.NewCFBDecrypter(block, iv)
-	plainText := make([]byte, len(cipherText))
-	cfb.XORKeyStream(plainText, cipherText)
-	return string(plainText), nil
-}
-
-// ConvertEventToOldFormat converts an event's responses from ResponsesList to ResponsesMap format
-// for backward compatibility with older code
-func ConvertEventToOldFormat(event *models.Event, eventResponses []models.EventResponse) {
-	responsesMap := make(map[string]*models.Response)
-	for _, resp := range eventResponses {
-		responsesMap[resp.UserId] = resp.Response
-	}
-	event.ResponsesMap = responsesMap
 }

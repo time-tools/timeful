@@ -9,7 +9,7 @@ import {
 } from "./eventOwnership"
 
 describe("event ownership semantics", () => {
-  it("uses server-proven PostgreSQL settings authority and fails closed", () => {
+  it("uses server-proven settings authority and fails closed", () => {
     const event = { ownerId: guestUserId, eventVisitorId: "visitor" }
     expect(canEditEventMetadata(event, null)).toBe(false)
     expect(canEditEventMetadata(event, { _id: guestUserId })).toBe(false)
@@ -44,5 +44,16 @@ describe("event ownership semantics", () => {
     expect(isAnonymousOwnerId(guestUserId)).toBe(true)
     expect(isSignedInOwner(guestEvent, guestUser)).toBe(false)
     expect(canEditEventMetadata(guestEvent, null)).toBe(true)
+  })
+
+  it("uses the all-zero UUID as the guest sentinel and rejects the retired 24-hex form", () => {
+    expect(guestUserId).toBe("00000000-0000-0000-0000-000000000000")
+    expect(isAnonymousOwnerId("00000000-0000-0000-0000-000000000000")).toBe(
+      true,
+    )
+    expect(isAnonymousOwnerId("000000000000000000000000")).toBe(false)
+    expect(getRealOwnerId({ ownerId: "000000000000000000000000" })).toBe(
+      "000000000000000000000000",
+    )
   })
 })

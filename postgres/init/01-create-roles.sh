@@ -17,4 +17,5 @@ CREATE ROLE :"backup_username" LOGIN PASSWORD :'backup_password' NOSUPERUSER NOC
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE, CREATE ON SCHEMA public TO :"migrator_username";
 GRANT CONNECT ON DATABASE :"database_name" TO :"migrator_username", :"application_username", :"backup_username";
+GRANT pg_read_all_data TO :"backup_username" WITH INHERIT TRUE;
 EOSQL

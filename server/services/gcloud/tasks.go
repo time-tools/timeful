@@ -12,10 +12,8 @@ import (
 
 	cloudtasks "cloud.google.com/go/cloudtasks/apiv2beta3"
 	"cloud.google.com/go/cloudtasks/apiv2beta3/cloudtaskspb"
-	"go.mongodb.org/mongo-driver/bson"
 	"google.golang.org/api/option"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"timeful/server/eventsource"
 	"timeful/server/logger"
 	"timeful/server/services/listmonk"
 	"timeful/server/utils"
@@ -105,7 +103,7 @@ func CreateEmailTask(email string, ownerName string, eventName string, eventId s
 
 	// Construct URLs
 	baseUrl := utils.GetBaseUrl()
-	publicEventID := eventsource.MongoPublicID(eventId)
+	publicEventID := eventId
 	eventUrl := fmt.Sprintf("%s/e/%s", baseUrl, publicEventID)
 	finishedUrl := fmt.Sprintf("%s/e/%s/responded?email=%s", baseUrl, publicEventID, email)
 
@@ -113,10 +111,10 @@ func CreateEmailTask(email string, ownerName string, eventName string, eventId s
 
 	for templateId, scheduleTime := range tasksToCreate {
 		// Create JSON object
-		body, err := json.Marshal(bson.M{
+		body, err := json.Marshal(map[string]any{
 			"subscriber_email": email,
 			"template_id":      templateId,
-			"data": bson.M{
+			"data": map[string]any{
 				"ownerName":   ownerName,
 				"eventName":   eventName,
 				"eventUrl":    eventUrl,

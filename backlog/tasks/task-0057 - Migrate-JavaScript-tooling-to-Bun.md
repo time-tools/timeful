@@ -4,6 +4,7 @@ title: Migrate JavaScript tooling to Bun
 status: To Do
 assignee: []
 created_date: '2026-08-24 15:32'
+updated_date: '2026-09-13 15:22'
 labels:
   - tooling
   - bun
@@ -24,7 +25,7 @@ modified_files:
   - AGENTS.md
   - frontend/AGENTS.md
   - frontend/README.md
-  - frontend/e2e/inspect/AGENTS.md
+  - e2e/inspect/AGENTS.md
   - server/routes/README.md
   - docs/environments.md
 priority: medium
@@ -54,3 +55,13 @@ Standardize active JavaScript dependency installation and script execution on Bu
 - [ ] #2 All required unit tests pass. Documentation-only changes are exempt unless the user requests unit tests
 - [ ] #3 All required e2e tests pass. Documentation-only changes are exempt unless the user requests e2e tests
 <!-- DOD:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: opencode
+created: 2026-09-13 15:22
+---
+2026-09-13: updated paths for the root e2e package move (TASK-0164); the inspect guide now lives at e2e/inspect/AGENTS.md.
+---
+<!-- COMMENTS:END -->

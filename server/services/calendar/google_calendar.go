@@ -7,10 +7,10 @@ import (
 	"net/url"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"timeful/server/errs"
 	"timeful/server/logger"
 	"timeful/server/models"
+	"timeful/server/services/providerconfig"
 	"timeful/server/utils"
 )
 
@@ -21,7 +21,7 @@ type GoogleCalendar struct {
 func (calendar GoogleCalendar) GetCalendarList() (map[string]models.SubCalendar, error) {
 	req, _ := http.NewRequest(
 		"GET",
-		"https://www.googleapis.com/calendar/v3/users/me/calendarList?fields=items(id,summary,selected)",
+		fmt.Sprintf("%s/users/me/calendarList?fields=items(id,summary,selected)", providerconfig.GoogleCalendarAPIBaseURL()),
 		nil,
 	)
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", calendar.AccessToken))
@@ -34,9 +34,9 @@ func (calendar GoogleCalendar) GetCalendarList() (map[string]models.SubCalendar,
 	// Define stucts to parse json response
 	type Response struct {
 		Items []struct {
-			Id       string `json:"id" bson:"id,omitempty"`
-			Summary  string `json:"summary" bson:"summary,omitempty"`
-			Selected bool   `json:"selected" bson:"selected,omitempty"`
+			Id       string `json:"id"`
+			Summary  string `json:"summary"`
+			Selected bool   `json:"selected"`
 		} `json:"items"`
 		Error *errs.GoogleAPIError `json:"error"`
 	}
@@ -76,7 +76,7 @@ func (calendar *GoogleCalendar) GetCalendarEvents(calendarId string, timeMin tim
 	max, _ := timeMax.MarshalText()
 	req, _ := http.NewRequest(
 		"GET",
-		fmt.Sprintf("https://www.googleapis.com/calendar/v3/calendars/%s/events?fields=items(id,summary,start,end,transparency,attendees)&timeMin=%s&timeMax=%s&singleEvents=true&eventTypes=default&eventTypes=outOfOffice", url.PathEscape(calendarId), min, max),
+		fmt.Sprintf("%s/calendars/%s/events?fields=items(id,summary,start,end,transparency,attendees)&timeMin=%s&timeMax=%s&singleEvents=true&eventTypes=default&eventTypes=outOfOffice", providerconfig.GoogleCalendarAPIBaseURL(), url.PathEscape(calendarId), min, max),
 		nil,
 	)
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", calendar.AccessToken))
@@ -150,8 +150,8 @@ func (calendar *GoogleCalendar) GetCalendarEvents(calendarId string, timeMin tim
 			Id:         item.Id,
 			CalendarId: calendarId,
 			Summary:    item.Summary,
-			StartDate:  primitive.NewDateTimeFromTime(startDate),
-			EndDate:    primitive.NewDateTimeFromTime(endDate),
+			StartDate:  models.NewDateTimeFromTime(startDate),
+			EndDate:    models.NewDateTimeFromTime(endDate),
 			Free:       free,
 			AllDay:     allDay,
 		}

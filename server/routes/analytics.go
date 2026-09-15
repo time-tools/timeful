@@ -9,8 +9,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"timeful/server/db"
+	"timeful/server/accounts"
+	"timeful/server/logger"
 	"timeful/server/models"
+	pgstore "timeful/server/postgres"
 	"timeful/server/slackbot"
 )
 
@@ -122,28 +124,37 @@ func getMonthlyActiveEventCreators(c *gin.Context) {
 		return
 	}
 
-	var results []int64
+	// Creator analytics read authoritative event storage. Because
+	// migrated and new events live in one store, each event contributes once
+	// and no creator is counted twice across stores.
+	repository, err := pgstore.DefaultRepository()
+	if err != nil {
+		logger.StdErr.Panicln(err)
+	}
 
-	// Loop through each day from startDate to endDate (inclusive)
-	for d := startDate; !d.After(endDate); d = d.AddDate(0, 0, 1) {
-		// Set time to end of the day using the *client's timezone* location
-		year, month, day := d.Date()
-		currentDateEndOfDay := time.Date(year, month, day, 23, 59, 59, 0, location) // Use parsed location
-
-		count, err := db.CountDistinctMonthlyActiveEventCreators(currentDateEndOfDay)
-		if err != nil {
-			// Log the error but continue if possible, or decide to fail the whole request
-			fmt.Printf("Error fetching count for date %s: %v\n", d.Format(layout), err)
-			// Depending on requirements, you might want to return partial results or a full error
-			// For now, let's skip this day's count on error
-			// Alternatively: c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to get count for %s: %s", d.Format(layout), err.Error())}); return
-			continue // Skip this date if there's an error
-		}
-
-		results = append(results, count)
+	// One day-spine query returns the whole range in ascending day order. Unlike
+	// the retired per-day loop, a query failure cannot yield a short partial
+	// array, so the request fails whole instead of silently dropping days.
+	results, err := repository.CountDistinctMonthlyActiveEventCreatorsByDay(c.Request.Context(), analyticsDayEnds(startDate, endDate, location))
+	if err != nil {
+		logger.StdErr.Printf("monthly active event creators failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load monthly active event creators"})
+		return
 	}
 
 	c.JSON(http.StatusOK, results)
+}
+
+// analyticsDayEnds returns the inclusive per-day reporting instants from
+// startDate through endDate at 23:59:59 in the client's fixed offset. The
+// ascending slice is the day spine for one set-based analytics query.
+func analyticsDayEnds(startDate, endDate time.Time, location *time.Location) []time.Time {
+	dayEnds := make([]time.Time, 0)
+	for d := startDate; !d.After(endDate); d = d.AddDate(0, 0, 1) {
+		year, month, day := d.Date()
+		dayEnds = append(dayEnds, time.Date(year, month, day, 23, 59, 59, 0, location))
+	}
+	return dayEnds
 }
 
 // @Summary Gets the daily count of monthly active event creators over a date range with more than x events
@@ -202,21 +213,20 @@ func getMonthlyActiveEventCreatorsWithMoreThanXEvents(c *gin.Context) {
 		return
 	}
 
-	var results []int64
+	// Creator analytics read authoritative event storage, matching
+	// the distinct-creator counting boundary. The whole range is one day-spine
+	// query, and a failure fails the request instead of dropping days.
+	repository, err := pgstore.DefaultRepository()
+	if err != nil {
+		logger.StdErr.Panicln(err)
+	}
 
-	// Loop through each day from startDate to endDate (inclusive)
-	for d := startDate; !d.After(endDate); d = d.AddDate(0, 0, 1) {
-		// Set time to end of the day using the *client's timezone* location
-		year, month, day := d.Date()
-		currentDateEndOfDay := time.Date(year, month, day, 23, 59, 59, 0, location) // Use parsed location
-
-		count, err := db.CountDistinctMonthlyActiveEventCreatorsWithMoreThanXEvents(currentDateEndOfDay, x)
-		if err != nil {
-			fmt.Printf("Error fetching count for date %s: %v\n", d.Format(layout), err)
-			continue // Skip this date if there's an error
-		}
-
-		results = append(results, count)
+	results, err := repository.CountDistinctMonthlyActiveEventCreatorsWithMoreThanXEventsByDay(
+		c.Request.Context(), analyticsDayEnds(startDate, endDate, location), x)
+	if err != nil {
+		logger.StdErr.Printf("monthly active event creators with more than x events failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load monthly active event creators"})
+		return
 	}
 
 	c.JSON(http.StatusOK, results)
@@ -231,6 +241,6 @@ func getMonthlyActiveEventCreatorsWithMoreThanXEvents(c *gin.Context) {
 // @Router /analytics/user/{email} [get]
 func getUserByEmail(c *gin.Context) {
 	email := c.Param("email")
-	user := db.GetUserByEmail(email)
+	user := accounts.UserByEmail(email)
 	c.JSON(http.StatusOK, user)
 }

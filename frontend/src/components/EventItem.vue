@@ -2,7 +2,7 @@
   <router-link
     :to="{
       name: linkTo,
-      params: { [identifier]: `m_${event.shortId ?? event._id}` },
+      params: { [identifier]: eventPublicId(event) },
     }"
   >
     <v-container
@@ -203,7 +203,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue"
 import { storeToRefs } from "pinia"
-import { getDateRangeStringForEvent, _delete, post } from "@/utils"
+import {
+  eventPublicId,
+  getDateRangeStringForEvent,
+  _delete,
+  post,
+} from "@/utils"
 import { eventTypes } from "@/constants"
 import { useMainStore } from "@/stores/main"
 import { posthog } from "@/plugins/posthog"
@@ -256,14 +261,14 @@ const _archiveEvent = () => {
 }
 const moveEventToFolder = (folderId: string | null) => {
   void mainStore.setEventFolder({
-    eventId: props.event._id ?? "",
+    eventId: eventPublicId(props.event),
     folderId,
   })
   showMenu.value = false
 }
 const copyLink = () => {
   void navigator.clipboard.writeText(
-    `${window.location.origin}/e/m_${props.event.shortId ?? props.event._id ?? ""}`,
+    `${window.location.origin}/e/${eventPublicId(props.event)}`,
   )
   mainStore.showInfo("Link copied to clipboard!")
   showMenu.value = false

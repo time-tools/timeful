@@ -1,9 +1,9 @@
 package routes
 
 import (
+	"encoding/json"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"timeful/server/models"
 )
 
@@ -58,7 +58,7 @@ func weeklyFieldsFor(
 // fixture assertions for the same scenario.
 func assertDerivedDomainBounds(
 	t *testing.T,
-	derived []primitive.DateTime,
+	derived []models.DateTime,
 	expectedCount int,
 	sampleIndex int,
 	first string,
@@ -88,7 +88,7 @@ func assertDerivedDomainBounds(
 	}
 }
 
-func assertDerivedDomainContains(t *testing.T, derived []primitive.DateTime, raw string) {
+func assertDerivedDomainContains(t *testing.T, derived []models.DateTime, raw string) {
 	t.Helper()
 	target := timedSlotDateTime(t, raw)
 	for _, slot := range derived {
@@ -101,13 +101,13 @@ func assertDerivedDomainContains(t *testing.T, derived []primitive.DateTime, raw
 
 func TestNormalizeTimedEventPayloadFieldsPreservesExplicitEmptyActiveSlots(t *testing.T) {
 	fields := specificDatesFieldsFor(t, "America/New_York", []string{"2026-01-05"}, "09:00", "10:00", 15)
-	fields.ActiveSlots = []primitive.DateTime{}
+	fields.ActiveSlots = []models.DateTime{}
 	fields, err := normalizeTimedEventPayloadFields(fields)
 	if err != nil {
 		t.Fatalf("normalize timed payload: %v", err)
 	}
 
-	assertPrimitiveDateTimesEqual(t, fields.ActiveSlots, []primitive.DateTime{})
+	assertDateTimesEqual(t, fields.ActiveSlots, []models.DateTime{})
 }
 
 func TestNormalizeTimedEventPayloadFieldsRejectsMissingActiveSlots(t *testing.T) {
@@ -136,7 +136,7 @@ func TestDeriveEnabledSlotsSpecificDatesMatchesFrontendFixture(t *testing.T) {
 
 func TestDeriveEnabledSlotsWeeklyAnchorsOnEarliestActiveInstant(t *testing.T) {
 	fields := weeklyFieldsFor(t, "America/Los_Angeles", []int{1, 3}, true, "09:00", "11:00", 30)
-	fields.ActiveSlots = []primitive.DateTime{
+	fields.ActiveSlots = []models.DateTime{
 		timedSlotDateTime(t, "2026-01-05T17:00:00Z"),
 		timedSlotDateTime(t, "2026-01-05T17:30:00Z"),
 		timedSlotDateTime(t, "2026-01-07T17:00:00Z"),
@@ -158,7 +158,7 @@ func TestDeriveEnabledSlotsWeeklyAnchorsOnEarliestActiveInstant(t *testing.T) {
 
 func TestDeriveEnabledSlotsWeeklySaturdayAnchorUsesFollowingWeek(t *testing.T) {
 	fields := weeklyFieldsFor(t, "America/Los_Angeles", []int{1, 3}, true, "09:00", "10:00", 15)
-	fields.ActiveSlots = []primitive.DateTime{
+	fields.ActiveSlots = []models.DateTime{
 		timedSlotDateTime(t, "2026-01-10T09:00:00Z"),
 	}
 
@@ -179,7 +179,7 @@ func TestDeriveEnabledSlotsWeeklySaturdayAnchorUsesFollowingWeek(t *testing.T) {
 
 func TestDeriveEnabledSlotsStartOnMondayFiltersSundayIndexes(t *testing.T) {
 	fields := weeklyFieldsFor(t, "America/Los_Angeles", []int{0, 1, 7}, true, "09:00", "10:00", 15)
-	fields.ActiveSlots = []primitive.DateTime{
+	fields.ActiveSlots = []models.DateTime{
 		timedSlotDateTime(t, "2026-01-11T09:00:00Z"),
 	}
 	derived, err := deriveEnabledSlots(fields)
@@ -314,7 +314,7 @@ func TestNormalizeTimedEventPayloadFieldsRejectsActiveOutsideDerivedDomain(t *te
 	fields := specificDatesFieldsFor(t, "America/New_York", []string{"2026-01-05"}, "09:00", "10:00", 15)
 	// 00:15 on January 6 New York time is outside the picked January 5 full
 	// civil day.
-	fields.ActiveSlots = []primitive.DateTime{
+	fields.ActiveSlots = []models.DateTime{
 		timedSlotDateTime(t, "2026-01-06T05:15:00Z"),
 	}
 	if _, err := normalizeTimedEventPayloadFields(fields); err != errActiveSlotOutsideEnabled {
@@ -326,10 +326,116 @@ func TestNormalizeTimedEventPayloadFieldsRejectsWeeklyActiveOutsideDerivedDomain
 	fields := weeklyFieldsFor(t, "America/Los_Angeles", []int{1, 3}, true, "09:00", "11:00", 30)
 	// 15:00 on Sunday January 4 Los Angeles time is inside the anchor week
 	// but not a selected day (Mon/Wed).
-	fields.ActiveSlots = []primitive.DateTime{
+	fields.ActiveSlots = []models.DateTime{
 		timedSlotDateTime(t, "2026-01-04T23:00:00Z"),
 	}
 	if _, err := normalizeTimedEventPayloadFields(fields); err != errActiveSlotOutsideEnabled {
 		t.Fatalf("expected %v, got %v", errActiveSlotOutsideEnabled, err)
+	}
+}
+
+func TestDiscardActiveSlotsOutsideEnabledDomainDiscardsOutOfDomainActives(t *testing.T) {
+	fields := specificDatesFieldsFor(t, "UTC", []string{"2026-01-04"}, "23:00", "01:00", 30)
+	fields.ActiveSlots = []models.DateTime{
+		timedSlotDateTime(t, "2026-01-05T07:00:00Z"),
+		timedSlotDateTime(t, "2026-01-05T07:30:00Z"),
+	}
+
+	kept, err := discardActiveSlotsOutsideEnabledDomain(fields)
+	if err != nil {
+		t.Fatalf("discard active slots: %v", err)
+	}
+
+	assertDateTimesEqual(t, kept, []models.DateTime{})
+}
+
+func TestDiscardActiveSlotsOutsideEnabledDomainKeepsInDomainActives(t *testing.T) {
+	fields := specificDatesFieldsFor(t, "UTC", []string{"2026-01-04"}, "23:00", "01:00", 30)
+	fields.ActiveSlots = []models.DateTime{
+		timedSlotDateTime(t, "2026-01-04T18:00:00Z"),
+		timedSlotDateTime(t, "2026-01-05T07:00:00Z"),
+		timedSlotDateTime(t, "2026-01-05T07:30:00Z"),
+	}
+
+	kept, err := discardActiveSlotsOutsideEnabledDomain(fields)
+	if err != nil {
+		t.Fatalf("discard active slots: %v", err)
+	}
+
+	assertDateTimesEqual(t, kept, []models.DateTime{
+		timedSlotDateTime(t, "2026-01-04T18:00:00Z"),
+	})
+}
+
+func TestDiscardActiveSlotsOutsideEnabledDomainWeeklyDropsUnselectedWeekday(t *testing.T) {
+	fields := weeklyFieldsFor(t, "America/Los_Angeles", []int{1, 3}, true, "09:00", "11:00", 30)
+	fields.ActiveSlots = []models.DateTime{
+		timedSlotDateTime(t, "2026-01-05T17:00:00Z"),
+		timedSlotDateTime(t, "2026-01-05T17:30:00Z"),
+		timedSlotDateTime(t, "2026-01-06T17:00:00Z"),
+	}
+
+	kept, err := discardActiveSlotsOutsideEnabledDomain(fields)
+	if err != nil {
+		t.Fatalf("discard active slots: %v", err)
+	}
+
+	// The anchor week runs Monday 2026-01-05 and Wednesday 2026-01-07, so the
+	// Tuesday instant is dropped and the Monday pair survives.
+	assertDateTimesEqual(t, kept, []models.DateTime{
+		timedSlotDateTime(t, "2026-01-05T17:00:00Z"),
+		timedSlotDateTime(t, "2026-01-05T17:30:00Z"),
+	})
+}
+
+func TestFilterResponseSlotsOutsideActiveSetFiltersOnlySlotKeys(t *testing.T) {
+	payload := json.RawMessage(`{"availability":["2026-01-05T14:00:00Z","2026-01-05T14:30:00Z"],"ifNeeded":["2026-01-05T14:15:00Z","2026-01-05T14:30:00Z"],"name":"Maya"}`)
+	active := map[models.DateTime]struct{}{
+		timedSlotDateTime(t, "2026-01-05T14:00:00Z"): {},
+		timedSlotDateTime(t, "2026-01-05T14:15:00Z"): {},
+	}
+
+	next, changed, err := filterResponseSlotsOutsideActiveSet(payload, active)
+	if err != nil {
+		t.Fatalf("filter response slots: %v", err)
+	}
+	if !changed {
+		t.Fatal("expected changed payload")
+	}
+
+	var fields struct {
+		Availability []models.DateTime `json:"availability"`
+		IfNeeded     []models.DateTime `json:"ifNeeded"`
+		Name         string            `json:"name"`
+	}
+	if err := json.Unmarshal(next, &fields); err != nil {
+		t.Fatalf("unmarshal filtered payload: %v", err)
+	}
+	assertDateTimesEqual(t, fields.Availability, []models.DateTime{
+		timedSlotDateTime(t, "2026-01-05T14:00:00Z"),
+	})
+	assertDateTimesEqual(t, fields.IfNeeded, []models.DateTime{
+		timedSlotDateTime(t, "2026-01-05T14:15:00Z"),
+	})
+	if fields.Name != "Maya" {
+		t.Fatalf("expected untouched name, got %q", fields.Name)
+	}
+}
+
+func TestFilterResponseSlotsOutsideActiveSetReportsUnchanged(t *testing.T) {
+	payload := json.RawMessage(`{"availability":["2026-01-05T14:00:00Z"],"name":"Maya"}`)
+	active := map[models.DateTime]struct{}{
+		timedSlotDateTime(t, "2026-01-05T14:00:00Z"): {},
+	}
+
+	next, changed, err := filterResponseSlotsOutsideActiveSet(payload, active)
+	if err != nil {
+		t.Fatalf("filter response slots: %v", err)
+	}
+	if changed {
+		t.Fatal("expected unchanged payload")
+	}
+	if string(next) != string(payload) {
+		t.Fatalf("expected original payload %s, got %s", payload, next)
 	}
 }

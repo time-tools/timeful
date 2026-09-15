@@ -41,4 +41,4 @@ Confidence: confirmed
 
 ### Disposition
 
-Retain as migration evidence only; do not create an FR or QR.
+Retained as completed migration evidence; the one-off report records links migrated during the MongoDB-to-PostgreSQL transition, which completed on 2026-09-11, and does not create an FR or QR.

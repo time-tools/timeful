@@ -6,6 +6,13 @@ FROM golang:1.26.4-alpine3.24 AS testbase
 
 WORKDIR /app
 
+# Backup/restore rehearsal runner. Only server-route-test uses this target; it
+# adds the PostgreSQL client tools so the rehearsal can exercise a real
+# pg_dump/pg_restore cycle against the isolated test database.
+FROM testbase AS testbase-pg
+
+RUN apk add --no-cache postgresql18-client
+
 # Module-download stage for full image builds (builder chain). CI test images
 # stop at testbase; the full server binary build below would be discarded
 # work for them.

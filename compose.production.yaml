@@ -1,20 +1,4 @@
 services:
-  mongo:
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USERNAME:?MONGODB_ROOT_USERNAME is required}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD:?MONGODB_ROOT_PASSWORD is required}
-      MONGODB_APP_USERNAME: ${MONGODB_APP_USERNAME:?MONGODB_APP_USERNAME is required}
-      MONGODB_APP_PASSWORD: ${MONGODB_APP_PASSWORD:?MONGODB_APP_PASSWORD is required}
-      MONGODB_DATABASE: ${MONGODB_DATABASE:?MONGODB_DATABASE is required}
-    volumes:
-      - ./mongo/init:/docker-entrypoint-initdb.d:ro
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "mongosh --quiet --username \"$$MONGO_INITDB_ROOT_USERNAME\" --password \"$$MONGO_INITDB_ROOT_PASSWORD\" --authenticationDatabase admin --eval \"db.adminCommand('ping').ok\"",
-        ]
-
   postgres:
     environment:
       POSTGRES_USER: ${POSTGRES_BOOTSTRAP_USERNAME:?POSTGRES_BOOTSTRAP_USERNAME is required}

@@ -188,4 +188,47 @@ describe("useSignUpForm", () => {
     )
     expect(typeof dayBlocks[0].hoursOffset).not.toBe("number")
   })
+
+  it("mints unique non-canonical local ids for new sign-up blocks", () => {
+    const event = ref<ScheduleOverlapEvent>({
+      _id: "evt-3",
+      name: "Timed sign up",
+      type: "specific_dates",
+      signUpBlocks: [],
+    })
+
+    const form = useSignUpForm({
+      event,
+      isSignUp: computed(() => true),
+      days: computed(() => [
+        {
+          dayText: "Thu",
+          dateString: "2026-05-28",
+          dateObject: Temporal.ZonedDateTime.from(
+            "2026-05-28T00:00:00+00:00[UTC]",
+          ),
+        },
+      ]),
+      isOwner: computed(() => true),
+      dragStart: ref(null),
+    })
+
+    const first = form.createSignUpBlock(
+      0,
+      Temporal.Duration.from({ minutes: 0 }),
+      Temporal.Duration.from({ minutes: 30 }),
+    )
+    const second = form.createSignUpBlock(
+      0,
+      Temporal.Duration.from({ minutes: 30 }),
+      Temporal.Duration.from({ minutes: 30 }),
+    )
+
+    expect(first._id).not.toBe(second._id)
+    expect(first._id).not.toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    )
+    expect(first.startDate).toBeInstanceOf(Temporal.ZonedDateTime)
+    expect(first.endDate).toBeInstanceOf(Temporal.ZonedDateTime)
+  })
 })

@@ -7,6 +7,7 @@ import { defineComponent, ref } from "vue"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { createLocalStorageMock } from "@/test/localStorage"
 import { passThroughStub } from "@/test/componentStubs"
+import type { Event, Folder } from "@/types"
 import Dashboard from "./Dashboard.vue"
 
 const { createNewMock, deleteFolderMock } = vi.hoisted(() => ({
@@ -15,8 +16,8 @@ const { createNewMock, deleteFolderMock } = vi.hoisted(() => ({
 }))
 
 const authUser = ref({ numEventsCreated: 0 })
-const events = ref([])
-const folders = ref([
+const events = ref<Event[]>([])
+const folders = ref<Folder[]>([
   {
     _id: "folder-1",
     name: "Team",
@@ -171,6 +172,15 @@ describe("Dashboard", () => {
   beforeEach(() => {
     createNewMock.mockReset()
     deleteFolderMock.mockReset()
+    events.value = []
+    folders.value = [
+      {
+        _id: "folder-1",
+        name: "Team",
+        color: "#D3D3D3",
+        eventIds: [],
+      },
+    ]
     vi.stubGlobal("localStorage", createLocalStorageMock())
   })
 
@@ -187,5 +197,61 @@ describe("Dashboard", () => {
 
     await findButtonByText(wrapper, "Delete").trigger("click")
     expect(wrapper.text()).toContain('Delete "Team"?')
+  })
+
+  it("groups events by their canonical public identifier", () => {
+    events.value = [
+      {
+        _id: "7Q2M4XKP",
+        shortId: "7Q2M4XKP",
+        name: "Canonical event",
+      },
+      {
+        _id: "ABCD1234",
+        shortId: "ABCD1234",
+        name: "Second canonical event",
+      },
+    ]
+    folders.value = [
+      {
+        _id: "folder-1",
+        name: "Team",
+        color: "#D3D3D3",
+        eventIds: ["7Q2M4XKP", "ABCD1234"],
+      },
+    ]
+
+    const wrapper = mountDashboard()
+    const draggables = wrapper.findAllComponents(DraggableStub)
+    const teamEvents = draggables[0].props("list") as Array<{ name: string }>
+    const unfoldedEvents = draggables[1].props("list") as Array<{
+      name: string
+    }>
+
+    expect(teamEvents.map((event) => event.name)).toEqual([
+      "Canonical event",
+      "Second canonical event",
+    ])
+    expect(unfoldedEvents).toHaveLength(0)
+  })
+
+  it("keeps the event order supplied by the events API", () => {
+    events.value = [
+      { _id: "AAAAAAAA", shortId: "AAAAAAAA", name: "Newest" },
+      { _id: "BBBBBBBB", shortId: "BBBBBBBB", name: "Older" },
+      { _id: "CCCCCCCC", shortId: "CCCCCCCC", name: "Oldest" },
+    ]
+
+    const wrapper = mountDashboard()
+    const draggables = wrapper.findAllComponents(DraggableStub)
+    const noFolderEvents = draggables[1].props("list") as Array<{
+      name: string
+    }>
+
+    expect(noFolderEvents.map((event) => event.name)).toEqual([
+      "Newest",
+      "Older",
+      "Oldest",
+    ])
   })
 })

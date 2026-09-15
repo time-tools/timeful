@@ -2,26 +2,30 @@ package eventsource
 
 import "testing"
 
-func TestParse(t *testing.T) {
+func TestCanonical(t *testing.T) {
 	tests := []struct {
-		name       string
-		id         string
-		wantSource Source
-		wantID     string
+		name string
+		id   string
+		want bool
 	}{
-		{name: "Mongo long ID", id: "m_64f5e4d3c2b1a09876543210", wantSource: MongoDB, wantID: "64f5e4d3c2b1a09876543210"},
-		{name: "Mongo short ID", id: "m_ABCD1234", wantSource: MongoDB, wantID: "ABCD1234"},
-		{name: "PostgreSQL short ID", id: "ABCD1234", wantSource: PostgreSQL, wantID: "ABCD1234"},
-		{name: "legacy Mongo long ID", id: "64f5e4d3c2b1a09876543210", wantSource: MongoDB, wantID: "64f5e4d3c2b1a09876543210"},
-		{name: "invalid legacy PostgreSQL ID", id: "p_ABCD1234", wantSource: Unknown},
-		{name: "non-Crockford ID remains Mongo", id: "ABCIO123", wantSource: MongoDB, wantID: "ABCIO123"},
+		{name: "canonical", id: "ABCD1234", want: true},
+		{name: "legacy prefixed short ID", id: "m_ABCD1234", want: false},
+		{name: "legacy prefixed long ID", id: "m_64f5e4d3c2b1a09876543210", want: false},
+		{name: "bare long ID", id: "64f5e4d3c2b1a09876543210", want: false},
+		{name: "legacy p_ prefix", id: "p_ABCD1234", want: false},
+		{name: "empty", id: "", want: false},
+		{name: "seven characters", id: "ABCD123", want: false},
+		{name: "nine characters", id: "ABCD12345", want: false},
+		{name: "excluded I", id: "ABCI1234", want: false},
+		{name: "excluded L", id: "ABCL1234", want: false},
+		{name: "excluded O", id: "ABCO1234", want: false},
+		{name: "excluded U", id: "ABCU1234", want: false},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			gotSource, gotID := Parse(test.id)
-			if gotSource != test.wantSource || gotID != test.wantID {
-				t.Fatalf("Parse(%q) = (%v, %q), want (%v, %q)", test.id, gotSource, gotID, test.wantSource, test.wantID)
+			if got := Canonical(test.id); got != test.want {
+				t.Fatalf("Canonical(%q) = %v, want %v", test.id, got, test.want)
 			}
 		})
 	}

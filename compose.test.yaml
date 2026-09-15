@@ -5,18 +5,6 @@ services:
   postgres:
     ports: !reset []
 
-  mongo-test:
-    image: mongo:7
-    restart: unless-stopped
-    volumes:
-      - mongo_test_data:/data/db
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-
   postgres-test:
     image: postgres:18.6-bookworm@sha256:7d2695c3aa88e792e8b3b233e7e4adb296a20412c6c0ca361e3edaaacfada108
     restart: unless-stopped
@@ -59,7 +47,7 @@ services:
       [
         "sh",
         "-ec",
-        "printf '%s\\n' \"SELECT format('CREATE DATABASE %I', :'database_name') WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = :'database_name') \\gexec\" \"GRANT CONNECT ON DATABASE :\\\"database_name\\\" TO :\\\"migrator_username\\\", :\\\"application_username\\\", :\\\"backup_username\\\";\" | psql --host postgres-test --username \"$$POSTGRES_USER\" --dbname postgres --set=ON_ERROR_STOP=1 --set=database_name=\"$$POSTGRES_TEST_DATABASE\" --set=migrator_username=\"$$POSTGRES_MIGRATOR_USERNAME\" --set=application_username=\"$$POSTGRES_APPLICATION_USERNAME\" --set=backup_username=\"$$POSTGRES_BACKUP_USERNAME\" && printf 'GRANT USAGE, CREATE ON SCHEMA public TO :\"migrator_username\";\\n' | psql --host postgres-test --username \"$$POSTGRES_USER\" --dbname \"$$POSTGRES_TEST_DATABASE\" --set=ON_ERROR_STOP=1 --set=migrator_username=\"$$POSTGRES_MIGRATOR_USERNAME\"",
+        "printf '%s\\n' \"SELECT format('CREATE DATABASE %I', :'database_name') WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = :'database_name') \\gexec\" \"GRANT CONNECT ON DATABASE :\\\"database_name\\\" TO :\\\"migrator_username\\\", :\\\"application_username\\\", :\\\"backup_username\\\";\" | psql --host postgres-test --username \"$$POSTGRES_USER\" --dbname postgres --set=ON_ERROR_STOP=1 --set=database_name=\"$$POSTGRES_TEST_DATABASE\" --set=migrator_username=\"$$POSTGRES_MIGRATOR_USERNAME\" --set=application_username=\"$$POSTGRES_APPLICATION_USERNAME\" --set=backup_username=\"$$POSTGRES_BACKUP_USERNAME\" && printf 'GRANT USAGE, CREATE ON SCHEMA public TO :\"migrator_username\";\\n' | psql --host postgres-test --username \"$$POSTGRES_USER\" --dbname \"$$POSTGRES_TEST_DATABASE\" --set=ON_ERROR_STOP=1 --set=migrator_username=\"$$POSTGRES_MIGRATOR_USERNAME\" && printf 'GRANT pg_read_all_data TO :\"backup_username\" WITH INHERIT TRUE;\\n' | psql --host postgres-test --username \"$$POSTGRES_USER\" --dbname postgres --set=ON_ERROR_STOP=1 --set=backup_username=\"$$POSTGRES_BACKUP_USERNAME\"",
       ]
 
   postgres-test-migrate:
@@ -92,6 +80,13 @@ services:
       APP_PORT: ${E2E_API_INTERNAL_PORT:?E2E_API_INTERNAL_PORT is required}
       GOCACHE: /go-build-cache
       GOMODCACHE: /go/pkg/mod
+      # Test-only provider overrides point the running server at the mock
+      # provider. They are set only for server-test; production never declares
+      # them, so production keeps the real provider endpoints.
+      TEST_GOOGLE_OAUTH_TOKEN_ENDPOINT: http://calendar-mock:8099/google/token
+      TEST_GOOGLE_CALENDAR_API_BASE_URL: http://calendar-mock:8099/google/calendar/v3
+      TEST_MICROSOFT_OAUTH_TOKEN_ENDPOINT: http://calendar-mock:8099/microsoft/token
+      TEST_MICROSOFT_GRAPH_API_BASE_URL: http://calendar-mock:8099/microsoft/graph/v1.0
     ports: !override
       - "${E2E_API_HOST:?E2E_API_HOST is required}:${E2E_API_PORT:?E2E_API_PORT is required}:${E2E_API_INTERNAL_PORT:?E2E_API_INTERNAL_PORT is required}"
     healthcheck:
@@ -102,13 +97,16 @@ services:
       - go_build_cache:/go-build-cache
       - go_mod_cache:/go/pkg/mod
     depends_on: !override
-      mongo-test:
-        condition: service_healthy
       postgres-test-migrate:
         condition: service_completed_successfully
+      calendar-mock:
+        condition: service_healthy
     command: ["go", "run", "."]
 
-  server-route-test:
+  # Test-only stand-in for the external OAuth and calendar providers. It is
+  # defined only in this isolated test overlay, is reachable only on the test
+  # network, and is never part of the production compose profile.
+  calendar-mock:
     build:
       context: ./server
       target: testbase
@@ -116,11 +114,29 @@ services:
     environment:
       GOCACHE: /go-build-cache
       GOMODCACHE: /go/pkg/mod
-      MONGODB_URI: ${MONGODB_URI:?MONGODB_URI is required}
-      MONGODB_DATABASE: ${MONGODB_DATABASE:?MONGODB_DATABASE is required}
+    volumes:
+      - ./server:/app
+      - go_build_cache:/go-build-cache
+      - go_mod_cache:/go/pkg/mod
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8099/health"]
+    restart: "no"
+    command: ["go", "run", "./mockprovider"]
+
+  server-route-test:
+    build:
+      context: ./server
+      target: testbase-pg
+    working_dir: /app
+    environment:
+      GOCACHE: /go-build-cache
+      GOMODCACHE: /go/pkg/mod
       POSTGRES_APPLICATION_URI: postgres://${POSTGRES_APPLICATION_USERNAME:?POSTGRES_APPLICATION_USERNAME is required}:${POSTGRES_APPLICATION_PASSWORD:?POSTGRES_APPLICATION_PASSWORD is required}@postgres-test:5432/${POSTGRES_TEST_DATABASE:?POSTGRES_TEST_DATABASE is required}?sslmode=disable
+      POSTGRES_BOOTSTRAP_URI: postgres://${POSTGRES_BOOTSTRAP_USERNAME:?POSTGRES_BOOTSTRAP_USERNAME is required}:${POSTGRES_BOOTSTRAP_PASSWORD:?POSTGRES_BOOTSTRAP_PASSWORD is required}@postgres-test:5432/postgres?sslmode=disable
+      POSTGRES_BACKUP_URI: postgres://${POSTGRES_BACKUP_USERNAME:?POSTGRES_BACKUP_USERNAME is required}:${POSTGRES_BACKUP_PASSWORD:?POSTGRES_BACKUP_PASSWORD is required}@postgres-test:5432/${POSTGRES_TEST_DATABASE:?POSTGRES_TEST_DATABASE is required}?sslmode=disable
       ROUTES_READ_FILTERS_TEST_MODE: "compose"
       SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
     volumes:
       - ./server:/app
       - go_build_cache:/go-build-cache
@@ -129,19 +145,14 @@ services:
       [
         "go",
         "test",
-        "./routes",
-        "-run",
-        "TestGetEventFiltersUnnamedGuestResponses|TestGetResponsesFiltersUnnamedGuestResponses|TestGetResponsesBlindAvailabilityUsesFilteredGuestResponseMap|TestGetEventKeepsSignedInRowsWithBlankStoredResponseName|TestGetEventKeepsLegacyOuterKeySignedInSignUpRows|TestGetResponsesPrefersNewestCanonicalGuestDuplicate|TestAnonymousTimedEventCompatibilityContract|TestAnonymousDatesOnlyEventCompatibilityContract|TestAnonymousEventEditCompatibilityContract|TestAnonymousGuestResponseOwnershipCompatibilityContract",
+        "./...",
         "-count=1",
       ]
     depends_on:
-      mongo-test:
-        condition: service_healthy
       postgres-test-migrate:
         condition: service_completed_successfully
 
 volumes:
-  mongo_test_data:
   postgres_test_data:
   # Persistent Go compile and module caches shared by server-test and
   # server-route-test so `go run` / `go test` compile incrementally instead of

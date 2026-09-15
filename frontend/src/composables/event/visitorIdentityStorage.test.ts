@@ -35,8 +35,8 @@ describe("Event Visitor Identity storage and response selection", () => {
     ).toBe(
       "/events/ABCD1234/responses?timeMin=now&eventVisitorId=visitor-public-id",
     )
-    expect(withEventVisitorIdentity("/events/m_legacy/response")).toBe(
-      "/events/m_legacy/response",
+    expect(withEventVisitorIdentity("/events/WXYZ5678/response")).toBe(
+      "/events/WXYZ5678/response",
     )
   })
   it("selects multiple same-name responses by public ID and trusts server edit permission", () => {
