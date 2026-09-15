@@ -16,6 +16,9 @@ import { eventTypes, guestUserId } from "@/constants"
 import { Temporal } from "temporal-polyfill"
 import EventView from "./Event.vue"
 import eventViewSource from "./Event.vue?raw"
+import MdiContentCopy from "~icons/mdi/content-copy"
+import MdiShare from "~icons/mdi/share"
+import MdiTrashCanOutline from "~icons/mdi/trash-can-outline"
 
 const mountedWrappers: ReturnType<typeof baseShallowMount>[] = []
 const shallowMount: typeof baseShallowMount = (...args) => {
@@ -2163,7 +2166,9 @@ describe("Event guest edit action", () => {
     expect(buttonRow.text()).toContain("Copy link")
     expect(copyLinkButton.attributes("data-variant")).toBe("outlined")
     expect(copyLinkButton.attributes("data-color")).toBe("primary")
-    expect(copyLinkButton.text()).toContain("mdi-content-copy")
+    const copyLinkIcon = wrapper.findComponent(MdiContentCopy)
+    expect(copyLinkIcon.exists()).toBe(true)
+    expect(copyLinkButton.element.contains(copyLinkIcon.element)).toBe(true)
     expect(copyLinkButton.text()).toContain("Copy link")
   })
 
@@ -2578,8 +2583,10 @@ describe("Event guest edit action", () => {
 
     const copyLinkButton = wrapper.get("#copy-link-btn")
     expect(copyLinkButton.text()).toContain("Copy link")
-    expect(copyLinkButton.text()).toContain("mdi-content-copy")
-    expect(copyLinkButton.text()).not.toContain("mdi-share")
+    const copyLinkIcon = wrapper.findComponent(MdiContentCopy)
+    expect(copyLinkIcon.exists()).toBe(true)
+    expect(copyLinkButton.element.contains(copyLinkIcon.element)).toBe(true)
+    expect(wrapper.findComponent(MdiShare).exists()).toBe(false)
   })
 
   it("moves mobile add availability into the sticky footer action cluster", async () => {
@@ -2767,7 +2774,11 @@ describe("Event guest edit action", () => {
       "destructive-outlined-button",
     )
     expect(desktopDeleteButton.text()).toContain("Delete")
-    expect(desktopDeleteButton.text()).toContain("mdi-trash-can-outline")
+    const desktopDeleteIcon = wrapper.findComponent(MdiTrashCanOutline)
+    expect(desktopDeleteIcon.exists()).toBe(true)
+    expect(
+      desktopDeleteButton.element.contains(desktopDeleteIcon.element),
+    ).toBe(true)
     expect(wrapper.get(".desktop-editing-delete-actions").classes()).toContain(
       "tw:sm:ml-auto",
     )
@@ -3075,7 +3086,9 @@ describe("Event guest edit action", () => {
     const deleteButton = wrapper.get(".destructive-outlined-button")
     expect(deleteButton.attributes("data-variant")).toBe("outlined")
     expect(deleteButton.text()).toContain("Delete")
-    expect(deleteButton.text()).toContain("mdi-trash-can-outline")
+    const deleteIcon = wrapper.findComponent(MdiTrashCanOutline)
+    expect(deleteIcon.exists()).toBe(true)
+    expect(deleteButton.element.contains(deleteIcon.element)).toBe(true)
     expect(eventViewSource).toContain(
       'class="destructive-outlined-button tw:text-sm tw:normal-case"',
     )

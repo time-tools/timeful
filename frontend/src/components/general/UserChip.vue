@@ -9,10 +9,9 @@
         v-if="user.picture"
         :src="user.picture"
         referrerpolicy="no-referrer"
-        width="10px"
-      />
-      <v-icon v-else>mdi-account</v-icon></v-avatar
-    >
+        width="10px" />
+      <v-icon v-else><MdiAccount /></v-icon
+    ></v-avatar>
     {{ user.email }}
 
     <v-icon
@@ -20,13 +19,15 @@
       small
       class="tw:ml-1"
       @click="() => removeEmail(user.email ?? '')"
-      >mdi-close</v-icon
-    >
+      ><MdiClose
+    /></v-icon>
   </v-chip>
 </template>
 
 <script setup lang="ts">
 import type { User } from "@/types"
+import MdiAccount from "~icons/mdi/account"
+import MdiClose from "~icons/mdi/close"
 
 withDefaults(
   defineProps<{

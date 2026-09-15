@@ -10,6 +10,7 @@ import type * as UtilsModule from "@/utils"
 import { passThroughStub, vTextFieldStub } from "@/test/componentStubs"
 import EventItem from "./EventItem.vue"
 import eventItemSource from "./EventItem.vue?raw"
+import MdiCheck from "~icons/mdi/check"
 
 const {
   archiveEventMock,
@@ -294,7 +295,11 @@ describe("EventItem", () => {
     expect(wrapper.getComponent(vTextFieldStub).props("variant")).toBe("solo")
 
     const currentFolderButton = findButtonByText(wrapper, "Trips")
-    expect(currentFolderButton.text()).toContain("mdi-check")
+    const currentFolderCheck = wrapper.findComponent(MdiCheck)
+    expect(currentFolderCheck.exists()).toBe(true)
+    expect(
+      currentFolderButton.element.contains(currentFolderCheck.element),
+    ).toBe(true)
 
     await findButtonByText(wrapper, "Copy link").trigger("click")
     expect(clipboardWriteTextMock).toHaveBeenCalledWith(

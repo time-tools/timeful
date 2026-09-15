@@ -123,9 +123,8 @@
             @click="showAdvancedOptions = !showAdvancedOptions"
             ><span class="tw:mr-1">Advanced options</span>
             <v-icon :class="`tw:rotate-${showAdvancedOptions ? '180' : '0'}`"
-              >mdi-chevron-down</v-icon
-            ></v-btn
-          >
+              ><MdiChevronDown /></v-icon
+          ></v-btn>
           <v-expand-transition>
             <div v-show="showAdvancedOptions">
               <div class="tw:my-2">
@@ -223,6 +222,7 @@ import {
   hasEventDraftData,
 } from "@/composables/event/draftBoundary"
 import { useOwnedTimezone } from "@/composables/timezone/useOwnedTimezone"
+import MdiChevronDown from "~icons/mdi/chevron-down"
 
 interface FormRef {
   validate: () => Promise<{ valid: boolean }> | boolean

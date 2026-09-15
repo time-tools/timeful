@@ -7,8 +7,8 @@
         variant="outlined"
         icon
         @click="daysOnlyGrid.actions.prevPage"
-        ><v-icon>mdi-chevron-left</v-icon></v-btn
-      >
+        ><v-icon><MdiChevronLeft /></v-icon
+      ></v-btn>
       <div class="tw:text-lg tw:font-medium tw:capitalize tw:sm:text-xl">
         {{ daysOnlyGrid.curMonthText }}
       </div>
@@ -18,8 +18,8 @@
         variant="outlined"
         icon
         @click="daysOnlyGrid.actions.nextPage"
-        ><v-icon>mdi-chevron-right</v-icon></v-btn
-      >
+        ><v-icon><MdiChevronRight /></v-icon
+      ></v-btn>
     </div>
     <div
       class="schedule-overlap-days-only-grid__weekdays tw:flex tw:h-7 tw:w-full tw:items-center"
@@ -80,12 +80,12 @@
           class="tw:mt-2 tw:flex tw:w-full tw:items-center tw:justify-between tw:gap-1 tw:rounded-md tw:bg-off-white tw:p-2 tw:px-[7px] tw:text-sm tw:text-very-dark-gray"
         >
           <div class="tw:flex tw:items-center tw:gap-1">
-            <v-icon small>mdi-information-outline</v-icon>
+            <v-icon small><MdiInformationOutline /></v-icon>
             {{ daysOnlyGrid.hintText }}
           </div>
           <v-icon small @click="daysOnlyGrid.actions.closeHint()"
-            >mdi-close</v-icon
-          >
+            ><MdiClose
+          /></v-icon>
         </div>
       </div>
     </v-expand-transition>
@@ -95,6 +95,10 @@
 <script setup lang="ts">
 import type { ScheduleOverlapDaysOnlyGridViewModel } from "./scheduleOverlapViewModelContracts"
 import ZigZag from "./ZigZag.vue"
+import MdiChevronLeft from "~icons/mdi/chevron-left"
+import MdiChevronRight from "~icons/mdi/chevron-right"
+import MdiClose from "~icons/mdi/close"
+import MdiInformationOutline from "~icons/mdi/information-outline"
 
 defineOptions({
   name: "ScheduleOverlapDaysOnlyGrid",

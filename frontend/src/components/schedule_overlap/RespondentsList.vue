@@ -36,8 +36,8 @@
           <v-menu right offset-x>
             <template #activator="{ props: activatorProps }">
               <v-btn variant="text" size="small" icon v-bind="activatorProps"
-                ><v-icon>mdi-dots-vertical</v-icon></v-btn
-              >
+                ><v-icon><MdiDotsVertical /></v-icon
+              ></v-btn>
             </template>
             <v-list class="tw:py-1" density="compact">
               <v-dialog v-model="exportCsvDialog.visible" width="400">
@@ -167,7 +167,7 @@
                         color="primary"
                         class="tw:block"
                       >
-                        mdi-check
+                        <MdiCheck />
                       </v-icon>
                     </span>
                     <span
@@ -189,7 +189,7 @@
                           :size="16"
                         ></UserAvatarContent>
                         <v-avatar v-else :size="16">
-                          <v-icon small>mdi-account</v-icon>
+                          <v-icon small><MdiAccount /></v-icon>
                         </v-avatar>
                       </template>
                     </span>
@@ -239,11 +239,12 @@
                         "
                       >
                         <v-icon size="16" color="#4F4F4F">
-                          {{
-                            respondentEditActionState(user) === "editable"
-                              ? "mdi-pencil"
-                              : "mdi-lock"
-                          }}
+                          <MdiPencil
+                            v-if="
+                              respondentEditActionState(user) === 'editable'
+                            "
+                          />
+                          <MdiLock v-else />
                         </v-icon>
                       </component>
                       <v-btn
@@ -253,9 +254,8 @@
                         class="tw:bg-white"
                         @click="() => showDeleteAvailabilityDialog(user)"
                         ><v-icon small class="tw:hover:text-red" color="#4F4F4F"
-                          >mdi-delete</v-icon
-                        ></v-btn
-                      >
+                          ><MdiDelete /></v-icon
+                      ></v-btn>
                     </div>
                   </div>
                   <div
@@ -266,7 +266,9 @@
                     @click.stop="copyEmailToClipboard(user.email)"
                   >
                     {{ user.email }}
-                    <v-icon class="tw:ml-1 tw:text-xs">mdi-content-copy</v-icon>
+                    <v-icon class="tw:ml-1 tw:text-xs"
+                      ><MdiContentCopy
+                    /></v-icon>
                   </div>
                 </div>
               </div>
@@ -300,7 +302,7 @@
         <div>
           <div v-for="user in pendingUsers" :key="user.email">
             <div class="tw:relative tw:flex tw:items-center">
-              <v-icon class="tw:ml-1 tw:mr-3" small>mdi-account</v-icon>
+              <v-icon class="tw:ml-1 tw:mr-3" small><MdiAccount /></v-icon>
               <div class="tw:mr-1 tw:text-sm tw:transition-all">
                 {{ user.email }}
               </div>
@@ -396,6 +398,13 @@ import {
   respondentStatusClass,
   useRespondentsListState,
 } from "./useRespondentsListState"
+import MdiAccount from "~icons/mdi/account"
+import MdiCheck from "~icons/mdi/check"
+import MdiContentCopy from "~icons/mdi/content-copy"
+import MdiDelete from "~icons/mdi/delete"
+import MdiDotsVertical from "~icons/mdi/dots-vertical"
+import MdiLock from "~icons/mdi/lock"
+import MdiPencil from "~icons/mdi/pencil"
 
 const props = withDefaults(
   defineProps<{

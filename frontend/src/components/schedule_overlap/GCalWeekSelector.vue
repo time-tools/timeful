@@ -2,11 +2,15 @@
   <div
     class="tw:flex tw:h-16 tw:items-center tw:justify-between tw:gap-2 tw:bg-white tw:px-2 tw:drop-shadow-sm tw:sm:h-[unset] tw:sm:flex-1 tw:sm:px-0 tw:sm:drop-shadow-none"
   >
-    <v-btn icon @click="prevWeek"><v-icon>mdi-chevron-left</v-icon></v-btn>
+    <v-btn icon @click="prevWeek"
+      ><v-icon><MdiChevronLeft /></v-icon
+    ></v-btn>
     <div class="tw:text-center">
       Showing calendar for week of {{ weekText }}
     </div>
-    <v-btn icon @click="nextWeek"><v-icon>mdi-chevron-right</v-icon></v-btn>
+    <v-btn icon @click="nextWeek"
+      ><v-icon><MdiChevronRight /></v-icon
+    ></v-btn>
   </div>
 </template>
 
@@ -14,6 +18,8 @@
 import { computed } from "vue"
 import { dateToDowDate, getEventDateSeeds, getRenderedWeekStart } from "@/utils"
 import type { ScheduleOverlapEvent } from "@/composables/schedule_overlap/types"
+import MdiChevronLeft from "~icons/mdi/chevron-left"
+import MdiChevronRight from "~icons/mdi/chevron-right"
 
 const props = withDefaults(
   defineProps<{

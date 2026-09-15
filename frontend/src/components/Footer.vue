@@ -5,7 +5,7 @@
         <!-- Logo and Info -->
         <div>
           <div class="tw:mb-3 tw:flex tw:items-center">
-            <v-icon class="tw:mr-1 tw:text-white">mdi-calendar-blank</v-icon>
+            <v-icon class="tw:mr-1 tw:text-white"><MdiCalendarBlank /></v-icon>
             <span class="tw:text-2xl tw:font-medium">timeful</span>
           </div>
           <div class="tw:mb-6 tw:leading-snug">
@@ -31,17 +31,15 @@
             </a>
             <a :href="gitHubRepoUrl" aria-label="GitHub" target="_blank"
               ><v-icon class="tw:text-white/80 tw:hover:text-white"
-                >mdi-github</v-icon
-              ></a
-            >
+                ><MdiGithub /></v-icon
+            ></a>
             <a
               href="https://www.reddit.com/r/timefulapp/"
               target="_blank"
               aria-label="Reddit"
               ><v-icon class="tw:text-white/80 tw:hover:text-white"
-                >mdi-reddit</v-icon
-              ></a
-            >
+                ><MdiReddit /></v-icon
+            ></a>
             <a
               href="https://discord.gg/v6raNqYxx3"
               target="_blank"
@@ -164,6 +162,9 @@ import { feedbackUrl } from "@/utils/feedback"
 import { gitHubRepoUrl } from "@/utils/github"
 import { privacyPolicyEnabled } from "@/utils/privacyPolicy"
 import { supportEmail } from "@/utils/support"
+import MdiCalendarBlank from "~icons/mdi/calendar-blank"
+import MdiGithub from "~icons/mdi/github"
+import MdiReddit from "~icons/mdi/reddit"
 
 defineOptions({ name: "AppFooter" })
 

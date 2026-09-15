@@ -4,7 +4,7 @@
 
     <template #actions>
       <v-btn icon @click="show = false">
-        <v-icon>mdi-close</v-icon>
+        <v-icon><MdiClose /></v-icon>
       </v-btn>
     </template>
   </v-snackbar>
@@ -12,6 +12,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue"
+import MdiClose from "~icons/mdi/close"
 
 const props = withDefaults(
   defineProps<{

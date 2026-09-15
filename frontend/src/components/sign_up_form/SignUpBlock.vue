@@ -23,7 +23,7 @@
           size="x-small"
           @click="isEditingName = true"
         >
-          <v-icon x-small>mdi-pencil</v-icon>
+          <v-icon x-small><MdiPencil /></v-icon>
         </v-btn>
       </div>
       <div
@@ -38,10 +38,10 @@
           @keyup.enter="saveName"
         ></v-text-field>
         <v-btn icon size="small" @click="cancelEditName">
-          <v-icon small>mdi-undo</v-icon>
+          <v-icon small><MdiUndo /></v-icon>
         </v-btn>
         <v-btn icon size="small" color="primary" @click="saveName">
-          <v-icon small>mdi-check</v-icon>
+          <v-icon small><MdiCheck /></v-icon>
         </v-btn>
       </div>
     </div>
@@ -92,7 +92,7 @@
             />
           </v-avatar>
           <v-avatar v-else :size="16">
-            <v-icon small>mdi-account</v-icon>
+            <v-icon small><MdiAccount /></v-icon>
           </v-avatar>
         </div>
         <div
@@ -128,6 +128,10 @@ import { getStartEndDateString } from "@/utils"
 import { getResponseDisplayName } from "@/utils/guestName"
 import { useMainStore } from "@/stores/main"
 import type { SignUpBlock, SignUpBlockWithResponses } from "@/types"
+import MdiAccount from "~icons/mdi/account"
+import MdiCheck from "~icons/mdi/check"
+import MdiPencil from "~icons/mdi/pencil"
+import MdiUndo from "~icons/mdi/undo"
 
 const props = withDefaults(
   defineProps<{

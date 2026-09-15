@@ -28,20 +28,20 @@
           target="_blank"
         >
           <v-list-item-title class="tw:flex tw:items-center tw:gap-1">
-            <v-icon class="tw:mr-1" small color="black">mdi-message</v-icon>
+            <v-icon class="tw:mr-1" small color="black"><MdiMessage /></v-icon>
             Give feedback
           </v-list-item-title>
         </v-list-item>
         <v-list-item id="settings-btn" @click="goToSettings">
           <v-list-item-title class="tw:flex tw:items-center tw:gap-1">
-            <v-icon class="tw:mr-1" small color="black">mdi-cog</v-icon>
+            <v-icon class="tw:mr-1" small color="black"><MdiCog /></v-icon>
             Settings
           </v-list-item-title>
         </v-list-item>
         <v-divider></v-divider>
         <v-list-item id="sign-out-btn" @click="signOut">
           <v-list-item-title class="red--text tw:flex tw:items-center tw:gap-1">
-            <v-icon class="tw:mr-1" small color="red">mdi-logout</v-icon>
+            <v-icon class="tw:mr-1" small color="red"><MdiLogout /></v-icon>
             Sign Out
           </v-list-item-title>
         </v-list-item>
@@ -60,6 +60,9 @@ import { post } from "@/utils"
 import { feedbackUrl } from "@/utils/feedback"
 import { useDisplayHelpers } from "@/utils/useDisplayHelpers"
 import { posthog } from "@/plugins/posthog"
+import MdiCog from "~icons/mdi/cog"
+import MdiLogout from "~icons/mdi/logout"
+import MdiMessage from "~icons/mdi/message"
 
 const router = useRouter()
 const route = useRoute()

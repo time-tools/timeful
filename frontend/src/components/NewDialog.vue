@@ -36,7 +36,7 @@
           class="tw:mr-2 tw:self-center"
           @click="handleDialogInput"
         >
-          <v-icon>mdi-close</v-icon>
+          <v-icon><MdiClose /></v-icon>
         </v-btn>
       </div>
 
@@ -95,6 +95,7 @@ import { useMainStore } from "@/stores/main"
 import { useDisplayHelpers } from "@/utils/useDisplayHelpers"
 import type { EventDraft } from "@/composables/event/types"
 import type { Event } from "@/types"
+import MdiClose from "~icons/mdi/close"
 
 type TabType = "event" | "group" | "signup"
 

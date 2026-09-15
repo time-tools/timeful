@@ -77,7 +77,7 @@
         id="create-event-btn"
         @click="() => _createNew()"
       >
-        <v-icon>mdi-plus</v-icon>
+        <v-icon><MdiPlus /></v-icon>
       </BottomFab>
 
       <!-- When2meet Import Dialog -->
@@ -104,6 +104,7 @@ import type { EventDraft } from "@/composables/event/types"
 import { hasEventDraftData } from "@/composables/event/draftBoundary"
 import { fetchAuthUserProfile } from "@/utils/services/UserService"
 import { privacyPolicyEnabled } from "@/utils/privacyPolicy"
+import MdiPlus from "~icons/mdi/plus"
 
 defineOptions({ name: "AppHome" })
 

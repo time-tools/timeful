@@ -68,7 +68,7 @@
               aria-label="Open navigation menu"
               v-bind="props"
             >
-              <v-icon>mdi-menu</v-icon>
+              <v-icon><MdiMenu /></v-icon>
             </v-btn>
           </template>
           <v-list id="mobile-header-menu">
@@ -103,7 +103,7 @@
               target="_blank"
               aria-label="GitHub"
             >
-              <v-icon>mdi-github</v-icon>
+              <v-icon><MdiGithub /></v-icon>
             </v-btn>
           </template>
           <span>{{ gitHubRepoDisplay }}</span>
@@ -171,6 +171,8 @@ import SignInDialog from "@/components/SignInDialog.vue"
 import SignInNotSupportedDialog from "@/components/SignInNotSupportedDialog.vue"
 import GrantedAccessConfirmation from "@/components/event/GrantedAccessConfirmation.vue"
 import UpvoteRedditSnackbar from "@/components/UpvoteRedditSnackbar.vue"
+import MdiGithub from "~icons/mdi/github"
+import MdiMenu from "~icons/mdi/menu"
 
 useHead({ htmlAttrs: { lang: "en-US" } })
 

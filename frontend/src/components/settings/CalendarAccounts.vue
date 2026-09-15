@@ -12,9 +12,8 @@
     >
       <span class="tw:mr-1 tw:text-base tw:font-medium">My calendars</span>
       <v-icon :class="`tw:rotate-${showCalendars ? '180' : '0'}`"
-        >mdi-chevron-down</v-icon
-      ></v-btn
-    >
+        ><MdiChevronDown /></v-icon
+    ></v-btn>
     <div
       v-else
       class="tw:border-b tw:border-outline-neutral tw:px-4 tw:py-3 tw:font-medium"
@@ -121,6 +120,7 @@ import CalendarTypeSelector from "@/components/settings/CalendarTypeSelector.vue
 import type { CalendarAccount as CalendarAccountModel } from "@/types"
 import type { CalendarEventsMap } from "@/composables/schedule_overlap/types"
 import { useCalendarAccountsState } from "./useCalendarAccountsState"
+import MdiChevronDown from "~icons/mdi/chevron-down"
 export type CalendarAccountEntry = CalendarAccountModel
 
 export interface ToggleCalendarPayload {

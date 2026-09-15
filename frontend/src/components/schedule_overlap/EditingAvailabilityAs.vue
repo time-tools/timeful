@@ -20,7 +20,7 @@
           class="editing-availability-as__guest-name tw:min-w-0 tw:grow tw:wrap-break-word tw:font-medium"
           >{{ editingAs.editableGuestName || "Respondent name" }}</span
         >
-        <v-icon small>mdi-pencil</v-icon>
+        <v-icon small><MdiPencil /></v-icon>
       </button>
       <span v-else>{{ editingAs.actorName }}</span>
     </div>
@@ -34,7 +34,7 @@
         <span class="tw:font-medium tw:group-hover:underline">{{
           editingAs.editableGuestName
         }}</span>
-        <v-icon small>mdi-pencil</v-icon>
+        <v-icon small><MdiPencil /></v-icon>
       </div>
       <span v-else>{{ editingAs.actorName }}</span>
     </template>
@@ -85,6 +85,7 @@ import {
   validateGuestName,
 } from "@/utils/guestName"
 import type { ScheduleOverlapEditingAvailabilityAsViewModel } from "./scheduleOverlapViewModelContracts"
+import MdiPencil from "~icons/mdi/pencil"
 
 const props = withDefaults(
   defineProps<{

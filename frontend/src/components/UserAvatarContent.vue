@@ -8,7 +8,7 @@
       class="tw:-mt-1"
       :size="size"
     >
-      mdi-apple
+      <MdiApple />
     </v-icon>
     <v-icon
       v-else-if="
@@ -16,7 +16,7 @@
       "
       :size="size"
     >
-      mdi-microsoft-outlook
+      <MdiMicrosoftOutlook />
     </v-icon>
     <div
       v-else
@@ -31,6 +31,8 @@
 import { computed } from "vue"
 import { calendarTypes } from "@/constants"
 import type { User } from "@/types"
+import MdiApple from "~icons/mdi/apple"
+import MdiMicrosoftOutlook from "~icons/mdi/microsoft-outlook"
 
 const props = withDefaults(
   defineProps<{

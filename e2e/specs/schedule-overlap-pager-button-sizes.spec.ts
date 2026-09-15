@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test"
+import { expect, test } from "@playwright/test"
 import { Temporal } from "temporal-polyfill"
 import {
   buildSpecificDateSeed,
@@ -6,10 +6,6 @@ import {
   openEventPage,
   seedCanonicalTimedEvent,
 } from "../helpers/timed-event-helpers"
-
-function chevronButton(page: Page, iconClass: string) {
-  return page.locator(`button.v-btn:has(.mdi.${iconClass})`)
-}
 
 test("mobile pager chevron buttons are the same size when several dates are picked", async ({
   page,
@@ -50,8 +46,8 @@ test("mobile pager chevron buttons are the same size when several dates are pick
   )
   await openEventPage(page, shortId)
 
-  const prevButton = chevronButton(page, "mdi-chevron-left")
-  const nextButton = chevronButton(page, "mdi-chevron-right")
+  const prevButton = page.getByRole("button", { name: "Previous page" })
+  const nextButton = page.getByRole("button", { name: "Next page" })
 
   await expect(nextButton).toBeVisible()
   await expect(prevButton).not.toBeVisible()

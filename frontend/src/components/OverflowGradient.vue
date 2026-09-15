@@ -16,13 +16,14 @@
       class="tw:pointer-events-auto tw:transform"
       @click="scrollToBottom"
     >
-      <v-icon>mdi-chevron-down</v-icon>
+      <v-icon><MdiChevronDown /></v-icon>
     </v-btn>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue"
+import MdiChevronDown from "~icons/mdi/chevron-down"
 
 const props = withDefaults(
   defineProps<{

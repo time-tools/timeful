@@ -13,7 +13,7 @@
         class="tw:hidden tw:text-very-dark-gray tw:sm:block"
         @click="openFolderFeedbackDialog"
       >
-        <v-icon class="tw:mr-2 tw:text-lg">mdi-folder-plus</v-icon>
+        <v-icon class="tw:mr-2 tw:text-lg"><MdiFolderPlus /></v-icon>
         New folder
       </v-btn>
       <div
@@ -22,7 +22,9 @@
         @click="toggleShowAll"
       >
         Show {{ showAllLabel
-        }}<v-icon :class="showAll && 'tw:rotate-180'">mdi-chevron-down</v-icon>
+        }}<v-icon :class="showAll && 'tw:rotate-180'"
+          ><MdiChevronDown
+        /></v-icon>
       </div>
     </div>
 
@@ -63,7 +65,9 @@
         @click="toggleShowAll"
       >
         Show {{ showAllLabel
-        }}<v-icon :class="showAll && 'tw:rotate-180'">mdi-chevron-down</v-icon>
+        }}<v-icon :class="showAll && 'tw:rotate-180'"
+          ><MdiChevronDown
+        /></v-icon>
       </div>
     </div>
     <FeatureNotReadyDialog v-model="showFeatureNotReadyDialog" />
@@ -77,6 +81,8 @@ import EventItem from "@/components/EventItem.vue"
 import FeatureNotReadyDialog from "@/components/FeatureNotReadyDialog.vue"
 import { posthog } from "@/plugins/posthog"
 import type { Event } from "@/types"
+import MdiChevronDown from "~icons/mdi/chevron-down"
+import MdiFolderPlus from "~icons/mdi/folder-plus"
 
 const props = withDefaults(
   defineProps<{

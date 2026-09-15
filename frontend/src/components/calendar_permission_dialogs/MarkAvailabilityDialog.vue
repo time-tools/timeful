@@ -86,7 +86,7 @@
                   class="tw:absolute tw:left-0 tw:top-1/2 tw:flex tw:h-5 tw:w-7 tw:-translate-y-1/2 tw:items-center tw:justify-center"
                 >
                   <v-icon class="tw:flex-initial" size="20">
-                    mdi-calendar-sync
+                    <MdiCalendarSync />
                   </v-icon>
                 </span>
                 <span class="tw:block tw:w-full tw:px-7 tw:text-center">
@@ -158,6 +158,7 @@ import CalendarPermissionsCard from "./CalendarPermissionsCard.vue"
 import CreateAccount from "./CreateAccount.vue"
 import AppleCredentials from "./AppleCredentials.vue"
 import ICSCredentials from "./ICSCredentials.vue"
+import MdiCalendarSync from "~icons/mdi/calendar-sync"
 
 const props = withDefaults(
   defineProps<{

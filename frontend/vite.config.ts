@@ -1,6 +1,7 @@
 import { defineConfig } from "vite"
 import vue from "@vitejs/plugin-vue"
 import vuetify from "vite-plugin-vuetify"
+import Icons from "unplugin-icons/vite"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import {
@@ -14,7 +15,12 @@ const rootDir = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig(({ command, mode, isPreview }) => {
   return {
-    plugins: [vue(), vuetify({ autoImport: true }), tailwindcss()],
+    plugins: [
+      vue(),
+      vuetify({ autoImport: true }),
+      tailwindcss(),
+      Icons({ compiler: "vue3", scale: 1 }),
+    ],
     envDir: process.env.VITEST ? undefined : getFrontendEnvDir(),
     resolve: {
       alias: {
@@ -36,6 +42,7 @@ export default defineConfig(({ command, mode, isPreview }) => {
       // failures when the dep cache is cold). Keep in sync with components
       // auto-imported in src templates.
       include: [
+        "vuetify/components/VAlert",
         "vuetify/components/VApp",
         "vuetify/components/VAvatar",
         "vuetify/components/VBtn",

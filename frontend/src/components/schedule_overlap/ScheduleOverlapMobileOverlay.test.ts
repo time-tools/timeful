@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 
 import { describe, expect, it, vi } from "vitest"
+import { defineComponent } from "vue"
 import { mount, shallowMount, type DOMWrapper } from "@vue/test-utils"
 import { availabilityTypes } from "@/constants"
 import { states } from "@/composables/schedule_overlap/types"
@@ -10,6 +11,18 @@ import {
   buildScheduleOverlapMobileOverlayViewModel,
   scheduleOverlapGlobalStubs,
 } from "./scheduleOverlapTestUtils"
+import MdiCalendar from "~icons/mdi/calendar"
+
+const VBtnStub = defineComponent({
+  name: "VBtn",
+  props: {
+    prependIcon: {
+      type: null,
+      default: undefined,
+    },
+  },
+  template: "<button><slot /></button>",
+})
 
 describe("ScheduleOverlapMobileOverlay", () => {
   it("renders the extracted mobile-only boundaries from a single presentational child", () => {
@@ -185,9 +198,7 @@ describe("ScheduleOverlapMobileOverlay", () => {
           "v-expand-transition": {
             template: "<div><slot /></div>",
           },
-          "v-btn": {
-            template: "<button><slot /></button>",
-          },
+          "v-btn": VBtnStub,
         },
       },
     })
@@ -196,17 +207,21 @@ describe("ScheduleOverlapMobileOverlay", () => {
     expect(toggle.classes()).toContain("tw:flex-1")
     expect(toggle.classes()).not.toContain("tw:w-full")
 
-    const calendarOptionsButton = wrapper.get(".calendar-options-button")
+    const calendarOptionsButton = wrapper
+      .findAllComponents(VBtnStub)
+      .find((button) => button.classes().includes("calendar-options-button"))
+    expect(calendarOptionsButton).toBeDefined()
+    if (!calendarOptionsButton) {
+      throw new Error("Expected calendar options button to be rendered")
+    }
     expect(calendarOptionsButton.text()).toBe("Calendar options")
-    expect(calendarOptionsButton.attributes("prepend-icon")).toBe(
-      "mdi-calendar",
-    )
+    expect(calendarOptionsButton.props("prependIcon")).toBe(MdiCalendar)
     expect(calendarOptionsButton.classes()).not.toContain("tw:w-full")
     const toggleEl = toggle.element as Element
     const rowChildren = Array.from(toggleEl.parentElement?.children ?? [])
-    expect(rowChildren.indexOf(calendarOptionsButton.element)).toBeLessThan(
-      rowChildren.indexOf(toggleEl),
-    )
+    expect(
+      rowChildren.indexOf(calendarOptionsButton.element as Element),
+    ).toBeLessThan(rowChildren.indexOf(toggleEl))
 
     await calendarOptionsButton.trigger("click")
 

@@ -56,14 +56,12 @@ export const eventRespondentsPanelGuestEditScenario = {
     const editAffordances = await page.evaluate((expectedGuestName) => {
       const rows = Array.from(document.querySelectorAll(".respondent-row"))
       const details = rows.map((row) => {
-        const nameNode = Array.from(row.querySelectorAll("div, span")).find((node) => {
-          const text = node.textContent?.trim() ?? ""
-          return text.length > 0 && !text.includes("mdi-")
-        })
-        const name = nameNode?.textContent?.trim() ?? row.textContent?.trim() ?? ""
+        const name =
+          row.querySelector(".respondent-name-line")?.textContent?.trim() ?? ""
+        const editStatus = row.querySelector(".respondent-edit-status")
         const hasPencil =
-          row.textContent?.includes("mdi-pencil") === true ||
-          row.querySelector(".mdi-pencil") != null
+          editStatus != null &&
+          editStatus.getAttribute("aria-disabled") !== "true"
 
         return { name, hasPencil }
       })

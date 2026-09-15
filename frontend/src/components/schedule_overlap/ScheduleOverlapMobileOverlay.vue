@@ -20,12 +20,12 @@
             <div
               :class="`tw:flex tw:gap-${overlay.hintText.length > 60 ? 2 : 1}`"
             >
-              <v-icon small>mdi-information-outline</v-icon>
+              <v-icon small><MdiInformationOutline /></v-icon>
               <div>
                 {{ overlay.hintText }}
               </div>
             </div>
-            <v-icon small @click="emit('closeHint')">mdi-close</v-icon>
+            <v-icon small @click="emit('closeHint')"><MdiClose /></v-icon>
           </div>
         </div>
       </template>
@@ -55,7 +55,7 @@
             <v-btn
               v-if="!overlay.event.daysOnly && overlay.showCalendarOptions"
               variant="outlined"
-              prepend-icon="mdi-calendar"
+              :prepend-icon="MdiCalendar"
               class="calendar-options-button tw:shrink-0 tw:border-outline-neutral tw:px-3 tw:text-sm"
               @click="emit('update:calendarOptionsDialog', true)"
             >
@@ -129,6 +129,9 @@ import GCalWeekSelector from "./GCalWeekSelector.vue"
 import ScheduleOverlapRespondentsPanel from "./ScheduleOverlapRespondentsPanel.vue"
 import SpecificTimesInstructions from "./SpecificTimesInstructions.vue"
 import type { ScheduleOverlapMobileOverlayViewModel } from "./scheduleOverlapViewModelContracts"
+import MdiCalendar from "~icons/mdi/calendar"
+import MdiClose from "~icons/mdi/close"
+import MdiInformationOutline from "~icons/mdi/information-outline"
 
 defineProps<{
   overlay: ScheduleOverlapMobileOverlayViewModel

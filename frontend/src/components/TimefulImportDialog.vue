@@ -15,7 +15,7 @@
           class="tw:right-0 tw:mr-2 tw:self-center"
           @click="closeDialog"
         >
-          <v-icon>mdi-close</v-icon>
+          <v-icon><MdiClose /></v-icon>
         </v-btn>
       </v-card-title>
       <v-card-text class="tw:text-very-dark-gray">
@@ -59,6 +59,7 @@ import { useRouter } from "vue-router"
 import { post } from "@/utils/fetch_utils"
 import { useMainStore } from "@/stores/main"
 import { isBlockedTimefulImportUrl } from "@/utils/timefulImport"
+import MdiClose from "~icons/mdi/close"
 
 const props = defineProps<{ modelValue: boolean }>()
 

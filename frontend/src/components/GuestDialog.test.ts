@@ -15,6 +15,7 @@ import { GUEST_NAME_MAX_LENGTH } from "@/utils/guestName"
 import type { Event } from "@/types"
 import GuestDialog from "./GuestDialog.vue"
 import guestDialogSource from "./GuestDialog.vue?raw"
+import MdiAlertCircle from "~icons/mdi/alert-circle"
 
 const appCssSource = readFileSync("src/index.css", "utf8")
 
@@ -70,7 +71,7 @@ const VTextFieldStub = defineComponent({
       default: undefined,
     },
     appendInnerIcon: {
-      type: String,
+      type: null,
       default: undefined,
     },
     hideDetails: {
@@ -214,7 +215,7 @@ describe("GuestDialog", () => {
     expect(field.props("variant")).toBe("outlined")
     expect(field.props("label")).toBe("Guest name (required)")
     expect(field.props("maxlength")).toBe(GUEST_NAME_MAX_LENGTH)
-    expect(field.props("appendInnerIcon")).toBe("mdi-alert-circle")
+    expect(field.props("appendInnerIcon")).toBe(MdiAlertCircle)
     expect(field.props("hideDetails")).toBe("auto")
     expect(guestDialogSource).toMatch(
       /label="Guest name \(required\)"[^>]*class="timeful-invalid-field"/,

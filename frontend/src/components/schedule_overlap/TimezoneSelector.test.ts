@@ -320,6 +320,21 @@ describe("TimezoneSelector", () => {
     ).toBeGreaterThan(timezoneSelectorSource.indexOf('id="timezone-select"'))
   })
 
+  it("uses the project icon set's backup-restore icon for the reset actions", () => {
+    expect(
+      timezoneSelectorSource.match(
+        /<MdiBackupRestore class="timezone-select__reset-icon" \/>/g,
+      ),
+    ).toHaveLength(2)
+    expect(timezoneSelectorSource).toContain(
+      'import MdiBackupRestore from "~icons/mdi/backup-restore"',
+    )
+    expect(timezoneSelectorSource).toContain(
+      ".timezone-select__reset-icon {\n  display: block;\n  height: 22px;\n  width: 22px;\n}",
+    )
+    expect(timezoneSelectorSource).not.toContain("UndoIcon")
+  })
+
   it("hides the reset button entirely when showReset is false, even if modified", () => {
     const wrapper = shallowMount(TimezoneSelector, {
       props: {

@@ -10,7 +10,7 @@
         <div>Join slot <span v-if="!authUser">as</span></div>
         <v-spacer />
         <v-btn icon @click="emit('update:modelValue', false)">
-          <v-icon>mdi-close</v-icon>
+          <v-icon><MdiClose /></v-icon>
         </v-btn>
       </v-card-title>
       <v-card-text>
@@ -88,6 +88,7 @@ import { validateEmail } from "@/utils"
 import { useMainStore } from "@/stores/main"
 import SignUpBlock from "./SignUpBlock.vue"
 import type { Event, SignUpBlockWithResponses } from "@/types"
+import MdiClose from "~icons/mdi/close"
 
 type Rule = (val: string) => true | string
 interface FormRef {

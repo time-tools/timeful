@@ -180,7 +180,7 @@
                 v-else
                 disabled
                 messages="Only show responses to event creator. "
-                false-icon="mdi-checkbox-blank-off-outline"
+                :false-icon="MdiCheckboxBlankOffOutline"
               >
                 <template #label>
                   <span class="tw:text-sm"
@@ -287,6 +287,7 @@ import {
 } from "@/composables/event/useEventEditorState"
 import TimeFormatToggle from "./schedule_overlap/TimeFormatToggle.vue"
 import TimeRangePicker from "./TimeRangePicker.vue"
+import MdiCheckboxBlankOffOutline from "~icons/mdi/checkbox-blank-off-outline"
 
 interface FormRef extends EventEditorFormRef {
   validate: () => Promise<{ valid: boolean }> | boolean
