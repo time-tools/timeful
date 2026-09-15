@@ -1,7 +1,7 @@
-// Calendar integrations are PostgreSQL-authoritative. This file is the explicit
-// boundary that translates between the internal API user shape (models) and the
-// PostgreSQL repository types (pgstore), so no route handler, provider, or
-// service reaches PostgreSQL directly.
+// Calendar integrations are authoritative. This file is the explicit boundary
+// that translates between the internal API user shape (models) and the
+// repository types (pgstore), so no route handler, provider, or service reaches
+// the database directly.
 package accounts
 
 import (
@@ -15,9 +15,9 @@ import (
 	pgstore "timeful/server/postgres"
 )
 
-// CalendarIntegrations is the PostgreSQL-authoritative calendar state for one
-// account expressed in the existing internal user shape, so routes, calendar
-// providers, and the frontend response contract are unchanged.
+// CalendarIntegrations is the authoritative calendar state for one account
+// expressed in the existing internal user shape, so routes, calendar providers,
+// and the frontend response contract are unchanged.
 type CalendarIntegrations struct {
 	Accounts          map[string]models.CalendarAccount
 	PrimaryAccountKey *string
@@ -34,8 +34,8 @@ type CalendarPreferences struct {
 }
 
 // LoadCalendarIntegrations reads every calendar connection, sub-calendar, and
-// preference for an account from PostgreSQL. A missing preference row is an
-// empty preference, not an error, and a PostgreSQL failure is returned.
+// preference for an account. A missing preference row is an empty preference,
+// not an error, and any other failure is returned.
 func LoadCalendarIntegrations(ctx context.Context, platformIdentityID string) (*CalendarIntegrations, error) {
 	repository, err := pgstore.DefaultRepository()
 	if err != nil {
@@ -47,7 +47,7 @@ func LoadCalendarIntegrations(ctx context.Context, platformIdentityID string) (*
 	}
 	integrations := &CalendarIntegrations{Accounts: make(map[string]models.CalendarAccount, len(stored))}
 	for _, account := range stored {
-		integrations.Accounts[account.CalendarKey] = calendarAccountFromPostgres(account)
+		integrations.Accounts[account.CalendarKey] = calendarAccountFromStorage(account)
 	}
 	preferences, err := repository.GetCalendarPreferences(ctx, platformIdentityID)
 	if err != nil {
@@ -71,7 +71,7 @@ func LoadCalendarIntegrations(ctx context.Context, platformIdentityID string) (*
 }
 
 // LoadSessionUser builds the authenticated user from the authoritative account
-// profile and the PostgreSQL calendar state.
+// profile and the calendar state.
 func LoadSessionUser(ctx context.Context, account *pgstore.Account) (*models.User, error) {
 	integrations, err := LoadCalendarIntegrations(ctx, account.PlatformIdentityID)
 	if err != nil {
@@ -81,7 +81,7 @@ func LoadSessionUser(ctx context.Context, account *pgstore.Account) (*models.Use
 }
 
 // LoadSessionUserByPlatformIdentityID resolves the authoritative account for a
-// platform identity UUID and loads its PostgreSQL calendar state.
+// platform identity UUID and loads its calendar state.
 func LoadSessionUserByPlatformIdentityID(ctx context.Context, platformIdentityID string) (*models.User, error) {
 	account, err := Lookup(ctx, platformIdentityID)
 	if err != nil {
@@ -90,9 +90,9 @@ func LoadSessionUserByPlatformIdentityID(ctx context.Context, platformIdentityID
 	return LoadSessionUser(ctx, account)
 }
 
-// CalendarUser overlays the PostgreSQL calendar state onto the authoritative
-// account profile. An empty integration set leaves the calendar fields absent so
-// the serialized response shape is unchanged.
+// CalendarUser overlays the calendar state onto the authoritative account
+// profile. An empty integration set leaves the calendar fields absent so the
+// serialized response shape is unchanged.
 func CalendarUser(account *pgstore.Account, integrations *CalendarIntegrations) *models.User {
 	user := UserFromAccount(account)
 	if integrations == nil {
@@ -119,7 +119,7 @@ func SaveCalendarAccount(ctx context.Context, platformIdentityID, calendarKey st
 	if err != nil {
 		return err
 	}
-	converted := calendarAccountToPostgres(calendarKey, account)
+	converted := calendarAccountToStorage(calendarKey, account)
 	return repository.WithTransaction(ctx, func(ctx context.Context, tx *pgstore.Repository) error {
 		if err := tx.UpsertCalendarAccount(ctx, platformIdentityID, converted); err != nil {
 			return err
@@ -144,10 +144,10 @@ func SyncCalendarSubCalendars(ctx context.Context, platformIdentityID, calendarK
 }
 
 // syncCalendarSubCalendars converts the internal sub-calendar map into the
-// PostgreSQL set-based sync. The batched repository path updates only the
-// sub-calendar table and deliberately does not re-read the connection's
-// encrypted credentials, so a provider refresh can no longer fail on
-// credential decryption it does not need.
+// set-based sync. The batched repository path updates only the sub-calendar
+// table and deliberately does not re-read the connection's encrypted
+// credentials, so a provider refresh can no longer fail on credential
+// decryption it does not need.
 func syncCalendarSubCalendars(ctx context.Context, repository *pgstore.Repository, platformIdentityID, calendarKey string, subCalendars map[string]models.SubCalendar) error {
 	converted := make([]pgstore.CalendarSubCalendar, 0, len(subCalendars))
 	for id, sub := range subCalendars {
@@ -164,7 +164,7 @@ func syncCalendarSubCalendars(ctx context.Context, repository *pgstore.Repositor
 }
 
 // DeleteCalendarAccount removes one connection and its credentials and
-// sub-calendars from PostgreSQL.
+// sub-calendars.
 func DeleteCalendarAccount(ctx context.Context, platformIdentityID, calendarKey string) error {
 	repository, err := pgstore.DefaultRepository()
 	if err != nil {
@@ -228,10 +228,10 @@ func UpdateCalendarAccessToken(ctx context.Context, platformIdentityID, calendar
 	return repository.UpdateCalendarOAuthAccessToken(ctx, platformIdentityID, calendarKey, accessToken, expiresAt)
 }
 
-// calendarAccountToPostgres translates the internal user-shaped connection into
-// its PostgreSQL storage form. Provider secrets stay plaintext here; the
-// repository encrypts them at rest.
-func calendarAccountToPostgres(calendarKey string, account models.CalendarAccount) *pgstore.CalendarAccount {
+// calendarAccountToStorage translates the internal user-shaped connection into
+// its storage form. Provider secrets stay plaintext here; the repository
+// encrypts them at rest.
+func calendarAccountToStorage(calendarKey string, account models.CalendarAccount) *pgstore.CalendarAccount {
 	converted := &pgstore.CalendarAccount{
 		CalendarKey:  calendarKey,
 		CalendarType: string(account.CalendarType),
@@ -266,7 +266,9 @@ func calendarAccountToPostgres(calendarKey string, account models.CalendarAccoun
 	return converted
 }
 
-func calendarAccountFromPostgres(account pgstore.CalendarAccount) models.CalendarAccount {
+// calendarAccountFromStorage translates a stored connection into the internal
+// user shape.
+func calendarAccountFromStorage(account pgstore.CalendarAccount) models.CalendarAccount {
 	converted := models.CalendarAccount{
 		CalendarType: models.CalendarType(account.CalendarType),
 		Email:        account.Email,

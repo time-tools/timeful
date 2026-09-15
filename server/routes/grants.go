@@ -11,9 +11,9 @@ import (
 	pgstore "timeful/server/postgres"
 )
 
-func postgresGrantCookieName(eventID string) string { return "timeful_grant_" + eventID }
-func provenPostgresGrant(c *gin.Context, repo *pgstore.Repository, event *pgstore.Event) (*pgstore.EventVisitorIdentity, *pgstore.EventVisitorCredential, error) {
-	cookie, err := c.Cookie(postgresGrantCookieName(event.ShortID))
+func grantCookieName(eventID string) string { return "timeful_grant_" + eventID }
+func provenGrant(c *gin.Context, repo *pgstore.Repository, event *pgstore.Event) (*pgstore.EventVisitorIdentity, *pgstore.EventVisitorCredential, error) {
+	cookie, err := c.Cookie(grantCookieName(event.ShortID))
 	if err != nil {
 		return nil, nil, nil
 	}
@@ -24,7 +24,7 @@ func provenPostgresGrant(c *gin.Context, repo *pgstore.Repository, event *pgstor
 	if err != nil {
 		return nil, nil, err
 	}
-	credential, err := provenPostgresCredentialCookie(c, repo, visitor, postgresGrantCookieName(event.ShortID))
+	credential, err := provenCredentialCookie(c, repo, visitor, grantCookieName(event.ShortID))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -44,12 +44,12 @@ func provenPostgresGrant(c *gin.Context, repo *pgstore.Repository, event *pgstor
 // @Success 200 {object} object{confirmationRequired=bool}
 // @Failure 403
 // @Router /events/{eventId}/grant-association [post]
-func postgresGrantAssociation(c *gin.Context) {
-	repo := postgresRepository(c)
+func grantAssociation(c *gin.Context) {
+	repo := defaultRepository(c)
 	if repo == nil {
 		return
 	}
-	event := postgresEvent(c, repo)
+	event := loadEvent(c, repo)
 	if event == nil {
 		return
 	}
@@ -69,7 +69,7 @@ func postgresGrantAssociation(c *gin.Context) {
 		if locked.IsDeleted {
 			return pgx.ErrNoRows
 		}
-		visitor, _, err := provenPostgresGrant(c, tx, event)
+		visitor, _, err := provenGrant(c, tx, event)
 		if err != nil {
 			return err
 		}

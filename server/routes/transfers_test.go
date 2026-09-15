@@ -23,9 +23,8 @@ type failingTransferSession struct{ sessions.Session }
 
 func (s failingTransferSession) Save() error { return errors.New("injected session encoding failure") }
 
-func TestPostgresAccessTransfers(t *testing.T) {
-	store := anonymousEventContractStores()[0]
-	router := store.newRouter(t).(*gin.Engine)
+func TestAccessTransfers(t *testing.T) {
+	router := anonymousEventRouter(t).(*gin.Engine)
 	router.POST("/test/sign-in/:id", func(c *gin.Context) {
 		s := sessions.Default(c)
 		s.Set("userId", c.Param("id"))
@@ -40,7 +39,7 @@ func TestPostgresAccessTransfers(t *testing.T) {
 	})
 	router.POST("/api/test/session-failure/:eventId/transfers/:transferId/:action", func(c *gin.Context) {
 		c.Set(sessions.DefaultKey, failingTransferSession{sessions.Default(c)})
-		postgresTransferAction(c)
+		transferAction(c)
 	})
 	server := httptest.NewServer(router)
 	defer server.Close()
@@ -83,7 +82,7 @@ func TestPostgresAccessTransfers(t *testing.T) {
 			payload["blindAvailabilityEnabled"] = true
 			created := request(owner, "POST", "/api/events", payload, 201)
 			id := str(created, "eventId")
-			t.Cleanup(func() { store.cleanupEvent(t, id) })
+			t.Cleanup(func() { cleanupAnonymousEvent(t, id) })
 			path := "/api/events/" + id
 			if mode == "owner" {
 				source = owner
@@ -105,14 +104,14 @@ func TestPostgresAccessTransfers(t *testing.T) {
 			base := path + "/transfers/" + transfer + "/"
 			otherCreated := request(client(), "POST", "/api/events", payload, 201)
 			otherID := str(otherCreated, "eventId")
-			t.Cleanup(func() { store.cleanupEvent(t, otherID) })
+			t.Cleanup(func() { cleanupAnonymousEvent(t, otherID) })
 			request(source, "POST", "/api/events/"+otherID+"/transfers/"+transfer+"/status", nil, 403)
 			request(client(), "POST", path+"/transfers", nil, 403)
 			origin, _ := url.Parse(server.URL + "/api")
 			if mode != "session" {
 				baseOnly, forged := client(), client()
 				for _, cookie := range source.Jar.Cookies(origin) {
-					if cookie.Name == postgresCredentialCookieName(id) {
+					if cookie.Name == credentialCookieName(id) {
 						copy := *cookie
 						copy.Path = "/api"
 						baseOnly.Jar.SetCookies(origin, []*http.Cookie{&copy})
@@ -251,7 +250,7 @@ func TestPostgresAccessTransfers(t *testing.T) {
 				return
 			}
 			for _, cookie := range target.Jar.Cookies(origin) {
-				if cookie.Name == postgresGrantCookieName(id) && cookie.Value == "" {
+				if cookie.Name == grantCookieName(id) && cookie.Value == "" {
 					t.Fatal("empty grant")
 				}
 			}
@@ -283,7 +282,7 @@ func TestPostgresAccessTransfers(t *testing.T) {
 			target.Jar.SetCookies(origin, []*http.Cookie{{Name: "session", Value: "", Path: "/", MaxAge: -1}})
 			clean := client()
 			for _, cookie := range target.Jar.Cookies(origin) {
-				if cookie.Name == postgresGrantCookieName(id) {
+				if cookie.Name == grantCookieName(id) {
 					cookie.Path = "/api"
 					clean.Jar.SetCookies(origin, []*http.Cookie{cookie})
 				}
@@ -411,7 +410,7 @@ func TestPostgresAccessTransfers(t *testing.T) {
 		owner := client()
 		created := request(owner, "POST", "/api/events", canonicalTimedEventPayload("Retired transfer session"), 201)
 		id := str(created, "eventId")
-		t.Cleanup(func() { store.cleanupEvent(t, id) })
+		t.Cleanup(func() { cleanupAnonymousEvent(t, id) })
 
 		retired := client()
 		request(retired, "POST", "/test/sign-in/507f1f77bcf86cd799439011", nil, 200)

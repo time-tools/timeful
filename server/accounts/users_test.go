@@ -10,10 +10,10 @@ import (
 	pgstore "timeful/server/postgres"
 )
 
-// TestUserLookupsReturnPostgresProfile proves that both account lookups return
-// the authoritative PostgreSQL profile, including the usage counter, and never
-// any calendar integration fields.
-func TestUserLookupsReturnPostgresProfile(t *testing.T) {
+// TestUserLookupsReturnAuthoritativeProfile proves that both account lookups
+// return the authoritative profile, including the usage counter, and never any
+// calendar integration fields.
+func TestUserLookupsReturnAuthoritativeProfile(t *testing.T) {
 	pool := existenceAuthorityTestPool(t)
 	previousPool := pgstore.Pool
 	pgstore.Pool = pool
@@ -29,9 +29,9 @@ func TestUserLookupsReturnPostgresProfile(t *testing.T) {
 	t.Cleanup(func() { deleteAccountsByEmail(t, pool, email) })
 	account, created, err := repository.FindOrCreateAccountByEmail(ctx, email, pgstore.Account{
 		Email:            email,
-		FirstName:        "Postgres",
-		LastName:         "Profile",
-		Picture:          "https://postgres.example/picture.png",
+		FirstName:        "Ada",
+		LastName:         "Lovelace",
+		Picture:          "https://example.test/picture.png",
 		TimezoneOffset:   90,
 		NumEventsCreated: 7,
 	})
@@ -50,10 +50,10 @@ func TestUserLookupsReturnPostgresProfile(t *testing.T) {
 		if got.Id.String() != account.PlatformIdentityID || got.Email != email {
 			t.Fatalf("%s returned the wrong account: %#v", lookup, got)
 		}
-		if got.FirstName != "Postgres" || got.LastName != "Profile" {
+		if got.FirstName != "Ada" || got.LastName != "Lovelace" {
 			t.Fatalf("%s returned the wrong name: %#v", lookup, got)
 		}
-		if got.Picture != "https://postgres.example/picture.png" {
+		if got.Picture != "https://example.test/picture.png" {
 			t.Fatalf("%s returned the wrong picture: %q", lookup, got.Picture)
 		}
 		if got.TimezoneOffset != 90 {
@@ -77,7 +77,7 @@ func TestUserLookupsPostgresErrorReturnsNil(t *testing.T) {
 	logger.Init(io.Discard)
 	previousPool := pgstore.Pool
 	t.Cleanup(func() { pgstore.Pool = previousPool })
-	pgstore.Pool = closedExistencePostgresPool(t)
+	pgstore.Pool = closedExistencePool(t)
 
 	platformIdentityID := models.NewUUID().String()
 	email := "error-" + platformIdentityID + "@example.com"

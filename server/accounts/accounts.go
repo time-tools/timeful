@@ -1,7 +1,7 @@
-// Package accounts is the explicit boundary for the authoritative PostgreSQL
-// account. Profile and identity resolve through PostgreSQL, and calendar
-// connections, provider tokens, and calendar preferences resolve through this
-// package's PostgreSQL calendar boundary.
+// Package accounts is the explicit boundary for the authoritative account.
+// Profile and identity resolve through this package, and calendar connections,
+// provider tokens, and calendar preferences resolve through its calendar
+// boundary.
 package accounts
 
 import (
@@ -14,7 +14,7 @@ import (
 	"timeful/server/utils"
 )
 
-// ErrNotFound reports that no PostgreSQL account exists for an identifier.
+// ErrNotFound reports that no account exists for an identifier.
 var ErrNotFound = errors.New("account not found")
 
 // Profile carries the profile fields a sign-in provider or OTP flow supplies.
@@ -78,10 +78,10 @@ func ResolveForSignIn(ctx context.Context, profile Profile) (*pgstore.Account, b
 	return repository.FindOrCreateAccountByEmail(ctx, email, initial)
 }
 
-// IsNewUser reports whether no PostgreSQL account exists for the email. A
-// PostgreSQL failure is returned as an error rather than reported as
-// account-exists or account-missing, so callers never treat a transient
-// database failure as an existence result.
+// IsNewUser reports whether no account exists for the email. A lookup failure
+// is returned as an error rather than reported as account-exists or
+// account-missing, so callers never treat a transient database failure as an
+// existence result.
 func IsNewUser(email string) (bool, error) {
 	email = utils.NormalizeEmail(email)
 	if email == "" {
@@ -99,7 +99,7 @@ func IsNewUser(email string) (bool, error) {
 	return true, nil
 }
 
-// UpdateProfile writes authoritative profile fields to PostgreSQL.
+// UpdateProfile writes authoritative profile fields.
 func UpdateProfile(ctx context.Context, account *pgstore.Account) error {
 	repository, err := pgstore.DefaultRepository()
 	if err != nil {
@@ -108,7 +108,7 @@ func UpdateProfile(ctx context.Context, account *pgstore.Account) error {
 	return repository.UpdateAccountProfile(ctx, account)
 }
 
-// IncrementEventsCreated advances the retained usage counter on the account.
+// IncrementEventsCreated advances the usage counter on the account.
 func IncrementEventsCreated(ctx context.Context, platformIdentityID string) error {
 	repository, err := pgstore.DefaultRepository()
 	if err != nil {

@@ -17,9 +17,9 @@ import (
 	pgstore "timeful/server/postgres"
 )
 
-func postgresOwnerCookieName(eventID string) string { return "timeful_owner_" + eventID }
+func ownerCookieName(eventID string) string { return "timeful_owner_" + eventID }
 
-func issuePostgresOwnerToken(ctx context.Context, repo *pgstore.Repository, event *pgstore.Event) (string, error) {
+func issueOwnerToken(ctx context.Context, repo *pgstore.Repository, event *pgstore.Event) (string, error) {
 	var secret [32]byte
 	if _, err := rand.Read(secret[:]); err != nil {
 		return "", err
@@ -32,23 +32,23 @@ func issuePostgresOwnerToken(ctx context.Context, repo *pgstore.Repository, even
 	return token, nil
 }
 
-func setPostgresOwnerCookie(c *gin.Context, eventID, token string) {
+func setOwnerCookie(c *gin.Context, eventID, token string) {
 	http.SetCookie(c.Writer, &http.Cookie{
-		Name: postgresOwnerCookieName(eventID), Value: token, Path: "/api",
+		Name: ownerCookieName(eventID), Value: token, Path: "/api",
 		MaxAge: 34560000, HttpOnly: true, SameSite: http.SameSiteLaxMode,
 		Secure: c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https",
 	})
 }
 
-// authorizePostgresOwner runs under the event row lock, serializing takeover
+// authorizeOwner runs under the event row lock, serializing takeover
 // with protected mutations. Token proof never changes response ownership.
-func authorizePostgresOwner(c *gin.Context, repo *pgstore.Repository, event *pgstore.Event) (bool, error) {
+func authorizeOwner(c *gin.Context, repo *pgstore.Repository, event *pgstore.Event) (bool, error) {
 	if event.IsDeleted {
 		return false, pgx.ErrNoRows
 	}
 	ctx := c.Request.Context()
 	platformIdentityID, _ := sessions.Default(c).Get("userId").(string)
-	token, err := c.Cookie(postgresOwnerCookieName(event.ShortID))
+	token, err := c.Cookie(ownerCookieName(event.ShortID))
 	hash := sha256.Sum256([]byte(token))
 	if err == nil && token != "" && subtle.ConstantTimeCompare(hash[:], event.OwnerEditTokenHash) == 1 {
 		if platformIdentityID != "" {
@@ -71,7 +71,7 @@ func authorizePostgresOwner(c *gin.Context, repo *pgstore.Repository, event *pgs
 			return owned, err
 		}
 	}
-	grantVisitor, grant, err := provenPostgresGrant(c, repo, event)
+	grantVisitor, grant, err := provenGrant(c, repo, event)
 	if err != nil {
 		return false, err
 	}
@@ -80,7 +80,7 @@ func authorizePostgresOwner(c *gin.Context, repo *pgstore.Repository, event *pgs
 	}
 	// Retain validation of grants stored in the foundation cookie slot.
 	// A base EVCC, even the creator's, never grants Event Owner powers.
-	cookie, err := c.Cookie(postgresCredentialCookieName(event.ShortID))
+	cookie, err := c.Cookie(credentialCookieName(event.ShortID))
 	if err != nil {
 		return false, nil
 	}
@@ -95,7 +95,7 @@ func authorizePostgresOwner(c *gin.Context, repo *pgstore.Repository, event *pgs
 	if err != nil {
 		return false, err
 	}
-	credential, err := provenPostgresCredential(c, repo, visitor, event.ShortID)
+	credential, err := provenCredential(c, repo, visitor, event.ShortID)
 	if err != nil {
 		return false, err
 	}
@@ -103,14 +103,14 @@ func authorizePostgresOwner(c *gin.Context, repo *pgstore.Repository, event *pgs
 		event.OwnerEventVisitorIdentityID != nil && visitor.ID == *event.OwnerEventVisitorIdentityID, nil
 }
 
-func resolvePostgresOwner(c *gin.Context, repo *pgstore.Repository, event *pgstore.Event) (bool, error) {
+func resolveOwner(c *gin.Context, repo *pgstore.Repository, event *pgstore.Event) (bool, error) {
 	var authorized bool
 	err := repo.WithTransaction(c.Request.Context(), func(ctx context.Context, tx *pgstore.Repository) error {
 		locked, err := tx.LockEvent(ctx, event.ID)
 		if err != nil {
 			return err
 		}
-		authorized, err = authorizePostgresOwner(c, tx, locked)
+		authorized, err = authorizeOwner(c, tx, locked)
 		if err == nil {
 			*event = *locked
 		}
@@ -119,7 +119,7 @@ func resolvePostgresOwner(c *gin.Context, repo *pgstore.Repository, event *pgsto
 	return authorized, err
 }
 
-func postgresWritableEvent(event *pgstore.Event) error {
+func writableEvent(event *pgstore.Event) error {
 	if event.IsDeleted {
 		return pgx.ErrNoRows
 	}
@@ -129,12 +129,12 @@ func postgresWritableEvent(event *pgstore.Event) error {
 	return nil
 }
 
-func postgresOwnerMutation(c *gin.Context, allowArchived bool, mutate func(context.Context, *pgstore.Repository, *pgstore.Event) error) bool {
-	repo := postgresRepository(c)
+func ownerMutation(c *gin.Context, allowArchived bool, mutate func(context.Context, *pgstore.Repository, *pgstore.Event) error) bool {
+	repo := defaultRepository(c)
 	if repo == nil {
 		return false
 	}
-	event := postgresEvent(c, repo)
+	event := loadEvent(c, repo)
 	if event == nil {
 		return false
 	}
@@ -143,7 +143,7 @@ func postgresOwnerMutation(c *gin.Context, allowArchived bool, mutate func(conte
 		if err != nil {
 			return err
 		}
-		authorized, err := authorizePostgresOwner(c, tx, locked)
+		authorized, err := authorizeOwner(c, tx, locked)
 		if err != nil {
 			return err
 		}
@@ -151,14 +151,14 @@ func postgresOwnerMutation(c *gin.Context, allowArchived bool, mutate func(conte
 			return guestForbidden{errs.EventOwnerCredentialRequired}
 		}
 		if !allowArchived {
-			if err := postgresWritableEvent(locked); err != nil {
+			if err := writableEvent(locked); err != nil {
 				return err
 			}
 		}
 		return mutate(ctx, tx, locked)
 	})
 	if err != nil {
-		postgresMutationError(c, err)
+		mutationError(c, err)
 		return false
 	}
 	c.Status(http.StatusOK)
@@ -176,14 +176,14 @@ func postgresOwnerMutation(c *gin.Context, allowArchived bool, mutate func(conte
 // @Failure 403 {object} responses.Error "Owner authority required or event archived"
 // @Failure 404 {object} responses.Error "Event not found"
 // @Router /events/{eventId}/archive [post]
-func postgresArchiveEvent(c *gin.Context) {
+func archiveEvent(c *gin.Context) {
 	var input struct {
 		Archive *bool `json:"archive" binding:"required"`
 	}
 	if err := c.BindJSON(&input); err != nil {
 		return
 	}
-	postgresOwnerMutation(c, true, func(ctx context.Context, tx *pgstore.Repository, event *pgstore.Event) error {
+	ownerMutation(c, true, func(ctx context.Context, tx *pgstore.Repository, event *pgstore.Event) error {
 		return tx.SetEventArchived(ctx, event.ID, *input.Archive)
 	})
 }
@@ -197,8 +197,8 @@ func postgresArchiveEvent(c *gin.Context) {
 // @Failure 403 {object} responses.Error "Owner authority required or event archived"
 // @Failure 404 {object} responses.Error "Event not found"
 // @Router /events/{eventId} [delete]
-func postgresDeleteEvent(c *gin.Context) {
-	postgresOwnerMutation(c, true, func(ctx context.Context, tx *pgstore.Repository, event *pgstore.Event) error {
+func deleteEvent(c *gin.Context) {
+	ownerMutation(c, true, func(ctx context.Context, tx *pgstore.Repository, event *pgstore.Event) error {
 		return tx.SetEventDeleted(ctx, event.ID, true)
 	})
 }

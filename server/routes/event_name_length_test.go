@@ -30,19 +30,18 @@ func assertEventNameTooLongRejection(t *testing.T, recorder *httptest.ResponseRe
 	}
 }
 
-func countPostgresEventsByName(t *testing.T, name string) int {
+func countEventsByName(t *testing.T, name string) int {
 	t.Helper()
 
 	var count int
 	if err := pgstore.Pool.QueryRow(context.Background(), `SELECT count(*) FROM events WHERE name = $1`, name).Scan(&count); err != nil {
-		t.Fatalf("count PostgreSQL events by name: %v", err)
+		t.Fatalf("count events by name: %v", err)
 	}
 	return count
 }
 
 func TestCreateEventRejectsNamesLongerThan100CodePointsWithoutPersisting(t *testing.T) {
-	store := anonymousEventContractStores()[0]
-	router := store.newRouter(t)
+	router := anonymousEventRouter(t)
 
 	cases := []struct {
 		name  string
@@ -55,7 +54,7 @@ func TestCreateEventRejectsNamesLongerThan100CodePointsWithoutPersisting(t *test
 		t.Run(testCase.name, func(t *testing.T) {
 			recorder := timedEventRequest(t, router, http.MethodPost, "/api/events", canonicalTimedEventPayload(testCase.value))
 			assertEventNameTooLongRejection(t, recorder)
-			if count := countPostgresEventsByName(t, testCase.value); count != 0 {
+			if count := countEventsByName(t, testCase.value); count != 0 {
 				t.Fatalf("expected rejected event name not to persist, found %d stored events", count)
 			}
 		})
@@ -63,8 +62,7 @@ func TestCreateEventRejectsNamesLongerThan100CodePointsWithoutPersisting(t *test
 }
 
 func TestCreateEventAcceptsNamesAt100CodePoints(t *testing.T) {
-	store := anonymousEventContractStores()[0]
-	router := store.newRouter(t)
+	router := anonymousEventRouter(t)
 
 	cases := []struct {
 		name  string
@@ -75,10 +73,10 @@ func TestCreateEventAcceptsNamesAt100CodePoints(t *testing.T) {
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			eventID := createAnonymousCompatibilityEvent(t, router, canonicalTimedEventPayload(testCase.value))
-			t.Cleanup(func() { store.cleanupEvent(t, eventID) })
+			eventID := createAnonymousEvent(t, router, canonicalTimedEventPayload(testCase.value))
+			t.Cleanup(func() { cleanupAnonymousEvent(t, eventID) })
 
-			stored, _ := loadPostgresEventModel(t, router, eventID)
+			stored, _ := loadEventModel(t, router, eventID)
 			if stored.Name != testCase.value {
 				t.Fatalf("expected stored name %q, got %q", testCase.value, stored.Name)
 			}
@@ -87,12 +85,11 @@ func TestCreateEventAcceptsNamesAt100CodePoints(t *testing.T) {
 }
 
 func TestEditEventRejectsNamesLongerThan100CodePointsWithoutPersisting(t *testing.T) {
-	store := anonymousEventContractStores()[0]
-	router := compatibilityOwnerBrowser(store.newRouter(t))
+	router := ownerCredentialBrowser(anonymousEventRouter(t))
 
 	originalName := "Original event name"
-	eventID := createAnonymousCompatibilityEvent(t, router, canonicalTimedEventPayload(originalName))
-	t.Cleanup(func() { store.cleanupEvent(t, eventID) })
+	eventID := createAnonymousEvent(t, router, canonicalTimedEventPayload(originalName))
+	t.Cleanup(func() { cleanupAnonymousEvent(t, eventID) })
 
 	cases := []struct {
 		name  string
@@ -106,7 +103,7 @@ func TestEditEventRejectsNamesLongerThan100CodePointsWithoutPersisting(t *testin
 			recorder := timedEventRequest(t, router, http.MethodPut, "/api/events/"+eventID, canonicalTimedEventPayload(testCase.value))
 			assertEventNameTooLongRejection(t, recorder)
 
-			stored, _ := loadPostgresEventModel(t, router, eventID)
+			stored, _ := loadEventModel(t, router, eventID)
 			if stored.Name != originalName {
 				t.Fatalf("expected rejected edit to leave stored name %q, got %q", originalName, stored.Name)
 			}
@@ -115,11 +112,10 @@ func TestEditEventRejectsNamesLongerThan100CodePointsWithoutPersisting(t *testin
 }
 
 func TestEditEventAcceptsNamesAt100CodePoints(t *testing.T) {
-	store := anonymousEventContractStores()[0]
-	router := compatibilityOwnerBrowser(store.newRouter(t))
+	router := ownerCredentialBrowser(anonymousEventRouter(t))
 
-	eventID := createAnonymousCompatibilityEvent(t, router, canonicalTimedEventPayload("Editable name boundary event"))
-	t.Cleanup(func() { store.cleanupEvent(t, eventID) })
+	eventID := createAnonymousEvent(t, router, canonicalTimedEventPayload("Editable name boundary event"))
+	t.Cleanup(func() { cleanupAnonymousEvent(t, eventID) })
 
 	cases := []struct {
 		name  string
@@ -135,7 +131,7 @@ func TestEditEventAcceptsNamesAt100CodePoints(t *testing.T) {
 				t.Fatalf("expected status 200, got %d: %s", recorder.Code, recorder.Body.String())
 			}
 
-			stored, _ := loadPostgresEventModel(t, router, eventID)
+			stored, _ := loadEventModel(t, router, eventID)
 			if stored.Name != testCase.value {
 				t.Fatalf("expected stored name %q, got %q", testCase.value, stored.Name)
 			}

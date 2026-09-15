@@ -36,7 +36,7 @@ func InitAuth(router *gin.RouterGroup) {
 	authRouter.POST("/sign-in-mobile", signInMobile)
 	authRouter.POST("/sign-out", signOut)
 	authRouter.GET("/status", middleware.AuthRequired(), getStatus)
-	authRouter.POST("/visitor-identities", associatePostgresVisitorIdentities)
+	authRouter.POST("/visitor-identities", associateVisitorIdentities)
 
 	authRouter.POST("/otp/check-email", checkEmail)
 	authRouter.POST("/otp/send", sendOtp)
@@ -166,7 +166,7 @@ func signInHelper(c *gin.Context, token auth.TokenResponse, tokenOrigin models.T
 
 	ctx := context.Background()
 
-	// PostgreSQL is authoritative for account identity and profile. A matching
+	// The database is authoritative for account identity and profile. A matching
 	// account is adopted instead of duplicated.
 	account, _, err := accounts.ResolveForSignIn(ctx, accounts.Profile{
 		Email:          email,
@@ -196,7 +196,7 @@ func signInHelper(c *gin.Context, token auth.TokenResponse, tokenOrigin models.T
 	}
 
 	// Calendar connections, tokens, sub-calendars, and preferences are
-	// PostgreSQL-authoritative and resolve through the accounts boundary.
+	// authoritative and resolve through the accounts boundary.
 	integrations, err := accounts.LoadCalendarIntegrations(ctx, account.PlatformIdentityID)
 	if err != nil {
 		logger.StdErr.Printf("Failed to load calendar integrations for %s: %v", account.PlatformIdentityID, err)
@@ -401,7 +401,7 @@ func verifyOtp(c *gin.Context) {
 
 	email := strings.ToLower(strings.TrimSpace(payload.Email))
 
-	// Verify the PostgreSQL challenge. Attempts are incremented atomically, and
+	// Verify the challenge. Attempts are incremented atomically, and
 	// the challenge is deleted on success or lockout.
 	repository, err := pgstore.DefaultRepository()
 	if err != nil {
@@ -424,7 +424,7 @@ func verifyOtp(c *gin.Context) {
 	firstName := strings.TrimSpace(payload.FirstName)
 	lastName := strings.TrimSpace(payload.LastName)
 
-	// Successful authentication resolves an authoritative PostgreSQL account.
+	// Successful authentication resolves an authoritative account.
 	ctx := context.Background()
 	account, created, err := accounts.ResolveForSignIn(ctx, accounts.Profile{
 		Email:          email,

@@ -8,15 +8,14 @@ import (
 )
 
 func TestTimefulScheduleCanBeSavedReplacedAndCleared(t *testing.T) {
-	store := anonymousEventContractStores()[0]
-	router := compatibilityOwnerBrowser(store.newRouter(t))
-	eventID := createAnonymousCompatibilityEvent(t, router, map[string]any{
+	router := ownerCredentialBrowser(anonymousEventRouter(t))
+	eventID := createAnonymousEvent(t, router, map[string]any{
 		"name":     "Public planning",
 		"type":     string(models.SPECIFIC_DATES),
 		"daysOnly": true,
 		"dates":    []string{"2026-08-01T00:00:00Z"},
 	})
-	t.Cleanup(func() { store.cleanupEvent(t, eventID) })
+	t.Cleanup(func() { cleanupAnonymousEvent(t, eventID) })
 
 	firstPayload := map[string]any{
 		"startDate": "2026-08-01T09:00:00Z",
@@ -65,15 +64,14 @@ func TestTimefulScheduleCanBeSavedReplacedAndCleared(t *testing.T) {
 // The end-before-start validation deliberately runs before owner authorization,
 // so a cookie-less request with an invalid range gets 400 rather than 403.
 func TestTimefulScheduleRejectsEmptyRangeBeforeOwnerAuthorization(t *testing.T) {
-	store := anonymousEventContractStores()[0]
-	router := store.newRouter(t)
-	eventID := createAnonymousCompatibilityEvent(t, router, map[string]any{
+	router := anonymousEventRouter(t)
+	eventID := createAnonymousEvent(t, router, map[string]any{
 		"name":     "Invalid range",
 		"type":     string(models.SPECIFIC_DATES),
 		"daysOnly": true,
 		"dates":    []string{"2026-08-01T00:00:00Z"},
 	})
-	t.Cleanup(func() { store.cleanupEvent(t, eventID) })
+	t.Cleanup(func() { cleanupAnonymousEvent(t, eventID) })
 
 	recorder := timedEventRequest(t, router, http.MethodPut, "/api/events/"+eventID+"/schedule", map[string]any{
 		"startDate": "2026-08-01T10:00:00Z",

@@ -26,7 +26,7 @@ func newAccountContractRouter(t *testing.T) *gin.Engine {
 	if os.Getenv("POSTGRES_APPLICATION_URI") == "" {
 		t.Skip("POSTGRES_APPLICATION_URI is required for account route contracts")
 	}
-	anonymousEventPostgresOnce.Do(func() { pgstore.Init() })
+	routeTestDBOnce.Do(func() { pgstore.Init() })
 	t.Setenv("LISTMONK_ENABLED", "false")
 
 	router := gin.New()
@@ -127,7 +127,7 @@ func insertOtpCode(t *testing.T, email, code string) {
 	})
 }
 
-// deleteAccountTestFixtures removes every created PostgreSQL account and its
+// deleteAccountTestFixtures removes every created account and its
 // platform identity. The repository deliberately retains platform identities in
 // production, so tests that create them must clean them up explicitly to stay
 // rerunnable against a retained database.
@@ -161,10 +161,10 @@ func verifyOtpSignIn(t *testing.T, client *accountContractClient, email, code st
 	}, http.StatusOK)
 }
 
-// TestAccountOtpSignInUsesPostgresAuthority proves that OTP sign-in resolves a
-// PostgreSQL account and that profile reads and updates only ever touch the
-// authoritative PostgreSQL account.
-func TestAccountOtpSignInUsesPostgresAuthority(t *testing.T) {
+// TestAccountOtpSignInUsesAuthority proves that OTP sign-in resolves a
+// account and that profile reads and updates only ever touch the
+// authoritative account.
+func TestAccountOtpSignInUsesAuthority(t *testing.T) {
 	router := newAccountContractRouter(t)
 	client := newAccountContractClient(t, router)
 	email := "account-contract-" + models.NewUUID().String() + "@example.com"
@@ -180,28 +180,28 @@ func TestAccountOtpSignInUsesPostgresAuthority(t *testing.T) {
 	}
 	account, err := repository.GetAccountByEmail(context.Background(), email)
 	if err != nil {
-		t.Fatalf("account not created in PostgreSQL: %v", err)
+		t.Fatalf("account not created: %v", err)
 	}
 	t.Cleanup(func() { deleteAccountTestFixtures(t, account.PlatformIdentityID) })
 
 	read := client.request(http.MethodGet, "/api/user/profile", nil, http.StatusOK)
 	if got := decodeAccountString(t, read, "email"); got != email {
-		t.Fatalf("profile email = %q, want the PostgreSQL value", got)
+		t.Fatalf("profile email = %q, want the stored value", got)
 	}
 	if got := decodeAccountString(t, read, "firstName"); got != "Provider" {
-		t.Fatalf("profile firstName = %q, want PostgreSQL value", got)
+		t.Fatalf("profile firstName = %q, want the stored value", got)
 	}
 
 	client.request(http.MethodPatch, "/api/user/name", map[string]any{"firstName": "Custom", "lastName": "Person"}, http.StatusOK)
 	updated, err := repository.GetAccountByPlatformIdentityID(context.Background(), account.PlatformIdentityID)
 	if err != nil || updated.FirstName != "Custom" || updated.LastName != "Person" || updated.HasCustomName == nil || !*updated.HasCustomName {
-		t.Fatalf("profile update not written to PostgreSQL: %v %#v", err, updated)
+		t.Fatalf("profile update not written: %v %#v", err, updated)
 	}
 
-	// Public profiles also resolve PostgreSQL authority.
+	// Public profiles also resolve the authoritative account.
 	public := client.request(http.MethodGet, "/api/users/"+account.PlatformIdentityID, nil, http.StatusOK)
 	if got := decodeAccountString(t, public, "firstName"); got != "Custom" {
-		t.Fatalf("public profile firstName = %q, want PostgreSQL value", got)
+		t.Fatalf("public profile firstName = %q, want the stored value", got)
 	}
 
 	// Repeated sign-in must not create a duplicate account or identity.
@@ -223,11 +223,11 @@ func TestAccountOtpSignInUsesPostgresAuthority(t *testing.T) {
 	client.request(http.MethodGet, "/api/user/profile", nil, http.StatusUnauthorized)
 }
 
-// TestAccountExistingSessionResolvesPostgresAuthority proves that a session
-// resolves its authoritative PostgreSQL account, that PostgreSQL calendar state
+// TestAccountExistingSessionResolvesAuthority proves that a session
+// resolves its authoritative account, that calendar state
 // is exposed through the boundary, and that a session for an account absent
-// from PostgreSQL is rejected.
-func TestAccountExistingSessionResolvesPostgresAuthority(t *testing.T) {
+// from the database is rejected.
+func TestAccountExistingSessionResolvesAuthority(t *testing.T) {
 	router := newAccountContractRouter(t)
 	client := newAccountContractClient(t, router)
 
@@ -256,10 +256,10 @@ func TestAccountExistingSessionResolvesPostgresAuthority(t *testing.T) {
 	}
 	var calendarAccounts map[string]json.RawMessage
 	if err := json.Unmarshal(profile["calendarAccounts"], &calendarAccounts); err != nil || len(calendarAccounts) != 0 {
-		t.Fatalf("empty PostgreSQL calendar state exposed entries: %v %v", err, calendarAccounts)
+		t.Fatalf("empty calendar state exposed entries: %v %v", err, calendarAccounts)
 	}
 
-	// PostgreSQL calendar state is authoritative and is exposed through the
+	// Calendar state is authoritative and is exposed through the
 	// boundary.
 	if err := accounts.SaveCalendarAccount(context.Background(), externalUserID, primaryKey, models.CalendarAccount{
 		CalendarType: models.GoogleCalendarType,
@@ -269,7 +269,7 @@ func TestAccountExistingSessionResolvesPostgresAuthority(t *testing.T) {
 	}
 	profile = client.request(http.MethodGet, "/api/user/profile", nil, http.StatusOK)
 	if err := json.Unmarshal(profile["calendarAccounts"], &calendarAccounts); err != nil || len(calendarAccounts) != 1 {
-		t.Fatalf("PostgreSQL calendar integration not exposed through boundary: %v %v", err, calendarAccounts)
+		t.Fatalf("calendar integration not exposed through boundary: %v %v", err, calendarAccounts)
 	}
 
 	// A repeated signed-in read must not create a second account.
@@ -282,7 +282,7 @@ func TestAccountExistingSessionResolvesPostgresAuthority(t *testing.T) {
 		t.Fatalf("session resolution duplicated the account: %d", accountCount)
 	}
 
-	// A session whose account has no PostgreSQL row is not adopted from any
+	// A session whose account has no account row is not adopted from any
 	// retained document and is rejected.
 	unknownClient := newAccountContractClient(t, router)
 	unknownExternalUserID := models.NewUUID().String()
@@ -296,7 +296,7 @@ func TestAccountExistingSessionResolvesPostgresAuthority(t *testing.T) {
 	legacyClient.request(http.MethodGet, "/api/user/profile", nil, http.StatusUnauthorized)
 }
 
-// TestAccountDuplicateEmailDoesNotMerge proves that two distinct PostgreSQL
+// TestAccountDuplicateEmailDoesNotMerge proves that two distinct
 // accounts with equal emails remain distinct and that sign-in resolves the
 // deterministic oldest match without creating a third account.
 func TestAccountDuplicateEmailDoesNotMerge(t *testing.T) {
@@ -331,8 +331,8 @@ func TestAccountDuplicateEmailDoesNotMerge(t *testing.T) {
 }
 
 // TestAccountCalendarRemovalWritesIntegrationOnly proves that removing a
-// calendar account removes only the PostgreSQL calendar connection and leaves
-// the PostgreSQL profile unchanged.
+// calendar account removes only the calendar connection and leaves
+// the profile unchanged.
 func TestAccountCalendarRemovalWritesIntegrationOnly(t *testing.T) {
 	router := newAccountContractRouter(t)
 	client := newAccountContractClient(t, router)
@@ -355,7 +355,7 @@ func TestAccountCalendarRemovalWritesIntegrationOnly(t *testing.T) {
 	client.request(http.MethodGet, "/api/user/profile", nil, http.StatusOK)
 	account, err = repository.GetAccountByPlatformIdentityID(context.Background(), externalUserID)
 	if err != nil {
-		t.Fatalf("session did not resolve a PostgreSQL account: %v", err)
+		t.Fatalf("session did not resolve an account: %v", err)
 	}
 	if err := repository.IncrementAccountEventsCreated(context.Background(), account.PlatformIdentityID); err != nil {
 		t.Fatal(err)
@@ -371,13 +371,13 @@ func TestAccountCalendarRemovalWritesIntegrationOnly(t *testing.T) {
 		"email": email, "calendarType": models.GoogleCalendarType,
 	}, http.StatusOK)
 
-	// The PostgreSQL connection is gone.
+	// The calendar connection is gone.
 	remaining, err := repository.ListCalendarAccountsForUser(context.Background(), externalUserID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(remaining) != 0 {
-		t.Fatalf("calendar account survived PostgreSQL removal: %#v", remaining)
+		t.Fatalf("calendar account survived removal: %#v", remaining)
 	}
 
 	stored, err := repository.GetAccountByPlatformIdentityID(context.Background(), externalUserID)
@@ -385,14 +385,14 @@ func TestAccountCalendarRemovalWritesIntegrationOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	if stored.Email != email || stored.FirstName != "Calendar" || stored.NumEventsCreated != 1 {
-		t.Fatalf("calendar removal changed the PostgreSQL profile: %#v", stored)
+		t.Fatalf("calendar removal changed the profile: %#v", stored)
 	}
 }
 
-// TestAccountProfileCounterIsPostgresAuthoritative proves that the profile
-// reports the PostgreSQL usage counter and that a profile update cannot change
+// TestAccountProfileCounterIsAuthoritative proves that the profile
+// reports the usage counter and that a profile update cannot change
 // it.
-func TestAccountProfileCounterIsPostgresAuthoritative(t *testing.T) {
+func TestAccountProfileCounterIsAuthoritative(t *testing.T) {
 	router := newAccountContractRouter(t)
 	client := newAccountContractClient(t, router)
 	email := "counter-" + models.NewUUID().String() + "@example.com"
@@ -401,7 +401,7 @@ func TestAccountProfileCounterIsPostgresAuthoritative(t *testing.T) {
 	repository := repositoryForTest(t)
 	account, err := repository.GetAccountByEmail(context.Background(), email)
 	if err != nil {
-		t.Fatalf("account not created in PostgreSQL: %v", err)
+		t.Fatalf("account not created: %v", err)
 	}
 	t.Cleanup(func() { deleteAccountTestFixtures(t, account.PlatformIdentityID) })
 
@@ -412,7 +412,7 @@ func TestAccountProfileCounterIsPostgresAuthoritative(t *testing.T) {
 	}
 	read := client.request(http.MethodGet, "/api/user/profile", nil, http.StatusOK)
 	if got := decodeAccountInt(t, read, "numEventsCreated"); got != 2 {
-		t.Fatalf("profile numEventsCreated = %d, want the PostgreSQL counter 2", got)
+		t.Fatalf("profile numEventsCreated = %d, want the stored counter 2", got)
 	}
 
 	client.request(http.MethodPatch, "/api/user/name", map[string]any{"firstName": "Custom", "lastName": "Person"}, http.StatusOK)
@@ -423,7 +423,7 @@ func TestAccountProfileCounterIsPostgresAuthoritative(t *testing.T) {
 }
 
 // TestAccountProfileReadRecordsDailyUserLog proves the sign-in profile path
-// records the account in the authoritative PostgreSQL daily log and that
+// records the account in the authoritative daily log and that
 // repeated same-day reads are idempotent.
 func TestAccountProfileReadRecordsDailyUserLog(t *testing.T) {
 	router := newAccountContractRouter(t)

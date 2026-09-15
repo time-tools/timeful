@@ -12,12 +12,12 @@ import (
 	pgstore "timeful/server/postgres"
 )
 
-// TestAccountDeletionRemovesPostgresAuthority proves the ratified FR-123
-// deletion unit: the PostgreSQL account authority, platform identity, calendar
+// TestAccountDeletionRemovesAuthority proves the ratified FR-123
+// deletion unit: the account authority, platform identity, calendar
 // connections, responses, folders, and daily-log membership are removed; events
 // the account organized survive with ownership released and their other guests'
 // responses intact.
-func TestAccountDeletionRemovesPostgresAuthority(t *testing.T) {
+func TestAccountDeletionRemovesAuthority(t *testing.T) {
 	router := newAccountContractRouter(t)
 	client := newAccountContractClient(t, router)
 	ctx := context.Background()
@@ -32,7 +32,7 @@ func TestAccountDeletionRemovesPostgresAuthority(t *testing.T) {
 	t.Cleanup(func() { deleteAccountTestFixtures(t, account.PlatformIdentityID) })
 	objectID := accountObjectID(t, account.PlatformIdentityID)
 
-	// PostgreSQL: a daily log shared with another account, and a log that only
+	// Account data: a daily log shared with another account, and a log that only
 	// the deleted account used.
 	sharedDate := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, int(objectID[0])*256+int(objectID[1]))
 	soloDate := time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, int(objectID[2])*256+int(objectID[3]))
@@ -58,7 +58,7 @@ VALUES ($1, $2, 0) ON CONFLICT DO NOTHING`, soloLogID, account.PlatformIdentityI
 		_, _ = pgstore.Pool.Exec(context.Background(), `DELETE FROM daily_user_logs WHERE id = ANY($1)`, []string{sharedLogID, soloLogID})
 	})
 
-	// PostgreSQL: an event the account owns with one account response and one
+	// Events: an event the account owns with one account response and one
 	// guest response.
 	shortID, err := pgstore.GenerateShortID()
 	if err != nil {
@@ -88,7 +88,7 @@ VALUES ($1, $2, 'account', $3, '{"name":"Owner"}'), ($1, $4, 'guest', NULL, '{"n
 		_, _ = pgstore.Pool.Exec(cleanup, `DELETE FROM events WHERE id = $1`, eventID)
 	})
 
-	// PostgreSQL: an account folder with a PostgreSQL member.
+	// Folders: an account folder with a member.
 	var folderID string
 	if err := pgstore.Pool.QueryRow(ctx, `INSERT INTO folders (platform_identity_id, name) VALUES ($1, 'Folder') RETURNING id`, account.PlatformIdentityID).Scan(&folderID); err != nil {
 		t.Fatal(err)
@@ -115,7 +115,7 @@ VALUES ($1, $2, 'account', $3, '{"name":"Owner"}'), ($1, $4, 'guest', NULL, '{"n
 		t.Fatalf("platform identity survived deletion: %d", identities)
 	}
 
-	// PostgreSQL: the account's own data is gone while another guest's
+	// The account's own data is gone while another guest's
 	// response survives.
 	var ownResponses, guestResponses, pgFolders, pgMemberships int64
 	if err := pgstore.Pool.QueryRow(ctx, `SELECT
@@ -127,13 +127,13 @@ VALUES ($1, $2, 'account', $3, '{"name":"Owner"}'), ($1, $4, 'guest', NULL, '{"n
 		t.Fatal(err)
 	}
 	if ownResponses != 0 || pgFolders != 0 || pgMemberships != 0 {
-		t.Fatalf("owned PostgreSQL data survived: responses=%d folders=%d memberships=%d", ownResponses, pgFolders, pgMemberships)
+		t.Fatalf("owned data survived: responses=%d folders=%d memberships=%d", ownResponses, pgFolders, pgMemberships)
 	}
 	if guestResponses != 1 {
 		t.Fatalf("another guest's response was removed: %d", guestResponses)
 	}
 
-	// The deleted account is gone from PostgreSQL daily logs, the log it emptied
+	// The deleted account is gone from the daily logs, the log it emptied
 	// is deleted, and a log shared with another account survives.
 	var ownLogMembers, sharedSurvived, soloSurvived, otherLogMembers int
 	if err := pgstore.Pool.QueryRow(ctx, `SELECT
@@ -163,10 +163,10 @@ VALUES ($1, $2, 'account', $3, '{"name":"Owner"}'), ($1, $4, 'guest', NULL, '{"n
 		t.Fatal(err)
 	}
 	if pgOwned != 1 {
-		t.Fatal("PostgreSQL event did not survive with ownership released")
+		t.Fatal("event did not survive with ownership released")
 	}
 	if pgOwnResponses != 0 || pgGuestResponses != 1 {
-		t.Fatalf("PostgreSQL responses wrong: own=%d guest=%d", pgOwnResponses, pgGuestResponses)
+		t.Fatalf("responses wrong: own=%d guest=%d", pgOwnResponses, pgGuestResponses)
 	}
 
 	// Deletion is idempotent: repeating the unit is a no-op.
@@ -214,7 +214,7 @@ func TestAccountDeletionPartialFailureLeavesAuthorityAndRetryConverges(t *testin
 	t.Cleanup(func() { deleteAccountTestFixtures(t, account.PlatformIdentityID) })
 
 	restore := accounts.SetDefaultDeleter(accounts.Deleter{
-		DeletePostgres: func(context.Context, string) error { return errors.New("postgres unavailable") },
+		DeleteAccount: func(context.Context, string) error { return errors.New("postgres unavailable") },
 	})
 	defer restore()
 

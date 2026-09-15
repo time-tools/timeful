@@ -11,7 +11,7 @@ import (
 	pgstore "timeful/server/postgres"
 )
 
-func closedExistencePostgresPool(t *testing.T) *pgxpool.Pool {
+func closedExistencePool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	config, err := pgxpool.ParseConfig("postgres://timeful:timeful@127.0.0.1:1/timeful-test?sslmode=disable&connect_timeout=1")
 	if err != nil {
@@ -48,7 +48,7 @@ func existenceAuthorityTestPool(t *testing.T) *pgxpool.Pool {
 func TestIsNewUserReportsPostgresError(t *testing.T) {
 	previousPool := pgstore.Pool
 	t.Cleanup(func() { pgstore.Pool = previousPool })
-	pgstore.Pool = closedExistencePostgresPool(t)
+	pgstore.Pool = closedExistencePool(t)
 
 	email := "error-" + models.NewUUID().String() + "@example.com"
 	isNew, err := IsNewUser(email)
@@ -57,9 +57,9 @@ func TestIsNewUserReportsPostgresError(t *testing.T) {
 	}
 }
 
-// TestIsNewUserReportsPostgresAuthority proves that existence is reported from
-// the authoritative PostgreSQL store alone.
-func TestIsNewUserReportsPostgresAuthority(t *testing.T) {
+// TestIsNewUserReportsAuthority proves that existence is reported from the
+// authoritative account data alone.
+func TestIsNewUserReportsAuthority(t *testing.T) {
 	pool := existenceAuthorityTestPool(t)
 	previousPool := pgstore.Pool
 	pgstore.Pool = pool
@@ -86,7 +86,7 @@ func TestIsNewUserReportsPostgresAuthority(t *testing.T) {
 }
 
 // TestIsNewUserEmptyEmail proves that an empty email is reported as new without
-// consulting any store.
+// consulting the database.
 func TestIsNewUserEmptyEmail(t *testing.T) {
 	if isNew, err := IsNewUser("   "); err != nil || !isNew {
 		t.Fatalf("IsNewUser(empty) = %v, %v; want true, nil", isNew, err)
@@ -124,7 +124,7 @@ func deleteAccountsByEmail(t *testing.T, pool *pgxpool.Pool, email string) {
 }
 
 // TestResolveForSignInConcurrentEmailCreatesSingleAccount proves that concurrent
-// first-time sign-ins for one email resolve one PostgreSQL account and create no
+// first-time sign-ins for one email resolve one account and create no
 // duplicate account or platform identity.
 func TestResolveForSignInConcurrentEmailCreatesSingleAccount(t *testing.T) {
 	pool := existenceAuthorityTestPool(t)

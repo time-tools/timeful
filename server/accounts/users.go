@@ -12,7 +12,7 @@ import (
 )
 
 // UserFromAccount builds the internal user shape from the authoritative
-// PostgreSQL account. It never reads or writes the retained store.
+// account. It performs no fallback lookup.
 func UserFromAccount(account *pgstore.Account) *models.User {
 	if account == nil {
 		return nil
@@ -28,10 +28,10 @@ func UserFromAccount(account *pgstore.Account) *models.User {
 	return user
 }
 
-// UserByPlatformIdentityID returns the authoritative PostgreSQL account
-// profile. A PostgreSQL lookup that fails for any reason other than a genuine
-// no-row result yields nil instead of an inferred account, so a transient
-// database failure can never be mistaken for account authority.
+// UserByPlatformIdentityID returns the authoritative account profile. A lookup
+// that fails for any reason other than a genuine no-row result yields nil
+// instead of an inferred account, so a transient database failure can never be
+// mistaken for account authority.
 func UserByPlatformIdentityID(platformIdentityID string) *models.User {
 	account, err := accountByPlatformIdentityID(platformIdentityID)
 	if err != nil {
@@ -42,7 +42,7 @@ func UserByPlatformIdentityID(platformIdentityID string) *models.User {
 }
 
 // UserByEmail resolves the authoritative account by case-insensitive email and
-// returns its profile. A PostgreSQL failure other than a genuine no-row result
+// returns its profile. A lookup failure other than a genuine no-row result
 // yields nil instead of an inferred account.
 func UserByEmail(email string) *models.User {
 	emailQuery := strings.TrimSpace(email)
@@ -57,10 +57,10 @@ func UserByEmail(email string) *models.User {
 	return UserFromAccount(account)
 }
 
-// accountByPlatformIdentityID resolves the authoritative PostgreSQL account. A
+// accountByPlatformIdentityID resolves the authoritative account. A
 // deliberately uninitialized pool and a missing account row both return no
-// account; every other PostgreSQL failure is returned so callers never mistake
-// the error for absence.
+// account; every other failure is returned so callers never mistake the error
+// for absence.
 func accountByPlatformIdentityID(platformIdentityID string) (*pgstore.Account, error) {
 	if platformIdentityID == "" {
 		return nil, nil

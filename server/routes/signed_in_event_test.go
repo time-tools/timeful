@@ -12,10 +12,9 @@ import (
 	pgstore "timeful/server/postgres"
 )
 
-// signedInPostgresEventRouter exposes the account-contract sign-in and cleanup
-// helpers with the event routes, which always create supported kinds in
-// PostgreSQL.
-func signedInPostgresEventRouter(t *testing.T) *gin.Engine {
+// signedInEventRouter exposes the account-contract sign-in and cleanup
+// helpers with the event routes, which always create supported kinds.
+func signedInEventRouter(t *testing.T) *gin.Engine {
 	t.Helper()
 	return newAccountEventContractRouter(t)
 }
@@ -46,16 +45,16 @@ func responseMapKeys(t *testing.T, payload map[string]json.RawMessage) []string 
 	return keys
 }
 
-// TestSignedInPostgresEventLifecycle proves that a supported signed-in poll is
-// stored in PostgreSQL owned by the account, that the usage counter advances,
+// TestSignedInEventLifecycle proves that a supported signed-in poll is
+// stored with the account as owner, that the usage counter advances,
 // that the owner can manage settings, schedule, archive, and delete with the
 // session alone, and that another account is rejected.
-func TestSignedInPostgresEventLifecycle(t *testing.T) {
-	router := signedInPostgresEventRouter(t)
+func TestSignedInEventLifecycle(t *testing.T) {
+	router := signedInEventRouter(t)
 	owner, account := createSignedInAccount(t, router)
 	ctx := context.Background()
 
-	payload := canonicalTimedEventPayload("Signed-in PostgreSQL event")
+	payload := canonicalTimedEventPayload("Signed-in event")
 	created := owner.request(http.MethodPost, "/api/events", payload, http.StatusCreated)
 	eventID := decodeAccountString(t, created, "eventId")
 	if eventID == "" {
@@ -71,10 +70,10 @@ func TestSignedInPostgresEventLifecycle(t *testing.T) {
 	repository := repositoryForTest(t)
 	stored, err := repository.GetEventByShortID(ctx, eventID)
 	if err != nil {
-		t.Fatalf("signed-in event not stored in PostgreSQL: %v", err)
+		t.Fatalf("signed-in event not stored: %v", err)
 	}
 	if stored.OwnerPlatformIdentityID == nil {
-		t.Fatal("expected account ownership association on the PostgreSQL event")
+		t.Fatal("expected account ownership association on the event")
 	}
 	if stored.OwnerPlatformIdentityID == nil || *stored.OwnerPlatformIdentityID != account.PlatformIdentityID {
 		t.Fatalf("owner platform identity = %v, want %q", stored.OwnerPlatformIdentityID, account.PlatformIdentityID)
@@ -92,7 +91,7 @@ func TestSignedInPostgresEventLifecycle(t *testing.T) {
 	owner.request(http.MethodPut, path+"/schedule", map[string]string{"startDate": "2026-01-05T14:00:00Z", "endDate": "2026-01-05T15:00:00Z"}, http.StatusOK)
 	owner.request(http.MethodDelete, path+"/schedule", nil, http.StatusOK)
 	owner.request(http.MethodPost, path+"/archive", map[string]bool{"archive": true}, http.StatusOK)
-	// Archived PostgreSQL events are read-only until unarchived.
+	// Archived events are read-only until unarchived.
 	owner.request(http.MethodPut, path, canonicalTimedEventPayload("Blocked while archived"), http.StatusForbidden)
 	owner.request(http.MethodPost, path+"/archive", map[string]bool{"archive": false}, http.StatusOK)
 
@@ -105,11 +104,11 @@ func TestSignedInPostgresEventLifecycle(t *testing.T) {
 	owner.request(http.MethodGet, path, nil, http.StatusNotFound)
 }
 
-// TestSignedInPostgresResponseAssociation proves that a signed-in response is
+// TestSignedInResponseAssociation proves that a signed-in response is
 // associated with the account, that the account recovers it from a fresh
 // browser, and that blind availability still hides it from non-owners.
-func TestSignedInPostgresResponseAssociation(t *testing.T) {
-	router := signedInPostgresEventRouter(t)
+func TestSignedInResponseAssociation(t *testing.T) {
+	router := signedInEventRouter(t)
 	owner, account := createSignedInAccount(t, router)
 	ctx := context.Background()
 
@@ -157,7 +156,7 @@ func TestSignedInPostgresResponseAssociation(t *testing.T) {
 	}
 
 	// The account recovers its response from a fresh browser using the session
-	// alone: no PostgreSQL credential cookie is carried over.
+	// alone: no credential cookie is carried over.
 	recovered := newAccountContractClient(t, router)
 	recovered.request(http.MethodPost, "/test/account-contract/sign-in/"+account.PlatformIdentityID, nil, http.StatusOK)
 	recoveredEvent := recovered.request(http.MethodGet, path, nil, http.StatusOK)

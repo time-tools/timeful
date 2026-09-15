@@ -45,16 +45,16 @@ func timedEventRequest(
 	return recorder
 }
 
-// loadPostgresEventModel reads a PostgreSQL event through the same public API a
+// loadEventModel reads an event through the same public API a
 // browser uses, so creation normalization is asserted at the HTTP boundary. It
 // returns the decoded wire payload and the raw JSON object for omitted-field
 // checks.
-func loadPostgresEventModel(t *testing.T, router http.Handler, eventID string) (anonymousEventPayload, map[string]any) {
+func loadEventModel(t *testing.T, router http.Handler, eventID string) (anonymousEventPayload, map[string]any) {
 	t.Helper()
 
 	recorder := timedEventRequest(t, router, http.MethodGet, "/api/events/"+eventID, nil)
 	if recorder.Code != http.StatusOK {
-		t.Fatalf("expected PostgreSQL event read status 200, got %d: %s", recorder.Code, recorder.Body.String())
+		t.Fatalf("expected event read status 200, got %d: %s", recorder.Code, recorder.Body.String())
 	}
 
 	event := decodeJSONBody[anonymousEventPayload](t, recorder)
@@ -81,8 +81,7 @@ func assertDateTimesEqual(
 }
 
 func TestCreateEventCanonicalTimedPayloadNormalizesAndPersistsCanonicalFields(t *testing.T) {
-	store := anonymousEventContractStores()[0]
-	router := store.newRouter(t)
+	router := anonymousEventRouter(t)
 
 	payload := map[string]any{
 		"name":                 "Canonical timed create",
@@ -105,9 +104,9 @@ func TestCreateEventCanonicalTimedPayloadNormalizesAndPersistsCanonicalFields(t 
 	createResponse := decodeJSONBody[struct {
 		EventID string `json:"eventId"`
 	}](t, recorder)
-	t.Cleanup(func() { store.cleanupEvent(t, createResponse.EventID) })
+	t.Cleanup(func() { cleanupAnonymousEvent(t, createResponse.EventID) })
 
-	storedEvent, storedRaw := loadPostgresEventModel(t, router, createResponse.EventID)
+	storedEvent, storedRaw := loadEventModel(t, router, createResponse.EventID)
 	if storedEvent.Description == nil || *storedEvent.Description != "First line\nSecond line" {
 		t.Fatalf("expected stored description to persist, got %#v", storedEvent.Description)
 	}
@@ -160,8 +159,7 @@ func TestCreateEventCanonicalTimedPayloadNormalizesAndPersistsCanonicalFields(t 
 }
 
 func TestCreateEventIgnoresUnknownEnabledSlotsAndDerivesTheDomain(t *testing.T) {
-	store := anonymousEventContractStores()[0]
-	router := store.newRouter(t)
+	router := anonymousEventRouter(t)
 
 	// An old frontend still sends enabledSlots; the server ignores the
 	// unknown key and derives the domain from the contract, so the stored
@@ -185,9 +183,9 @@ func TestCreateEventIgnoresUnknownEnabledSlotsAndDerivesTheDomain(t *testing.T) 
 	createResponse := decodeJSONBody[struct {
 		EventID string `json:"eventId"`
 	}](t, recorder)
-	t.Cleanup(func() { store.cleanupEvent(t, createResponse.EventID) })
+	t.Cleanup(func() { cleanupAnonymousEvent(t, createResponse.EventID) })
 
-	storedEvent, _ := loadPostgresEventModel(t, router, createResponse.EventID)
+	storedEvent, _ := loadEventModel(t, router, createResponse.EventID)
 	assertDateTimesEqual(t, storedEvent.ActiveSlots, []models.DateTime{
 		timedSlotDateTime(t, "2026-01-05T14:00:00Z"),
 		timedSlotDateTime(t, "2026-01-05T14:30:00Z"),
@@ -195,10 +193,9 @@ func TestCreateEventIgnoresUnknownEnabledSlotsAndDerivesTheDomain(t *testing.T) 
 }
 
 func TestEditEventCanonicalTimedPayloadRoundTripsThroughGet(t *testing.T) {
-	store := anonymousEventContractStores()[0]
-	router := compatibilityOwnerBrowser(store.newRouter(t))
-	eventID := createAnonymousCompatibilityEvent(t, router, canonicalTimedEventPayload("Editable timed event"))
-	t.Cleanup(func() { store.cleanupEvent(t, eventID) })
+	router := ownerCredentialBrowser(anonymousEventRouter(t))
+	eventID := createAnonymousEvent(t, router, canonicalTimedEventPayload("Editable timed event"))
+	t.Cleanup(func() { cleanupAnonymousEvent(t, eventID) })
 
 	payload := map[string]any{
 		"name":          "Updated weekly timed event",
@@ -262,16 +259,15 @@ func TestEditEventCanonicalTimedPayloadRoundTripsThroughGet(t *testing.T) {
 }
 
 func TestEditDayOnlyEventPersistsTimezone(t *testing.T) {
-	store := anonymousEventContractStores()[0]
-	router := compatibilityOwnerBrowser(store.newRouter(t))
-	eventID := createAnonymousCompatibilityEvent(t, router, map[string]any{
+	router := ownerCredentialBrowser(anonymousEventRouter(t))
+	eventID := createAnonymousEvent(t, router, map[string]any{
 		"name":          "Editable day-only event",
 		"type":          string(models.SPECIFIC_DATES),
 		"daysOnly":      true,
 		"dates":         []string{"2026-08-11T00:00:00Z"},
 		"eventTimezone": "UTC",
 	})
-	t.Cleanup(func() { store.cleanupEvent(t, eventID) })
+	t.Cleanup(func() { cleanupAnonymousEvent(t, eventID) })
 
 	payload := map[string]any{
 		"name":          "Updated day-only event",
@@ -297,10 +293,9 @@ func TestEditDayOnlyEventPersistsTimezone(t *testing.T) {
 }
 
 func TestUpdateEventResponseCanonicalizesOverlappingTimedSlots(t *testing.T) {
-	store := anonymousEventContractStores()[0]
-	router := store.newRouter(t)
-	eventID := createAnonymousCompatibilityEvent(t, router, canonicalTimedEventPayload("Canonical response event"))
-	t.Cleanup(func() { store.cleanupEvent(t, eventID) })
+	router := anonymousEventRouter(t)
+	eventID := createAnonymousEvent(t, router, canonicalTimedEventPayload("Canonical response event"))
+	t.Cleanup(func() { cleanupAnonymousEvent(t, eventID) })
 
 	payload := map[string]any{
 		"createResponse": true,
@@ -395,8 +390,7 @@ func TestCreateEventRejectsWeeklyActiveSlotsOutsideDerivedDomain(t *testing.T) {
 }
 
 func TestCreateEventAcceptsActiveSlotsInsideFullDayOutsideWindow(t *testing.T) {
-	store := anonymousEventContractStores()[0]
-	router := store.newRouter(t)
+	router := anonymousEventRouter(t)
 
 	// The enabled domain is the full civil day, not the 09:00-10:00 window:
 	// an active at 00:30 New York time is inside the day but outside the
@@ -419,9 +413,9 @@ func TestCreateEventAcceptsActiveSlotsInsideFullDayOutsideWindow(t *testing.T) {
 	createResponse := decodeJSONBody[struct {
 		EventID string `json:"eventId"`
 	}](t, recorder)
-	t.Cleanup(func() { store.cleanupEvent(t, createResponse.EventID) })
+	t.Cleanup(func() { cleanupAnonymousEvent(t, createResponse.EventID) })
 
-	storedEvent, _ := loadPostgresEventModel(t, router, createResponse.EventID)
+	storedEvent, _ := loadEventModel(t, router, createResponse.EventID)
 	assertDateTimesEqual(t, storedEvent.ActiveSlots, []models.DateTime{
 		timedSlotDateTime(t, "2026-01-05T05:30:00Z"),
 		timedSlotDateTime(t, "2026-01-05T14:30:00Z"),
@@ -429,8 +423,7 @@ func TestCreateEventAcceptsActiveSlotsInsideFullDayOutsideWindow(t *testing.T) {
 }
 
 func TestCreateEventPreservesExplicitEmptyActiveSlots(t *testing.T) {
-	store := anonymousEventContractStores()[0]
-	router := store.newRouter(t)
+	router := anonymousEventRouter(t)
 
 	payload := map[string]any{
 		"name":            "Specific times empty active subset",
@@ -450,9 +443,9 @@ func TestCreateEventPreservesExplicitEmptyActiveSlots(t *testing.T) {
 	createResponse := decodeJSONBody[struct {
 		EventID string `json:"eventId"`
 	}](t, recorder)
-	t.Cleanup(func() { store.cleanupEvent(t, createResponse.EventID) })
+	t.Cleanup(func() { cleanupAnonymousEvent(t, createResponse.EventID) })
 
-	storedEvent, _ := loadPostgresEventModel(t, router, createResponse.EventID)
+	storedEvent, _ := loadEventModel(t, router, createResponse.EventID)
 	assertDateTimesEqual(t, storedEvent.ActiveSlots, []models.DateTime{})
 }
 
@@ -478,10 +471,9 @@ func TestCreateEventRejectsLegacyTimedFields(t *testing.T) {
 }
 
 func TestEditEventDiscardsOutOfDomainActivesWhenActiveSlotsStayEmpty(t *testing.T) {
-	store := anonymousEventContractStores()[0]
-	router := compatibilityOwnerBrowser(store.newRouter(t))
-	eventID := createAnonymousCompatibilityEvent(t, router, canonicalTimedEventPayload("Timezone-switch timed event"))
-	t.Cleanup(func() { store.cleanupEvent(t, eventID) })
+	router := ownerCredentialBrowser(anonymousEventRouter(t))
+	eventID := createAnonymousEvent(t, router, canonicalTimedEventPayload("Timezone-switch timed event"))
+	t.Cleanup(func() { cleanupAnonymousEvent(t, eventID) })
 
 	payload := canonicalTimedEventPayload("Timezone-switch timed event")
 	payload["eventTimezone"] = "Pacific/Auckland"
@@ -492,7 +484,7 @@ func TestEditEventDiscardsOutOfDomainActivesWhenActiveSlotsStayEmpty(t *testing.
 		t.Fatalf("expected status 200, got %d: %s", recorder.Code, recorder.Body.String())
 	}
 
-	storedEvent, _ := loadPostgresEventModel(t, router, eventID)
+	storedEvent, _ := loadEventModel(t, router, eventID)
 	assertDateTimesEqual(t, storedEvent.ActiveSlots, []models.DateTime{})
 	if storedEvent.EventTimezone == nil || *storedEvent.EventTimezone != "Pacific/Auckland" {
 		t.Fatalf("expected stored timezone to update, got %#v", storedEvent.EventTimezone)
@@ -505,10 +497,9 @@ func TestEditEventDiscardsOutOfDomainActivesWhenActiveSlotsStayEmpty(t *testing.
 }
 
 func TestEditEventDiscardsResponseSlotsOutsideRebuiltActiveDomain(t *testing.T) {
-	store := anonymousEventContractStores()[0]
-	router := compatibilityOwnerBrowser(store.newRouter(t))
-	eventID := createAnonymousCompatibilityEvent(t, router, canonicalTimedEventPayload("Response cleanup timed event"))
-	t.Cleanup(func() { store.cleanupEvent(t, eventID) })
+	router := ownerCredentialBrowser(anonymousEventRouter(t))
+	eventID := createAnonymousEvent(t, router, canonicalTimedEventPayload("Response cleanup timed event"))
+	t.Cleanup(func() { cleanupAnonymousEvent(t, eventID) })
 
 	responseRecorder := timedEventRequest(t, router, http.MethodPost, "/api/events/"+eventID+"/response", map[string]any{
 		"createResponse": true,

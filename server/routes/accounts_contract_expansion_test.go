@@ -85,7 +85,7 @@ func cleanupOtpAccount(t *testing.T, account *pgstore.Account) {
 	})
 }
 
-func closedAccountContractPostgresPool(t *testing.T) *pgxpool.Pool {
+func closedAccountContractPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	config, err := pgxpool.ParseConfig("postgres://timeful:timeful@127.0.0.1:1/timeful-test?sslmode=disable&connect_timeout=1")
 	if err != nil {
@@ -166,7 +166,7 @@ func TestAccountProviderSignInAppliesNamePrecedence(t *testing.T) {
 }
 
 // TestAccountExistenceCheckReportsExistenceStates proves that the existence
-// check reports a brand-new email as new and an email with a PostgreSQL account
+// check reports a brand-new email as new and an email with an account
 // as existing.
 func TestAccountExistenceCheckReportsExistenceStates(t *testing.T) {
 	router := newAccountContractRouter(t)
@@ -186,7 +186,7 @@ func TestAccountExistenceCheckReportsExistenceStates(t *testing.T) {
 	}
 	t.Cleanup(func() { deleteAccountTestFixtures(t, existing.PlatformIdentityID) })
 	if result := client.request(http.MethodPost, "/api/auth/otp/check-email", map[string]any{"email": existingEmail}, http.StatusOK); decodeAccountBool(t, result, "isNewUser") {
-		t.Fatalf("an existing PostgreSQL account must report isNewUser=false: %v", result)
+		t.Fatalf("an existing account must report isNewUser=false: %v", result)
 	}
 }
 
@@ -202,16 +202,16 @@ func TestAccountExistenceCheckFailsClosedOnPostgresError(t *testing.T) {
 	email := "existence-error-" + models.NewUUID().String() + "@example.com"
 
 	previousPool := pgstore.Pool
-	pgstore.Pool = closedAccountContractPostgresPool(t)
+	pgstore.Pool = closedAccountContractPool(t)
 	t.Cleanup(func() { pgstore.Pool = previousPool })
 
 	client.request(http.MethodPost, "/api/auth/otp/check-email", map[string]any{"email": email}, http.StatusInternalServerError)
 }
 
-// TestAccountIntegrationWritesPreservePostgresProfile proves that calendar add,
-// toggle, calendar-options, and remove all write only the PostgreSQL calendar
-// store and never change the PostgreSQL profile.
-func TestAccountIntegrationWritesPreservePostgresProfile(t *testing.T) {
+// TestAccountIntegrationWritesPreserveProfile proves that calendar add,
+// toggle, calendar-options, and remove all write only the calendar
+// connection and never change the profile.
+func TestAccountIntegrationWritesPreserveProfile(t *testing.T) {
 	router := newAccountContractRouter(t)
 	client := newAccountContractClient(t, router)
 	ctx := context.Background()
@@ -235,17 +235,17 @@ func TestAccountIntegrationWritesPreservePostgresProfile(t *testing.T) {
 			t.Fatalf("%s: %v", step, err)
 		}
 		if *stored != baseline {
-			t.Fatalf("%s changed the PostgreSQL profile:\nbefore %#v\nafter  %#v", step, baseline, *stored)
+			t.Fatalf("%s changed the profile:\nbefore %#v\nafter  %#v", step, baseline, *stored)
 		}
 	}
 
-	// Add: the connection and its credential are written to PostgreSQL.
+	// Add: the connection and its credential are written.
 	client.request(http.MethodPost, "/api/user/add-ics-calendar-account", map[string]any{
 		"feedUrl": "https://example.com/feed.ics", "label": label,
 	}, http.StatusOK)
 	stored, err := repository.GetCalendarAccountByKey(ctx, account.PlatformIdentityID, calendarKey)
 	if err != nil {
-		t.Fatalf("ICS calendar connection was not written to PostgreSQL: %v", err)
+		t.Fatalf("ICS calendar connection was not written: %v", err)
 	}
 	if stored.CalendarType != pgstore.CalendarTypeICS || stored.Email != label {
 		t.Fatalf("stored ICS connection = %#v", stored)
@@ -264,18 +264,18 @@ func TestAccountIntegrationWritesPreservePostgresProfile(t *testing.T) {
 		t.Fatal(err)
 	}
 	if stored.Enabled == nil || *stored.Enabled {
-		t.Fatalf("toggle did not disable the PostgreSQL connection: %#v", stored.Enabled)
+		t.Fatalf("toggle did not disable the connection: %#v", stored.Enabled)
 	}
 	assertProfileUnchanged("calendar toggle")
 
-	// Calendar options: written to the PostgreSQL preference row only.
+	// Calendar options: written to the preference row only.
 	client.request(http.MethodPatch, "/api/user/calendar-options", map[string]any{
 		"bufferTime":   map[string]any{"enabled": true, "time": 30},
 		"workingHours": map[string]any{"enabled": true, "startTime": 8, "endTime": 18},
 	}, http.StatusOK)
 	preferences, err := repository.GetCalendarPreferences(ctx, account.PlatformIdentityID)
 	if err != nil {
-		t.Fatalf("calendar options were not written to PostgreSQL: %v", err)
+		t.Fatalf("calendar options were not written: %v", err)
 	}
 	if len(preferences.CalendarOptions) == 0 {
 		t.Fatal("calendar options preference is empty")
@@ -289,12 +289,12 @@ func TestAccountIntegrationWritesPreservePostgresProfile(t *testing.T) {
 	}
 	assertProfileUnchanged("calendar options")
 
-	// Remove: the connection and its sub-calendars are deleted from PostgreSQL.
+	// Remove: the connection and its sub-calendars are deleted.
 	client.request(http.MethodDelete, "/api/user/remove-calendar-account", map[string]any{
 		"email": label, "calendarType": models.ICSCalendarType,
 	}, http.StatusOK)
 	if _, err := repository.GetCalendarAccountByKey(ctx, account.PlatformIdentityID, calendarKey); !errors.Is(err, pgx.ErrNoRows) {
-		t.Fatalf("remove did not delete the PostgreSQL connection: %v", err)
+		t.Fatalf("remove did not delete the connection: %v", err)
 	}
 	assertProfileUnchanged("calendar remove")
 }
@@ -307,7 +307,7 @@ func newAccountEventContractRouter(t *testing.T) *gin.Engine {
 	if os.Getenv("POSTGRES_APPLICATION_URI") == "" {
 		t.Skip("POSTGRES_APPLICATION_URI is required for account route contracts")
 	}
-	anonymousEventPostgresOnce.Do(func() { pgstore.Init() })
+	routeTestDBOnce.Do(func() { pgstore.Init() })
 	t.Setenv("LISTMONK_ENABLED", "false")
 
 	router := gin.New()
@@ -334,7 +334,7 @@ func newAccountEventContractRouter(t *testing.T) *gin.Engine {
 // installRemoteEventFetchTransport is removed with the legacy import endpoint.
 
 // TestAccountUsageCounterTracksCreatedEvents proves that creating an event
-// increments the PostgreSQL usage counter and that the profile reports that
+// increments the usage counter and that the profile reports that
 // authoritative counter.
 func TestAccountUsageCounterTracksCreatedEvents(t *testing.T) {
 	router := newAccountEventContractRouter(t)
@@ -366,7 +366,7 @@ func TestAccountUsageCounterTracksCreatedEvents(t *testing.T) {
 		}
 		profile := client.request(http.MethodGet, "/api/user/profile", nil, http.StatusOK)
 		if got := decodeAccountInt(t, profile, "numEventsCreated"); got != want {
-			t.Fatalf("%s: profile usage counter = %d, want the PostgreSQL counter %d", step, got, want)
+			t.Fatalf("%s: profile usage counter = %d, want the stored counter %d", step, got, want)
 		}
 	}
 

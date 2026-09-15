@@ -26,33 +26,33 @@ import (
 )
 
 const (
-	postgresGroupInviteEmailTemplate = 9
-	postgresGroupUpdateEmailTemplate = 11
+	groupInviteEmailTemplate = 9
+	groupUpdateEmailTemplate = 11
 )
 
-// postgresEventInput carries the legacy group attendee invite list alongside the
+// eventInput carries the legacy group attendee invite list alongside the
 // embedded event payload. Attendees are persisted in their own table rather than
 // on models.Event, so the outer field collects the JSON key the event type no
 // longer holds while the route applies the list separately.
-type postgresEventInput struct {
+type eventInput struct {
 	models.Event
 	Attendees []string `json:"attendees"`
 }
 
-// postgresGroupAttendeePayload is the attendee wire shape the group views and
+// groupAttendeePayload is the attendee wire shape the group views and
 // dashboard consume. It mirrors the former models.Attendee wire shape while
-// using the PostgreSQL attendee UUID as _id.
-type postgresGroupAttendeePayload struct {
+// using the canonical attendee UUID as _id.
+type groupAttendeePayload struct {
 	ID       string `json:"_id"`
 	EventID  string `json:"eventId"`
 	Email    string `json:"email"`
 	Declined *bool  `json:"declined,omitempty"`
 }
 
-func postgresGroupAttendeePayloads(shortID string, attendees []pgstore.Attendee) []postgresGroupAttendeePayload {
-	payloads := make([]postgresGroupAttendeePayload, 0, len(attendees))
+func groupAttendeePayloads(shortID string, attendees []pgstore.Attendee) []groupAttendeePayload {
+	payloads := make([]groupAttendeePayload, 0, len(attendees))
 	for _, attendee := range attendees {
-		payloads = append(payloads, postgresGroupAttendeePayload{
+		payloads = append(payloads, groupAttendeePayload{
 			ID:       attendee.ID,
 			EventID:  shortID,
 			Email:    attendee.Email,
@@ -62,9 +62,9 @@ func postgresGroupAttendeePayloads(shortID string, attendees []pgstore.Attendee)
 	return payloads
 }
 
-// postgresAccountEmail resolves the signed-in account's email through the
-// authoritative PostgreSQL boundary, adopting a legacy session once if needed.
-func postgresAccountEmail(ctx context.Context, platformIdentityID string) string {
+// accountEmail resolves the signed-in account's email through the
+// authoritative account boundary, adopting a legacy session once if needed.
+func accountEmail(ctx context.Context, platformIdentityID string) string {
 	if platformIdentityID == "" {
 		return ""
 	}
@@ -75,13 +75,13 @@ func postgresAccountEmail(ctx context.Context, platformIdentityID string) string
 	return account.Email
 }
 
-// postgresGroupViewerIsInvitee reports whether the signed-in viewer is a
+// groupViewerIsInvitee reports whether the signed-in viewer is a
 // non-declined member of the group, which is required to expose respondent
 // emails for matching pending attendees to respondents. The membership check is
 // a repository EXISTS over event_attendees (event_id, lower(email)) rather than
 // an in-memory scan of the loaded attendee list.
-func postgresGroupViewerIsInvitee(ctx context.Context, repository *pgstore.Repository, eventID string, viewer *postgresVisitor) bool {
-	email := postgresAccountEmail(ctx, viewer.platformIdentityID)
+func groupViewerIsInvitee(ctx context.Context, repository *pgstore.Repository, eventID string, viewer *visitor) bool {
+	email := accountEmail(ctx, viewer.platformIdentityID)
 	if email == "" {
 		return false
 	}
@@ -89,17 +89,17 @@ func postgresGroupViewerIsInvitee(ctx context.Context, repository *pgstore.Repos
 	return err == nil && invitee
 }
 
-// postgresGroupEmailVisibility keeps respondent emails visible to the owner and
+// groupEmailVisibility keeps respondent emails visible to the owner and
 // non-declined invitees so clients can match pending attendees to respondents
-// when collectEmails is off, mirroring legacy group behavior. PostgreSQL does
+// when collectEmails is off, mirroring legacy group behavior. The repository does
 // not persist a denormalized account snapshot, so the response email is
 // promoted into the rebuilt user snapshot at read time.
-func postgresGroupEmailVisibility(ctx context.Context, repository *pgstore.Repository, eventID string, value models.Event, viewer *postgresVisitor, responseMap map[string]*postgresPublicResponse) {
+func groupEmailVisibility(ctx context.Context, repository *pgstore.Repository, eventID string, value models.Event, viewer *visitor, responseMap map[string]*publicResponse) {
 	if responseMap == nil {
 		return
 	}
 	showEmails := viewer.owner && utils.Coalesce(value.CollectEmails)
-	keepGroupEmails := viewer.owner || postgresGroupViewerIsInvitee(ctx, repository, eventID, viewer)
+	keepGroupEmails := viewer.owner || groupViewerIsInvitee(ctx, repository, eventID, viewer)
 	for key, response := range responseMap {
 		if response == nil {
 			continue
@@ -118,10 +118,10 @@ func postgresGroupEmailVisibility(ctx context.Context, repository *pgstore.Repos
 	}
 }
 
-// postgresGroupViewerHasResponded reports whether the calling visitor owns a
+// groupViewerHasResponded reports whether the calling visitor owns a
 // response on the group, either through a signed-in account response or the
 // browser Event Visitor Identity. It backs the derived hasResponded read.
-func postgresGroupViewerHasResponded(ctx context.Context, repo *pgstore.Repository, event *pgstore.Event, viewer *postgresVisitor) bool {
+func groupViewerHasResponded(ctx context.Context, repo *pgstore.Repository, event *pgstore.Event, viewer *visitor) bool {
 	if viewer == nil {
 		return false
 	}
@@ -142,14 +142,14 @@ func postgresGroupViewerHasResponded(ctx context.Context, repo *pgstore.Reposito
 	return hasResponded
 }
 
-// sendPostgresGroupInviteEmails sends the existing availability-group
+// sendGroupInviteEmails sends the existing availability-group
 // invitation email to each newly added invitee.
-func sendPostgresGroupInviteEmails(ownerName, groupName, groupURL string, emails []string) {
+func sendGroupInviteEmails(ownerName, groupName, groupURL string, emails []string) {
 	for _, email := range emails {
 		if strings.TrimSpace(email) == "" {
 			continue
 		}
-		listmonk.SendEmailAddSubscriberIfNotExist(email, postgresGroupInviteEmailTemplate, map[string]any{
+		listmonk.SendEmailAddSubscriberIfNotExist(email, groupInviteEmailTemplate, map[string]any{
 			"ownerName": ownerName,
 			"groupName": groupName,
 			"groupUrl":  groupURL,
@@ -157,10 +157,10 @@ func sendPostgresGroupInviteEmails(ownerName, groupName, groupURL string, emails
 	}
 }
 
-// sendPostgresGroupUpdateEmails sends invitation emails to added members and
+// sendGroupUpdateEmails sends invitation emails to added members and
 // the existing group update email to kept members, matching legacy ordering.
-func sendPostgresGroupUpdateEmails(ownerName, groupName, groupURL string, added, kept []string) {
-	sendPostgresGroupInviteEmails(ownerName, groupName, groupURL, added)
+func sendGroupUpdateEmails(ownerName, groupName, groupURL string, added, kept []string) {
+	sendGroupInviteEmails(ownerName, groupName, groupURL, added)
 	if len(added) == 0 {
 		return
 	}
@@ -168,7 +168,7 @@ func sendPostgresGroupUpdateEmails(ownerName, groupName, groupURL string, added,
 		if strings.TrimSpace(email) == "" {
 			continue
 		}
-		listmonk.SendEmailAddSubscriberIfNotExist(email, postgresGroupUpdateEmailTemplate, map[string]any{
+		listmonk.SendEmailAddSubscriberIfNotExist(email, groupUpdateEmailTemplate, map[string]any{
 			"ownerName": ownerName,
 			"groupName": groupName,
 			"groupUrl":  groupURL,
@@ -177,27 +177,27 @@ func sendPostgresGroupUpdateEmails(ownerName, groupName, groupURL string, added,
 	}
 }
 
-func postgresGroupURL(shortID string) string {
+func groupURL(shortID string) string {
 	return fmt.Sprintf("%s/g/%s", utils.GetBaseUrl(), shortID)
 }
 
-// postgresGroupEmailPlan carries the owner-facing email work computed while the
+// groupEmailPlan carries the owner-facing email work computed while the
 // event row is locked so it can be sent after the transaction commits.
-type postgresGroupEmailPlan struct {
+type groupEmailPlan struct {
 	ownerName string
 	groupName string
 	added     []string
 	kept      []string
 }
 
-// postgresApplyGroupAttendeeEdits diffs the requested attendee emails against
+// applyGroupAttendeeEdits diffs the requested attendee emails against
 // the stored membership, removes departed members' account responses so the
 // response count stays correct, and returns the post-commit email plan. The
 // owner membership is protected from removal. The caller already holds the
 // event row lock and persists the adjusted response count.
-func postgresApplyGroupAttendeeEdits(ctx context.Context, tx *pgstore.Repository, event *pgstore.Event, requested []string) (postgresGroupEmailPlan, error) {
-	plan := postgresGroupEmailPlan{
-		ownerName: postgresGroupOwnerName(ctx, event.OwnerPlatformIdentityID),
+func applyGroupAttendeeEdits(ctx context.Context, tx *pgstore.Repository, event *pgstore.Event, requested []string) (groupEmailPlan, error) {
+	plan := groupEmailPlan{
+		ownerName: groupOwnerName(ctx, event.OwnerPlatformIdentityID),
 		groupName: event.Name,
 	}
 	current, err := tx.ListAttendees(ctx, event.ID)
@@ -258,8 +258,8 @@ func postgresApplyGroupAttendeeEdits(ctx context.Context, tx *pgstore.Repository
 	return plan, nil
 }
 
-// postgresGroupOwnerName resolves the owner display name used in group emails.
-func postgresGroupOwnerName(ctx context.Context, ownerPlatformIdentityID *string) string {
+// groupOwnerName resolves the owner display name used in group emails.
+func groupOwnerName(ctx context.Context, ownerPlatformIdentityID *string) string {
 	if ownerPlatformIdentityID == nil || *ownerPlatformIdentityID == "" {
 		return "Somebody"
 	}
@@ -270,8 +270,8 @@ func postgresGroupOwnerName(ctx context.Context, ownerPlatformIdentityID *string
 	return account.FirstName
 }
 
-// postgresDeclineInvite sets the attendee decline state for the signed-in
-// member of a PostgreSQL group. An optional {"declined": false} body covers
+// declineInvite sets the attendee decline state for the signed-in
+// member of a group. An optional {"declined": false} body covers
 // undecline.
 // @Summary Decline the current user's invite to the event
 // @Tags events
@@ -280,7 +280,7 @@ func postgresGroupOwnerName(ctx context.Context, ownerPlatformIdentityID *string
 // @Param eventId path string true "Event ID"
 // @Success 200
 // @Router /events/{eventId}/decline [post]
-func postgresDeclineInvite(c *gin.Context) {
+func declineInvite(c *gin.Context) {
 	declined := true
 	if body, err := io.ReadAll(c.Request.Body); err == nil && len(bytes.TrimSpace(body)) > 0 {
 		var input struct {
@@ -290,11 +290,11 @@ func postgresDeclineInvite(c *gin.Context) {
 			declined = *input.Declined
 		}
 	}
-	repository := postgresRepository(c)
+	repository := defaultRepository(c)
 	if repository == nil {
 		return
 	}
-	event := postgresEvent(c, repository)
+	event := loadEvent(c, repository)
 	if event == nil {
 		return
 	}
@@ -313,11 +313,11 @@ func postgresDeclineInvite(c *gin.Context) {
 			c.JSON(http.StatusNotFound, responses.Error{Error: errs.AttendeeEmailNotFound})
 			return
 		}
-		postgresMutationError(c, err)
+		mutationError(c, err)
 		return
 	}
 	if err := repository.SetAttendeeDeclined(c.Request.Context(), event.ID, user.Email, declined); err != nil {
-		postgresMutationError(c, err)
+		mutationError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{})
@@ -440,12 +440,12 @@ func mergeGroupManualAvailability(window time.Duration, existing, incoming group
 	return merged
 }
 
-// postgresGroupDurationHours derives the availability group's legacy duration
+// groupDurationHours derives the availability group's legacy duration
 // from the canonical slot-generation window. The group editor defines the
 // duration as the wrapped local-time window (a 09:00-17:00 group is eight
 // hours), and the manual availability day-window merge spans that duration
 // because the transport no longer carries the legacy duration field.
-func postgresGroupDurationHours(generation *models.SlotGeneration) *float32 {
+func groupDurationHours(generation *models.SlotGeneration) *float32 {
 	if generation == nil {
 		return nil
 	}
@@ -478,17 +478,17 @@ func canonicalGroupResponseName(supplied string, value *models.Response) string 
 	return canonicalGuestName(value.Name)
 }
 
-// postgresSetGroupDecline writes the attendee decline state for the respondent's
+// setGroupDecline writes the attendee decline state for the respondent's
 // account email. A respondent with no resolved account, or who is not an
 // attendee, is left untouched. Responding clears the decline state and leaving
 // sets it, matching legacy group behavior.
-func postgresSetGroupDecline(ctx context.Context, tx *pgstore.Repository, eventID string, stored *pgstore.Response, visitor *postgresVisitor, declined bool) error {
+func setGroupDecline(ctx context.Context, tx *pgstore.Repository, eventID string, stored *pgstore.Response, visitor *visitor, declined bool) error {
 	email := ""
 	if visitor != nil && visitor.platformIdentityID != "" {
-		email = postgresAccountEmail(ctx, visitor.platformIdentityID)
+		email = accountEmail(ctx, visitor.platformIdentityID)
 	}
 	if email == "" && stored != nil && stored.PlatformIdentityID != nil {
-		email = postgresAccountEmail(ctx, *stored.PlatformIdentityID)
+		email = accountEmail(ctx, *stored.PlatformIdentityID)
 	}
 	if email == "" {
 		return nil
@@ -499,35 +499,35 @@ func postgresSetGroupDecline(ctx context.Context, tx *pgstore.Repository, eventI
 	return nil
 }
 
-// postgresMutateGroupResponse applies the explicit-selection contract to an
+// mutateGroupResponse applies the explicit-selection contract to an
 // availability group. Account respondents persist with their account identity;
 // anonymous respondents persist with the shared canonical guest name. Saving a
 // response clears the respondent's attendee decline state and deleting it sets
 // the decline state (leaving the group). Calendar-derived mode, selected
 // calendars, copied calendar preferences, and the day-window merged manual
 // availability are persisted in the response payload.
-func postgresMutateGroupResponse(c *gin.Context, repository *pgstore.Repository, event *pgstore.Event, visitor *postgresVisitor, input postgresResponseInput, operation string) {
+func mutateGroupResponse(c *gin.Context, repository *pgstore.Repository, event *pgstore.Event, visitor *visitor, input responseInput, operation string) {
 	publicID := input.ResponseID
 	manualAvailability, err := decodeGroupManualAvailability(input.ManualAvailability)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, responses.Error{Error: "invalid-manual-availability"})
 		return
 	}
-	eventModel, err := postgresEventModel(event)
+	eventValue, err := eventModel(event)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed-to-serialize-event"})
 		return
 	}
 	manualWindow := time.Duration(0)
-	if eventModel.Duration != nil {
-		manualWindow = time.Duration(*eventModel.Duration) * time.Hour
+	if eventValue.Duration != nil {
+		manualWindow = time.Duration(*eventValue.Duration) * time.Hour
 	}
 	err = repository.WithTransaction(c.Request.Context(), func(ctx context.Context, tx *pgstore.Repository) error {
 		locked, err := tx.LockEvent(ctx, event.ID)
 		if err != nil {
 			return err
 		}
-		if err := postgresWritableEvent(locked); err != nil {
+		if err := writableEvent(locked); err != nil {
 			return err
 		}
 		stored := &pgstore.Response{EventID: event.ID, EventVisitorIdentityID: visitor.identity.ID}
@@ -548,7 +548,7 @@ func postgresMutateGroupResponse(c *gin.Context, repository *pgstore.Repository,
 			if !authorized {
 				return guestForbidden{"response-credential-required"}
 			}
-			value, _, err = postgresResponseModel(*stored)
+			value, _, err = responseModel(*stored)
 			if err != nil {
 				return err
 			}
@@ -563,7 +563,7 @@ func postgresMutateGroupResponse(c *gin.Context, repository *pgstore.Repository,
 			if err := tx.AdjustEventResponseCount(ctx, locked.ID, -1); err != nil {
 				return err
 			}
-			return postgresSetGroupDecline(ctx, tx, locked.ID, stored, visitor, true)
+			return setGroupDecline(ctx, tx, locked.ID, stored, visitor, true)
 		}
 		if operation == "rename" {
 			validated := respondents.ValidateGuestName(input.NewName)
@@ -577,9 +577,9 @@ func postgresMutateGroupResponse(c *gin.Context, repository *pgstore.Repository,
 					platformIdentityID := visitor.platformIdentityID
 					stored.RespondentKind = pgstore.RespondentKindAccount
 					stored.PlatformIdentityID = &platformIdentityID
-					value.Email = postgresAccountEmail(ctx, visitor.platformIdentityID)
+					value.Email = accountEmail(ctx, visitor.platformIdentityID)
 				} else {
-					if err := applyPostgresGroupGuestName(stored, value, input.Name); err != nil {
+					if err := applyGroupGuestName(stored, value, input.Name); err != nil {
 						return err
 					}
 					value.Email = input.Email
@@ -595,10 +595,10 @@ func postgresMutateGroupResponse(c *gin.Context, repository *pgstore.Repository,
 						stored.PlatformIdentityID = &platformIdentityID
 					}
 					if stored.PlatformIdentityID != nil && *stored.PlatformIdentityID != "" {
-						value.Email = postgresAccountEmail(ctx, *stored.PlatformIdentityID)
+						value.Email = accountEmail(ctx, *stored.PlatformIdentityID)
 					}
 				default:
-					if err := applyPostgresGroupGuestName(stored, value, input.Name); err != nil {
+					if err := applyGroupGuestName(stored, value, input.Name); err != nil {
 						return err
 					}
 					value.Email = input.Email
@@ -631,18 +631,18 @@ func postgresMutateGroupResponse(c *gin.Context, repository *pgstore.Repository,
 			return err
 		}
 		if operation == "save" {
-			return postgresSetGroupDecline(ctx, tx, locked.ID, stored, visitor, false)
+			return setGroupDecline(ctx, tx, locked.ID, stored, visitor, false)
 		}
 		return nil
 	})
 	if err != nil {
-		postgresMutationError(c, err)
+		mutationError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"responseId": publicID, "eventVisitorId": visitor.identity.PublicID})
 }
 
-func applyPostgresGroupGuestName(stored *pgstore.Response, value *models.Response, supplied string) error {
+func applyGroupGuestName(stored *pgstore.Response, value *models.Response, supplied string) error {
 	validated := respondents.ValidateGuestName(canonicalGroupResponseName(supplied, value))
 	if validated.Code != respondents.GuestNameValid {
 		return guestNameError{guestNameValidationErrorMessage(validated.Code)}
@@ -653,10 +653,10 @@ func applyPostgresGroupGuestName(stored *pgstore.Response, value *models.Respons
 	return nil
 }
 
-// postgresGetCalendarAvailabilities resolves each PostgreSQL group response's
-// account through the authoritative PostgreSQL account, then returns the
+// getCalendarAvailabilities resolves each group response's
+// account through the authoritative account, then returns the
 // response's enabled calendar events keyed by the opaque response publicId so
-// clients can match them to the PostgreSQL response map. Other members' event
+// clients can match them to the response map. Other members' event
 // names are redacted, matching legacy behavior.
 // @Summary Return a map mapping user id to their calendar events that they have enabled for the given time range
 // @Tags events
@@ -667,7 +667,7 @@ func applyPostgresGroupGuestName(stored *pgstore.Response, value *models.Respons
 // @Param timeMax query string true "Upper bound for event's end time to filter by"
 // @Success 200 {object} map[string]map[string]calendar.CalendarEventsWithError
 // @Router /events/{eventId}/calendar-availabilities [get]
-func postgresGetCalendarAvailabilities(c *gin.Context) {
+func getCalendarAvailabilities(c *gin.Context) {
 	query := struct {
 		TimeMin time.Time `form:"timeMin" binding:"required"`
 		TimeMax time.Time `form:"timeMax" binding:"required"`
@@ -675,11 +675,11 @@ func postgresGetCalendarAvailabilities(c *gin.Context) {
 	if err := c.BindQuery(&query); err != nil {
 		return
 	}
-	repository := postgresRepository(c)
+	repository := defaultRepository(c)
 	if repository == nil {
 		return
 	}
-	event := postgresEvent(c, repository)
+	event := loadEvent(c, repository)
 	if event == nil {
 		return
 	}
@@ -687,9 +687,9 @@ func postgresGetCalendarAvailabilities(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, responses.Error{Error: errs.EventNotGroup})
 		return
 	}
-	visitor, err := resolvePostgresVisitor(c, repository, event)
+	visitor, err := resolveVisitor(c, repository, event)
 	if err != nil {
-		postgresMutationError(c, err)
+		mutationError(c, err)
 		return
 	}
 	stored, err := repository.ListResponses(c.Request.Context(), event.ID)
@@ -728,7 +728,7 @@ func postgresGetCalendarAvailabilities(c *gin.Context) {
 		}
 		authorized, err := visitor.controls(c.Request.Context(), repository, response.EventVisitorIdentityID)
 		if err != nil {
-			postgresMutationError(c, err)
+			mutationError(c, err)
 			return
 		}
 		requests = append(requests, calendarRequest{

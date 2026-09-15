@@ -49,7 +49,7 @@ func TestMonthlyActiveEventCreatorsFailsWholeRequestOnPostgresError(t *testing.T
 	t.Setenv("ANALYTICS_PASSWORD", "secret")
 
 	previousPool := pgstore.Pool
-	pgstore.Pool = closedAccountContractPostgresPool(t)
+	pgstore.Pool = closedAccountContractPool(t)
 	t.Cleanup(func() { pgstore.Pool = previousPool })
 
 	router := gin.New()
@@ -76,9 +76,9 @@ func TestMonthlyActiveEventCreatorsFailsWholeRequestOnPostgresError(t *testing.T
 func TestMonthlyActiveEventCreatorsServesOneEntryPerDay(t *testing.T) {
 	initRoutesReadFiltersTestDB(t)
 	if os.Getenv("POSTGRES_APPLICATION_URI") == "" {
-		t.Skip("POSTGRES_APPLICATION_URI is required for PostgreSQL route contracts")
+		t.Skip("POSTGRES_APPLICATION_URI is required for analytics route contracts")
 	}
-	anonymousEventPostgresOnce.Do(func() { pgstore.Init() })
+	routeTestDBOnce.Do(func() { pgstore.Init() })
 	t.Setenv("ANALYTICS_USERNAME", "analytics")
 	t.Setenv("ANALYTICS_PASSWORD", "secret")
 

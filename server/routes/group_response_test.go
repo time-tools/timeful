@@ -74,16 +74,16 @@ func zonedUTCKey(value time.Time) string {
 	return value.UTC().Format("2006-01-02T15:04:05+00:00") + "[UTC]"
 }
 
-// TestPostgresGroupResponseSaveDeleteAndDecline proves group response save and
-// delete persist to PostgreSQL, toggle attendee decline state on respond and
+// TestGroupResponseSaveDeleteAndDecline proves group response save and
+// delete persist, toggle attendee decline state on respond and
 // leave, and keep the response count correct.
-func TestPostgresGroupResponseSaveDeleteAndDecline(t *testing.T) {
-	router := signedInPostgresEventRouter(t)
+func TestGroupResponseSaveDeleteAndDecline(t *testing.T) {
+	router := signedInEventRouter(t)
 	owner, ownerAccount := createSignedInAccount(t, router)
 	member, memberAccount := createSignedInAccount(t, router)
 	ctx := context.Background()
 	name := "Group responses " + models.NewUUID().String()
-	eventID, stored := createPostgresGroup(t, owner, name, []string{memberAccount.Email})
+	eventID, stored := createGroup(t, owner, name, []string{memberAccount.Email})
 	path := "/api/events/" + eventID
 
 	ownerResponseID := createGroupResponse(t, owner, eventID, map[string]any{
@@ -115,14 +115,14 @@ func TestPostgresGroupResponseSaveDeleteAndDecline(t *testing.T) {
 	}
 }
 
-// TestPostgresGroupAnonymousGuestResponse proves an anonymous visitor can create
+// TestGroupAnonymousGuestResponse proves an anonymous visitor can create
 // and edit a guest response with the canonical guest name under the explicit
 // selection contract.
-func TestPostgresGroupAnonymousGuestResponse(t *testing.T) {
-	router := signedInPostgresEventRouter(t)
+func TestGroupAnonymousGuestResponse(t *testing.T) {
+	router := signedInEventRouter(t)
 	owner, _ := createSignedInAccount(t, router)
 	name := "Guest group responses " + models.NewUUID().String()
-	eventID, stored := createPostgresGroup(t, owner, name, nil)
+	eventID, stored := createGroup(t, owner, name, nil)
 	path := "/api/events/" + eventID
 
 	guest := newAccountContractClient(t, router)
@@ -148,14 +148,14 @@ func TestPostgresGroupAnonymousGuestResponse(t *testing.T) {
 	}
 }
 
-// TestPostgresGroupResponseAuthorization proves the explicit-selection and EVCC
+// TestGroupResponseAuthorization proves the explicit-selection and EVCC
 // contract rejects foreign visitor identities and owner impersonation while an
 // authorized guest keeps control of its own response.
-func TestPostgresGroupResponseAuthorization(t *testing.T) {
-	router := signedInPostgresEventRouter(t)
+func TestGroupResponseAuthorization(t *testing.T) {
+	router := signedInEventRouter(t)
 	owner, _ := createSignedInAccount(t, router)
 	name := "Group response auth " + models.NewUUID().String()
-	eventID, _ := createPostgresGroup(t, owner, name, nil)
+	eventID, _ := createGroup(t, owner, name, nil)
 	path := "/api/events/" + eventID
 
 	guest := newAccountContractClient(t, router)
@@ -185,14 +185,14 @@ func TestPostgresGroupResponseAuthorization(t *testing.T) {
 	}, http.StatusOK)
 }
 
-// TestPostgresGroupLegacyAccountResponseWithoutIdentityStaysEditable proves a
+// TestGroupLegacyAccountResponseWithoutIdentityStaysEditable proves a
 // credential-holding signed-out visitor can still edit an account response whose
 // platform identity was never consolidated, without writing an empty uuid.
-func TestPostgresGroupLegacyAccountResponseWithoutIdentityStaysEditable(t *testing.T) {
-	router := signedInPostgresEventRouter(t)
+func TestGroupLegacyAccountResponseWithoutIdentityStaysEditable(t *testing.T) {
+	router := signedInEventRouter(t)
 	owner, _ := createSignedInAccount(t, router)
 	name := "Group legacy account response " + models.NewUUID().String()
-	eventID, stored := createPostgresGroup(t, owner, name, nil)
+	eventID, stored := createGroup(t, owner, name, nil)
 	path := "/api/events/" + eventID
 
 	guest := newAccountContractClient(t, router)
@@ -217,14 +217,14 @@ func TestPostgresGroupLegacyAccountResponseWithoutIdentityStaysEditable(t *testi
 	}
 }
 
-// TestPostgresGroupManualAvailabilityAndCalendarFields proves the day-window
+// TestGroupManualAvailabilityAndCalendarFields proves the day-window
 // manual availability merge and the persisted calendar-derived fields match
 // existing group behavior.
-func TestPostgresGroupManualAvailabilityAndCalendarFields(t *testing.T) {
-	router := signedInPostgresEventRouter(t)
+func TestGroupManualAvailabilityAndCalendarFields(t *testing.T) {
+	router := signedInEventRouter(t)
 	owner, _ := createSignedInAccount(t, router)
 	name := "Group manual availability " + models.NewUUID().String()
-	eventID, stored := createPostgresGroup(t, owner, name, nil)
+	eventID, stored := createGroup(t, owner, name, nil)
 	setGroupManualWindow(t, stored, 1)
 	reloadedEvent, err := repositoryForTest(t).GetEventByShortID(context.Background(), eventID)
 	if err != nil {
@@ -288,18 +288,17 @@ func TestPostgresGroupManualAvailabilityAndCalendarFields(t *testing.T) {
 	}
 }
 
-// TestPostgresGroupCalendarAvailabilityResolvesAndRedacts proves the calendar
-// availability read resolves a PostgreSQL group respondent to the PostgreSQL
-// calendar connection and redacts other members' event names.
-func TestPostgresGroupCalendarAvailabilityResolvesAndRedacts(t *testing.T) {
-	router := signedInPostgresEventRouter(t)
+// TestGroupCalendarAvailabilityResolvesAndRedacts proves the calendar
+// availability read resolves a group respondent to the calendar connection and redacts other members' event names.
+func TestGroupCalendarAvailabilityResolvesAndRedacts(t *testing.T) {
+	router := signedInEventRouter(t)
 	owner, _ := createSignedInAccount(t, router)
 	member, memberAccount := createSignedInAccount(t, router)
 	name := "Group calendar availability " + models.NewUUID().String()
-	eventID, _ := createPostgresGroup(t, owner, name, []string{memberAccount.Email})
+	eventID, _ := createGroup(t, owner, name, []string{memberAccount.Email})
 	path := "/api/events/" + eventID
 
-	// The respondent's calendar credentials are PostgreSQL-authoritative.
+	// The respondent's calendar credentials are authoritative.
 	if err := accounts.SaveCalendarAccount(context.Background(), memberAccount.PlatformIdentityID, "team_ics", models.CalendarAccount{
 		CalendarType:    models.ICSCalendarType,
 		Email:           memberAccount.Email,
@@ -361,12 +360,12 @@ func TestMergeGroupManualAvailabilityDayWindow(t *testing.T) {
 	}
 }
 
-// TestPostgresGroupLiveCreateDerivesManualAvailabilityWindow proves a group
-// created and edited through the live PostgreSQL routes persists the legacy
+// TestGroupLiveCreateDerivesManualAvailabilityWindow proves a group
+// created and edited through the live routes persists the legacy
 // duration derived from the canonical slot window, and that the manual
 // availability day-window merge spans that duration.
-func TestPostgresGroupLiveCreateDerivesManualAvailabilityWindow(t *testing.T) {
-	router := signedInPostgresEventRouter(t)
+func TestGroupLiveCreateDerivesManualAvailabilityWindow(t *testing.T) {
+	router := signedInEventRouter(t)
 	owner, _ := createSignedInAccount(t, router)
 	t.Setenv("APP_BASE_URL", "https://timeful.test")
 	ctx := context.Background()

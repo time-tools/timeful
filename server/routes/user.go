@@ -57,7 +57,7 @@ func getProfile(c *gin.Context) {
 	userInterface, _ := c.Get("authUser")
 	user := userInterface.(*models.User)
 
-	// The usage counter is PostgreSQL-authoritative.
+	// The usage counter is authoritative.
 	account := utils.GetAuthAccount(c)
 	if account == nil {
 		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
@@ -67,7 +67,7 @@ func getProfile(c *gin.Context) {
 	if err != nil {
 		logger.StdErr.Panicln(err)
 	}
-	// Sign-in activity is recorded in the PostgreSQL daily log using the
+	// Sign-in activity is recorded in the daily log using the
 	// authoritative account identifier and timezone offset.
 	if err := repository.RecordDailyUserLogMembership(c.Request.Context(), account.PlatformIdentityID, account.TimezoneOffset); err != nil {
 		logger.StdErr.Panicln(err)
@@ -101,7 +101,7 @@ func updateName(c *gin.Context) {
 	account.LastName = payload.LastName
 	account.HasCustomName = utils.TruePtr()
 
-	// The profile is PostgreSQL-authoritative; this path does not write it.
+	// The profile is authoritative; this path does not write it.
 	if err := accounts.UpdateProfile(c.Request.Context(), account); err != nil {
 		logger.StdErr.Panicln(err)
 	}
@@ -150,7 +150,7 @@ func updateCalendarOptions(c *gin.Context) {
 		authUser.CalendarOptions.WorkingHours = *payload.WorkingHours
 	}
 
-	// Calendar preferences are PostgreSQL-authoritative.
+	// Calendar preferences are authoritative.
 	authAccount := utils.GetAuthAccount(c)
 	if authAccount == nil {
 		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
@@ -177,7 +177,7 @@ func getEvents(c *gin.Context) {
 	user := utils.GetAuthUser(c)
 	userId := user.Id
 
-	repository := postgresRepository(c)
+	repository := defaultRepository(c)
 	if repository == nil {
 		return
 	}
@@ -188,7 +188,7 @@ func getEvents(c *gin.Context) {
 	}
 	result := make([]any, 0, len(dashboardEvents))
 	for _, item := range dashboardEvents {
-		payload, err := postgresDashboardEvent(item.Event, item.Owned, userId.String(), item.Responded && item.Member)
+		payload, err := dashboardEvent(item.Event, item.Owned, userId.String(), item.Responded && item.Member)
 		if err != nil {
 			logger.StdErr.Panicln(err)
 		}
@@ -198,14 +198,14 @@ func getEvents(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// postgresDashboardEvent renders a PostgreSQL event in the dashboard wire
+// dashboardEvent renders an event in the dashboard wire
 // shape. The canonical public identifier is exposed as both _id and shortId so
 // the frontend opens the event without a store prefix and uses it as a stable
 // list key. ownerId carries the account identifier only for owned events;
 // responded-only events stay anonymous. Group entries carry the derived
 // responded state the dashboard sets.
-func postgresDashboardEvent(event pgstore.Event, owned bool, platformIdentityID string, responded bool) (map[string]any, error) {
-	value, err := postgresEventModel(&event)
+func dashboardEvent(event pgstore.Event, owned bool, platformIdentityID string, responded bool) (map[string]any, error) {
+	value, err := eventModel(&event)
 	if err != nil {
 		return nil, err
 	}
@@ -273,7 +273,7 @@ func setEventFolder(c *gin.Context) {
 		folderId = body.FolderId
 	}
 
-	repository := postgresRepository(c)
+	repository := defaultRepository(c)
 	if repository == nil {
 		return
 	}
@@ -336,7 +336,7 @@ func getCalendars(c *gin.Context) {
 
 	if editedCalendarAccounts {
 		// The provider refresh may add or drop sub-calendars; persist the
-		// reconciled set to PostgreSQL.
+		// reconciled set.
 		authAccount := utils.GetAuthAccount(c)
 		if authAccount != nil {
 			for calendarAccountKey, calendarAccount := range user.CalendarAccounts {
@@ -412,7 +412,7 @@ func addAppleCalendarAccount(c *gin.Context) {
 		return
 	}
 
-	// The PostgreSQL repository encrypts the app password at rest, so the route
+	// The repository encrypts the app password at rest, so the route
 	// passes plaintext and the provider consumes plaintext.
 	auth := &models.AppleCalendarAuth{
 		Email:    payload.Email,
@@ -587,7 +587,7 @@ func addCalendarAccount(c *gin.Context, args addCalendarAccountArgs) {
 	}
 	authUser.CalendarAccounts[canonicalKey] = calendarAccount
 
-	// Calendar connections are PostgreSQL-authoritative; the profile is never
+	// Calendar connections are authoritative; the profile is never
 	// written from this path.
 	authAccount := utils.GetAuthAccount(c)
 	if authAccount == nil {
@@ -617,7 +617,7 @@ func removeCalendarAccount(c *gin.Context) {
 
 	calendarAccountKey := utils.GetCalendarAccountKey(payload.Email, payload.CalendarType)
 
-	// Calendar connections are PostgreSQL-authoritative.
+	// Calendar connections are authoritative.
 	authAccount := utils.GetAuthAccount(c)
 	if authAccount == nil {
 		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
@@ -760,7 +760,7 @@ func deleteUser(c *gin.Context) {
 		return
 	}
 
-	// The deletion transaction removes the PostgreSQL account authority,
+	// The deletion transaction removes the account authority,
 	// platform identity, calendar connections, responses, folders, and
 	// daily-log membership. The session is cleared only after the whole unit
 	// succeeds, so a failure leaves the visitor signed in and able to retry.

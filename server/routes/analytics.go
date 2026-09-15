@@ -124,7 +124,7 @@ func getMonthlyActiveEventCreators(c *gin.Context) {
 		return
 	}
 
-	// Creator analytics read authoritative PostgreSQL event storage. Because
+	// Creator analytics read authoritative event storage. Because
 	// migrated and new events live in one store, each event contributes once
 	// and no creator is counted twice across stores.
 	repository, err := pgstore.DefaultRepository()
@@ -213,7 +213,7 @@ func getMonthlyActiveEventCreatorsWithMoreThanXEvents(c *gin.Context) {
 		return
 	}
 
-	// Creator analytics read authoritative PostgreSQL event storage, matching
+	// Creator analytics read authoritative event storage, matching
 	// the distinct-creator counting boundary. The whole range is one day-spine
 	// query, and a failure fails the request instead of dropping days.
 	repository, err := pgstore.DefaultRepository()

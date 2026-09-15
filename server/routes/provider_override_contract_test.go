@@ -34,8 +34,7 @@ func providerOverrideIDToken() string {
 // that the test-only provider endpoint overrides route the running server to a
 // mock provider: adding a Google account exchanges its code and loads its
 // sub-calendars there, and GET /user/calendars returns without any live provider
-// network access. It also proves the sub-calendar set is persisted in
-// PostgreSQL.
+// network access. It also proves the sub-calendar set is persisted.
 func TestGetUserCalendarsLoadsGoogleSubCalendarsFromTestProviderOverride(t *testing.T) {
 	var tokenRequests, calendarListRequests atomic.Int64
 

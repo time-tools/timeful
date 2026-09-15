@@ -6,20 +6,19 @@ import (
 	pgstore "timeful/server/postgres"
 )
 
-// Deleter removes the authoritative PostgreSQL account. The deletion transaction
-// removes the account profile, platform identity, calendar connections, and
-// daily-log membership, and records the deletion tombstone. It is atomic and
-// idempotent by construction: a failure leaves the account authority intact and
-// a retry converges. The PostgreSQL step is injectable so a test can force a
-// failure.
+// Deleter removes the authoritative account. The deletion transaction removes
+// the account profile, platform identity, calendar connections, and daily-log
+// membership, and records the deletion tombstone. It is atomic and idempotent
+// by construction: a failure leaves the account authority intact and a retry
+// converges. The deletion step is injectable so a test can force a failure.
 type Deleter struct {
-	DeletePostgres func(ctx context.Context, platformIdentityID string) error
+	DeleteAccount func(ctx context.Context, platformIdentityID string) error
 }
 
-// DefaultDeleter returns the production PostgreSQL deletion step.
+// DefaultDeleter returns the production deletion step.
 func DefaultDeleter() Deleter {
 	return Deleter{
-		DeletePostgres: func(ctx context.Context, platformIdentityID string) error {
+		DeleteAccount: func(ctx context.Context, platformIdentityID string) error {
 			repository, err := pgstore.DefaultRepository()
 			if err != nil {
 				return err
@@ -32,16 +31,15 @@ func DefaultDeleter() Deleter {
 // Delete applies the deletion. A nil step is skipped so a test can isolate the
 // deletion boundary.
 func (d Deleter) Delete(ctx context.Context, platformIdentityID string) error {
-	if d.DeletePostgres == nil {
+	if d.DeleteAccount == nil {
 		return nil
 	}
-	return d.DeletePostgres(ctx, platformIdentityID)
+	return d.DeleteAccount(ctx, platformIdentityID)
 }
 
 var defaultDeleter = DefaultDeleter()
 
-// DeleteAccount permanently deletes the account and all data it owns through
-// the authoritative PostgreSQL store.
+// DeleteAccount permanently deletes the account and all data it owns.
 func DeleteAccount(ctx context.Context, platformIdentityID string) error {
 	return defaultDeleter.Delete(ctx, platformIdentityID)
 }

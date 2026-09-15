@@ -83,7 +83,7 @@ func GetAllFolders(c *gin.Context) {
 	if !ok {
 		return
 	}
-	repository := postgresRepository(c)
+	repository := defaultRepository(c)
 	if repository == nil {
 		return
 	}
@@ -115,7 +115,7 @@ func GetFolder(c *gin.Context) {
 	if !ok {
 		return
 	}
-	repository := postgresRepository(c)
+	repository := defaultRepository(c)
 	if repository == nil {
 		return
 	}
@@ -161,7 +161,7 @@ func CreateFolder(c *gin.Context) {
 	if !ok {
 		return
 	}
-	repository := postgresRepository(c)
+	repository := defaultRepository(c)
 	if repository == nil {
 		return
 	}
@@ -205,7 +205,7 @@ func UpdateFolder(c *gin.Context) {
 	if !ok {
 		return
 	}
-	repository := postgresRepository(c)
+	repository := defaultRepository(c)
 	if repository == nil {
 		return
 	}
@@ -237,7 +237,7 @@ func DeleteFolder(c *gin.Context) {
 	if !ok {
 		return
 	}
-	repository := postgresRepository(c)
+	repository := defaultRepository(c)
 	if repository == nil {
 		return
 	}

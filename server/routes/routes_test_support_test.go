@@ -15,8 +15,8 @@ import (
 var routesReadFiltersTestDBOnce sync.Once
 
 // initRoutesReadFiltersTestDB prepares the shared route-test environment. It
-// does not initialize any database: PostgreSQL callers initialize the pool
-// through anonymousEventPostgresOnce.
+// does not initialize any database: route-test callers initialize the pool
+// through routeTestDBOnce.
 func initRoutesReadFiltersTestDB(t *testing.T) {
 	t.Helper()
 
@@ -25,7 +25,7 @@ func initRoutesReadFiltersTestDB(t *testing.T) {
 		if os.Getenv("SESSION_SECRET") == "" {
 			_ = os.Setenv("SESSION_SECRET", "01234567890123456789012345678901")
 		}
-		// PostgreSQL calendar credentials are encrypted at rest with a 32-byte
+		// Calendar credentials are encrypted at rest with a 32-byte
 		// ENCRYPTION_KEY; the isolated route tests supply one.
 		if os.Getenv("ENCRYPTION_KEY") == "" {
 			_ = os.Setenv("ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef")

@@ -16,9 +16,8 @@ import (
 	pgstore "timeful/server/postgres"
 )
 
-func TestPostgresVisitorIdentityContract(t *testing.T) {
-	store := anonymousEventContractStores()[0]
-	router := store.newRouter(t).(*gin.Engine)
+func TestVisitorIdentityContract(t *testing.T) {
+	router := anonymousEventRouter(t).(*gin.Engine)
 	InitAuth(router.Group("/api"))
 	router.POST("/test/sign-in/:id", func(c *gin.Context) {
 		session := sessions.Default(c)
@@ -66,7 +65,7 @@ func TestPostgresVisitorIdentityContract(t *testing.T) {
 	payload["blindAvailabilityEnabled"] = true
 	created, response := request(owner, http.MethodPost, "/api/events", payload, 201)
 	eventID := str(created, "eventId")
-	t.Cleanup(func() { store.cleanupEvent(t, eventID) })
+	t.Cleanup(func() { cleanupAnonymousEvent(t, eventID) })
 	ownerID := str(created, "eventVisitorId")
 	if ownerID == "" {
 		t.Fatal("missing owner identity")

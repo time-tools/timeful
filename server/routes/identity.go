@@ -16,7 +16,7 @@ import (
 	pgstore "timeful/server/postgres"
 )
 
-type postgresVisitor struct {
+type visitor struct {
 	identity           *pgstore.EventVisitorIdentity
 	platformIdentityID string
 	authorized         bool
@@ -27,8 +27,7 @@ type postgresVisitor struct {
 
 // resolveSessionPlatformIdentity resolves the platform identity UUID a session
 // carries. An empty, retired, or deleted value reports no identity, so a stale
-// session never adopts an account and never reaches PostgreSQL as an invalid
-// uuid literal.
+// session never adopts an account and never reaches a uuid column as an invalid literal.
 func resolveSessionPlatformIdentity(ctx context.Context, repo *pgstore.Repository, platformIdentityID string) (*pgstore.PlatformIdentity, error) {
 	if platformIdentityID == "" {
 		return nil, nil
@@ -52,7 +51,7 @@ func resolveSessionPlatformIdentity(ctx context.Context, repo *pgstore.Repositor
 // @Success 200
 // @Failure 401
 // @Router /auth/visitor-identities [post]
-func associatePostgresVisitorIdentities(c *gin.Context) {
+func associateVisitorIdentities(c *gin.Context) {
 	platformIdentityID, ok := sessions.Default(c).Get("userId").(string)
 	if !ok || platformIdentityID == "" {
 		c.Status(http.StatusUnauthorized)
@@ -71,7 +70,7 @@ func associatePostgresVisitorIdentities(c *gin.Context) {
 		c.Status(http.StatusBadRequest)
 		return
 	}
-	repo := postgresRepository(c)
+	repo := defaultRepository(c)
 	if repo == nil {
 		return
 	}
@@ -91,7 +90,7 @@ func associatePostgresVisitorIdentities(c *gin.Context) {
 			if event.IsDeleted {
 				continue
 			}
-			if _, err := authorizePostgresOwner(c, tx, event); err != nil {
+			if _, err := authorizeOwner(c, tx, event); err != nil {
 				return err
 			}
 			visitor, err := tx.GetEventVisitorIdentity(ctx, event.ID, item.EventVisitorID)
@@ -101,7 +100,7 @@ func associatePostgresVisitorIdentities(c *gin.Context) {
 			if err != nil {
 				return err
 			}
-			credential, err := provenPostgresCredential(c, tx, visitor, event.ShortID)
+			credential, err := provenCredential(c, tx, visitor, event.ShortID)
 			if err != nil {
 				return err
 			}
@@ -122,15 +121,15 @@ func associatePostgresVisitorIdentities(c *gin.Context) {
 		return nil
 	})
 	if err != nil {
-		postgresMutationError(c, err)
+		mutationError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{})
 }
 
-func postgresCredentialCookieName(eventID string) string { return "timeful_evcc_" + eventID }
+func credentialCookieName(eventID string) string { return "timeful_evcc_" + eventID }
 
-func issuePostgresCredential(ctx context.Context, repo *pgstore.Repository, visitorID string) (string, error) {
+func issueCredential(ctx context.Context, repo *pgstore.Repository, visitorID string) (string, error) {
 	var secret [32]byte
 	if _, err := rand.Read(secret[:]); err != nil {
 		return "", err
@@ -144,19 +143,19 @@ func issuePostgresCredential(ctx context.Context, repo *pgstore.Repository, visi
 	return credential.ID + "." + value, nil
 }
 
-func setPostgresCredentialCookie(c *gin.Context, eventID, publicID, credential string) {
+func setCredentialCookie(c *gin.Context, eventID, publicID, credential string) {
 	http.SetCookie(c.Writer, &http.Cookie{
-		Name: postgresCredentialCookieName(eventID), Value: publicID + "." + credential,
+		Name: credentialCookieName(eventID), Value: publicID + "." + credential,
 		Path: "/api", MaxAge: 34560000, HttpOnly: true, SameSite: http.SameSiteLaxMode,
 		Secure: c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https",
 	})
 }
 
-func provenPostgresCredential(c *gin.Context, repo *pgstore.Repository, visitor *pgstore.EventVisitorIdentity, eventID string) (*pgstore.EventVisitorCredential, error) {
-	return provenPostgresCredentialCookie(c, repo, visitor, postgresCredentialCookieName(eventID))
+func provenCredential(c *gin.Context, repo *pgstore.Repository, visitor *pgstore.EventVisitorIdentity, eventID string) (*pgstore.EventVisitorCredential, error) {
+	return provenCredentialCookie(c, repo, visitor, credentialCookieName(eventID))
 }
 
-func provenPostgresCredentialCookie(c *gin.Context, repo *pgstore.Repository, visitor *pgstore.EventVisitorIdentity, name string) (*pgstore.EventVisitorCredential, error) {
+func provenCredentialCookie(c *gin.Context, repo *pgstore.Repository, visitor *pgstore.EventVisitorIdentity, name string) (*pgstore.EventVisitorCredential, error) {
 	cookie, err := c.Cookie(name)
 	if err != nil {
 		return nil, nil
@@ -180,8 +179,8 @@ func provenPostgresCredentialCookie(c *gin.Context, repo *pgstore.Repository, vi
 }
 
 // The public identifier selects a visitor but never proves control of it.
-func resolvePostgresVisitor(c *gin.Context, repo *pgstore.Repository, event *pgstore.Event) (*postgresVisitor, error) {
-	owner, err := resolvePostgresOwner(c, repo, event)
+func resolveVisitor(c *gin.Context, repo *pgstore.Repository, event *pgstore.Event) (*visitor, error) {
+	owner, err := resolveOwner(c, repo, event)
 	if err != nil {
 		return nil, err
 	}
@@ -202,12 +201,12 @@ func resolvePostgresVisitor(c *gin.Context, repo *pgstore.Repository, event *pgs
 	}
 	publicID := c.Query("eventVisitorId")
 	if publicID == "" {
-		if cookie, err := c.Cookie(postgresCredentialCookieName(event.ShortID)); err == nil {
+		if cookie, err := c.Cookie(credentialCookieName(event.ShortID)); err == nil {
 			publicID = strings.Split(cookie, ".")[0]
 		}
 	}
-	result := &postgresVisitor{platformIdentityID: platformIdentityID, owner: owner}
-	grantVisitor, _, err := provenPostgresGrant(c, repo, event)
+	result := &visitor{platformIdentityID: platformIdentityID, owner: owner}
+	grantVisitor, _, err := provenGrant(c, repo, event)
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +219,7 @@ func resolvePostgresVisitor(c *gin.Context, repo *pgstore.Repository, event *pgs
 			return nil, err
 		}
 		if err == nil {
-			credential, err := provenPostgresCredential(c, repo, visitor, event.ShortID)
+			credential, err := provenCredential(c, repo, visitor, event.ShortID)
 			if err != nil {
 				return nil, err
 			}
@@ -237,11 +236,11 @@ func resolvePostgresVisitor(c *gin.Context, repo *pgstore.Repository, event *pgs
 			if valid || account {
 				result.authorized = true
 				if account && !valid {
-					credential, err := issuePostgresCredential(c.Request.Context(), repo, visitor.ID)
+					credential, err := issueCredential(c.Request.Context(), repo, visitor.ID)
 					if err != nil {
 						return nil, err
 					}
-					setPostgresCredentialCookie(c, event.ShortID, visitor.PublicID, credential)
+					setCredentialCookie(c, event.ShortID, visitor.PublicID, credential)
 				}
 			}
 		}
@@ -255,13 +254,13 @@ func resolvePostgresVisitor(c *gin.Context, repo *pgstore.Repository, event *pgs
 			}
 			result.identity = visitor
 			result.authorized = true
-			credential, err = issuePostgresCredential(ctx, tx, visitor.ID)
+			credential, err = issueCredential(ctx, tx, visitor.ID)
 			return err
 		})
 		if err != nil {
 			return nil, err
 		}
-		setPostgresCredentialCookie(c, event.ShortID, result.identity.PublicID, credential)
+		setCredentialCookie(c, event.ShortID, result.identity.PublicID, credential)
 	}
 	if platformIdentityID != "" && result.authorized && !result.granted && result.identity.PlatformIdentityID == nil {
 		if err := repo.AssociateEventVisitorIdentity(c.Request.Context(), result.identity.ID, platformIdentityID); err != nil {
@@ -272,7 +271,7 @@ func resolvePostgresVisitor(c *gin.Context, repo *pgstore.Repository, event *pgs
 	return result, nil
 }
 
-func (v *postgresVisitor) controls(ctx context.Context, repo *pgstore.Repository, visitorID string) (bool, error) {
+func (v *visitor) controls(ctx context.Context, repo *pgstore.Repository, visitorID string) (bool, error) {
 	if v.grantedVisitorID == visitorID || (v.authorized && v.identity.ID == visitorID) {
 		return true, nil
 	}
@@ -287,7 +286,7 @@ func (v *postgresVisitor) controls(ctx context.Context, repo *pgstore.Repository
 // the acting authorized visitor, then the signed-in account's associated
 // visitors. A visitor whose identity is not determined by the first two rules
 // and has no platform identity is unauthorized.
-func (v *postgresVisitor) controlsBatch(ctx context.Context, repo *pgstore.Repository, visitorIDs []string) (map[string]bool, error) {
+func (v *visitor) controlsBatch(ctx context.Context, repo *pgstore.Repository, visitorIDs []string) (map[string]bool, error) {
 	authorized := make(map[string]bool, len(visitorIDs))
 	lookup := make([]string, 0, len(visitorIDs))
 	for _, visitorID := range visitorIDs {

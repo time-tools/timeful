@@ -54,7 +54,7 @@ func findDashboardEventByName(t *testing.T, rows []map[string]json.RawMessage, n
 	return nil
 }
 
-func createDashboardPostgresEvent(t *testing.T, client *accountContractClient, name string) string {
+func createDashboardEvent(t *testing.T, client *accountContractClient, name string) string {
 	t.Helper()
 	created := client.request(http.MethodPost, "/api/events", canonicalTimedEventPayload(name), http.StatusCreated)
 	eventID := decodeAccountString(t, created, "eventId")
@@ -67,19 +67,19 @@ func createDashboardPostgresEvent(t *testing.T, client *accountContractClient, n
 	return eventID
 }
 
-// TestSignedInDashboardListsPostgresOwnedAndResponded proves that the dashboard
-// returns PostgreSQL events the account owns or has responded to, exposes the
+// TestSignedInDashboardListsOwnedAndResponded proves that the dashboard
+// returns events the account owns or has responded to, exposes the
 // canonical public identifier for both, never reveals an event to an account
 // that neither owns nor responded to, and lists an owned+responded event once.
-func TestSignedInDashboardListsPostgresOwnedAndResponded(t *testing.T) {
-	router := signedInPostgresEventRouter(t)
+func TestSignedInDashboardListsOwnedAndResponded(t *testing.T) {
+	router := signedInEventRouter(t)
 	owner, ownerAccount := createSignedInAccount(t, router)
 	ownedName := "Dashboard owned event " + models.NewUUID().String()
-	eventID := createDashboardPostgresEvent(t, owner, ownedName)
+	eventID := createDashboardEvent(t, owner, ownedName)
 
 	ownedRow := findDashboardEventByName(t, owner.requestArray(http.MethodGet, "/api/user/events", http.StatusOK), ownedName)
 	if ownedRow == nil {
-		t.Fatal("owner dashboard did not list the owned PostgreSQL event")
+		t.Fatal("owner dashboard did not list the owned event")
 	}
 	if got := dashboardEventField(t, ownedRow, "_id"); got != eventID {
 		t.Fatalf("owned _id = %q, want canonical short id %q", got, eventID)
@@ -99,7 +99,7 @@ func TestSignedInDashboardListsPostgresOwnedAndResponded(t *testing.T) {
 	}, http.StatusOK)
 	respondedRow := findDashboardEventByName(t, responder.requestArray(http.MethodGet, "/api/user/events", http.StatusOK), ownedName)
 	if respondedRow == nil {
-		t.Fatal("responder dashboard did not list the responded PostgreSQL event")
+		t.Fatal("responder dashboard did not list the responded event")
 	}
 	if got := dashboardEventField(t, respondedRow, "_id"); got != eventID {
 		t.Fatalf("responded _id = %q, want canonical short id %q", got, eventID)
@@ -130,17 +130,17 @@ func TestSignedInDashboardListsPostgresOwnedAndResponded(t *testing.T) {
 	}
 }
 
-// TestSignedInDashboardExcludesDeletedPostgresEvent proves that a deleted
-// PostgreSQL event stops appearing on the dashboard for its owner.
-func TestSignedInDashboardExcludesDeletedPostgresEvent(t *testing.T) {
-	router := signedInPostgresEventRouter(t)
+// TestSignedInDashboardExcludesDeletedEvent proves that a deleted
+// event stops appearing on the dashboard for its owner.
+func TestSignedInDashboardExcludesDeletedEvent(t *testing.T) {
+	router := signedInEventRouter(t)
 	owner, _ := createSignedInAccount(t, router)
 	name := "Deleted dashboard event " + models.NewUUID().String()
-	eventID := createDashboardPostgresEvent(t, owner, name)
+	eventID := createDashboardEvent(t, owner, name)
 
 	owner.request(http.MethodDelete, "/api/events/"+eventID, nil, http.StatusOK)
 
 	if row := findDashboardEventByName(t, owner.requestArray(http.MethodGet, "/api/user/events", http.StatusOK), name); row != nil {
-		t.Fatal("deleted PostgreSQL event still appeared on the dashboard")
+		t.Fatal("deleted event still appeared on the dashboard")
 	}
 }

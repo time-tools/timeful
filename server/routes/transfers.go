@@ -43,7 +43,7 @@ func transferDenied(c *gin.Context, err error) {
 		return
 	}
 	log.Printf("access transfer failed: %v", err)
-	postgresMutationError(c, err)
+	mutationError(c, err)
 }
 
 // @Summary Create a five-minute source-confirmed access transfer
@@ -54,12 +54,12 @@ func transferDenied(c *gin.Context, err error) {
 // @Success 201 {object} object{id=string,expiresAt=string}
 // @Failure 403
 // @Router /events/{eventId}/transfers [post]
-func postgresCreateTransfer(c *gin.Context) {
-	repo := postgresRepository(c)
+func createTransfer(c *gin.Context) {
+	repo := defaultRepository(c)
 	if repo == nil {
 		return
 	}
-	event := postgresEvent(c, repo)
+	event := loadEvent(c, repo)
 	if event == nil {
 		return
 	}
@@ -92,7 +92,7 @@ func postgresCreateTransfer(c *gin.Context) {
 		if platform != nil {
 			transfer.PlatformIdentityID = &platform.ID
 		} else {
-			cookie, err := c.Cookie(postgresCredentialCookieName(event.ShortID))
+			cookie, err := c.Cookie(credentialCookieName(event.ShortID))
 			if err != nil {
 				return pgx.ErrNoRows
 			}
@@ -100,7 +100,7 @@ func postgresCreateTransfer(c *gin.Context) {
 			if err != nil {
 				return err
 			}
-			credential, err := provenPostgresCredential(c, tx, visitor, event.ShortID)
+			credential, err := provenCredential(c, tx, visitor, event.ShortID)
 			if err != nil {
 				return err
 			}
@@ -109,7 +109,7 @@ func postgresCreateTransfer(c *gin.Context) {
 			}
 			transfer.SourceCredentialID = &credential.ID
 			if locked.OwnerEventVisitorIdentityID != nil && *locked.OwnerEventVisitorIdentityID == visitor.ID {
-				token, err := c.Cookie(postgresOwnerCookieName(event.ShortID))
+				token, err := c.Cookie(ownerCookieName(event.ShortID))
 				hash := sha256.Sum256([]byte(token))
 				if err != nil || subtle.ConstantTimeCompare(hash[:], locked.OwnerEditTokenHash) != 1 {
 					return pgx.ErrNoRows
@@ -140,12 +140,12 @@ func postgresCreateTransfer(c *gin.Context) {
 // @Failure 403
 // @Failure 409 {object} object{accountSwitchRequired=bool} "Explicit consent required to replace a different sign-in"
 // @Router /events/{eventId}/transfers/{transferId}/{action} [post]
-func postgresTransferAction(c *gin.Context) {
-	repo := postgresRepository(c)
+func transferAction(c *gin.Context) {
+	repo := defaultRepository(c)
 	if repo == nil {
 		return
 	}
-	event := postgresEvent(c, repo)
+	event := loadEvent(c, repo)
 	if event == nil {
 		return
 	}
@@ -272,7 +272,7 @@ func postgresTransferAction(c *gin.Context) {
 				if err != nil {
 					return err
 				}
-				proof, err := provenPostgresCredential(c, tx, visitor, event.ShortID)
+				proof, err := provenCredential(c, tx, visitor, event.ShortID)
 				if err != nil {
 					return err
 				}
@@ -280,7 +280,7 @@ func postgresTransferAction(c *gin.Context) {
 					return pgx.ErrNoRows
 				}
 				if transfer.GrantsOwner {
-					token, err := c.Cookie(postgresOwnerCookieName(event.ShortID))
+					token, err := c.Cookie(ownerCookieName(event.ShortID))
 					hash := sha256.Sum256([]byte(token))
 					if err != nil || subtle.ConstantTimeCompare(hash[:], locked.OwnerEditTokenHash) != 1 {
 						return pgx.ErrNoRows
@@ -375,7 +375,7 @@ func postgresTransferAction(c *gin.Context) {
 		transferCookie(c, "timeful_transfer_target_"+c.Param("transferId"), targetSecret)
 	}
 	if grantValue != "" {
-		transferCookie(c, postgresGrantCookieName(event.ShortID), grantPublicID+"."+grantValue)
+		transferCookie(c, grantCookieName(event.ShortID), grantPublicID+"."+grantValue)
 	}
 	c.JSON(200, result)
 }

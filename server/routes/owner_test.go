@@ -18,9 +18,8 @@ import (
 	pgstore "timeful/server/postgres"
 )
 
-func TestPostgresOwnerAuthority(t *testing.T) {
-	store := anonymousEventContractStores()[0]
-	router := store.newRouter(t).(*gin.Engine)
+func TestOwnerAuthority(t *testing.T) {
+	router := anonymousEventRouter(t).(*gin.Engine)
 	InitAuth(router.Group("/api"))
 	router.POST("/test/sign-in/:id", func(c *gin.Context) {
 		session := sessions.Default(c)
@@ -77,15 +76,15 @@ func TestPostgresOwnerAuthority(t *testing.T) {
 	schedulePayload := map[string]string{"startDate": "2026-01-05T14:00:00Z", "endDate": "2026-01-05T15:00:00Z"}
 	created := request(owner, "POST", "/api/events", payload, 201)
 	id, ownerID := str(created, "eventId"), str(created, "eventVisitorId")
-	t.Cleanup(func() { store.cleanupEvent(t, id) })
+	t.Cleanup(func() { cleanupAnonymousEvent(t, id) })
 	path := "/api/events/" + id
 	var token, base *http.Cookie
 	for _, cookie := range owner.Jar.Cookies(origin) {
-		if cookie.Name == postgresOwnerCookieName(id) {
+		if cookie.Name == ownerCookieName(id) {
 			token = cookie
 			token.Path = "/api"
 		}
-		if cookie.Name == postgresCredentialCookieName(id) {
+		if cookie.Name == credentialCookieName(id) {
 			base = cookie
 			base.Path = "/api"
 		}
@@ -124,8 +123,8 @@ func TestPostgresOwnerAuthority(t *testing.T) {
 	other := client()
 	otherEvent := request(other, "POST", "/api/events", payload, 201)
 	otherID := str(otherEvent, "eventId")
-	t.Cleanup(func() { store.cleanupEvent(t, otherID) })
-	other.Jar.SetCookies(origin, []*http.Cookie{{Path: "/api", Name: postgresOwnerCookieName(otherID), Value: token.Value}})
+	t.Cleanup(func() { cleanupAnonymousEvent(t, otherID) })
+	other.Jar.SetCookies(origin, []*http.Cookie{{Path: "/api", Name: ownerCookieName(otherID), Value: token.Value}})
 	request(other, "PUT", "/api/events/"+otherID, payload, 403)
 	response := request(owner, "POST", path+"/response", map[string]any{"createResponse": true, "name": "Owner response"}, 200)
 	responseID := str(response, "responseId")
@@ -235,7 +234,7 @@ func TestPostgresOwnerAuthority(t *testing.T) {
 	request(recovered, "POST", path+"/archive", map[string]bool{"archive": false}, 404)
 }
 
-func TestPostgresOwnerCookieFlags(t *testing.T) {
+func TestOwnerCookieFlags(t *testing.T) {
 	for _, secure := range []bool{false, true} {
 		recorder := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(recorder)
@@ -243,7 +242,7 @@ func TestPostgresOwnerCookieFlags(t *testing.T) {
 		if secure {
 			c.Request.Header.Set("X-Forwarded-Proto", "https")
 		}
-		setPostgresOwnerCookie(c, "ABCD1234", "opaque-token")
+		setOwnerCookie(c, "ABCD1234", "opaque-token")
 		cookies := recorder.Result().Cookies()
 		if len(cookies) != 1 || !cookies[0].HttpOnly || cookies[0].Secure != secure || cookies[0].SameSite != http.SameSiteLaxMode || cookies[0].Path != "/api" || cookies[0].MaxAge <= 0 {
 			t.Fatalf("incorrect cookie flags: %#v", cookies)

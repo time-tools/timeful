@@ -34,10 +34,10 @@ func findFolderByName(t *testing.T, rows []map[string]json.RawMessage, name stri
 }
 
 // TestSignedInFoldersCrudAndIsolation proves that folder create, read, update,
-// and delete run in PostgreSQL for the owning account and that another account
+// and delete persist for the owning account and that another account
 // can neither see nor mutate the folder.
 func TestSignedInFoldersCrudAndIsolation(t *testing.T) {
-	router := signedInPostgresEventRouter(t)
+	router := signedInEventRouter(t)
 	owner, _ := createSignedInAccount(t, router)
 	stranger, _ := createSignedInAccount(t, router)
 
@@ -45,7 +45,7 @@ func TestSignedInFoldersCrudAndIsolation(t *testing.T) {
 	created := owner.request(http.MethodPost, "/api/user/folders", map[string]any{"name": name, "color": "#abcdef"}, http.StatusCreated)
 	folderID := decodeAccountString(t, created, "id")
 	if !validFolderID(folderID) {
-		t.Fatalf("created folder id %q is not a PostgreSQL UUID", folderID)
+		t.Fatalf("created folder id %q is not a canonical UUID", folderID)
 	}
 
 	listed := owner.requestArray(http.MethodGet, "/api/user/folders", http.StatusOK)
@@ -83,47 +83,46 @@ func TestSignedInFoldersCrudAndIsolation(t *testing.T) {
 	}
 }
 
-// TestSignedInFolderMembershipForPostgresEvents proves that a PostgreSQL event
+// TestSignedInFolderMembershipForEvents proves that an event
 // can be added to and removed from a folder, that reads expose the canonical
 // public identifier, and that a repeated move does not duplicate a member.
-func TestSignedInFolderMembershipForPostgresEvents(t *testing.T) {
-	router := signedInPostgresEventRouter(t)
+func TestSignedInFolderMembershipForEvents(t *testing.T) {
+	router := signedInEventRouter(t)
 	owner, account := createSignedInAccount(t, router)
 	ctx := context.Background()
 
 	folderName := "Membership " + models.NewUUID().String()
 	folderID := decodeAccountString(t, owner.request(http.MethodPost, "/api/user/folders", map[string]any{"name": folderName}, http.StatusCreated), "id")
 
-	postgresEventID := createDashboardPostgresEvent(t, owner, "Membership PostgreSQL event")
+	eventID := createDashboardEvent(t, owner, "Membership event")
 
-	owner.request(http.MethodPost, "/api/user/events/"+postgresEventID+"/set-folder", map[string]any{"folderId": folderID}, http.StatusOK)
+	owner.request(http.MethodPost, "/api/user/events/"+eventID+"/set-folder", map[string]any{"folderId": folderID}, http.StatusOK)
 	// Re-adding the same event must not create duplicate memberships.
-	owner.request(http.MethodPost, "/api/user/events/"+postgresEventID+"/set-folder", map[string]any{"folderId": folderID}, http.StatusOK)
+	owner.request(http.MethodPost, "/api/user/events/"+eventID+"/set-folder", map[string]any{"folderId": folderID}, http.StatusOK)
 
 	row := findFolderByName(t, owner.requestArray(http.MethodGet, "/api/user/folders", http.StatusOK), folderName)
 	if row == nil {
 		t.Fatal("owner did not see the folder after adding members")
 	}
 	ids := folderEventIDs(t, row)
-	if len(ids) != 1 || ids[0] != postgresEventID {
-		t.Fatalf("folder members = %v, want exactly the PostgreSQL canonical id %q", ids, postgresEventID)
+	if len(ids) != 1 || ids[0] != eventID {
+		t.Fatalf("folder members = %v, want exactly the canonical id %q", ids, eventID)
 	}
 
-	// The explicit storage reference is recorded once with the PostgreSQL
-	// event UUID populated.
-	var postgresRefs int
-	if err := pgstore.Pool.QueryRow(ctx, `SELECT count(*) FROM folder_events WHERE platform_identity_id = $1 AND event_id IS NOT NULL`, account.PlatformIdentityID).Scan(&postgresRefs); err != nil {
+	// The explicit storage reference is recorded once with the event UUID populated.
+	var eventRefs int
+	if err := pgstore.Pool.QueryRow(ctx, `SELECT count(*) FROM folder_events WHERE platform_identity_id = $1 AND event_id IS NOT NULL`, account.PlatformIdentityID).Scan(&eventRefs); err != nil {
 		t.Fatal(err)
 	}
-	if postgresRefs != 1 {
-		t.Fatalf("storage references wrong: postgres=%d", postgresRefs)
+	if eventRefs != 1 {
+		t.Fatalf("storage references wrong: refs=%d", eventRefs)
 	}
 
 	// Another account's folder cannot receive a member.
 	stranger, _ := createSignedInAccount(t, router)
-	stranger.request(http.MethodPost, "/api/user/events/"+postgresEventID+"/set-folder", map[string]any{"folderId": folderID}, http.StatusNotFound)
+	stranger.request(http.MethodPost, "/api/user/events/"+eventID+"/set-folder", map[string]any{"folderId": folderID}, http.StatusNotFound)
 
-	owner.request(http.MethodPost, "/api/user/events/"+postgresEventID+"/set-folder", map[string]any{"folderId": nil}, http.StatusOK)
+	owner.request(http.MethodPost, "/api/user/events/"+eventID+"/set-folder", map[string]any{"folderId": nil}, http.StatusOK)
 	row = findFolderByName(t, owner.requestArray(http.MethodGet, "/api/user/folders", http.StatusOK), folderName)
 	if row == nil {
 		t.Fatal("folder disappeared after removing members")
@@ -134,18 +133,17 @@ func TestSignedInFolderMembershipForPostgresEvents(t *testing.T) {
 }
 
 // TestSignedInFolderDeleteRemovesMembershipsAndOwnedMembers proves that
-// deleting a folder removes its memberships and soft-deletes the account's own
-// PostgreSQL member events.
+// deleting a folder removes its memberships and soft-deletes the account's own member events.
 func TestSignedInFolderDeleteRemovesMembershipsAndOwnedMembers(t *testing.T) {
-	router := signedInPostgresEventRouter(t)
+	router := signedInEventRouter(t)
 	owner, account := createSignedInAccount(t, router)
 	ctx := context.Background()
 
 	folderName := "Delete " + models.NewUUID().String()
 	folderID := decodeAccountString(t, owner.request(http.MethodPost, "/api/user/folders", map[string]any{"name": folderName}, http.StatusCreated), "id")
 
-	postgresEventID := createDashboardPostgresEvent(t, owner, "Delete PostgreSQL member")
-	owner.request(http.MethodPost, "/api/user/events/"+postgresEventID+"/set-folder", map[string]any{"folderId": folderID}, http.StatusOK)
+	eventID := createDashboardEvent(t, owner, "Delete member")
+	owner.request(http.MethodPost, "/api/user/events/"+eventID+"/set-folder", map[string]any{"folderId": folderID}, http.StatusOK)
 
 	owner.request(http.MethodDelete, "/api/user/folders/"+folderID, nil, http.StatusOK)
 
@@ -156,11 +154,11 @@ func TestSignedInFolderDeleteRemovesMembershipsAndOwnedMembers(t *testing.T) {
 	if memberships != 0 {
 		t.Fatalf("folder memberships survived deletion: %d", memberships)
 	}
-	var postgresDeleted bool
-	if err := pgstore.Pool.QueryRow(ctx, `SELECT is_deleted FROM events WHERE short_id = $1`, postgresEventID).Scan(&postgresDeleted); err != nil {
+	var deleted bool
+	if err := pgstore.Pool.QueryRow(ctx, `SELECT is_deleted FROM events WHERE short_id = $1`, eventID).Scan(&deleted); err != nil {
 		t.Fatal(err)
 	}
-	if !postgresDeleted {
-		t.Fatal("owned PostgreSQL member event was not soft-deleted with the folder")
+	if !deleted {
+		t.Fatal("owned member event was not soft-deleted with the folder")
 	}
 }
