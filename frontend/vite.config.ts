@@ -42,6 +42,7 @@ export default defineConfig(({ command, mode, isPreview }) => {
       // failures when the dep cache is cold). Keep in sync with components
       // auto-imported in src templates.
       include: [
+        "vuetify/components/VAlert",
         "vuetify/components/VApp",
         "vuetify/components/VAvatar",
         "vuetify/components/VBtn",
