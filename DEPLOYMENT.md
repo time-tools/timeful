@@ -143,10 +143,13 @@ The isolated test stack runs no OpenObserve instance and needs none of these var
 
 ### Server Diagnostics
 
-The server ships [Structured Log Records](docs/terminology/glossary.md#structured-log-records) over OTLP/HTTP to its environment's organization and writes them to the `timeful_server_logs` stream.
+The server ships [Structured Log Records](docs/terminology/glossary.md#structured-log-records), metrics, and traces over OTLP/HTTP to its environment's organization.
+Logs land in the `timeful_server_logs` stream, traces in the `timeful_server_traces` stream, and each metric in a stream named after it with dots replaced by underscores.
 Each record carries the request correlation identifier, route, status, outcome, latency, redacted error context, and the service's readiness state, and the server returns the identifier as the `X-Request-ID` response header.
 To diagnose a failed request, open the Logs view through the SSH tunnel, select the environment's organization and the `timeful_server_logs` stream, and query the identifier from the failed response.
-Export runs on a bounded background pipeline, so OpenObserve being unavailable or slow never blocks requests, and the file and standard-stream diagnostics stay available without it.
+The record carries the trace identifier of its request span, so the Traces view shows the request span, its PostgreSQL spans, and any outbound HTTP spans recorded under that trace.
+Metrics are queryable with PromQL, for example `http_server_request_duration_count` for request counts by route, method, status, and readiness, `http_server_request_duration_bucket` for latency percentiles through `histogram_quantile`, and `timeful_service_readiness` for the PostgreSQL-dependent readiness gauge.
+Export runs on bounded background pipelines for every signal, so OpenObserve being unavailable or slow never blocks requests, and the file and standard-stream diagnostics stay available without it.
 When the environment's OpenObserve variables are incomplete, the server logs a warning and disables export instead of failing to start.
 
 ## Commands

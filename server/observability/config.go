@@ -23,6 +23,9 @@ const (
 	// ServerLogStream is the OpenObserve stream that receives the server's
 	// structured diagnostic records.
 	ServerLogStream = "timeful_server_logs"
+	// ServerTraceStream is the OpenObserve stream that receives the server's
+	// traces.
+	ServerTraceStream = "timeful_server_traces"
 )
 
 // Config is the environment-scoped OpenObserve ingest contract established by
@@ -60,6 +63,22 @@ func (c Config) Enabled() bool {
 // LogsURL returns the OTLP/HTTP logs endpoint for the configured
 // organization.
 func (c Config) LogsURL() (string, error) {
+	return c.signalURL("logs")
+}
+
+// MetricsURL returns the OTLP/HTTP metrics endpoint for the configured
+// organization.
+func (c Config) MetricsURL() (string, error) {
+	return c.signalURL("metrics")
+}
+
+// TracesURL returns the OTLP/HTTP traces endpoint for the configured
+// organization.
+func (c Config) TracesURL() (string, error) {
+	return c.signalURL("traces")
+}
+
+func (c Config) signalURL(signal string) (string, error) {
 	parsed, err := url.Parse(c.Endpoint)
 	if err != nil {
 		return "", fmt.Errorf("OPENOBSERVE_ENDPOINT must be a valid URL: %w", err)
@@ -70,7 +89,7 @@ func (c Config) LogsURL() (string, error) {
 	if parsed.RawQuery != "" || parsed.Fragment != "" {
 		return "", fmt.Errorf("OPENOBSERVE_ENDPOINT must not carry a query or fragment, got %q", c.Endpoint)
 	}
-	return parsed.JoinPath("api", c.OrganizationID, "v1", "logs").String(), nil
+	return parsed.JoinPath("api", c.OrganizationID, "v1", signal).String(), nil
 }
 
 // AuthHeader returns the Basic authorization header OpenObserve expects for

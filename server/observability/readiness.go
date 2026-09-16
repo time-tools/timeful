@@ -33,6 +33,7 @@ type ReadinessMonitor struct {
 	interval time.Duration
 	timeout  time.Duration
 	state    atomic.Value
+	observer atomic.Pointer[func(ReadinessState)]
 }
 
 // NewReadinessMonitor builds a monitor around the given probe. A nil probe
@@ -70,6 +71,20 @@ func (m *ReadinessMonitor) Start(ctx context.Context) {
 	}()
 }
 
+// SetObserver attaches a callback invoked after every probe with the observed
+// state, so readiness can be exported as a metric. A nil observer clears it,
+// and a nil monitor is a no-op.
+func (m *ReadinessMonitor) SetObserver(observer func(ReadinessState)) {
+	if m == nil {
+		return
+	}
+	if observer == nil {
+		m.observer.Store(nil)
+		return
+	}
+	m.observer.Store(&observer)
+}
+
 // State returns the last observed readiness, or unknown before the first
 // probe.
 func (m *ReadinessMonitor) State() ReadinessState {
@@ -86,9 +101,12 @@ func (m *ReadinessMonitor) State() ReadinessState {
 func (m *ReadinessMonitor) check() {
 	probeContext, cancel := context.WithTimeout(context.Background(), m.timeout)
 	defer cancel()
+	state := ReadinessReady
 	if err := m.probe(probeContext); err != nil {
-		m.state.Store(ReadinessUnavailable)
-		return
+		state = ReadinessUnavailable
 	}
-	m.state.Store(ReadinessReady)
+	m.state.Store(state)
+	if observer := m.observer.Load(); observer != nil {
+		(*observer)(state)
+	}
 }

@@ -28,6 +28,20 @@ func TestConfigFromEnv(t *testing.T) {
 	if want := "http://openobserve:5080/api/org123/v1/logs"; logsURL != want {
 		t.Fatalf("LogsURL() = %q, want %q", logsURL, want)
 	}
+	metricsURL, err := config.MetricsURL()
+	if err != nil {
+		t.Fatalf("MetricsURL() error = %v", err)
+	}
+	if want := "http://openobserve:5080/api/org123/v1/metrics"; metricsURL != want {
+		t.Fatalf("MetricsURL() = %q, want %q", metricsURL, want)
+	}
+	tracesURL, err := config.TracesURL()
+	if err != nil {
+		t.Fatalf("TracesURL() error = %v", err)
+	}
+	if want := "http://openobserve:5080/api/org123/v1/traces"; tracesURL != want {
+		t.Fatalf("TracesURL() = %q, want %q", tracesURL, want)
+	}
 
 	wantAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte("service-account@timeful.fun:ingest-token"))
 	if auth := config.AuthHeader(); auth != wantAuth {
@@ -126,5 +140,58 @@ func TestConfigLogsURLEscapesOrganizationIdentifier(t *testing.T) {
 	}
 	if want := "https://observability.example.com/api/org%20id/v1/logs"; logsURL != want {
 		t.Fatalf("LogsURL() = %q, want %q", logsURL, want)
+	}
+}
+
+func TestConfigSignalURLsRejectInvalidEndpoints(t *testing.T) {
+	signals := []struct {
+		name  string
+		build func(Config) (string, error)
+	}{
+		{name: "logs", build: Config.LogsURL},
+		{name: "metrics", build: Config.MetricsURL},
+		{name: "traces", build: Config.TracesURL},
+	}
+	endpoints := []string{
+		"openobserve:5080",
+		"://missing-scheme",
+		"ftp://openobserve:5080",
+		"",
+		"https://observability.example.com?tenant=other",
+		"https://observability.example.com#fragment",
+	}
+	for _, signal := range signals {
+		for _, endpoint := range endpoints {
+			t.Run(signal.name+" "+endpoint, func(t *testing.T) {
+				config := Config{Endpoint: endpoint, OrganizationID: "org123"}
+				if _, err := signal.build(config); err == nil {
+					t.Fatalf("%s URL accepted %q", signal.name, endpoint)
+				}
+			})
+		}
+	}
+}
+
+func TestConfigSignalURLsKeepEndpointBasePath(t *testing.T) {
+	config := Config{Endpoint: "https://observability.example.com/prefix", OrganizationID: "org id"}
+	signals := []struct {
+		name  string
+		build func(Config) (string, error)
+		want  string
+	}{
+		{name: "logs", build: Config.LogsURL, want: "https://observability.example.com/prefix/api/org%20id/v1/logs"},
+		{name: "metrics", build: Config.MetricsURL, want: "https://observability.example.com/prefix/api/org%20id/v1/metrics"},
+		{name: "traces", build: Config.TracesURL, want: "https://observability.example.com/prefix/api/org%20id/v1/traces"},
+	}
+	for _, signal := range signals {
+		t.Run(signal.name, func(t *testing.T) {
+			got, err := signal.build(config)
+			if err != nil {
+				t.Fatalf("%s URL error = %v", signal.name, err)
+			}
+			if got != signal.want {
+				t.Fatalf("%s URL = %q, want %q", signal.name, got, signal.want)
+			}
+		})
 	}
 }

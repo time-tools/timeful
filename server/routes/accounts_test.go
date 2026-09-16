@@ -26,7 +26,7 @@ func newAccountContractRouter(t *testing.T) *gin.Engine {
 	if os.Getenv("POSTGRES_APPLICATION_URI") == "" {
 		t.Skip("POSTGRES_APPLICATION_URI is required for account route contracts")
 	}
-	routeTestDBOnce.Do(func() { pgstore.Init() })
+	routeTestDBOnce.Do(func() { pgstore.Init(nil) })
 	t.Setenv("LISTMONK_ENABLED", "false")
 
 	router := gin.New()

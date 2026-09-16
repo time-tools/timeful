@@ -386,15 +386,30 @@ The isolated test stack runs no OpenObserve instance and needs none of these var
 
 ### Server-Side Structured Diagnostics
 
-The server consumes the environment's ingest contract on startup and ships [Structured Log Records](terminology/glossary.md#structured-log-records) over OTLP/HTTP to `<OPENOBSERVE_ENDPOINT>/api/<OPENOBSERVE_ORGANIZATION_ID>/v1/logs`.
-It authenticates with HTTP Basic credentials built from `OPENOBSERVE_INGEST_USERNAME` and `OPENOBSERVE_INGEST_PASSWORD`, and it writes records to the `timeful_server_logs` [Stream](terminology/glossary.md#stream).
+The server consumes the environment's ingest contract on startup and ships [Observability Data](terminology/glossary.md#observability-data) over OTLP/HTTP for every [Signal](terminology/glossary.md#signal): logs to `<OPENOBSERVE_ENDPOINT>/api/<OPENOBSERVE_ORGANIZATION_ID>/v1/logs`, metrics to `/v1/metrics`, and traces to `/v1/traces`.
+It authenticates every **Signal** with the same HTTP Basic credentials built from `OPENOBSERVE_INGEST_USERNAME` and `OPENOBSERVE_INGEST_PASSWORD`, so metrics and traces add no environment variables beyond the four `OPENOBSERVE_*` values and `APP_ENV` that log shipping established.
+The shared resource marks every **Signal** with `service.name=timeful-server` and `deployment.environment`, so logs, metrics, and traces join on the deployment environment.
+
+Log [Structured Log Records](terminology/glossary.md#structured-log-records) are written to the `timeful_server_logs` [Stream](terminology/glossary.md#stream).
 Each record carries the request correlation identifier, the matched route template, the HTTP method and status code, the outcome, the latency in milliseconds, redacted error context, and the service's readiness state, so an operator can correlate a failed request with its records and [Service Health Status](terminology/glossary.md#service-health-status) (QR-010).
 The server returns the correlation identifier to the caller as the `X-Request-ID` response header, so an operator can start from the failed response and query the matching records.
-Export runs on a bounded background batch pipeline: request handling never waits on the exporter, and a full queue drops records instead of blocking the request path (QR-017).
-Shipped records exclude credentials, secrets, [Event Owner Edit Tokens](terminology/glossary.md#event-owner-edit-token), and token-bearing URLs and headers, and error context passes through redaction (QR-004).
-When any of the four variables is missing or blank, the server disables export, records a local warning, and keeps serving with its file and standard-stream [Diagnostic Output](terminology/glossary.md#diagnostic-output) only.
+Each record also carries the native `trace_id` and `span_id` of its request span, so an operator can pivot between a log record and its trace.
+
+Traces are written to the `timeful_server_traces` [Stream](terminology/glossary.md#stream), every request is sampled, and each request produces one server span named `METHOD /route/template`.
+A request span carries the same correlation identifier, route, status, outcome, latency, readiness, and redacted error context as its log record.
+PostgreSQL queries join the request trace as client spans carrying only the operation, database, host, and SQLSTATE, and outbound HTTP client spans carry only the method, scheme, host, port, status, and a coarse error class, with any 4xx or 5xx response marking the outbound span failed as otelhttp does; a call made without a request context appears as its own trace.
+Dependency spans never record SQL text, query parameters, URLs, query strings, headers, bodies, or transport error text (QR-004).
+
+Metrics are exported on a periodic reader and cover request rate, errors, and latency through the `http.server.request.duration` histogram, service readiness through the `timeful.service.readiness` gauge (1 ready, 0 unavailable), PostgreSQL pool use through `db.client.connection.count` and `db.client.connection.max`, and Go runtime health through the standard runtime instrumentation.
+OpenObserve stores each metric in its own [Stream](terminology/glossary.md#stream) named after the metric with dots replaced by underscores, for example `timeful_service_readiness` and `db_client_connection_count`, and a histogram also produces its bucket, count, sum, min, and max **Streams**.
+The readiness gauge carries the PostgreSQL-dependent readiness that explains dependency-related request failures, and the `service.readiness` label on request metrics lets an operator slice request outcomes by the dependency state observed at completion (QR-010, QR-017).
+
+Export runs on bounded background pipelines for every [Signal](terminology/glossary.md#signal): request handling never waits on an exporter, a full trace queue drops spans instead of blocking, and metric recording is in-memory with a periodic background export (QR-017).
+Shipped telemetry for every **Signal** excludes credentials, secrets, [Event Owner Edit Tokens](terminology/glossary.md#event-owner-edit-token), and token-bearing URLs and headers; error context passes through redaction, and the outbound HTTP transport records no URL path, query, or headers (QR-004).
+When any of the four variables is missing or blank, the server disables export for all **Signals**, records a local warning, and keeps serving with its file and standard-stream [Diagnostic Output](terminology/glossary.md#diagnostic-output) only.
 The GIN access log passes its request path and handler error messages through the same redaction, so token-bearing query parameters do not reach the file or standard-stream **Diagnostic Output** either.
 The development stack uses the same contract against its own instance, and the isolated test stack sets no OpenObserve variables and exports nothing.
+Every **Signal** inherits the instance's 14-day [Retention Window](terminology/glossary.md#retention-window) (QR-018).
 
 ## External Service Names
 

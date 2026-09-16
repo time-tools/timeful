@@ -4,6 +4,7 @@ title: Set up staging and production and finish the staged log-shipping exercise
 status: To Do
 assignee: []
 created_date: '2026-09-16 19:01'
+updated_date: '2026-09-16 21:04'
 labels: []
 dependencies:
   - TASK-0245
@@ -49,3 +50,13 @@ Governing requirements: QR-010, QR-004, QR-017, QR-006, QR-007. Decision record:
 - [ ] #3 All required e2e tests pass. Documentation-only changes are exempt unless the user requests e2e tests
 - [ ] #4 Changed Markdown files are formatted with npm run format:markdown
 <!-- DOD:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: @OpenCode
+created: 2026-09-16 21:04
+---
+TASK-0246 (metrics and traces for OpenObserve) accepted the development-stack exercise for its export acceptance criteria because the deployment host is unreachable, matching the TASK-0245 precedent. When this task stands up staging and production and finishes the deferred log-shipping exercise, extend the same exercise to metrics and traces: confirm each server's `/v1/metrics` and `/v1/traces` exports land in its own organization with the environment's service account, that request, PostgreSQL, and outbound HTTP spans are queryable, and that the readiness gauge and request histogram are queryable with PromQL.
+---
+<!-- COMMENTS:END -->

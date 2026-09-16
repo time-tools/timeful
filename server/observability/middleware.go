@@ -23,16 +23,23 @@ const (
 
 var errorCodePattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
-// RequestMiddleware records one structured diagnostic record per finished
-// request. It generates the request correlation identifier, captures only the
-// bounded JSON error field of failed responses, and hands the completion to
-// the recorder, which enqueues it without waiting on OpenObserve.
+// RequestMiddleware records one structured diagnostic record and one server
+// span per finished request, and records the request duration metric. It
+// generates the request correlation identifier, starts the trace span that the
+// log record inherits, captures only the bounded JSON error field of failed
+// responses, and hands the completion to the recorder, which enqueues it
+// without waiting on OpenObserve.
 func RequestMiddleware(recorder *Recorder) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		started := time.Now()
 		requestID := newRequestID()
 		c.Set(requestIDContextKey, requestID)
 		c.Header(RequestIDHeader, requestID)
+
+		spanContext, span := recorder.StartRequestSpan(c.Request.Context(), c.Request.Method)
+		// Handlers and the repository layer read the request context, so the
+		// span travels with it and database work joins the request trace.
+		c.Request = c.Request.WithContext(spanContext)
 
 		capture := newErrorCapture(c.Writer)
 		c.Writer = capture
@@ -46,12 +53,16 @@ func RequestMiddleware(recorder *Recorder) gin.HandlerFunc {
 			Status:    capture.Status(),
 			Latency:   time.Since(started),
 			StartTime: started,
+			Readiness: recorder.readinessState(),
 		}
 		completion.ErrorType, completion.ErrorMessage = capture.errorContext(completion.Status)
 		if completion.ErrorMessage == "" && len(c.Errors) > 0 {
 			completion.ErrorMessage = c.Errors.String()
 		}
-		recorder.EmitRequest(c.Request.Context(), completion)
+		completion.ApplyToSpan(span)
+		recorder.RecordRequestMetrics(spanContext, completion)
+		recorder.EmitRequest(spanContext, completion)
+		span.End()
 	}
 }
 

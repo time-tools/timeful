@@ -91,6 +91,9 @@ func main() {
 		logger.StdErr.Printf("Warning: structured diagnostic export disabled: %s", err)
 		recorder = nil
 	}
+	// Outbound requests made through the default client join their request
+	// trace with a bounded, QR-004-safe client span.
+	observability.InstrumentDefaultTransport(recorder)
 
 	// Init router
 	router := gin.New()
@@ -137,18 +140,24 @@ func main() {
 	}))
 
 	// Init database
-	closePostgres := postgres.Init()
+	closePostgres := postgres.Init(recorder.TracerProvider())
 	defer closePostgres()
 
 	// Readiness shares the PostgreSQL dependency with /api/health and is
 	// sampled in the background, so request records never wait on the probe.
+	// Every sample also feeds the readiness metric.
 	readinessMonitor := observability.NewReadinessMonitor(
 		postgres.Ping,
 		observability.DefaultReadinessInterval,
 		observability.DefaultReadinessTimeout,
 	)
+	readinessMonitor.SetObserver(recorder.RecordReadiness)
 	readinessMonitor.Start(runContext)
 	recorder.SetReadiness(readinessMonitor.State)
+	recorder.SetPoolStats(func() observability.PoolStats {
+		used, idle, max := postgres.ConnectionStats()
+		return observability.PoolStats{Used: used, Idle: idle, Max: max}
+	})
 
 	// Init google cloud stuff
 	closeTasks := gcloud.InitTasks()
