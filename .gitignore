@@ -11,6 +11,7 @@ deploy_scripts/reboot_log.txt
 .env.staging
 .env.production
 .env.edge
+.env.observability
 archived
 tmp
 .direnv
