@@ -4,6 +4,7 @@ title: Ship structured server logs to OpenObserve over OTLP
 status: To Do
 assignee: []
 created_date: '2026-09-16 12:35'
+updated_date: '2026-09-16 15:46'
 labels: []
 dependencies:
   - TASK-0244
@@ -36,7 +37,7 @@ Governing requirements: QR-010, QR-004, QR-017. Decision record: ADR-022.
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 The server emits structured diagnostic records over OTLP to the configured OpenObserve organization, and the records are queryable there for a failed request driven in staging
-- [ ] #2 Records carry request identity, route, outcome, latency, and error context sufficient to correlate a failed request with its diagnostic records and service health (QR-010)
+- [ ] #2 Records carry request identity, route, outcome, latency, and error context sufficient to correlate a failed request with its diagnostic records and service health (QR-010), including the service's readiness state when the failure coincides with an unavailable dependency
 - [ ] #3 No credential, secret, anonymous edit token, or token-bearing URL or header appears in the shipped records (QR-004)
 - [ ] #4 With OpenObserve stopped or slow, the request success rate is unchanged, request latency stays within the bounds of QR-006 and QR-007, and local diagnostic records remain available after the exercise (QR-017)
 - [ ] #5 The existing file and standard-stream diagnostics remain available, and export is asynchronous or otherwise bounded so it cannot block the request path

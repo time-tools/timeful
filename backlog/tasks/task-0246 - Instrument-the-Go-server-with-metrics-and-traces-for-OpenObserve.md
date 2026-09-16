@@ -4,6 +4,7 @@ title: Instrument the Go server with metrics and traces for OpenObserve
 status: To Do
 assignee: []
 created_date: '2026-09-16 12:35'
+updated_date: '2026-09-16 15:46'
 labels: []
 dependencies:
   - TASK-0244
@@ -34,7 +35,7 @@ Governing requirements: QR-004, QR-015, QR-017, QR-018. Decision record: ADR-022
 <!-- AC:BEGIN -->
 - [ ] #1 The server exports metrics and traces over OTLP to the configured OpenObserve organization
 - [ ] #2 Exported telemetry never blocks or fails request handling, including when OpenObserve is unavailable, and the local diagnostic output remains available (QR-017)
-- [ ] #3 Traces cover representative request paths, and metrics expose health signals usable together with logs for diagnosis
+- [ ] #3 Traces cover representative request paths, and metrics expose health signals usable together with logs for diagnosis, including the service's PostgreSQL-dependent readiness that explains dependency-related request failures
 - [ ] #4 No credential, secret, anonymous edit token, or token-bearing URL or header appears in the exported telemetry (QR-004)
 - [ ] #5 Unit tests cover instrumentation setup and attribute construction, and docs/environments.md lists any new variables
 <!-- AC:END -->

@@ -715,9 +715,10 @@ Authoritative context: [QR-010](../requirements/quality/qr/QR-010.md).
 
 ### Service Health Status
 
-The service's reported health state that an operator inspects alongside [Structured Log Records](#structured-log-records) when diagnosing a failed request.
+The service's reported health state, covering its process liveness and its PostgreSQL-dependent readiness to serve requests.
+An operator inspects it alongside [Structured Log Records](#structured-log-records) when diagnosing a failed request.
 
-Authoritative context: [QR-010](../requirements/quality/qr/QR-010.md).
+Authoritative context: [QR-010](../requirements/quality/qr/QR-010.md) and [Environment Files](../environments.md).
 
 ### Retention Window
 
