@@ -87,6 +87,9 @@ Its definitions are concise references; the linked authoritative context defines
   - ["Collapse disabled times" Option](#collapse-disabled-times-option)
   - [Event Time Format](#event-time-format)
   - [Display Time Format](#display-time-format)
+- [Observability](#observability)
+  - [Observability Data](#observability-data)
+  - [Diagnostic Output](#diagnostic-output)
 
 ## Text Terms
 
@@ -672,3 +675,17 @@ The format used to render times in the event-page schedule grid and tooltips, co
 It defaults to 24-hour and affects event-page rendering only, not event-editor forms.
 
 Authoritative context: [FR-024](../requirements/functional/fr/FR-024.md) and [FR-046](../requirements/functional/fr/FR-046.md).
+
+## Observability
+
+### Observability Data
+
+The logs, metrics, and traces that Timeful systems emit to OpenObserve for operational diagnosis.
+
+Authoritative context: [ADR-022](../design/architecture/adr/ADR-022.md), [QR-004](../requirements/quality/qr/QR-004.md), [QR-017](../requirements/quality/qr/QR-017.md), and [QR-018](../requirements/quality/qr/QR-018.md).
+
+### Diagnostic Output
+
+The server's diagnostics written to its file volume and standard streams, which remain available without OpenObserve.
+
+Authoritative context: [QR-004](../requirements/quality/qr/QR-004.md) and [ADR-022](../design/architecture/adr/ADR-022.md).

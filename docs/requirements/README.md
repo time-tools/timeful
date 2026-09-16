@@ -258,5 +258,6 @@ Read [`quality/README.md`](quality/README.md) before creating or changing a qual
 | [QR-016](quality/qr/QR-016.md) | Keep observability endpoints private and authenticated                                | infrastructure          |
 | [QR-017](quality/qr/QR-017.md) | Keep serving requests when observability ingestion fails                              | backend, infrastructure |
 | [QR-018](quality/qr/QR-018.md) | Delete observability data after its retention window                                  | infrastructure          |
+| [QR-019](quality/qr/QR-019.md) | Isolate Observability Data across environments                                        | infrastructure          |
 
 When a requirement is migrated, add its row to the matching table with a stable relative link, for example `[FR-001](functional/fr/FR-001.md)`.
