@@ -141,6 +141,14 @@ Each OpenObserve service account is an [Environment-Scoped Observability Credent
 Environment credentials authenticate only against the organization identifier, not the organization name.
 The isolated test stack runs no OpenObserve instance and needs none of these variables.
 
+### Server Diagnostics
+
+The server ships [Structured Log Records](docs/terminology/glossary.md#structured-log-records) over OTLP/HTTP to its environment's organization and writes them to the `timeful_server_logs` stream.
+Each record carries the request correlation identifier, route, status, outcome, latency, redacted error context, and the service's readiness state, and the server returns the identifier as the `X-Request-ID` response header.
+To diagnose a failed request, open the Logs view through the SSH tunnel, select the environment's organization and the `timeful_server_logs` stream, and query the identifier from the failed response.
+Export runs on a bounded background pipeline, so OpenObserve being unavailable or slow never blocks requests, and the file and standard-stream diagnostics stay available without it.
+When the environment's OpenObserve variables are incomplete, the server logs a warning and disables export instead of failing to start.
+
 ## Commands
 
 > [!CAUTION]

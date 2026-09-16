@@ -384,6 +384,18 @@ Provision each instance after its first start:
 
 The isolated test stack runs no OpenObserve instance and needs none of these variables.
 
+### Server-Side Structured Diagnostics
+
+The server consumes the environment's ingest contract on startup and ships [Structured Log Records](terminology/glossary.md#structured-log-records) over OTLP/HTTP to `<OPENOBSERVE_ENDPOINT>/api/<OPENOBSERVE_ORGANIZATION_ID>/v1/logs`.
+It authenticates with HTTP Basic credentials built from `OPENOBSERVE_INGEST_USERNAME` and `OPENOBSERVE_INGEST_PASSWORD`, and it writes records to the `timeful_server_logs` [Stream](terminology/glossary.md#stream).
+Each record carries the request correlation identifier, the matched route template, the HTTP method and status code, the outcome, the latency in milliseconds, redacted error context, and the service's readiness state, so an operator can correlate a failed request with its records and [Service Health Status](terminology/glossary.md#service-health-status) (QR-010).
+The server returns the correlation identifier to the caller as the `X-Request-ID` response header, so an operator can start from the failed response and query the matching records.
+Export runs on a bounded background batch pipeline: request handling never waits on the exporter, and a full queue drops records instead of blocking the request path (QR-017).
+Shipped records exclude credentials, secrets, [Event Owner Edit Tokens](terminology/glossary.md#event-owner-edit-token), and token-bearing URLs and headers, and error context passes through redaction (QR-004).
+When any of the four variables is missing or blank, the server disables export, records a local warning, and keeps serving with its file and standard-stream [Diagnostic Output](terminology/glossary.md#diagnostic-output) only.
+The GIN access log passes its request path and handler error messages through the same redaction, so token-bearing query parameters do not reach the file or standard-stream **Diagnostic Output** either.
+The development stack uses the same contract against its own instance, and the isolated test stack sets no OpenObserve variables and exports nothing.
+
 ## External Service Names
 
 `GOOGLE_CLOUD_PROJECT_ID`, `GOOGLE_CLOUD_TASKS_LOCATION`, and `GOOGLE_CLOUD_TASKS_QUEUE` form the Cloud Tasks parent used for reminder jobs.

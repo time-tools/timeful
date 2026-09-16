@@ -73,6 +73,9 @@ services:
     build:
       context: ./server
     restart: unless-stopped
+    # The shutdown path drains in-flight requests and then flushes queued OTLP
+    # records, so allow more than Docker's default 10s stop grace period.
+    stop_grace_period: 30s
     # The selected app env controls the server's host binding and listener port.
     ports:
       - "${SERVER_BIND_HOST:?SERVER_BIND_HOST is required}:${APP_PORT:?APP_PORT is required}:${APP_PORT:?APP_PORT is required}"
