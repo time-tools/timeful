@@ -1,5 +1,104 @@
 # Backlog
 
+## Inbox
+
+- [ ] Replace Show all hours with an option to collapse disabled hours
+- [ ] Add trash bin icon to Delete and remove the tint and make it the same color as Cancel
+- [ ] On mobile, when editing response, there shall be no More options because there's only one option - Collapse disabled times
+- [ ] Disable the Save button in Edit guest name (and in the form for adding the guest name)
+- [ ] Add a placeholder in the required fields
+- [ ] Make sure playwright saves traces (tmp/playwright/timed-event-weekly-firefox-26974-ields-through-the-edit-flow-firefox-desktop/error-context.md)
+- [x] Move e2e to the root
+- [ ] Pin Docker images to SHA in dockerfiles
+- [ ] "Editing availability as" - use black font
+- [ ] Split timed-event-helpers.ts
+- [ ] Why do we need postcss? "<style lang="postcss">"
+- [ ] Bug: When editing availability and having selected and highlighed a time slot with the cursor, when I uncollapse the bottom strip, the cursor moves down
+- [ ] On mobile, "More options" is too narrow
+- [ ] Edit event and Copy link are too big
+- [ ] Migrate to StyleX
+- [ ] Get rid of ::deep
+- [ ] Fix lint warnings
+- [ ] GitHub actions - Restore Go module cache doesn't restore anything - <https://github.com/timeful-foss/timeful/actions/runs/34223660393/job/102052462949?pr=25>
+- [ ] Rename variables to refer to platform/event visitor identities
+- [ ] Switch from swag
+- [ ] Why uses SHA-256 for hashing?
+- [ ] Why lax, not strict
+- [ ] anonymous_event_creation must be allowed by default
+- [ ] record the redemption approach (sign out when open a link)
+- [ ] What is legacy in the implementation? Why need it?
+- [ ] Why transferBoundary makes all these type checks?
+- [ ] Get rid of POSTGRES_ANONYMOUS_EVENT_CREATION_ENABLED
+- [x] Speed up e2e
+- [ ] What is the difference between the default and postgres mode in e2e?
+- [ ] Why need postgres-inspect.ts?
+- [ ] Deprecate friends?
+- [ ] Better hash salting?
+- [ ] Use <https://github.com/golang-jwt/jwt>
+- [ ] Set VITE_ENABLE_SIGN_IN=true in tests
+- [x] timed-event-helpers: dow vs weekly
+- [ ] get rid of "legacy" where it refers to Mongo, events stored in Mongo etc
+- [ ] remove server/migrations from mongo, consolidate into a single init script for postgres
+- [ ] super important rules about which files can be edited when?
+- [x] ADR-019, ADR-012 - supersede and don't mention external_user_id
+- [x] 24-hex id - use uuidv7 everywhere for platform visitor identity and event visitor identity
+- [ ] run e2e selectively - only potentially affected tests, others will run in CI
+  - Make this a decision in AGENTS.md? or somewhere else, should be an authoritative decision
+- [ ] Mark such authoritative decisions or rely on the contex that a file contains only authoritative decisions?
+- [x] Always show logs when running e2e tests. Also write to a file if needed, never use just tail
+- [ ] Mention the ADR status (superseded, deprecated) in the adr title
+- [ ] In docs/design/readme.md, add a separate table for deprecated records
+- [ ] Switch to <https://github.com/DeusData/codebase-memory-mcp>
+- [ ] Run the same e2e on all platforms
+  - [ ] desktop/mobile may differ
+  - [ ] firefox desktop and chrome desktop should be the same
+- [ ] task-0178 - consider using another approach because these libraries are deprecated
+- [ ] remove "cutover", "legacy", "mongo", "tombstones" mentions
+- [ ] reorder e2e and set individual timeouts for slow tests (it's luck that they're one of the first ones)
+- [ ] cut over
+- [ ] Identify
+- [ ] "Each change must be committed together with the task file" - record in /commit skill
+- [ ] Add backlog dod
+  - [ ] - all relevant changes are staged
+  - [ ] - critically assessed the task against the current repo state and suggested changes
+  - [ ] - asked a sub-agent to identify any problems and suggest fixes
+  - [ ] - Move to completed
+    - Declined - doesn't look like renamed because the diff can be too large
+- [ ] Analyze tasks completed during the transition
+  - [ ] What we did?
+  - [ ] What we haven't done?
+- [ ] RemoveAttendee - removed
+  - Deletion loses the single-row pgx.ErrNoRows semantics for missing removals (batch removal intentionally ignores missing emails); I updated TestAttendeeRepositoryMembershipLifecycle accordingly.
+- [ ] Cover the "Down" path in migration tests
+- [ ] ADR - we use agents to write code. Affects reliability
+- [ ] Show "View event info" to non-owners
+- [ ] Add review-commit - what changed vs what had to change?
+- [ ] "reviewed_date" in task (needs forking backlog.md)
+- [ ] write docs/configuration.md that explains which artifacts we manage
+- [ ] why are they called "postgres_events" in sql? No need to emphasize that, I guess
+- [ ] Instruct agent to set GOCACHE to a local directory inside ./tmp/ if they really want to
+- [ ] Document ./tmp as a local directory for local files that helps bypass sandbox restrictions if any
+- [ ] Add template for CAND
+- [ ] 224.03 - don't mention guest_id in postgres-event-api-contract
+- [ ] consider introducing an ADR and making an interface package for database interaction, like in three-layer cake
+- [x] Increase time budget for these tests:
+  - [x] ✘   1 [firefox-desktop] › specs/timed-event-access-transfer-firefox.spec.ts:91:3 › Source approves the exact target code for owner access (36.8s)
+  - [x] ✘   2 [firefox-desktop] › specs/timed-event-access-transfer-firefox.spec.ts:91:3 › Source approves the exact target code for guest access (36.8s)
+- [ ] Set up playwright mcp - npx @playwright/mcp@latest
+- [ ] Configure posthog to do something useful
+- [ ] Configure backlog.md to check all branches for task ids and avoid same ids - <https://github.com/time-tools/timeful/pull/50>
+- [ ] Use openobserve v1.x.x
+- [ ] Consider renaming "timeful" - "timepoll"
+- [ ] Make all logs structured
+- [ ] Schedule on Timeful - available only to the admin
+- [ ] Configuration bug: on the server, can't log in with credentials from .env.production and .env.staging
+- [ ] Check deployment instructions work end to end
+  - [ ] Fresh installation
+  - [ ] Updates
+- [ ] Unify handoff with task progress
+
+---
+
 Semi-structured TODO list, grouped into thematic classes.
 Priority tags carried over from the former MUST/SHOULD/COULD sections appear inline: `[MUST P0]`, `[MUST P?]`, `[SHOULD]`, `[COULD]`; untagged items are regular inbox candidates.
 ADR candidates stay in their topical sections.
@@ -44,19 +143,20 @@ ADR candidates stay in their topical sections.
 - [ ] Bug: on mobile, when I add availability and select a timeslot and drag pointer down and my finger is on the collapsed strip then while I hold the finger, the pointer stays at the lowest timeslot
 - [ ] When dragging to schedule an event, the tooltip shall show the range of the event, not of a timeslot
 - [ ] On mobile, in a timed event, when scheduling an event and dragging, the timeslot pointer shall be visible
+  - The bug: click a timeslot at the bottom of the grid, let the overlay panel slide and cover it, see the cursor disappear
 - [ ] On the Event Response Editing Page, move Calendar options outside of its section:
   - [ ] on desktop - to under time format and time zone row
   - [ ] on mobile - to under More options row
 - [ ] On the Event Response Editing Page:
   - [ ] replace More options with the single option inside it (Show all hours)
-- [ ] On the Event Response Editing Page:
-  - [ ] [MUST P?] Show input form for editing the respondent name instead of Editing availability as
+- [x] On the Event Response Editing Page:
+  - [x] [MUST P?] Show input form for editing the respondent name instead of Editing availability as
     - "Editing availability as" shouldn't be in italic
     - Given I edit availability, I should see Editing availability as - add input field to write the name above Available
 - [ ] How to show response selections so that the status is still visible for selected responses?
   - Maybe show the checkboxes to the left of the status?
-- [ ] Move the "Note: there's no time when ..." from below the grid to the Responses section
-- [ ] When saving added availability, in the Continue as guest form, the Continue button shall be flat and without glow
+- [x] Move the "Note: there's no time when ..." from below the grid to the Responses section
+- [x] When saving added availability, in the Continue as guest form, the Continue button shall be flat and without glow
 - [x] [MUST P0] Make Responses scrollable on desktop
   - [x] Decide at what height to make scrollable
 - [ ] [MUST P?] when autofill is disabled, only manually should be enabled
@@ -70,7 +170,8 @@ ADR candidates stay in their topical sections.
 ## Mobile & responsive layout
 
 - [ ] Make available/If needed on mobile higher to cover the "Adding availability" text
-- [ ] Handle narrow mobile screens (e.g. iPhone 17)
+- [x] Handle narrow mobile screens (e.g. iPhone 17)
+  - vite doesn't allow to define a custom breakpoint, e.g. xs (~450) so I decided that we keep sm at 640
 - [ ] font size of hours and days of week too large on mobile
 - [ ] reduce the number of columns on mobile so that the event can fit into that
 - [ ] On mobile, on event page, when there are no responses, center Show all hours within its column
@@ -227,6 +328,7 @@ ADR candidates stay in their topical sections.
   ```text
   time="2026-08-13T23:29:13+03:00" level=warning msg="Docker Compose is configured to build using Bake, but buildx isn't installed"
   ```
+
 - [ ] [MUST P?] Document features of a good email sending service
 - [ ] [MUST P?] Document DNS records
 
