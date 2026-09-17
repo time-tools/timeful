@@ -7,17 +7,17 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1786802460,
-        "narHash": "sha256-cqXCCMCOZiZ2vv4SEzQg/ivByFHh2cDHwDWeVXMvY1w=",
-        "owner": "MrLesk",
+        "lastModified": 1789627546,
+        "narHash": "sha256-eDWI/ubglLHpS8LU+IC3dZu8fVsQx7z8brsbBkl6RD0=",
+        "owner": "time-tools",
         "repo": "Backlog.md",
-        "rev": "583f928dfa65266df994a4323566eb426446ad55",
+        "rev": "aded8e254e6a0205b878cf07e631d1a592782040",
         "type": "github"
       },
       "original": {
-        "owner": "MrLesk",
+        "owner": "time-tools",
         "repo": "Backlog.md",
-        "rev": "583f928dfa65266df994a4323566eb426446ad55",
+        "rev": "aded8e254e6a0205b878cf07e631d1a592782040",
         "type": "github"
       }
     },
