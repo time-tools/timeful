@@ -1,0 +1,42 @@
+name: timeful-observability
+
+services:
+  # One shared OpenObserve instance for staging and production. It runs as its
+  # own Compose project on the deployment host, joins the external timeful-edge
+  # network, and keeps its data in an explicit named volume. The UI and HTTP API
+  # are published on loopback only, so operators reach them through an SSH
+  # tunnel and no Caddy route exposes the service.
+  openobserve:
+    image: openobserve/openobserve:v1.0.1@sha256:089921e511490ef5124fe1331dfd82b475326592a1a1dad6164289e88a8ace91
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${OPENOBSERVE_PORT:?OPENOBSERVE_PORT is required}:5080"
+    environment:
+      ZO_LOCAL_MODE: "true"
+      ZO_LOCAL_MODE_STORAGE: disk
+      ZO_DATA_DIR: /data
+      ZO_ROOT_USER_EMAIL: ${OPENOBSERVE_ROOT_USER_EMAIL:?OPENOBSERVE_ROOT_USER_EMAIL is required}
+      ZO_ROOT_USER_PASSWORD: ${OPENOBSERVE_ROOT_USER_PASSWORD:?OPENOBSERVE_ROOT_USER_PASSWORD is required}
+      # Explicit caps keep the instance inside the deployment host's 4 GB
+      # memory budget instead of the memory-consuming defaults (QR-015).
+      ZO_MEMORY_CACHE_MAX_SIZE: "128"
+      ZO_MEMORY_CACHE_DATAFUSION_MAX_SIZE: "256"
+      ZO_MEM_TABLE_MAX_SIZE: "128"
+      ZO_DISK_CACHE_MAX_SIZE: "1024"
+      # Every stream deletes records after the 14-day Retention Window (QR-018).
+      ZO_COMPACT_DATA_RETENTION_DAYS: "14"
+      # Anonymous telemetry stays disabled.
+      ZO_TELEMETRY: "false"
+    volumes:
+      - openobserve_data:/data
+    networks:
+      - edge
+
+volumes:
+  openobserve_data:
+    name: timeful-observability-data
+
+networks:
+  edge:
+    name: timeful-edge
+    external: true

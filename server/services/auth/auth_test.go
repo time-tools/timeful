@@ -41,7 +41,7 @@ func TestRefreshUserTokenIfNecessaryPersistsToPostgres(t *testing.T) {
 
 	previousPool := pgstore.Pool
 	if previousPool == nil {
-		closePool := pgstore.Init()
+		closePool := pgstore.Init(nil)
 		t.Cleanup(closePool)
 	} else {
 		t.Cleanup(func() { pgstore.Pool = previousPool })

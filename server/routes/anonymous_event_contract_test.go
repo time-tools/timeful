@@ -24,7 +24,7 @@ func anonymousEventRouter(t *testing.T) http.Handler {
 	if os.Getenv("POSTGRES_APPLICATION_URI") == "" {
 		t.Skip("POSTGRES_APPLICATION_URI is required for event route contracts")
 	}
-	routeTestDBOnce.Do(func() { pgstore.Init() })
+	routeTestDBOnce.Do(func() { pgstore.Init(nil) })
 	return newEventsReadFiltersTestRouter()
 }
 

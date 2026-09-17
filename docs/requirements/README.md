@@ -238,25 +238,26 @@ For guidance on authoring functional requirements, read [`functional/README.md`]
 
 Read [`quality/README.md`](quality/README.md) before creating or changing a quality requirement.
 
-| ID                             | Title                                                                                 | Components              |
-| ------------------------------ | ------------------------------------------------------------------------------------- | ----------------------- |
-| [QR-001](quality/qr/QR-001.md) | Restrict shared-event read access                                                     | frontend, backend       |
-| [QR-002](quality/qr/QR-002.md) | Preserve shared-event modification integrity                                          | frontend, backend       |
-| [QR-003](quality/qr/QR-003.md) | Authenticate anonymous edit credentials                                               | frontend, backend       |
-| [QR-004](quality/qr/QR-004.md) | Exclude secrets from diagnostics                                                      | backend, infrastructure |
-| [QR-005](quality/qr/QR-005.md) | Support accessible coordination flows                                                 | frontend                |
-| [QR-006](quality/qr/QR-006.md) | Respond promptly for [Timed Events](../terminology/glossary.md#timed-event)           | frontend, backend       |
-| [QR-007](quality/qr/QR-007.md) | Respond promptly for [Dates-Only Events](../terminology/glossary.md#dates-only-event) | frontend, backend       |
-| [QR-008](quality/qr/QR-008.md) | Support large coordination workloads                                                  | frontend, backend       |
-| [QR-009](quality/qr/QR-009.md) | Reject unsafe deployment configuration                                                | infrastructure          |
-| [QR-010](quality/qr/QR-010.md) | Diagnose failed requests without exposing data                                        | backend, infrastructure |
-| [QR-011](quality/qr/QR-011.md) | Authenticate [Access Transfers](../terminology/glossary.md#access-transfer)           | frontend, backend       |
-| [QR-012](quality/qr/QR-012.md) | Preserve authorization when migrating core records (deprecated)                       | backend, infrastructure |
-| [QR-013](quality/qr/QR-013.md) | Protect provider credentials at rest and keep them out of responses                   | backend, infrastructure |
-| [QR-014](quality/qr/QR-014.md) | Require authenticated PostgreSQL access in staging and production                     | infrastructure          |
-| [QR-015](quality/qr/QR-015.md) | Bound observability resource use                                                      | infrastructure          |
-| [QR-016](quality/qr/QR-016.md) | Keep observability endpoints private and authenticated                                | infrastructure          |
-| [QR-017](quality/qr/QR-017.md) | Keep serving requests when observability ingestion fails                              | backend, infrastructure |
-| [QR-018](quality/qr/QR-018.md) | Delete observability data after its retention window                                  | infrastructure          |
+| ID                             | Title                                                                                                                                                | Components              |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| [QR-001](quality/qr/QR-001.md) | Restrict shared-event read access                                                                                                                    | frontend, backend       |
+| [QR-002](quality/qr/QR-002.md) | Preserve shared-event modification integrity                                                                                                         | frontend, backend       |
+| [QR-003](quality/qr/QR-003.md) | Authenticate anonymous edit credentials                                                                                                              | frontend, backend       |
+| [QR-004](quality/qr/QR-004.md) | Exclude secrets from diagnostics                                                                                                                     | backend, infrastructure |
+| [QR-005](quality/qr/QR-005.md) | Support accessible coordination flows                                                                                                                | frontend                |
+| [QR-006](quality/qr/QR-006.md) | Respond promptly for [Timed Events](../terminology/glossary.md#timed-event)                                                                          | frontend, backend       |
+| [QR-007](quality/qr/QR-007.md) | Respond promptly for [Dates-Only Events](../terminology/glossary.md#dates-only-event)                                                                | frontend, backend       |
+| [QR-008](quality/qr/QR-008.md) | Support large coordination workloads                                                                                                                 | frontend, backend       |
+| [QR-009](quality/qr/QR-009.md) | Reject unsafe deployment configuration                                                                                                               | infrastructure          |
+| [QR-010](quality/qr/QR-010.md) | Diagnose failed requests without exposing data                                                                                                       | backend, infrastructure |
+| [QR-011](quality/qr/QR-011.md) | Authenticate [Access Transfers](../terminology/glossary.md#access-transfer)                                                                          | frontend, backend       |
+| [QR-012](quality/qr/QR-012.md) | Preserve authorization when migrating core records (deprecated)                                                                                      | backend, infrastructure |
+| [QR-013](quality/qr/QR-013.md) | Protect provider credentials at rest and keep them out of responses                                                                                  | backend, infrastructure |
+| [QR-014](quality/qr/QR-014.md) | Require authenticated PostgreSQL access in staging and production                                                                                    | infrastructure          |
+| [QR-015](quality/qr/QR-015.md) | Bound observability resource use                                                                                                                     | infrastructure          |
+| [QR-016](quality/qr/QR-016.md) | Keep observability endpoints private and authenticated                                                                                               | infrastructure          |
+| [QR-017](quality/qr/QR-017.md) | Keep serving requests when observability ingestion fails                                                                                             | backend, infrastructure |
+| [QR-018](quality/qr/QR-018.md) | Delete [Observability Data](../terminology/glossary.md#observability-data) after its [Retention Window](../terminology/glossary.md#retention-window) | infrastructure          |
+| [QR-019](quality/qr/QR-019.md) | Isolate [Observability Data](../terminology/glossary.md#observability-data) across environments                                                      | infrastructure          |
 
 When a requirement is migrated, add its row to the matching table with a stable relative link, for example `[FR-001](functional/fr/FR-001.md)`.

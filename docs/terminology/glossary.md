@@ -33,6 +33,7 @@ Its definitions are concise references; the linked authoritative context defines
   - [Timed Event Occurrence Span](#timed-event-occurrence-span)
   - [Dates-Only Event Occurrence Span](#dates-only-event-occurrence-span)
   - [Event Settings](#event-settings)
+  - [Archived Event](#archived-event)
 - [Event Pages](#event-pages)
   - [Timed Event Page](#timed-event-page)
   - [Timed Event Owner Page](#timed-event-owner-page)
@@ -47,6 +48,7 @@ Its definitions are concise references; the linked authoritative context defines
 - [Identity \& Access](#identity--access)
   - [Platform Visitor](#platform-visitor)
   - [Platform Visitor Identity](#platform-visitor-identity)
+  - [Account Profile](#account-profile)
   - [Authenticated Platform Visitor](#authenticated-platform-visitor)
   - [Anonymous Platform Visitor](#anonymous-platform-visitor)
   - [Event Visitor](#event-visitor)
@@ -62,6 +64,8 @@ Its definitions are concise references; the linked authoritative context defines
   - [Event Sign-In](#event-sign-in)
   - [Platform Sign-In](#platform-sign-in)
   - [Sign-In Link](#sign-in-link)
+- [Integrations](#integrations)
+  - [Calendar Connection](#calendar-connection)
 - [Responses](#responses)
   - [Event Response](#event-response)
   - [Availability Status](#availability-status)
@@ -87,6 +91,15 @@ Its definitions are concise references; the linked authoritative context defines
   - ["Collapse disabled times" Option](#collapse-disabled-times-option)
   - [Event Time Format](#event-time-format)
   - [Display Time Format](#display-time-format)
+- [Observability](#observability)
+  - [Observability Data](#observability-data)
+  - [Diagnostic Output](#diagnostic-output)
+  - [Signal](#signal)
+  - [Structured Log Records](#structured-log-records)
+  - [Service Health Status](#service-health-status)
+  - [Retention Window](#retention-window)
+  - [Stream](#stream)
+  - [Environment-Scoped Observability Credential](#environment-scoped-observability-credential)
 
 ## Text Terms
 
@@ -672,3 +685,57 @@ The format used to render times in the event-page schedule grid and tooltips, co
 It defaults to 24-hour and affects event-page rendering only, not event-editor forms.
 
 Authoritative context: [FR-024](../requirements/functional/fr/FR-024.md) and [FR-046](../requirements/functional/fr/FR-046.md).
+
+## Observability
+
+### Observability Data
+
+The logs, metrics, and traces that Timeful systems emit to OpenObserve for operational diagnosis.
+
+Authoritative context: [ADR-022](../design/architecture/adr/ADR-022.md), [QR-004](../requirements/quality/qr/QR-004.md), [QR-017](../requirements/quality/qr/QR-017.md), and [QR-018](../requirements/quality/qr/QR-018.md).
+
+### Diagnostic Output
+
+The server's diagnostics written to its file volume and standard streams, which remain available without OpenObserve.
+
+Authoritative context: [QR-004](../requirements/quality/qr/QR-004.md) and [ADR-022](../design/architecture/adr/ADR-022.md).
+
+### Signal
+
+One class of [Observability Data](#observability-data): logs, metrics, or traces.
+
+Authoritative context: [ADR-022](../design/architecture/adr/ADR-022.md).
+
+### Structured Log Records
+
+Log records that carry structured fields rather than plain text and that an operator uses to diagnose a failed request, correlated by a request correlation identifier or equivalent non-sensitive identifier.
+They are part of [Observability Data](#observability-data) and distinct from the plain-text [Diagnostic Output](#diagnostic-output).
+
+Authoritative context: [QR-010](../requirements/quality/qr/QR-010.md).
+
+### Service Health Status
+
+The service's reported health state, covering its process liveness and its PostgreSQL-dependent readiness to serve requests.
+An operator inspects it alongside [Structured Log Records](#structured-log-records) when diagnosing a failed request.
+
+Authoritative context: [QR-010](../requirements/quality/qr/QR-010.md) and [Environment Files](../environments.md).
+
+### Retention Window
+
+The observability platform's finite configured period after which stored records are deleted rather than retained indefinitely.
+It applies to every [Signal](#signal) in each [Stream](#stream).
+
+Authoritative context: [QR-018](../requirements/quality/qr/QR-018.md) and [ADR-022](../design/architecture/adr/ADR-022.md).
+
+### Stream
+
+An OpenObserve storage container that holds one [Signal](#signal) and scopes its records' retention and access control.
+
+Authoritative context: [QR-018](../requirements/quality/qr/QR-018.md) and [QR-019](../requirements/quality/qr/QR-019.md).
+
+### Environment-Scoped Observability Credential
+
+An OpenObserve credential scoped to one environment's organization and [Streams](#stream).
+It authorizes reads and ingests only for its own environment, and cross-environment requests are rejected.
+
+Authoritative context: [QR-019](../requirements/quality/qr/QR-019.md) and [ADR-022](../design/architecture/adr/ADR-022.md).

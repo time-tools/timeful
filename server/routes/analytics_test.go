@@ -78,7 +78,7 @@ func TestMonthlyActiveEventCreatorsServesOneEntryPerDay(t *testing.T) {
 	if os.Getenv("POSTGRES_APPLICATION_URI") == "" {
 		t.Skip("POSTGRES_APPLICATION_URI is required for analytics route contracts")
 	}
-	routeTestDBOnce.Do(func() { pgstore.Init() })
+	routeTestDBOnce.Do(func() { pgstore.Init(nil) })
 	t.Setenv("ANALYTICS_USERNAME", "analytics")
 	t.Setenv("ANALYTICS_PASSWORD", "secret")
 

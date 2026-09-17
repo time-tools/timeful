@@ -19,7 +19,7 @@ It corrects CAND-198, whose mobile premise was rejected by the owner.
 
 ## Candidate behavior
 
-On desktop, [Show all hours](../../../terminology/glossary.md#show-all-hours-option) sits to the right of the event description alongside the other options and action buttons such as cancel, save, and delete.
+On desktop, the ["Collapse disabled times" Option](../../../terminology/glossary.md#collapse-disabled-times-option) sits to the right of the event description alongside the other options and action buttons such as cancel, save, and delete.
 
 ## Applicability
 

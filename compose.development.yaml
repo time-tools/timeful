@@ -1,7 +1,40 @@
 services:
   server:
+    environment:
+      OPENOBSERVE_ENDPOINT: ${OPENOBSERVE_ENDPOINT:?OPENOBSERVE_ENDPOINT is required}
+      OPENOBSERVE_ORGANIZATION_ID: ${OPENOBSERVE_ORGANIZATION_ID:?OPENOBSERVE_ORGANIZATION_ID is required}
+      OPENOBSERVE_INGEST_USERNAME: ${OPENOBSERVE_INGEST_USERNAME?OPENOBSERVE_INGEST_USERNAME must be declared}
+      OPENOBSERVE_INGEST_PASSWORD: ${OPENOBSERVE_INGEST_PASSWORD?OPENOBSERVE_INGEST_PASSWORD must be declared}
     volumes: !override
       - server_logs:/app/logs
     depends_on: !override
       postgres-migrate:
         condition: service_completed_successfully
+
+  # Local development runs its own OpenObserve instance on the developer machine
+  # with its own data volume. Development data is never sent to the shared
+  # staging and production instance.
+  openobserve:
+    image: openobserve/openobserve:v1.0.1@sha256:089921e511490ef5124fe1331dfd82b475326592a1a1dad6164289e88a8ace91
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${OPENOBSERVE_PORT:?OPENOBSERVE_PORT is required}:5080"
+    environment:
+      ZO_LOCAL_MODE: "true"
+      ZO_LOCAL_MODE_STORAGE: disk
+      ZO_DATA_DIR: /data
+      ZO_ROOT_USER_EMAIL: ${OPENOBSERVE_ROOT_USER_EMAIL:?OPENOBSERVE_ROOT_USER_EMAIL is required}
+      ZO_ROOT_USER_PASSWORD: ${OPENOBSERVE_ROOT_USER_PASSWORD:?OPENOBSERVE_ROOT_USER_PASSWORD is required}
+      # The same explicit caps, retention, and telemetry settings as the shared
+      # instance (QR-015, QR-018).
+      ZO_MEMORY_CACHE_MAX_SIZE: "128"
+      ZO_MEMORY_CACHE_DATAFUSION_MAX_SIZE: "256"
+      ZO_MEM_TABLE_MAX_SIZE: "128"
+      ZO_DISK_CACHE_MAX_SIZE: "1024"
+      ZO_COMPACT_DATA_RETENTION_DAYS: "14"
+      ZO_TELEMETRY: "false"
+    volumes:
+      - openobserve_data:/data
+
+volumes:
+  openobserve_data:

@@ -11,6 +11,10 @@ Caddy uses a separate root edge env file:
 
 - `.env.edge` for staging and production hostnames
 
+The shared observability instance uses its own root env file:
+
+- `.env.observability` for the shared staging and production OpenObserve instance
+
 The application-level deployment environment is defined separately from toolchain mode:
 
 - backend runtime: `APP_ENV`
@@ -28,6 +32,7 @@ Shareable defaults live in:
 - `.env.staging.example`
 - `.env.production.example`
 - `.env.edge.example`
+- `.env.observability.example`
 
 ## How the env files are used
 
@@ -40,6 +45,7 @@ Shareable defaults live in:
 - `frontend-artifacts` receives frontend build-time values from that same Compose env file.
 - `server` receives backend runtime variables from Compose interpolation based on that same file.
 - The edge Caddy Compose project reads `.env.edge`; it passes only its `CADDY_*` values into Caddy.
+- The observability Compose project reads `.env.observability`; it passes only its `OPENOBSERVE_*` values into the shared OpenObserve instance.
 - The Go server runs through Docker Compose.
   Compose injects its complete runtime environment; direct `go run` is unsupported.
 - `SESSION_SECRET` is required and must contain at least 32 characters.
@@ -171,6 +177,19 @@ Backend runtime variables:
 - `TIMEFUL_EMAIL_ADDRESS`
 - `GIN_MODE`
 
+Observability variables for the shared OpenObserve instance (`.env.observability`):
+
+- `OPENOBSERVE_PORT`
+- `OPENOBSERVE_ROOT_USER_EMAIL`
+- `OPENOBSERVE_ROOT_USER_PASSWORD`
+
+Observability variables for the environment-scoped server ingest contract (development, staging, and production app env files):
+
+- `OPENOBSERVE_ENDPOINT`
+- `OPENOBSERVE_ORGANIZATION_ID`
+- `OPENOBSERVE_INGEST_USERNAME`
+- `OPENOBSERVE_INGEST_PASSWORD`
+
 Test-only calendar provider override variables (isolated stack only):
 
 - `TEST_GOOGLE_OAUTH_TOKEN_ENDPOINT`
@@ -217,12 +236,13 @@ Development:
 
 ```sh
 cp .env.development.example .env.development
-docker compose --env-file .env.development -f compose.yaml -f compose.development.yaml up --build postgres postgres-migrate server
+docker compose --env-file .env.development -f compose.yaml -f compose.development.yaml up --build postgres postgres-migrate server openobserve
 cd frontend
 npm run dev
 ```
 
 Compose `up --build` builds images only for the services named on the command line, so `postgres-migrate` stays in the list to build its migration image on a cold image cache.
+The development `openobserve` service is optional; omit it from the service list when the observability instance is not needed.
 
 Staging Docker Compose:
 
@@ -265,6 +285,7 @@ docker compose --env-file .env.test -f compose.yaml -f compose.test.yaml up -d p
 
 The shared Caddy edge owns public TCP ports `80` and `443` and UDP port `443`. `VITE_PREVIEW_PORT=4173` in the staging and production app env files only configures local `vite preview`; Docker deployments serve frontend artifacts through Caddy.
 PostgreSQL is published only to `POSTGRES_BIND_HOST`, which defaults to `127.0.0.1` in every environment; do not change it to a public interface.
+OpenObserve publishes only on `127.0.0.1` (`OPENOBSERVE_PORT`), and the shared instance is reached over the `timeful-edge` network as `openobserve:5080`; do not publish it on a public interface.
 Development, test, staging, and production use distinct Compose projects, networks, and database volumes.
 Browser E2E always targets the isolated test server; it must not target the development server or `timeful-postgres-development` database.
 
@@ -319,6 +340,76 @@ Keep shared routing in the snippet; site files should only provide hostnames, up
 Open inbound TCP ports 80 and 443 and UDP port 443.
 Caddy automatically redirects HTTP to HTTPS and obtains certificates after DNS points to the host.
 Update OAuth redirect URIs and allowed origins to use the configured HTTPS canonical hostnames.
+
+## OpenObserve Observability
+
+Staging and production share one OpenObserve instance that runs as its own `timeful-observability` Compose project on the deployment host.
+Development runs its own OpenObserve instance in the development stack, and development [Observability Data](terminology/glossary.md#observability-data) is never sent to the shared instance.
+Both instances use the open-source edition in single-node mode with local-disk storage, and the image is pinned by digest to `openobserve/openobserve:v1.0.1@sha256:089921e511490ef5124fe1331dfd82b475326592a1a1dad6164289e88a8ace91`.
+
+The shared instance joins the external `timeful-edge` network, so the staging and production servers reach it at `http://openobserve:5080`, and it persists its data to the `timeful-observability-data` volume.
+The development instance runs on the development network with its own project-scoped `openobserve_data` volume.
+The UI and the HTTP API are published on `127.0.0.1:5080` (`OPENOBSERVE_PORT`) only; no public interface and no Caddy site exposes either instance.
+Operators reach the shared UI through an SSH tunnel:
+
+```sh
+ssh -L 5080:127.0.0.1:5080 <deploy-user>@<deployment-host>
+```
+
+Start the shared instance once on the deployment host:
+
+```sh
+cp .env.observability.example .env.observability
+docker compose --env-file .env.observability -f compose.observability.yaml up -d
+```
+
+The instance runs with explicit caps instead of OpenObserve's memory-consuming defaults: `ZO_MEMORY_CACHE_MAX_SIZE=128`, `ZO_MEMORY_CACHE_DATAFUSION_MAX_SIZE=256`, `ZO_MEM_TABLE_MAX_SIZE=128`, and `ZO_DISK_CACHE_MAX_SIZE=1024`, all in megabytes (QR-015).
+Every [Stream](terminology/glossary.md#stream) deletes its records after the configured 14-day [Retention Window](terminology/glossary.md#retention-window), set through `ZO_COMPACT_DATA_RETENTION_DAYS=14`, and anonymous telemetry is disabled through `ZO_TELEMETRY=false` (QR-018).
+
+### Provisioning Organizations and Credentials
+
+Each environment ingests into its own OpenObserve organization with an [Environment-Scoped Observability Credential](terminology/glossary.md#environment-scoped-observability-credential), named `timeful_development`, `timeful_staging`, or `timeful_production`.
+OpenObserve organization names allow only letters, digits, spaces, and underscores, and OpenObserve generates each organization's identifier when the organization is created.
+Environment credentials authenticate only against that generated identifier, so `OPENOBSERVE_ORGANIZATION_ID` must hold the identifier rather than the organization name.
+OpenObserve authorizes each **Environment-Scoped Observability Credential** only for its own organization and rejects cross-organization reads and ingests (QR-019).
+
+Provision each instance after its first start:
+
+1. Sign in to the UI with the root credentials from the instance's env file.
+2. Create the environment's organization under the matching name.
+3. Copy the organization identifier that OpenObserve generated at creation.
+4. In that organization, create a service account for ingestion and copy its token, which OpenObserve shows only at creation.
+5. Set `OPENOBSERVE_ORGANIZATION_ID` to the identifier, `OPENOBSERVE_INGEST_USERNAME` to the service account email, and `OPENOBSERVE_INGEST_PASSWORD` to the token in the environment's app env file.
+6. Restart the environment's `server` service so it receives the updated contract.
+
+The isolated test stack runs no OpenObserve instance and needs none of these variables.
+
+### Server-Side Structured Diagnostics
+
+The server consumes the environment's ingest contract on startup and ships [Observability Data](terminology/glossary.md#observability-data) over OTLP/HTTP for every [Signal](terminology/glossary.md#signal): logs to `<OPENOBSERVE_ENDPOINT>/api/<OPENOBSERVE_ORGANIZATION_ID>/v1/logs`, metrics to `/v1/metrics`, and traces to `/v1/traces`.
+It authenticates every **Signal** with the same HTTP Basic credentials built from `OPENOBSERVE_INGEST_USERNAME` and `OPENOBSERVE_INGEST_PASSWORD`, so metrics and traces add no environment variables beyond the four `OPENOBSERVE_*` values and `APP_ENV` that log shipping established.
+The shared resource marks every **Signal** with `service.name=timeful-server` and `deployment.environment`, so logs, metrics, and traces join on the deployment environment.
+
+Log [Structured Log Records](terminology/glossary.md#structured-log-records) are written to the `timeful_server_logs` [Stream](terminology/glossary.md#stream).
+Each record carries the request correlation identifier, the matched route template, the HTTP method and status code, the outcome, the latency in milliseconds, redacted error context, and the service's readiness state, so an operator can correlate a failed request with its records and [Service Health Status](terminology/glossary.md#service-health-status) (QR-010).
+The server returns the correlation identifier to the caller as the `X-Request-ID` response header, so an operator can start from the failed response and query the matching records.
+Each record also carries the native `trace_id` and `span_id` of its request span, so an operator can pivot between a log record and its trace.
+
+Traces are written to the `timeful_server_traces` [Stream](terminology/glossary.md#stream), every request is sampled, and each request produces one server span named `METHOD /route/template`.
+A request span carries the same correlation identifier, route, status, outcome, latency, readiness, and redacted error context as its log record.
+PostgreSQL queries join the request trace as client spans carrying only the operation, database, host, and SQLSTATE, and outbound HTTP client spans carry only the method, scheme, host, port, status, and a coarse error class, with any 4xx or 5xx response marking the outbound span failed as otelhttp does; a call made without a request context appears as its own trace.
+Dependency spans never record SQL text, query parameters, URLs, query strings, headers, bodies, or transport error text (QR-004).
+
+Metrics are exported on a periodic reader and cover request rate, errors, and latency through the `http.server.request.duration` histogram, service readiness through the `timeful.service.readiness` gauge (1 ready, 0 unavailable), PostgreSQL pool use through `db.client.connection.count` and `db.client.connection.max`, and Go runtime health through the standard runtime instrumentation.
+OpenObserve stores each metric in its own [Stream](terminology/glossary.md#stream) named after the metric with dots replaced by underscores, for example `timeful_service_readiness` and `db_client_connection_count`, and a histogram also produces its bucket, count, sum, min, and max **Streams**.
+The readiness gauge carries the PostgreSQL-dependent readiness that explains dependency-related request failures, and the `service.readiness` label on request metrics lets an operator slice request outcomes by the dependency state observed at completion (QR-010, QR-017).
+
+Export runs on bounded background pipelines for every [Signal](terminology/glossary.md#signal): request handling never waits on an exporter, a full trace queue drops spans instead of blocking, and metric recording is in-memory with a periodic background export (QR-017).
+Shipped telemetry for every **Signal** excludes credentials, secrets, [Event Owner Edit Tokens](terminology/glossary.md#event-owner-edit-token), and token-bearing URLs and headers; error context passes through redaction, and the outbound HTTP transport records no URL path, query, or headers (QR-004).
+When any of the four variables is missing or blank, the server disables export for all **Signals**, records a local warning, and keeps serving with its file and standard-stream [Diagnostic Output](terminology/glossary.md#diagnostic-output) only.
+The GIN access log passes its request path and handler error messages through the same redaction, so token-bearing query parameters do not reach the file or standard-stream **Diagnostic Output** either.
+The development stack uses the same contract against its own instance, and the isolated test stack sets no OpenObserve variables and exports nothing.
+Every **Signal** inherits the instance's 14-day [Retention Window](terminology/glossary.md#retention-window) (QR-018).
 
 ## External Service Names
 

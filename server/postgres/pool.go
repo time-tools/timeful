@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -20,8 +21,9 @@ const (
 var Pool *pgxpool.Pool
 
 // Init connects and verifies the PostgreSQL store before the server accepts
-// requests. PostgreSQL-owned event routes may be enabled after startup.
-func Init() func() {
+// requests, and installs the query tracer so database work joins its request
+// trace. PostgreSQL-owned event routes may be enabled after startup.
+func Init(tracerProvider trace.TracerProvider) func() {
 	uri := os.Getenv(applicationURIEnvironment)
 	if uri == "" {
 		panic(applicationURIEnvironment + " environment variable is required")
@@ -32,6 +34,7 @@ func Init() func() {
 		panic(fmt.Sprintf("invalid %s: %v", applicationURIEnvironment, err))
 	}
 	config.MaxConns = environmentInt(maxConnectionsEnvironment, 10)
+	config.ConnConfig.Tracer = newQueryTracer(tracerProvider)
 
 	ctx, cancel := context.WithTimeout(context.Background(), connectionTimeout())
 	defer cancel()
