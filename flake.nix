@@ -8,7 +8,7 @@
       url = "github:hercules-ci/flake-parts/17c9d6cdfc60c64f4ee8d306f9bc0b4ccb51481e";
       inputs.nixpkgs-lib.url = "github:nix-community/nixpkgs.lib";
     };
-    backlog-md.url = "github:MrLesk/Backlog.md/583f928dfa65266df994a4323566eb426446ad55";
+    backlog-md.url = "github:time-tools/Backlog.md/aded8e254e6a0205b878cf07e631d1a592782040";
   };
 
   outputs = inputs@{ flake-parts, systems, ... }:
