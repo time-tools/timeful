@@ -22,8 +22,6 @@
      CI is the backstop for lint, formatting, typecheck, build, unit tests, Markdown, actionlint, backend tests, and all E2E projects. -->
 
 - [ ] Every task this PR marks Done is committed in this PR with its `status: Done` record in `backlog/tasks/`, and is not moved to `backlog/completed/` here.
-- [ ] Validation records the local runs, and anything not run is listed with a reason.
-- [ ] Contract-affecting changes update their documents: `docs/environments.md`, `PLUGIN_API_README.md`, migration and rollout notes.
 - [ ] CI is green.
 
 ## Validation
@@ -31,11 +29,8 @@
 <!-- CI enforces the repository checks for frontend, Markdown, workflows, backend, and E2E.
      Record local runs done for faster feedback, and list anything you could not run with the reason. -->
 
-- [ ] Local runs:
-- [ ] Not run / not covered (reason):
-- [ ] Swagger annotations changed: `swag init` and `npm run gen:api`
-- [ ] Code changed: `graphify update .`
-- [ ] `scripts/` or `prettier/` changed: root `npm run fmt:check`
+- Local runs:
+- Not run / not covered (reason):
 
 ## Risk and impact
 

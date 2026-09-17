@@ -2,7 +2,7 @@ project_name: "timeful"
 default_status: "To Do"
 statuses: ["To Do", "In Progress", "Done"]
 labels: []
-definition_of_done: ["All acceptance criteria are satisfied", "All required unit tests pass. Documentation-only changes are exempt unless the user requests unit tests", "All required e2e tests pass. Documentation-only changes are exempt unless the user requests e2e tests", "Changed Markdown files are formatted with npm run format:markdown"]
+definition_of_done: ["All acceptance criteria are satisfied", "All required unit tests pass. Documentation-only changes are exempt unless the user requests unit tests", "All required e2e tests pass. Documentation-only changes are exempt unless the user requests e2e tests", "Changed Markdown files are formatted with npm run format:markdown", "Swagger annotations changed: run `swag init` from `server/` and `npm run gen:api` from `frontend/`", "Code changed: run `graphify update .`", "`scripts/` or `prettier/` changed: run root `npm run fmt:check`", "Contract-affecting changes update their documents. This includes `docs/environments.md`; `PLUGIN_API_README.md`; and migration and rollout notes"]
 date_format: yyyy-mm-dd
 max_column_width: 20
 auto_open_browser: true
