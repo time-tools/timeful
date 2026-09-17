@@ -5,7 +5,7 @@ status: Done
 assignee:
   - opencode
 created_date: '2026-09-17 15:48'
-updated_date: '2026-09-17 15:57'
+updated_date: '2026-09-17 16:46'
 labels:
   - developer-experience
   - github
@@ -55,6 +55,16 @@ Scope was briefly expanded with user approval to amend BACKLOG_WORKFLOW.md, then
 
 The new template requirement applies when preparing the completing PR, not at task finalization.
 <!-- SECTION:NOTES:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: opencode
+created: 2026-09-17 16:46
+---
+Superseded by TASK-0256: Done tasks stay in `backlog/tasks/` with `status: Done` and are committed with the changes; moving a task to `backlog/completed/` is always a separate periodic-cleanup step, never part of the completing pull request.
+---
+<!-- COMMENTS:END -->
 
 ## Final Summary
 

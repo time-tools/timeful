@@ -35,10 +35,18 @@ Do not silently change scope.
 
 Verify each acceptance criterion with objective evidence.
 Record a concise final summary, mark the task Done, and leave completed tasks in the Done state until periodic cleanup.
+Moving Done tasks to `backlog/completed/` is always a separate step, never part of task finalization or the completing pull request.
 Do not use task completion archival as part of normal task finalization.
 
 Use Backlog MCP tools for managed task, milestone, document, and project DoD records.
 Do not directly edit their generated Markdown files.
+
+## Pull Request Preparation
+
+A pull request is the merge unit, and its merge-readiness criteria live in the PR Definition of Done in `.github/pull_request_template.md`, separate from the task Definition of Done that governs task finalization.
+
+Before creating or updating a pull request body, confirm that every task the pull request closes is marked Done and committed in the pull request, with its record left in `backlog/tasks/`.
+Do not move Done tasks to `backlog/completed/` as part of a pull request.
 
 ## Definition Of Done
 
