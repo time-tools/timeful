@@ -7,7 +7,7 @@ import {
 } from "@vue/test-utils"
 import { nextTick, ref } from "vue"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { durations } from "@/constants"
+import { durations, eventTypes } from "@/constants"
 import { Temporal } from "temporal-polyfill"
 import { createLocalStorageMock } from "@/test/localStorage"
 import {
@@ -16,6 +16,7 @@ import {
   vSelectStub as VSelectStub,
 } from "@/test/componentStubs"
 import type * as UtilsModule from "@/utils"
+import type { Event as EventModel } from "@/types"
 import NewEvent from "./NewEvent.vue"
 import newEventSource from "./NewEvent.vue?raw"
 import timeRangePickerSource from "./TimeRangePicker.vue?raw"
@@ -28,9 +29,11 @@ const shallowMount: typeof baseShallowMount = (...args) => {
   return wrapper
 }
 
-const { postMock, putMock } = vi.hoisted(() => ({
+const { postMock, putMock, deleteMock, archiveEventMock } = vi.hoisted(() => ({
   postMock: vi.fn(),
   putMock: vi.fn(),
+  deleteMock: vi.fn(),
+  archiveEventMock: vi.fn(),
 }))
 
 const { routerPushMock, routerReplaceMock } = vi.hoisted(() => ({
@@ -48,8 +51,13 @@ vi.mock("@/utils", async () => {
     ...actual,
     post: postMock,
     put: putMock,
+    _delete: deleteMock,
   }
 })
+
+vi.mock("@/utils/services/EventService", () => ({
+  archiveEvent: archiveEventMock,
+}))
 
 vi.mock("vue-router", () => ({
   useRouter: () => ({
@@ -276,6 +284,29 @@ const dayOfWeekButtonSnippet =
     newEventSource,
   )?.[0] ?? ""
 
+const VDialogModelStub = {
+  name: "VDialog",
+  props: {
+    modelValue: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  emits: ["update:modelValue"],
+  template: `<div v-if="modelValue" class="v-dialog-stub"><slot /></div>`,
+}
+
+const managedEvent = (overrides: Partial<EventModel> = {}): EventModel => ({
+  _id: "evt-1",
+  name: "Managed event",
+  type: eventTypes.SPECIFIC_DATES,
+  dates: [Temporal.PlainDate.from("2026-01-02")],
+  duration: durations.ONE_HOUR,
+  eventVisitorId: "visitor-1",
+  canManageEvent: true,
+  ...overrides,
+})
+
 describe("NewEvent", () => {
   afterEach(() => {
     for (const wrapper of mountedWrappers.splice(0)) wrapper.unmount()
@@ -290,8 +321,12 @@ describe("NewEvent", () => {
     mockDaysOnlyEnabled.value = true
     postMock.mockReset()
     putMock.mockReset()
+    deleteMock.mockReset()
+    archiveEventMock.mockReset()
     postMock.mockResolvedValue({ eventId: "evt-created" })
     putMock.mockResolvedValue(undefined)
+    deleteMock.mockResolvedValue(undefined)
+    archiveEventMock.mockResolvedValue(undefined)
     routerPushMock.mockReset()
     routerReplaceMock.mockReset()
     formRefMethods.validate.mockClear()
@@ -372,6 +407,93 @@ describe("NewEvent", () => {
     expect(wrapper.emitted("refresh-event")).toEqual([
       [expect.objectContaining({ fromEditEvent: false, eventTimezone: "UTC" })],
     ])
+  })
+
+  it("renders the Danger zone rows for a managed event in edit mode", () => {
+    const wrapper = shallowMount(NewEvent, {
+      props: { edit: true, event: managedEvent() },
+      global: { stubs: defaultStubs },
+    })
+
+    const dangerZone = wrapper.get(".danger-zone")
+    expect(dangerZone.text()).toContain("Danger zone")
+    expect(dangerZone.classes()).toContain("tw:flex-col")
+    expect(dangerZone.findAll("button").map((button) => button.text())).toEqual(
+      ["Archive event", "Delete event"],
+    )
+  })
+
+  it("hides the Danger zone outside managed edit mode", () => {
+    const createWrapper = shallowMount(NewEvent, {
+      props: { edit: false },
+      global: { stubs: defaultStubs },
+    })
+    expect(createWrapper.find(".danger-zone").exists()).toBe(false)
+
+    const deniedWrapper = shallowMount(NewEvent, {
+      props: { edit: true, event: managedEvent({ canManageEvent: false }) },
+      global: { stubs: defaultStubs },
+    })
+    expect(deniedWrapper.find(".danger-zone").exists()).toBe(false)
+  })
+
+  it("archives and unarchives the event from the Danger zone", async () => {
+    const activeWrapper = shallowMount(NewEvent, {
+      props: { edit: true, event: managedEvent() },
+      global: { stubs: defaultStubs },
+    })
+    await activeWrapper
+      .findAll("button")
+      .find((button) => button.text() === "Archive event")
+      ?.trigger("click")
+    await flushPromises()
+
+    expect(archiveEventMock).toHaveBeenCalledWith("evt-1", true)
+    expect(activeWrapper.emitted("refresh-event")).toEqual([
+      [{ fromEditEvent: false }],
+    ])
+
+    const archivedWrapper = shallowMount(NewEvent, {
+      props: { edit: true, event: managedEvent({ isArchived: true }) },
+      global: { stubs: defaultStubs },
+    })
+    await archivedWrapper
+      .findAll("button")
+      .find((button) => button.text() === "Unarchive event")
+      ?.trigger("click")
+    await flushPromises()
+
+    expect(archiveEventMock).toHaveBeenLastCalledWith("evt-1", false)
+    expect(archivedWrapper.emitted("refresh-event")).toEqual([
+      [{ fromEditEvent: false }],
+    ])
+  })
+
+  it("confirms deletion from the Danger zone before deleting and navigating home", async () => {
+    const wrapper = shallowMount(NewEvent, {
+      props: { edit: true, event: managedEvent() },
+      global: { stubs: { ...defaultStubs, "v-dialog": VDialogModelStub } },
+    })
+
+    const findButton = (label: string) =>
+      wrapper.findAll("button").find((button) => button.text() === label)
+
+    await findButton("Delete event")?.trigger("click")
+    await nextTick()
+    await findButton("Cancel")?.trigger("click")
+    await nextTick()
+
+    expect(deleteMock).not.toHaveBeenCalled()
+    expect(findButton("Delete")).toBeUndefined()
+
+    await findButton("Delete event")?.trigger("click")
+    await nextTick()
+    await findButton("Delete")?.trigger("click")
+    await flushPromises()
+
+    expect(deleteMock).toHaveBeenCalledWith("/events/evt-1")
+    expect(wrapper.emitted("deleted")).toEqual([[]])
+    expect(routerPushMock).toHaveBeenCalledWith("/")
   })
 
   it("persists the selected timezone when saving a day-only event", async () => {

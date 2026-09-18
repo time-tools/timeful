@@ -485,6 +485,30 @@
             </div>
           </div>
         </v-form>
+
+        <div
+          v-if="showDangerZone"
+          class="danger-zone tw:flex tw:flex-col tw:gap-3 tw:pt-6"
+        >
+          <div class="tw:text-lg tw:text-black">Danger zone</div>
+          <v-btn
+            variant="outlined"
+            block
+            :disabled="loading"
+            @click="toggleArchive"
+          >
+            {{ event?.isArchived ? "Unarchive event" : "Archive event" }}
+          </v-btn>
+          <v-btn
+            variant="outlined"
+            color="error"
+            block
+            :disabled="loading"
+            @click="confirmDelete = true"
+          >
+            Delete event
+          </v-btn>
+        </div>
       </v-card-text>
       <OverflowGradient
         v-if="hasMounted && cardTextElement"
@@ -529,6 +553,23 @@
       :scroll-container="cardTextElement"
       class="tw:bottom-[90px]"
     />
+
+    <v-dialog v-model="confirmDelete" max-width="420">
+      <v-card title="Delete event?">
+        <v-card-text
+          >The event link and all responses will become
+          inaccessible.</v-card-text
+        >
+        <v-card-actions>
+          <v-btn :disabled="loading" @click="confirmDelete = false"
+            >Cancel</v-btn
+          >
+          <v-btn color="error" :loading="loading" @click="deleteEvent"
+            >Delete</v-btn
+          >
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-card>
 </template>
 
@@ -538,8 +579,12 @@ import { computed, ref, watch } from "vue"
 import { useRouter } from "vue-router"
 import { storeToRefs } from "pinia"
 import { authTypes, dateOptions, eventTypes } from "@/constants"
-import { isAnonymousOwnerEvent } from "@/composables/event/eventOwnership"
 import {
+  canManageEventAsCurrentViewer,
+  isAnonymousOwnerEvent,
+} from "@/composables/event/eventOwnership"
+import {
+  _delete,
   addEventToCreatedList,
   plainTimeToTimeNum,
   put,
@@ -547,6 +592,7 @@ import {
   signInGoogle,
   timeNumToPlainTime,
 } from "@/utils"
+import { archiveEvent } from "@/utils/services/EventService"
 import { signInEnabled } from "@/utils/signInAvailability"
 import {
   EVENT_NAME_MAX_LENGTH,
@@ -631,6 +677,7 @@ const emit = defineEmits<{
       eventTimezone?: string
     },
   ]
+  deleted: []
   signIn: []
 }>()
 
@@ -658,6 +705,7 @@ const DEFAULT_START_ON_MONDAY = true
 const SUPPORTED_TIME_INCREMENTS = new Set([15, 30, 60])
 const submitAttempted = ref(false)
 const description = ref("")
+const confirmDelete = ref(false)
 
 function normalizeTimeIncrement(value: unknown): number {
   const candidate =
@@ -837,6 +885,12 @@ const endTimeOption = computed({
   },
 })
 const guestEvent = computed(() => isAnonymousOwnerEvent(props.event))
+const showDangerZone = computed(
+  () =>
+    props.edit &&
+    props.event !== undefined &&
+    canManageEventAsCurrentViewer(props.event),
+)
 const timeIncrementToggleOptions: SegmentedToggleOption[] = [
   { label: "15 min", value: 15 },
   { label: "30 min", value: 30 },
@@ -1056,6 +1110,38 @@ function submitIfAllowed() {
   if (loading.value || submitBlocked.value) return
   submitAttempted.value = true
   void submit()
+}
+
+async function toggleArchive() {
+  if (!props.event?._id || loading.value) return
+  loading.value = true
+  try {
+    await archiveEvent(props.event._id, !props.event.isArchived)
+    emit("refresh-event", { fromEditEvent: false })
+  } catch {
+    mainStore.showError(
+      "Could not update the event. Refresh the page and try again.",
+    )
+  } finally {
+    loading.value = false
+  }
+}
+
+async function deleteEvent() {
+  if (!props.event?._id || loading.value) return
+  loading.value = true
+  try {
+    await _delete(`/events/${props.event._id}`)
+    confirmDelete.value = false
+    emit("deleted")
+    await router.push("/")
+  } catch {
+    mainStore.showError(
+      "Could not delete the event. Refresh the page and try again.",
+    )
+  } finally {
+    loading.value = false
+  }
 }
 
 const requestContactsAccess = ({

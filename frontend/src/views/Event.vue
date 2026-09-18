@@ -433,11 +433,7 @@
                     </v-btn>
                   </template>
                   <EventAccessTransfer :event="event" />
-                  <EventOwnerActions
-                    :event="event"
-                    @changed="refreshEvent"
-                    @deleted="router.push('/')"
-                  />
+                  <EventOwnerActions :event="event" @changed="refreshEvent" />
                   <v-btn
                     v-if="!isGroup"
                     id="copy-link-btn"

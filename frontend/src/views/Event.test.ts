@@ -16,6 +16,7 @@ import { eventTypes, guestUserId } from "@/constants"
 import { Temporal } from "temporal-polyfill"
 import EventView from "./Event.vue"
 import eventViewSource from "./Event.vue?raw"
+import EventOwnerActions from "@/components/event/EventOwnerActions.vue"
 import MdiContentCopy from "~icons/mdi/content-copy"
 import MdiShare from "~icons/mdi/share"
 import MdiTrashCanOutline from "~icons/mdi/trash-can-outline"
@@ -582,6 +583,38 @@ describe("Event guest edit action", () => {
     expect(eventViewSource).toContain(
       "event-header-row tw:flex tw:flex-col tw:gap-2 tw:sm:flex-row tw:sm:items-center tw:sm:gap-4",
     )
+  })
+
+  it("keeps event lifecycle actions out of the page header", async () => {
+    const mountHeader = () =>
+      shallowMount(EventView, {
+        props: { eventId: "dEeaF" },
+        global: {
+          stubs: { ...scheduleGateStubs, EventOwnerActions: false },
+        },
+      })
+
+    const activeWrapper = mountHeader()
+    await flushDeferredMount()
+
+    expect(activeWrapper.findComponent(EventOwnerActions).exists()).toBe(true)
+    const activeButtons = activeWrapper
+      .findAll("button")
+      .map((button) => button.text())
+    expect(activeButtons).not.toContain("Archive event")
+    expect(activeButtons).not.toContain("Delete event")
+
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      isArchived: true,
+      canEditSettings: false,
+    }
+    const archivedWrapper = mountHeader()
+    await flushDeferredMount()
+
+    expect(
+      archivedWrapper.findAll("button").map((button) => button.text()),
+    ).toContain("Unarchive event")
   })
 
   it("aligns mobile footer action edges with the elevated panel above", () => {

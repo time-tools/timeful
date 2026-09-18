@@ -40,7 +40,7 @@ const editableFormState = {
 const createEditableStub = (name: string) =>
   defineComponent({
     name,
-    emits: ["update:modelValue", "refresh-event", "signIn"],
+    emits: ["update:modelValue", "refresh-event", "deleted", "signIn"],
     setup(_, { emit, expose }) {
       expose({
         hasEventBeenEdited: () => editableFormState.hasEventBeenEdited,
@@ -69,6 +69,16 @@ const createEditableStub = (name: string) =>
               },
             },
             "refresh",
+          ),
+          h(
+            "button",
+            {
+              class: `${name}-deleted`,
+              onClick: () => {
+                emit("deleted")
+              },
+            },
+            "deleted",
           ),
         ])
     },
@@ -257,5 +267,20 @@ describe("NewDialog", () => {
     ).toBe("false")
     expect(editableFormState.reset).not.toHaveBeenCalled()
     expect(editableFormState.resetToEventData).not.toHaveBeenCalled()
+  })
+
+  it("closes without the unsaved changes dialog when the child reports deletion", async () => {
+    editableFormState.hasEventBeenEdited = true
+
+    const wrapper = mountDialog({ edit: true })
+
+    await wrapper.get(".NewEvent-deleted").trigger("click")
+
+    expect(wrapper.emitted("update:modelValue")).toEqual([[false]])
+    expect(
+      wrapper.get('[data-testid="unsaved-dialog"]').attributes("data-open"),
+    ).toBe("false")
+    expect(editableFormState.reset).not.toHaveBeenCalled()
+    expect(editableFormState.resetToEventData).toHaveBeenCalledTimes(1)
   })
 })

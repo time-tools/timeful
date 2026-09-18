@@ -262,6 +262,9 @@ for (const mode of ["guest", "owner", "signed-in"] as const) {
         "timeful_grant_",
       )
       if (mode === "owner") {
+        await targetPage
+          .getByRole("button", { name: "Edit event", exact: true })
+          .click()
         await expect(
           targetPage.getByRole("button", {
             name: "Archive event",

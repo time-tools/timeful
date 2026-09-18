@@ -56,3 +56,9 @@ export function canEditEventMetadata(
     return event.canEditSettings === true && !event.isArchived
   return isAnonymousOwnerEvent(event) || isSignedInOwner(event, authUser)
 }
+
+export function canManageEventAsCurrentViewer(
+  event: EventOwnerCarrier,
+): boolean {
+  return Boolean(event?.eventVisitorId && event.canManageEvent)
+}
