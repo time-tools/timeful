@@ -36,6 +36,7 @@ Do not silently change scope.
 Verify each acceptance criterion with objective evidence.
 Record a concise final summary, mark the task Done, and leave completed tasks in the Done state until periodic cleanup.
 Moving Done tasks to `backlog/completed/` is always a separate step, never part of task finalization or the completing pull request.
+The scheduled `Backlog Weekly Cleanup` workflow performs this periodic cleanup; see `docs/ci.md` for its configuration.
 Do not use task completion archival as part of normal task finalization.
 
 Use Backlog MCP tools for managed task, milestone, document, and project DoD records.
