@@ -16,15 +16,21 @@
 
 <!-- Reference the tracked tasks, e.g. TASK-0165, TASK-0182. Remove this section if none. -->
 
+## PR Definition of Done
+
+<!-- Merge-unit criteria, distinct from the MCP-managed task Definition of Done that governs task finalization.
+     CI is the backstop for lint, formatting, typecheck, build, unit tests, Markdown, actionlint, backend tests, and all E2E projects. -->
+
+- [ ] Every task this PR marks Done is committed in this PR with its `status: Done` record in `backlog/tasks/`, and is not moved to `backlog/completed/` here.
+- [ ] CI is green.
+
 ## Validation
 
-<!-- Paste the exact commands you ran, including required env vars and e2e projects, then check them. Remove the lines that do not apply. -->
+<!-- CI enforces the repository checks for frontend, Markdown, workflows, backend, and E2E.
+     Record local runs done for faster feedback, and list anything you could not run with the reason. -->
 
-- [ ] Frontend: `npm run lint`, `npm run fmt:check`, `npm run typecheck`, `npm run build`, `npm run test:unit` (from `frontend/`)
-- [ ] E2E: `npm run test:e2e` (projects: chromium-desktop, chromium-mobile, firefox-desktop) (from `e2e/`)
-- [ ] Backend: route tests via the `compose.test.yaml` isolated overlay
-- [ ] Workflows changed: `actionlint`
-- [ ] Markdown changed: `npm run format:markdown:check`, `npm run lint:markdown`
+- Local runs:
+- Not run / not covered (reason):
 
 ## Risk and impact
 

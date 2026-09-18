@@ -35,14 +35,23 @@ Do not silently change scope.
 
 Verify each acceptance criterion with objective evidence.
 Record a concise final summary, mark the task Done, and leave completed tasks in the Done state until periodic cleanup.
+Moving Done tasks to `backlog/completed/` is always a separate step, never part of task finalization or the completing pull request.
+The scheduled `Backlog Weekly Cleanup` workflow performs this periodic cleanup; see `docs/ci.md` for its configuration.
 Do not use task completion archival as part of normal task finalization.
 
 Use Backlog MCP tools for managed task, milestone, document, and project DoD records.
 Do not directly edit their generated Markdown files.
 
+## Pull Request Preparation
+
+A pull request is the merge unit, and its merge-readiness criteria live in the PR Definition of Done in `.github/pull_request_template.md`, separate from the task Definition of Done that governs task finalization.
+
+Before creating or updating a pull request body, confirm that every task the pull request closes is marked Done and committed in the pull request, with its record left in `backlog/tasks/`.
+Do not move Done tasks to `backlog/completed/` as part of a pull request.
+
 ## Definition Of Done
 
-Project Definition of Done defaults apply to new tasks unless a task has an exceptional, documented override.
+Project Definition of Done defaults apply to new tasks unless a task has an exceptional, documented override, and they enumerate the per-change hygiene checks that apply when a task changes the relevant artifacts: swagger regeneration, `graphify update .`, root `npm run fmt:check`, and contract document updates.
 Documentation-only changes are changes limited to documentation or agent instructions and that do not modify runtime code, tests, build or deployment configuration, generated artifacts, or runtime assets.
 
 For documentation-only changes, unit and e2e tests are not required unless the user explicitly requests the respective test.
