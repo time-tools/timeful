@@ -292,6 +292,30 @@ it("reconciles a cancelled transfer when the replacement create fails", async ()
   wrapper.unmount()
 })
 
+it("keeps the other transfer actions enabled while a replacement create is pending", async () => {
+  const wrapper = render()
+  await click(wrapper, "Manage access")
+  await click(wrapper, "Create new transfer link")
+  await wrapper
+    .get('input[aria-label="Matching code from other browser"]')
+    .setValue("ABC123")
+  post.mockImplementation(() => new Promise(() => {}))
+  const findButton = (text: string) =>
+    wrapper.findAll("button").find((button) => button.text() === text)
+
+  await findButton("Create new transfer link")?.trigger("click")
+  await flushPromises()
+
+  expect(
+    findButton("Create new transfer link")?.attributes("disabled"),
+  ).toBeDefined()
+  expect(findButton("Cancel transfer")?.attributes("disabled")).toBeUndefined()
+  expect(
+    findButton("Approve matching code")?.attributes("disabled"),
+  ).toBeUndefined()
+  wrapper.unmount()
+})
+
 it("keeps Create new transfer link enabled while a copy is pending", async () => {
   let resolveWrite: () => void = () => {}
   vi.spyOn(navigator.clipboard, "writeText").mockImplementation(

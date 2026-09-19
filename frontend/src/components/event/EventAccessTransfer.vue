@@ -23,7 +23,7 @@
           <div class="tw:flex tw:flex-wrap tw:justify-center tw:gap-2">
             <v-btn
               :class="canCopy && 'tw:flex-1'"
-              :disabled="busy"
+              :disabled="busyAction === 'start'"
               :prepend-icon="MdiRefresh"
               @click="start"
               >Create new transfer link</v-btn
@@ -45,7 +45,9 @@
                 label="Matching code from other browser"
                 autocomplete="off"
               />
-              <v-btn :disabled="busy || !code" @click="approve"
+              <v-btn
+                :disabled="busyAction === 'approve' || !code"
+                @click="approve"
                 >Approve matching code</v-btn
               >
             </template>
@@ -53,7 +55,7 @@
               v-if="
                 current?.state === 'pending' || current?.state === 'approved'
               "
-              :disabled="busy"
+              :disabled="busyAction === 'cancel'"
               @click="cancel"
               >Cancel transfer</v-btn
             >
@@ -64,7 +66,7 @@
             class="tw:flex tw:items-center tw:gap-2"
           >
             <span>Granted access {{ entry.number }}</span>
-            <v-btn :disabled="busy" @click="revoke(entry.id)"
+            <v-btn :disabled="busyAction === 'revoke'" @click="revoke(entry.id)"
               >Revoke access</v-btn
             >
           </div>
@@ -96,8 +98,10 @@ import MdiRefresh from "~icons/mdi/refresh"
 
 const props = defineProps<{ event: Event }>()
 const store = useMainStore()
+type PendingAction = "refresh" | "start" | "approve" | "cancel" | "revoke"
 const dialog = ref(false)
 const busy = ref(false)
+const busyAction = ref<PendingAction>()
 const copying = ref(false)
 const polling = ref(false)
 const error = ref("")
@@ -132,19 +136,22 @@ const canCopy = computed(
 let timer: ReturnType<typeof setInterval> | undefined
 
 async function run(
-  action: () => Promise<void>,
+  action: PendingAction,
+  work: () => Promise<void>,
   failureMessage: string,
   clearError = true,
 ) {
   if (busy.value) return
   busy.value = true
+  busyAction.value = action
   if (clearError) error.value = ""
   try {
-    await action()
+    await work()
   } catch {
     if (clearError || !error.value) error.value = failureMessage
   } finally {
     busy.value = false
+    busyAction.value = undefined
   }
 }
 function updateTransfer(entry: SavedTransfer, state: AccessTransfer) {
@@ -224,40 +231,48 @@ function openDialog() {
     }
   }
   dialog.value = true
-  void run(refresh, "Could not refresh transfer status. Please try again.")
+  void run(
+    "refresh",
+    refresh,
+    "Could not refresh transfer status. Please try again.",
+  )
 }
 async function start() {
-  await run(async () => {
-    const eventId = props.event._id
-    if (!eventId) return
-    let retired: { entry: SavedTransfer; state: AccessTransfer } | undefined
-    if (canCopy.value && currentId.value) {
-      const transferId = currentId.value
-      const entry = tracked.value.find(({ id }) => id === transferId)
-      try {
-        const state = await transferAction(eventId, transferId, "cancel")
-        if (entry) retired = { entry, state }
-      } catch (cause) {
-        if (!isTransferUnavailable(cause)) throw cause
-        // The target may have redeemed the transfer since the last poll.
-        // Refresh before deciding whether the old transfer is still live.
-        await refresh()
-        if (canCopy.value) throw cause
+  await run(
+    "start",
+    async () => {
+      const eventId = props.event._id
+      if (!eventId) return
+      let retired: { entry: SavedTransfer; state: AccessTransfer } | undefined
+      if (canCopy.value && currentId.value) {
+        const transferId = currentId.value
+        const entry = tracked.value.find(({ id }) => id === transferId)
+        try {
+          const state = await transferAction(eventId, transferId, "cancel")
+          if (entry) retired = { entry, state }
+        } catch (cause) {
+          if (!isTransferUnavailable(cause)) throw cause
+          // The target may have redeemed the transfer since the last poll.
+          // Refresh before deciding whether the old transfer is still live.
+          await refresh()
+          if (canCopy.value) throw cause
+        }
       }
-    }
-    try {
-      const created = await createTransfer(eventId)
-      if (retired) updateTransfer(retired.entry, retired.state)
-      current.value = created
-      currentId.value = created.id
-      tracked.value.push(rememberTransfer(eventId, currentId.value))
-      code.value = ""
-      copied.value = false
-    } catch (cause) {
-      if (retired) updateTransfer(retired.entry, retired.state)
-      throw cause
-    }
-  }, "Could not create a transfer link. Please try again.")
+      try {
+        const created = await createTransfer(eventId)
+        if (retired) updateTransfer(retired.entry, retired.state)
+        current.value = created
+        currentId.value = created.id
+        tracked.value.push(rememberTransfer(eventId, currentId.value))
+        code.value = ""
+        copied.value = false
+      } catch (cause) {
+        if (retired) updateTransfer(retired.entry, retired.state)
+        throw cause
+      }
+    },
+    "Could not create a transfer link. Please try again.",
+  )
 }
 async function copy() {
   if (busy.value || copying.value) return
@@ -274,42 +289,55 @@ async function copy() {
   }
 }
 async function approve() {
-  await run(async () => {
-    if (!props.event._id) return
-    await refresh()
-    const request = current.value && matchingRequest(current.value, code.value)
-    if (!request) throw new Error("No matching target")
-    current.value = await transferAction(
-      props.event._id,
-      currentId.value,
-      "approve",
-      { requestId: request.id, code: request.code },
-    )
-  }, "Could not approve the transfer. Check the code or create a new link.")
+  await run(
+    "approve",
+    async () => {
+      if (!props.event._id) return
+      await refresh()
+      const request =
+        current.value && matchingRequest(current.value, code.value)
+      if (!request) throw new Error("No matching target")
+      current.value = await transferAction(
+        props.event._id,
+        currentId.value,
+        "approve",
+        { requestId: request.id, code: request.code },
+      )
+    },
+    "Could not approve the transfer. Check the code or create a new link.",
+  )
 }
 async function cancel() {
-  await run(async () => {
-    if (props.event._id) {
-      const entry = tracked.value.find(({ id }) => id === currentId.value)
-      if (entry)
-        updateTransfer(
-          entry,
-          await transferAction(props.event._id, entry.id, "cancel"),
-        )
-    }
-  }, "Could not cancel the transfer. Please try again.")
+  await run(
+    "cancel",
+    async () => {
+      if (props.event._id) {
+        const entry = tracked.value.find(({ id }) => id === currentId.value)
+        if (entry)
+          updateTransfer(
+            entry,
+            await transferAction(props.event._id, entry.id, "cancel"),
+          )
+      }
+    },
+    "Could not cancel the transfer. Please try again.",
+  )
 }
 async function revoke(id: string) {
-  await run(async () => {
-    if (props.event._id) {
-      const entry = tracked.value.find((entry) => entry.id === id)
-      if (entry)
-        updateTransfer(
-          entry,
-          await transferAction(props.event._id, id, "revoke"),
-        )
-    }
-  }, "Could not revoke granted access. Please try again.")
+  await run(
+    "revoke",
+    async () => {
+      if (props.event._id) {
+        const entry = tracked.value.find((entry) => entry.id === id)
+        if (entry)
+          updateTransfer(
+            entry,
+            await transferAction(props.event._id, id, "revoke"),
+          )
+      }
+    },
+    "Could not revoke granted access. Please try again.",
+  )
 }
 watch(dialog, (open) => {
   if (timer) clearInterval(timer)
