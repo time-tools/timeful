@@ -187,7 +187,7 @@ it("marks step 3 current when the other browser is showing a code", async () => 
         ? { id: "transfer", state: "pending" }
         : {
             state: "pending",
-            requests: [{ id: "request", code: "ABC123" }],
+            requests: [{ id: "request", code: "123456" }],
           },
     ),
   )
@@ -209,7 +209,7 @@ it("keeps step 3 current while approved and returns to step 1 when terminal", as
     Promise.resolve(
       url.endsWith("/transfers")
         ? { id: "transfer", state: "pending" }
-        : { state: "approved", requests: [{ id: "request", code: "ABC123" }] },
+        : { state: "approved", requests: [{ id: "request", code: "123456" }] },
     ),
   )
   await vi.advanceTimersByTimeAsync(2100)
@@ -235,7 +235,9 @@ it("keeps the code input available before the first status poll and describes it
     'input[aria-label="Matching code from other browser"]',
   )
 
-  expect(input.attributes("autocapitalize")).toBe("characters")
+  expect(input.attributes("inputmode")).toBe("numeric")
+  expect(input.attributes("autocomplete")).toBe("one-time-code")
+  expect(input.attributes("maxlength")).toBe("6")
   expect(input.attributes("spellcheck")).toBe("false")
   expect(input.attributes("hint")).toContain("other browser")
   const approve = wrapper
@@ -243,8 +245,11 @@ it("keeps the code input available before the first status poll and describes it
     .find((button) => button.text() === "Approve matching code")
   expect(approve?.attributes("disabled")).toBeDefined()
 
-  await input.setValue("ABC123")
+  await input.setValue("12345")
+  expect(approve?.attributes("disabled")).toBeDefined()
 
+  await input.setValue("12a34 56")
+  expect((input.element as HTMLInputElement).value).toBe("123456")
   expect(approve?.attributes("disabled")).toBeUndefined()
   wrapper.unmount()
 })
@@ -476,7 +481,7 @@ it("keeps the other transfer actions enabled while a replacement create is pendi
   await click(wrapper, "Create new transfer link")
   await wrapper
     .get('input[aria-label="Matching code from other browser"]')
-    .setValue("ABC123")
+    .setValue("123456")
   post.mockImplementation(() => new Promise(() => {}))
   const findButton = (text: string) =>
     wrapper.findAll("button").find((button) => button.text() === text)
@@ -592,7 +597,7 @@ it("keeps wrong-code feedback visible across status polling", async () => {
   await click(wrapper, "Create new transfer link")
   await wrapper
     .get('input[aria-label="Matching code from other browser"]')
-    .setValue("WRONG")
+    .setValue("999999")
   await click(wrapper, "Approve matching code")
   expect(wrapper.get('[role="alert"]').text()).toContain("Check the code")
   await vi.advanceTimersByTimeAsync(2100)
@@ -760,7 +765,7 @@ it("labels granted access and pending status with the target browser", async () 
           requests: [
             {
               id: "request",
-              code: "ABCDEFGH",
+              code: "123456",
               userAgent:
                 "Mozilla/5.0 (X11; Linux x86_64; rv:141.0) Gecko/20100101 Firefox/141.0",
             },
@@ -814,13 +819,13 @@ it("keeps the generic status when several target browsers show codes", async () 
           requests: [
             {
               id: "one",
-              code: "AAAAAAAA",
+              code: "111111",
               userAgent:
                 "Mozilla/5.0 (X11; Linux x86_64; rv:141.0) Gecko/20100101 Firefox/141.0",
             },
             {
               id: "two",
-              code: "BBBBBBBB",
+              code: "222222",
               userAgent:
                 "Mozilla/5.0 (X11; Linux x86_64; rv:141.0) Gecko/20100101 Firefox/141.0",
             },

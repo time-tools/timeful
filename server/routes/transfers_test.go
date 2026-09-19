@@ -10,6 +10,7 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -149,14 +150,24 @@ func TestAccessTransfers(t *testing.T) {
 			}
 			first := request(attacker, "POST", base+"open", nil, 200)
 			pending := request(target, "POST", base+"open", nil, 200, "Firefox/141.0")
-			if str(first, "code") == str(pending, "code") {
+			pendingCode := str(pending, "code")
+			if pendingCode == str(first, "code") {
 				t.Fatal("target codes collided")
+			}
+			// Matching codes are six decimal digits, so a wrong code can only
+			// differ in its digits.
+			transferCodePattern := regexp.MustCompile(`^[0-9]{6}$`)
+			for _, code := range []string{pendingCode, str(first, "code")} {
+				if !transferCodePattern.MatchString(code) {
+					t.Fatalf("matching code %q is not six decimal digits", code)
+				}
 			}
 			request(target, "POST", base+"redeem", nil, 403)
 			request(target, "POST", path+"/response", map[string]any{"responseId": responseID, "name": "Not approved"}, 403)
-			approval := map[string]any{"requestId": str(pending, "requestId"), "code": str(pending, "code")}
+			approval := map[string]any{"requestId": str(pending, "requestId"), "code": pendingCode}
 			request(attacker, "POST", base+"approve", approval, 403)
-			request(source, "POST", base+"approve", map[string]any{"requestId": str(pending, "requestId"), "code": "WRONG"}, 403)
+			wrongCode := pendingCode[:5] + string('0'+(pendingCode[5]-'0'+1)%10)
+			request(source, "POST", base+"approve", map[string]any{"requestId": str(pending, "requestId"), "code": wrongCode}, 403)
 			if mode == "session" {
 				request(source, "POST", "/test/sign-in/"+differentSessionID, nil, 200)
 				request(source, "POST", base+"approve", approval, 403)

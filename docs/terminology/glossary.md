@@ -489,7 +489,7 @@ A source-confirmed browser-to-browser process for granting another browser eithe
 The target displays a matching code that the source approves; the pending transfer is single-use and expires five minutes after creation.
 The transfer delegates authority; it never transfers response, event, or [Event Visitor Identity](#event-visitor-identity) ownership.
 
-Authoritative context: [FR-081](../requirements/functional/fr/FR-081.md), [FR-082](../requirements/functional/fr/FR-082.md), and [ADR-010](../design/architecture/adr/ADR-010.md).
+Authoritative context: [FR-081](../requirements/functional/fr/FR-081.md), [FR-082](../requirements/functional/fr/FR-082.md), [FR-127](../requirements/functional/fr/FR-127.md), and [ADR-010](../design/architecture/adr/ADR-010.md).
 
 ### Event Sign-In
 

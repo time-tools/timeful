@@ -91,6 +91,16 @@ async function signIn(request: APIRequestContext, label: string) {
   return verifySignIn(request, seedAccount(label))
 }
 
+// A wrong code must differ from every pending request, so tests derive it from
+// the codes the browsers displayed instead of using a fixed literal.
+function wrongCodeFrom(...codes: string[]) {
+  let candidate = String((Number(codes[0]) + 1) % 1_000_000).padStart(6, "0")
+  while (codes.includes(candidate)) {
+    candidate = String((Number(candidate) + 1) % 1_000_000).padStart(6, "0")
+  }
+  return candidate
+}
+
 for (const mode of ["guest", "owner", "signed-in"] as const) {
   test(`Source approves the exact target code for ${mode} access`, async ({
     page,
@@ -159,7 +169,7 @@ for (const mode of ["guest", "owner", "signed-in"] as const) {
     ])
     await targetPage.goto(link, { waitUntil: "domcontentloaded" })
     const code = targetPage.getByTestId("matching-code")
-    await expect(code).toHaveText(/^[A-Z0-9]{8}$/)
+    await expect(code).toHaveText(/^\d{6}$/)
     await expect(
       targetPage.getByTestId("access-transfer-step-2"),
     ).toContainText("Show this code to the browser that created the link")
@@ -180,14 +190,18 @@ for (const mode of ["guest", "owner", "signed-in"] as const) {
       await code.innerText(),
     )
     await test.step("Reject a wrong code and approve the selected target", async () => {
-      await page.getByLabel("Matching code from other browser").fill("WRONG")
+      const targetCode = await code.innerText()
+      const otherCode = await otherPage.getByTestId("matching-code").innerText()
+      await page
+        .getByLabel("Matching code from other browser")
+        .fill(wrongCodeFrom(targetCode, otherCode))
       await page.getByRole("button", { name: "Approve matching code" }).click()
       await expect(
         page.getByText(/Could not approve the transfer. Check the code/),
       ).toBeVisible()
       await page
         .getByLabel("Matching code from other browser")
-        .fill(await code.innerText())
+        .fill(targetCode)
       await page.getByRole("button", { name: "Approve matching code" }).click()
       await expect(page.getByRole("status")).toContainText(
         "Approved — finish in the other browser.",
@@ -451,7 +465,7 @@ for (const mode of ["guest", "account-switch"] as const) {
     await test.step("Approve the on-page code and restore it after reload", async () => {
       await targetPage.goto(link, { waitUntil: "domcontentloaded" })
       const code = targetPage.getByTestId("matching-code")
-      await expect(code).toHaveText(/^[A-Z0-9]{8}$/)
+      await expect(code).toHaveText(/^\d{6}$/)
       const matchingCode = await code.innerText()
       const status = await page.request.post(`${transferApi}/status`, {
         data: {},
@@ -551,7 +565,7 @@ test("Source cancels approved access before the target redeems", async ({
   const targetPage = await target.newPage()
   await targetPage.goto(link, { waitUntil: "domcontentloaded" })
   const code = targetPage.getByTestId("matching-code")
-  await expect(code).toHaveText(/^[A-Z0-9]{8}$/)
+  await expect(code).toHaveText(/^\d{6}$/)
   await page
     .getByLabel("Matching code from other browser")
     .fill(await code.innerText())
@@ -620,7 +634,7 @@ for (const state of ["cancelled", "expired"] as const) {
     const link = `/transfer/${created.eventId}/${transfer.id}`
     await targetPage.goto(link, { waitUntil: "domcontentloaded" })
     await expect(targetPage.getByTestId("matching-code")).toHaveText(
-      /^[A-Z0-9]{8}$/,
+      /^\d{6}$/,
     )
     if (state === "cancelled") {
       expect(

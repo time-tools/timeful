@@ -136,16 +136,18 @@
               </p>
               <template v-if="isPending">
                 <v-text-field
-                  v-model="code"
+                  :model-value="code"
                   label="Matching code from other browser"
-                  autocomplete="off"
-                  autocapitalize="characters"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  :maxlength="6"
                   spellcheck="false"
                   persistent-hint
-                  hint="Type the code exactly as the other browser shows it."
+                  hint="Type the six-digit code the other browser shows."
+                  @update:model-value="updateCode"
                 />
                 <v-btn
-                  :disabled="busyAction === 'approve' || !code"
+                  :disabled="busyAction === 'approve' || !codeComplete"
                   @click="approve"
                   >Approve matching code</v-btn
                 >
@@ -196,6 +198,7 @@ import {
   createTransfer,
   transferAction,
   matchingRequest,
+  normalizeTransferCode,
   rememberTransfer,
   savedTransfers,
   forgetTransfer,
@@ -262,6 +265,7 @@ const canCopy = computed(
   () =>
     current.value?.state === "pending" || current.value?.state === "approved",
 )
+const codeComplete = computed(() => code.value.length === 6)
 let timer: ReturnType<typeof setInterval> | undefined
 
 function stepClasses(index: number) {
@@ -275,6 +279,9 @@ function stepNumberClasses(index: number) {
   if (index < activeStep.value)
     return "tw:bg-(--timeful-selection-bg) tw:text-(--timeful-selection-fg)"
   return "tw:border tw:border-(--timeful-outline-neutral) tw:text-(--timeful-muted-foreground)"
+}
+function updateCode(value: string) {
+  code.value = normalizeTransferCode(value).slice(0, 6)
 }
 async function run(
   action: PendingAction,

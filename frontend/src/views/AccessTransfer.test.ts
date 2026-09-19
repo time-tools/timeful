@@ -57,7 +57,7 @@ function httpError(status: number, message = "Request failed") {
 beforeEach(() => {
   mocks.action
     .mockReset()
-    .mockResolvedValue({ state: "approved", code: "12345678" })
+    .mockResolvedValue({ state: "approved", code: "123456" })
   mocks.navigate.mockReset()
   vi.spyOn(window.location, "assign").mockImplementation(mocks.navigate)
 })
@@ -82,7 +82,7 @@ describe("target access transfer", () => {
     wrapper.unmount()
   })
   it("keeps step 2 current and withheld access visible until approval", async () => {
-    mocks.action.mockResolvedValueOnce({ state: "pending", code: "12345678" })
+    mocks.action.mockResolvedValueOnce({ state: "pending", code: "123456" })
     const wrapper = render()
     await flushPromises()
     const step2 = wrapper.get('[data-testid="access-transfer-step-2"]')
@@ -98,7 +98,13 @@ describe("target access transfer", () => {
     const wrapper = render()
     await flushPromises()
     expect(mocks.action).toHaveBeenCalledWith("EVENT123", "transfer", "open")
-    expect(wrapper.get('[data-testid="matching-code"]').text()).toBe("12345678")
+    expect(wrapper.get('[data-testid="matching-code"]').text()).toBe("123456")
+    expect(
+      wrapper
+        .get('[data-testid="matching-code"]')
+        .findAll("span")
+        .map((group) => group.text()),
+    ).toEqual(["123", "456"])
     expect(wrapper.text()).toContain("Approved — you can continue")
     expect(
       wrapper
@@ -107,6 +113,38 @@ describe("target access transfer", () => {
     ).toBe("step")
     await click(wrapper, "Continue after approval")
     expect(mocks.navigate).toHaveBeenCalledWith("/e/EVENT123")
+    wrapper.unmount()
+  })
+  it("copies the matching code and announces it politely", async () => {
+    const writeText = vi
+      .spyOn(navigator.clipboard, "writeText")
+      .mockResolvedValue(undefined)
+    const wrapper = render()
+    await flushPromises()
+
+    await click(wrapper, "Copy code")
+
+    expect(writeText).toHaveBeenCalledWith("123456")
+    expect(wrapper.text()).toContain("Copied")
+    expect(
+      wrapper.findAll('[aria-live="polite"]').map((status) => status.text()),
+    ).toContain("Matching code copied")
+    wrapper.unmount()
+  })
+  it("names code-copy failures without losing the code", async () => {
+    vi.spyOn(navigator.clipboard, "writeText").mockRejectedValue(
+      new Error("denied"),
+    )
+    const wrapper = render()
+    await flushPromises()
+
+    await click(wrapper, "Copy code")
+
+    expect(wrapper.get('[role="alert"]').text()).toContain(
+      "Could not copy the code",
+    )
+    expect(wrapper.get('[data-testid="matching-code"]').text()).toBe("123456")
+    expect(wrapper.text()).toContain("Copy code")
     wrapper.unmount()
   })
   it("requires explicit account-switch consent and cancellation does not redeem", async () => {
@@ -160,7 +198,7 @@ describe("target access transfer", () => {
   })
   it("highlights step 3 when the source approves without a reload", async () => {
     vi.useFakeTimers()
-    mocks.action.mockResolvedValueOnce({ state: "pending", code: "12345678" })
+    mocks.action.mockResolvedValueOnce({ state: "pending", code: "123456" })
     const wrapper = render()
     await flushPromises()
     expect(
@@ -169,7 +207,7 @@ describe("target access transfer", () => {
         .attributes("aria-current"),
     ).toBeUndefined()
 
-    mocks.action.mockResolvedValue({ state: "approved", code: "12345678" })
+    mocks.action.mockResolvedValue({ state: "approved", code: "123456" })
     await vi.advanceTimersByTimeAsync(2100)
     await flushPromises()
 
@@ -185,11 +223,11 @@ describe("target access transfer", () => {
   })
   it("stops polling once the source approves", async () => {
     vi.useFakeTimers()
-    mocks.action.mockResolvedValueOnce({ state: "pending", code: "12345678" })
+    mocks.action.mockResolvedValueOnce({ state: "pending", code: "123456" })
     const wrapper = render()
     await flushPromises()
 
-    mocks.action.mockResolvedValue({ state: "approved", code: "12345678" })
+    mocks.action.mockResolvedValue({ state: "approved", code: "123456" })
     await vi.advanceTimersByTimeAsync(2100)
     await flushPromises()
     const calls = mocks.action.mock.calls.length
@@ -214,7 +252,7 @@ describe("target access transfer", () => {
   })
   it("keeps waiting when a status poll fails after the first open", async () => {
     vi.useFakeTimers()
-    mocks.action.mockResolvedValueOnce({ state: "pending", code: "12345678" })
+    mocks.action.mockResolvedValueOnce({ state: "pending", code: "123456" })
     const wrapper = render()
     await flushPromises()
 
@@ -230,7 +268,7 @@ describe("target access transfer", () => {
   })
   it("keeps waiting and polling through a transient 500", async () => {
     vi.useFakeTimers()
-    mocks.action.mockResolvedValueOnce({ state: "pending", code: "12345678" })
+    mocks.action.mockResolvedValueOnce({ state: "pending", code: "123456" })
     const wrapper = render()
     await flushPromises()
 
@@ -255,7 +293,7 @@ describe("target access transfer", () => {
     "ends the wait and stops polling when a poll definitively fails with %i",
     async (status) => {
       vi.useFakeTimers()
-      mocks.action.mockResolvedValueOnce({ state: "pending", code: "12345678" })
+      mocks.action.mockResolvedValueOnce({ state: "pending", code: "123456" })
       const wrapper = render()
       await flushPromises()
 
@@ -281,7 +319,7 @@ describe("target access transfer", () => {
   )
   it("clears an early redeem error when approval arrives", async () => {
     vi.useFakeTimers()
-    mocks.action.mockResolvedValueOnce({ state: "pending", code: "12345678" })
+    mocks.action.mockResolvedValueOnce({ state: "pending", code: "123456" })
     const wrapper = render()
     await flushPromises()
 
@@ -291,7 +329,7 @@ describe("target access transfer", () => {
       "Access has not been approved",
     )
 
-    mocks.action.mockResolvedValue({ state: "approved", code: "12345678" })
+    mocks.action.mockResolvedValue({ state: "approved", code: "123456" })
     await vi.advanceTimersByTimeAsync(2100)
     await flushPromises()
 

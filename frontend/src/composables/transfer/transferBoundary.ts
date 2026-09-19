@@ -73,10 +73,14 @@ export async function grantAssociation(eventId: string, confirm = false) {
   )
 }
 
+export function normalizeTransferCode(value: string) {
+  return value.replace(/\D/g, "")
+}
+
 export function matchingRequest(transfer: AccessTransfer, code: string) {
-  return transfer.requests.find(
-    (request) => request.code === code.trim().toUpperCase(),
-  )
+  const normalized = normalizeTransferCode(code)
+  if (!normalized) return undefined
+  return transfer.requests.find((request) => request.code === normalized)
 }
 
 export interface SavedTransfer {

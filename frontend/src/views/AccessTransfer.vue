@@ -26,16 +26,28 @@
               >
             </h2>
             <p class="tw:text-sm tw:text-(--timeful-muted-foreground)">
-              In that browser, choose Manage access, enter this code exactly,
+              In that browser, choose Manage access, enter this six-digit code,
               and approve it within five minutes of creating the link.
             </p>
-            <p
-              v-if="code"
-              class="tw:text-3xl tw:font-bold"
-              data-testid="matching-code"
+            <div
+              v-if="code && !unavailable"
+              class="tw:flex tw:flex-wrap tw:items-center tw:gap-3"
             >
-              {{ code }}
-            </p>
+              <p
+                class="tw:text-3xl tw:font-bold tw:tracking-[0.2em]"
+                data-testid="matching-code"
+              >
+                <span
+                  v-for="(part, index) in codeGroups"
+                  :key="index"
+                  :class="{ 'tw:ml-3': index > 0 }"
+                  >{{ part }}</span
+                >
+              </p>
+              <v-btn :prepend-icon="MdiContentCopy" @click="copyCode">{{
+                copied ? "Copied" : "Copy code"
+              }}</v-btn>
+            </div>
             <p
               v-else-if="!error"
               role="status"
@@ -76,6 +88,9 @@
             >
           </li>
         </ol>
+        <p aria-live="polite" class="tw:sr-only">
+          {{ copied ? "Matching code copied" : "" }}
+        </p>
       </v-card-text>
     </v-card>
     <v-dialog
@@ -120,6 +135,7 @@ import {
   transferAction,
 } from "@/composables/transfer/transferBoundary"
 import { useMainStore } from "@/stores/main"
+import MdiContentCopy from "~icons/mdi/content-copy"
 const props = defineProps<{ eventId: string; transferId: string }>()
 const store = useMainStore()
 const code = ref("")
@@ -130,9 +146,11 @@ const UNAVAILABLE_MESSAGE =
 const confirmSwitch = ref(false)
 const error = ref("")
 const busy = ref(false)
+const copied = ref(false)
 const polling = ref(false)
 let timer: ReturnType<typeof setInterval> | undefined
 const activeStep = computed(() => (approved.value ? 3 : 2))
+const codeGroups = computed(() => [code.value.slice(0, 3), code.value.slice(3)])
 function stepClasses(index: number) {
   return index === activeStep.value
     ? "tw:border-(--timeful-outline-neutral) tw:bg-(--timeful-selection-bg)"
@@ -194,6 +212,16 @@ onMounted(async () => {
     error.value = UNAVAILABLE_MESSAGE
   }
 })
+async function copyCode() {
+  try {
+    await navigator.clipboard.writeText(code.value)
+    copied.value = true
+    error.value = ""
+  } catch {
+    error.value =
+      "Could not copy the code. Select the code and copy it manually."
+  }
+}
 async function finish(confirmAccountSwitch = false) {
   if (busy.value) return
   busy.value = true

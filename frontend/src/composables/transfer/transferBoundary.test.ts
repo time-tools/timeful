@@ -104,12 +104,15 @@ describe("access transfer boundary", () => {
   it("approves only the exact target code", () => {
     const state = decodeTransfer({
       requests: [
-        { id: "attacker", code: "ABCDEFGH" },
-        { id: "target", code: "12345678" },
+        { id: "attacker", code: "111111" },
+        { id: "target", code: "123456" },
       ],
     })
-    expect(matchingRequest(state, " 12345678 ")?.id).toBe("target")
-    expect(matchingRequest(state, "1234567")).toBeUndefined()
+    expect(matchingRequest(state, " 123456 ")?.id).toBe("target")
+    expect(matchingRequest(state, "123 456")?.id).toBe("target")
+    expect(matchingRequest(state, "123-456")?.id).toBe("target")
+    expect(matchingRequest(state, "12345")).toBeUndefined()
+    expect(matchingRequest(state, "123457")).toBeUndefined()
     expect(matchingRequest(state, "wrong")).toBeUndefined()
   })
   it("inspects without consent and sends consent only explicitly", async () => {

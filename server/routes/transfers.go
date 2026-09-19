@@ -267,9 +267,22 @@ func transferAction(c *gin.Context) {
 				return err
 			}
 			targetSecret = secret
-			code, err := pgstore.GenerateShortID()
-			if err != nil {
-				return err
+			var code string
+			for {
+				code, err = pgstore.GenerateTransferCode()
+				if err != nil {
+					return err
+				}
+				duplicate := false
+				for _, existing := range requests {
+					if existing.Code == code {
+						duplicate = true
+						break
+					}
+				}
+				if !duplicate {
+					break
+				}
 			}
 			request := &pgstore.TransferRequest{Code: code, TargetHash: hash, UserAgent: transferUserAgent(c.Request.UserAgent())}
 			if err := tx.CreateTransferRequest(ctx, transfer.ID, request); err != nil {
