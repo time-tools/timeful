@@ -524,7 +524,7 @@
                       :num-responses="numResponses"
                       :include-show-best-times="false"
                       menu-button-label="More options"
-                      menu-activator-class="desktop-event-header-control desktop-event-header-options__menu-button tw:justify-between tw:w-full"
+                      menu-activator-class="desktop-event-header-control desktop-event-header-options__menu-button tw:justify-center tw:w-full"
                       @update:hide-if-needed="updateDesktopHideIfNeeded"
                       @update:collapse-disabled-times="
                         updateDesktopCollapseDisabledTimes
@@ -640,7 +640,7 @@
                         :include-show-best-times="false"
                         :include-hide-if-needed="false"
                         menu-button-label="More options"
-                        menu-activator-class="desktop-event-header-control desktop-event-header-options__menu-button tw:justify-between tw:w-full"
+                        menu-activator-class="desktop-event-header-control desktop-event-header-options__menu-button tw:justify-center tw:w-full"
                         @update:hide-if-needed="updateDesktopHideIfNeeded"
                         @update:collapse-disabled-times="
                           updateDesktopCollapseDisabledTimes

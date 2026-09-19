@@ -1147,6 +1147,12 @@ describe("Event guest edit action", () => {
     expect(wrapper.find("#show-best-times-header-toggle").exists()).toBe(true)
     expect(wrapper.find("#desktop-header-more-options").exists()).toBe(true)
     expect(wrapper.find("#collapse-disabled-times-toggle").exists()).toBe(false)
+    const moreOptionsActivatorClass = wrapper
+      .get("#desktop-header-more-options")
+      .get("event-options-stub")
+      .attributes("menuactivatorclass")
+    expect(moreOptionsActivatorClass).toContain("tw:justify-center")
+    expect(moreOptionsActivatorClass).not.toContain("tw:justify-between")
   })
 
   it("uses the add-specific desktop CTA styling when the primary action is Add availability", async () => {
@@ -2951,9 +2957,12 @@ describe("Event guest edit action", () => {
     expect(
       moreOptions.get("event-options-stub").attributes("menubuttonlabel"),
     ).toBe("More options")
-    expect(
-      moreOptions.get("event-options-stub").attributes("menuactivatorclass"),
-    ).toContain("desktop-event-header-control")
+    const moreOptionsActivatorClass = moreOptions
+      .get("event-options-stub")
+      .attributes("menuactivatorclass")
+    expect(moreOptionsActivatorClass).toContain("desktop-event-header-control")
+    expect(moreOptionsActivatorClass).toContain("tw:justify-center")
+    expect(moreOptionsActivatorClass).not.toContain("tw:justify-between")
     expect(moreOptions.get("event-options-stub").classes()).toContain(
       "tw:w-full",
     )
