@@ -171,3 +171,61 @@ test("Editing an existing response exposes deletion under the selected responseI
     page.getByRole("button", { name: "Edit Ada", exact: true }),
   ).toHaveCount(0)
 })
+
+test("A signed-out visitor who owns one response can start adding another response", async ({
+  page,
+}) => {
+  const created = await page.request.post("/api/events", {
+    data: {
+      name: "Visitor adds another response",
+      type: "specific_dates",
+      daysOnly: false,
+      activeSlots: ["2026-10-05T14:00:00Z", "2026-10-05T14:15:00Z"],
+      eventTimezone: "GMT",
+      slotGeneration: {
+        startTimeLocal: "14:00",
+        endTimeLocal: "14:30",
+        timeIncrementMinutes: 15,
+      },
+      timedRecurrence: {
+        kind: "specific_dates",
+        selectedDays: ["2026-10-05"],
+        selectedDaysOfWeek: [],
+        startOnMonday: false,
+      },
+    },
+  })
+  expect(created.status()).toBe(201)
+  const { eventId } = (await created.json()) as { eventId: string }
+  const response = await page.request.post(`/api/events/${eventId}/response`, {
+    data: {
+      createResponse: true,
+      name: "Ada",
+      availability: ["2026-10-05T14:00:00Z"],
+    },
+  })
+  expect(response.status()).toBe(200)
+
+  await page.goto(`/e/${eventId}`)
+  await expect(
+    page.getByRole("button", { name: "Edit Ada", exact: true }),
+  ).toBeVisible()
+
+  const addAvailability = page.getByRole("button", {
+    name: "Add availability",
+    exact: true,
+  })
+  await expect(addAvailability).toBeVisible()
+  await addAvailability.click()
+
+  const manual = page.getByRole("button", { name: "Manually", exact: true })
+  await expect(manual).toBeVisible()
+  await manual.click()
+
+  await expect(
+    page.getByRole("button", { name: "Cancel", exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Save", exact: true }),
+  ).toBeVisible()
+})

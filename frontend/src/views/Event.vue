@@ -1308,15 +1308,6 @@ const userHasResponded = computed(() => {
     authUser.value?._id && ev?.responses && authUser.value._id in ev.responses,
   )
 })
-const guestAddedAvailability = computed(() =>
-  ownedGuestResponses.value.some((ownedGuest) =>
-    Object.values(loader.event.value?.responses ?? {}).some((response) =>
-      response.guestOwnershipMode === "token"
-        ? response.guestId === ownedGuest.lookupKey
-        : response.user?._id === ownedGuest.lookupKey,
-    ),
-  ),
-)
 const actionButtonText = computed(() => {
   if (isSignUp.value) return "Edit slots"
   else if (userHasResponded.value || isGroup.value) return "Edit availability"
@@ -1386,7 +1377,7 @@ const secondaryAddAvailabilityButtonText = computed(() => {
 const showSecondaryAddAvailabilityAction = computed(() => {
   if (isGroup.value || isSignUp.value || isEditing.value) return false
   if (showDisabledEditAvailabilityPrimary.value) return true
-  if (!(authUser.value || guestAddedAvailability.value)) return false
+  if (!(authUser.value || ownedGuestEditOptions.value.length > 0)) return false
   const event = loader.event.value
   if (!event) return false
   return (
