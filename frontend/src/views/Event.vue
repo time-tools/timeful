@@ -1370,13 +1370,7 @@ const secondaryAddAvailabilityButtonText = computed(() => {
 const showSecondaryAddAvailabilityAction = computed(() => {
   if (isGroup.value || isSignUp.value || isEditing.value) return false
   if (showDisabledEditAvailabilityPrimary.value) return true
-  if (!(authUser.value || ownedGuestEditOptions.value.length > 0)) return false
-  const event = loader.event.value
-  if (!event) return false
-  return (
-    !event.blindAvailabilityEnabled ||
-    (event.eventVisitorId ? event.canManageEvent === true : isOwner.value)
-  )
+  return Boolean(authUser.value || ownedGuestEditOptions.value.length > 0)
 })
 const showScheduleEventButton = computed(
   () =>
@@ -1907,7 +1901,7 @@ async function setSlots(e: MessageEvent<PluginMessageData>) {
   const timeIncrement = getTimeIncrementMinutes(ev)
   const payloadGuestName = normalizeGuestName(e.data.payload?.guestName)
   const hasGuestName = payloadGuestName != null
-  if (ev.blindAvailabilityEnabled) {
+  if (ev.blindAvailabilityEnabled && !ev.eventVisitorId) {
     const isOwner = isSignedInOwner(ev, authUser.value)
     if (!isOwner && hasGuestName) {
       sendPluginError(
@@ -1933,7 +1927,14 @@ async function setSlots(e: MessageEvent<PluginMessageData>) {
           (key) => responses[key]?.name === payloadGuestName,
         )
       : undefined
-    visitorResponseId = namedResponseId ?? selectedVisitorResponse(ev._id ?? "")
+    const selectedResponseId = selectedVisitorResponse(ev._id ?? "")
+    if (hasGuestName) {
+      visitorResponseId =
+        namedResponseId ??
+        (ev.blindAvailabilityEnabled ? undefined : selectedResponseId)
+    } else {
+      visitorResponseId = selectedResponseId
+    }
     if (hasGuestName) {
       guestName = payloadGuestName
     } else {

@@ -66,4 +66,27 @@ describe("useScheduleOverlapPreferences", () => {
     expect(preferences.guestName.value).toBe("Ada")
     expect(preferences.guestOwnership.value?.name).toBe("Ada")
   })
+
+  it("exposes only responses the visitor can edit", () => {
+    const event = computed(() => ({
+      eventVisitorId: "vp_visitor",
+      responses: {
+        rp_ada: { name: "Ada", publicId: "rp_ada", canEdit: true },
+        rp_other: { name: "Grace", publicId: "rp_other", canEdit: false },
+      },
+    }))
+    const preferences = useScheduleOverlapPreferences({
+      eventId: computed(() => "evt-1"),
+      event,
+    })
+
+    expect(preferences.ownedGuestResponses.value).toEqual([
+      { lookupKey: "rp_ada", name: "Ada", lastUsedAt: 0 },
+    ])
+    expect(preferences.getOwnedGuestOwnership("rp_other")).toBeUndefined()
+
+    preferences.selectGuestOwnership("rp_ada")
+
+    expect(preferences.guestOwnership.value?.lookupKey).toBe("rp_ada")
+  })
 })

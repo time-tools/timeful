@@ -144,6 +144,17 @@ function createVisitorIdentityEventState(
   }
 }
 
+function createBlindVisitorIdentityEventState(
+  responses: Record<string, PostgresEventTestResponse>,
+): EventTestState {
+  return {
+    ...createVisitorIdentityEventState(responses),
+    canEditSettings: false,
+    canManageEvent: false,
+    blindAvailabilityEnabled: true,
+  }
+}
+
 const {
   editGuestAvailabilityMock,
   editOwnedGuestAvailabilityMock,
@@ -1492,6 +1503,190 @@ describe("Event guest edit action", () => {
     })
 
     await flushDeferredMount()
+    await wrapper.get("#desktop-primary-availability-btn").trigger("click")
+    await nextTick()
+
+    const vm = wrapper.vm as unknown as {
+      showGuestEditMenu: boolean
+      ownedGuestEditOptions: { lookupKey: string; name: string }[]
+      editOwnedGuestAvailability: (lookupKey: string) => void
+    }
+
+    expect(vm.showGuestEditMenu).toBe(true)
+    expect(vm.ownedGuestEditOptions).toHaveLength(2)
+    expect(
+      vm.ownedGuestEditOptions.map((option) => option.name).sort(),
+    ).toEqual(["Ada", "Grace"])
+
+    vm.editOwnedGuestAvailability("rp_grace")
+    await nextTick()
+
+    expect(editOwnedGuestAvailabilityMock).toHaveBeenCalledWith("rp_grace")
+  })
+
+  it("keeps the secondary add availability action for a blind-mode visitor owning a response on desktop", async () => {
+    loaderEventState.value = createBlindVisitorIdentityEventState({
+      rp_ada: {
+        name: "Ada",
+        availability: [],
+        publicId: "rp_ada",
+        canEdit: true,
+      },
+    })
+
+    const wrapper = shallowMount(EventView, {
+      props: {
+        eventId: "dEeaF",
+      },
+      global: {
+        stubs: {
+          ScheduleOverlap: ScheduleOverlapVisitorResponseStub,
+          EventOptions: true,
+          NewDialog: true,
+          GuestDialog: true,
+          SignUpForSlotDialog: true,
+          SignInNotSupportedDialog: true,
+          MarkAvailabilityDialog: true,
+          InvitationDialog: true,
+          HelpDialog: true,
+          EventDescription: true,
+          AccessDenied: true,
+          NotSignedIn: true,
+          RouterLink: true,
+          "v-chip": true,
+          "v-icon": true,
+          "v-card": true,
+          "v-card-title": true,
+          "v-card-text": true,
+          "v-card-actions": true,
+          "v-dialog": true,
+          "v-spacer": true,
+          "v-btn": buttonSemanticStub,
+        },
+      },
+    })
+
+    await flushDeferredMount()
+
+    const primaryButton = wrapper.get("#desktop-primary-availability-btn")
+    expect(primaryButton.text()).toContain("Edit availability")
+    expect(primaryButton.attributes("disabled")).toBeUndefined()
+
+    const secondaryButton = wrapper.get("#desktop-secondary-availability-btn")
+    expect(secondaryButton.text()).toContain("Add availability")
+
+    await secondaryButton.trigger("click")
+
+    expect(addAvailabilityMock).toHaveBeenCalledTimes(1)
+    expect(editOwnedGuestAvailabilityMock).not.toHaveBeenCalled()
+  })
+
+  it("keeps the mobile secondary add availability action for a blind-mode visitor owning a response", async () => {
+    isPhoneState.value = true
+    loaderEventState.value = createBlindVisitorIdentityEventState({
+      rp_ada: {
+        name: "Ada",
+        availability: [],
+        publicId: "rp_ada",
+        canEdit: true,
+      },
+    })
+
+    const wrapper = shallowMount(EventView, {
+      props: {
+        eventId: "dEeaF",
+      },
+      global: {
+        stubs: {
+          ScheduleOverlap: ScheduleOverlapVisitorResponseStub,
+          EventOptions: true,
+          NewDialog: true,
+          GuestDialog: true,
+          SignUpForSlotDialog: true,
+          SignInNotSupportedDialog: true,
+          MarkAvailabilityDialog: true,
+          InvitationDialog: true,
+          HelpDialog: true,
+          EventDescription: true,
+          AccessDenied: true,
+          NotSignedIn: true,
+          RouterLink: true,
+          "v-chip": true,
+          "v-icon": true,
+          "v-card": true,
+          "v-card-title": true,
+          "v-card-text": true,
+          "v-card-actions": true,
+          "v-dialog": true,
+          "v-spacer": true,
+          "v-btn": buttonSemanticStub,
+        },
+      },
+    })
+
+    await flushDeferredMount()
+
+    const secondaryButton = wrapper.get("#mobile-secondary-availability-btn")
+    expect(secondaryButton.text()).toContain("Add availability")
+
+    await secondaryButton.trigger("click")
+
+    expect(addAvailabilityMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("keeps both blind-mode owned responses selectable through the primary chooser", async () => {
+    loaderEventState.value = createBlindVisitorIdentityEventState({
+      rp_ada: {
+        name: "Ada",
+        availability: [],
+        publicId: "rp_ada",
+        canEdit: true,
+      },
+      rp_grace: {
+        name: "Grace",
+        availability: [],
+        publicId: "rp_grace",
+        canEdit: true,
+      },
+    })
+
+    const wrapper = shallowMount(EventView, {
+      props: {
+        eventId: "dEeaF",
+      },
+      global: {
+        stubs: {
+          ScheduleOverlap: ScheduleOverlapTwoVisitorResponsesStub,
+          EventOptions: true,
+          NewDialog: true,
+          GuestDialog: true,
+          SignUpForSlotDialog: true,
+          SignInNotSupportedDialog: true,
+          MarkAvailabilityDialog: true,
+          InvitationDialog: true,
+          HelpDialog: true,
+          EventDescription: true,
+          AccessDenied: true,
+          NotSignedIn: true,
+          RouterLink: true,
+          "v-chip": true,
+          "v-icon": true,
+          "v-card": true,
+          "v-card-title": true,
+          "v-card-text": true,
+          "v-card-actions": true,
+          "v-dialog": true,
+          "v-menu": menuStub,
+          "v-spacer": true,
+          "v-btn": buttonSemanticStub,
+        },
+      },
+    })
+
+    await flushDeferredMount()
+    expect(wrapper.find("#desktop-secondary-availability-btn").exists()).toBe(
+      true,
+    )
     await wrapper.get("#desktop-primary-availability-btn").trigger("click")
     await nextTick()
 

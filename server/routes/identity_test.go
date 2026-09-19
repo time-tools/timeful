@@ -104,6 +104,21 @@ func TestVisitorIdentityContract(t *testing.T) {
 	if _, ok := guestEvent["numResponses"]; ok {
 		t.Fatal("blind response count leaked")
 	}
+	// Schedule Overlap reads responses through the dedicated response endpoint,
+	// which must keep the same blind non-owner filtering as the event payload.
+	schedulePath := path + "/responses?timeMin=2026-01-05T00:00:00Z&timeMax=2026-01-06T00:00:00Z"
+	guestSlots, _ := request(guest, http.MethodGet, schedulePath, nil, 200)
+	if len(guestSlots) != 2 || guestSlots[firstID] == nil || guestSlots[secondID] == nil {
+		t.Fatalf("expected only owned schedule responses, got %d", len(guestSlots))
+	}
+	attackerSlots, _ := request(attacker, http.MethodGet, schedulePath+"&eventVisitorId="+guestID, nil, 200)
+	if len(attackerSlots) != 0 {
+		t.Fatal("blind schedule response leaked to a public identity")
+	}
+	ownerSlots, _ := request(owner, http.MethodGet, schedulePath, nil, 200)
+	if len(ownerSlots) != 2 {
+		t.Fatalf("owner schedule view hid responses, got %d", len(ownerSlots))
+	}
 	hidden, _ := request(attacker, http.MethodGet, path+"?eventVisitorId="+guestID, nil, 200)
 	if str(hidden, "eventVisitorId") != guestID {
 		t.Fatal("public identity should survive loss of authority")
