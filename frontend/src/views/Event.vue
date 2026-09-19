@@ -1,14 +1,6 @@
 <template>
   <span>
     <div v-if="eventLoadStatus === 'ready' && event" class="tw:mt-8 tw:h-full">
-      <v-alert
-        v-if="event.eventVisitorId && event.isArchived"
-        type="info"
-        variant="tonal"
-        class="tw:mb-4"
-      >
-        This event is archived and read-only.
-      </v-alert>
       <!-- Mark availability option dialog -->
       <MarkAvailabilityDialog
         v-model="choiceDialog"
@@ -138,6 +130,14 @@
         class="tw:mx-auto tw:mt-4 tw:lg:flex tw:lg:items-start tw:lg:justify-center tw:lg:gap-6"
       >
         <div class="tw:mx-auto tw:max-w-5xl tw:flex-1">
+          <v-alert
+            v-if="event.eventVisitorId && event.isArchived"
+            type="info"
+            variant="tonal"
+            class="tw:mx-4 tw:mb-4"
+          >
+            This event is archived and read-only.
+          </v-alert>
           <div v-if="!isSettingSpecificTimes" class="tw:mx-4">
             <!-- Desktop rows pair event details with their related controls. -->
             <div

@@ -617,6 +617,33 @@ describe("Event guest edit action", () => {
     ).toContain("Unarchive event")
   })
 
+  it("renders the archived read-only banner inside the event content column", async () => {
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      eventVisitorId: "visitor-1",
+      isArchived: true,
+      canEditSettings: false,
+    }
+
+    const wrapper = shallowMount(EventView, {
+      props: { eventId: "dEeaF" },
+      global: { stubs: scheduleGateStubs },
+    })
+
+    await flushDeferredMount()
+
+    const banner = wrapper.find("v-alert")
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toBe("This event is archived and read-only.")
+    expect(banner.classes()).toContain("tw:mx-4")
+
+    const header = wrapper.find("#event-header")
+    expect(header.exists()).toBe(true)
+    const bannerColumn = banner.element.closest(".tw\\:max-w-5xl")
+    expect(bannerColumn).not.toBeNull()
+    expect(bannerColumn).toBe(header.element.closest(".tw\\:max-w-5xl"))
+  })
+
   it("aligns mobile footer action edges with the elevated panel above", () => {
     expect(eventViewSource).toContain(
       "tw:flex tw:h-16 tw:w-full tw:items-center tw:px-4",
