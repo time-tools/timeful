@@ -597,7 +597,7 @@ describe("Event guest edit action", () => {
     const activeWrapper = mountHeader()
     await flushDeferredMount()
 
-    expect(activeWrapper.findComponent(EventOwnerActions).exists()).toBe(true)
+    expect(activeWrapper.findComponent(EventOwnerActions).exists()).toBe(false)
     const activeButtons = activeWrapper
       .findAll("button")
       .map((button) => button.text())
@@ -613,7 +613,16 @@ describe("Event guest edit action", () => {
     await flushDeferredMount()
 
     expect(
-      archivedWrapper.findAll("button").map((button) => button.text()),
+      archivedWrapper
+        .get("#event-header-button-row")
+        .findAll("button")
+        .map((button) => button.text()),
+    ).not.toContain("Unarchive event")
+    expect(
+      archivedWrapper
+        .get("v-alert")
+        .findAll("button")
+        .map((button) => button.text()),
     ).toContain("Unarchive event")
   })
 
@@ -642,6 +651,50 @@ describe("Event guest edit action", () => {
     const bannerColumn = banner.element.closest(".tw\\:max-w-5xl")
     expect(bannerColumn).not.toBeNull()
     expect(bannerColumn).toBe(header.element.closest(".tw\\:max-w-5xl"))
+  })
+
+  it("renders Unarchive event inside the archived banner only for viewers who can manage it", async () => {
+    const mountBanner = () =>
+      shallowMount(EventView, {
+        props: { eventId: "dEeaF" },
+        global: {
+          stubs: { ...scheduleGateStubs, EventOwnerActions: false },
+        },
+      })
+
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      isArchived: true,
+      canEditSettings: false,
+    }
+    const managerWrapper = mountBanner()
+    await flushDeferredMount()
+
+    expect(
+      managerWrapper
+        .get("v-alert")
+        .findAll("button")
+        .map((button) => button.text()),
+    ).toEqual(["Unarchive event"])
+    expect(
+      managerWrapper
+        .get("#event-header-button-row")
+        .findAll("button")
+        .map((button) => button.text()),
+    ).not.toContain("Unarchive event")
+
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      isArchived: true,
+      canEditSettings: false,
+      canManageEvent: false,
+    }
+    const visitorWrapper = mountBanner()
+    await flushDeferredMount()
+
+    const visitorBanner = visitorWrapper.get("v-alert")
+    expect(visitorBanner.text()).toBe("This event is archived and read-only.")
+    expect(visitorBanner.findAll("button")).toHaveLength(0)
   })
 
   it("aligns mobile footer action edges with the elevated panel above", () => {
@@ -2232,7 +2285,7 @@ describe("Event guest edit action", () => {
     expect(copyLinkButton.text()).toContain("Copy link")
   })
 
-  it("orders archived header actions as Unarchive event, Copy link, then Manage access", async () => {
+  it("orders archived header actions as Copy link, then Manage access", async () => {
     loaderEventState.value = {
       ...createDefaultEventState(),
       isArchived: true,
@@ -2256,10 +2309,16 @@ describe("Event guest edit action", () => {
         .get("#event-header-button-row")
         .findAll("button")
         .map((button) => button.text()),
-    ).toEqual(["Unarchive event", "Copy link", "Manage access"])
+    ).toEqual(["Copy link", "Manage access"])
+    expect(
+      wrapper
+        .get("v-alert")
+        .findAll("button")
+        .map((button) => button.text()),
+    ).toEqual(["Unarchive event"])
   })
 
-  it("renders Unarchive event and Manage access with the green outlined treatment", async () => {
+  it("renders the banner Unarchive event action solid green and Manage access outlined", async () => {
     loaderEventState.value = {
       ...createDefaultEventState(),
       isArchived: true,
@@ -2278,13 +2337,16 @@ describe("Event guest edit action", () => {
 
     await flushDeferredMount()
 
-    const buttons = wrapper.get("#event-header-button-row").findAll("button")
-    const unarchiveButton = buttons[0]
-    const manageAccessButton = buttons[2]
+    const unarchiveButton = wrapper.get("v-alert").get("button")
+    expect(unarchiveButton.attributes("data-variant")).toBe("flat")
+    expect(unarchiveButton.classes()).toContain("tw:bg-green")
+    expect(unarchiveButton.classes()).toContain("tw:text-white")
 
-    expect(unarchiveButton.attributes("data-variant")).toBe("outlined")
-    expect(unarchiveButton.attributes("data-color")).toBe("primary")
-    expect(unarchiveButton.get("span").classes()).toContain("tw:text-green")
+    const headerButtons = wrapper
+      .get("#event-header-button-row")
+      .findAll("button")
+    const manageAccessButton = headerButtons[1]
+
     expect(manageAccessButton.attributes("data-variant")).toBe("outlined")
     expect(manageAccessButton.attributes("data-color")).toBe("primary")
     expect(manageAccessButton.get("span").classes()).toContain("tw:text-green")

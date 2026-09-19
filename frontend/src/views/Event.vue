@@ -136,7 +136,10 @@
             variant="tonal"
             class="tw:mx-4 tw:mb-4"
           >
-            This event is archived and read-only.
+            <div class="tw:flex tw:flex-col tw:items-start tw:gap-2">
+              <span>This event is archived and read-only.</span>
+              <EventOwnerActions :event="event" @changed="refreshEvent" />
+            </div>
           </v-alert>
           <div v-if="!isSettingSpecificTimes" class="tw:mx-4">
             <!-- Desktop rows pair event details with their related controls. -->
@@ -432,7 +435,6 @@
                       >
                     </v-btn>
                   </template>
-                  <EventOwnerActions :event="event" @changed="refreshEvent" />
                   <v-btn
                     v-if="!isGroup"
                     id="copy-link-btn"

@@ -80,14 +80,13 @@ describe("EventOwnerActions", () => {
     expect(children[1].textContent).toBe("Unarchive event")
   })
 
-  it("renders the unarchive action with the green outlined treatment", () => {
+  it("renders the unarchive action with the solid green treatment", () => {
     const wrapper = mountActions(baseEvent())
     const button = wrapper.get("button")
 
-    expect(button.attributes("variant")).toBe("outlined")
-    expect(button.attributes("color")).toBe("primary")
-    expect(button.get("i").classes()).toContain("tw:text-green")
-    expect(button.get("span").classes()).toContain("tw:text-green")
+    expect(button.attributes("variant")).toBe("flat")
+    expect(button.classes()).toContain("tw:bg-green")
+    expect(button.classes()).toContain("tw:text-white")
   })
 
   it("unarchives the event and requests a refresh", async () => {
