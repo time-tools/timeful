@@ -486,28 +486,43 @@
           </div>
         </v-form>
 
-        <div
-          v-if="showDangerZone"
-          class="danger-zone tw:flex tw:flex-col tw:gap-3 tw:pt-6"
-        >
-          <div class="tw:text-lg tw:text-black">Danger zone</div>
-          <v-btn
-            variant="outlined"
-            block
-            :disabled="loading"
-            @click="toggleArchive"
+        <div v-if="showDangerZone" class="danger-zone tw:pt-6">
+          <ExpandableSection
+            v-model="showDangerZoneActions"
+            label="Danger zone"
+            label-class="tw:text-lg tw:text-black"
+            :auto-scroll="dialog"
           >
-            {{ event?.isArchived ? "Unarchive event" : "Archive event" }}
-          </v-btn>
-          <v-btn
-            variant="outlined"
-            color="error"
-            block
-            :disabled="loading"
-            @click="confirmDelete = true"
-          >
-            Delete event
-          </v-btn>
+            <div
+              class="danger-zone-frame tw:mt-3 tw:flex tw:flex-col tw:gap-3 tw:rounded-lg tw:border tw:border-solid tw:border-red tw:p-4"
+            >
+              <v-btn
+                variant="outlined"
+                color="error"
+                block
+                :disabled="loading"
+                @click="toggleArchive"
+              >
+                <v-icon v-if="event?.isArchived"
+                  ><MdiArchiveArrowUpOutline
+                /></v-icon>
+                <v-icon v-else><MdiArchiveOutline /></v-icon>
+                <span class="tw:ml-1">{{
+                  event?.isArchived ? "Unarchive event" : "Archive event"
+                }}</span>
+              </v-btn>
+              <v-btn
+                variant="outlined"
+                color="error"
+                block
+                :disabled="loading"
+                @click="confirmDelete = true"
+              >
+                <v-icon><MdiTrashCanOutline /></v-icon>
+                <span class="tw:ml-1">Delete event</span>
+              </v-btn>
+            </div>
+          </ExpandableSection>
         </div>
       </v-card-text>
       <OverflowGradient
@@ -614,8 +629,11 @@ import SlideToggle from "./SlideToggle.vue"
 import AlertText from "@/components/AlertText.vue"
 import OverflowGradient from "@/components/OverflowGradient.vue"
 import MdiAlertCircle from "~icons/mdi/alert-circle"
+import MdiArchiveArrowUpOutline from "~icons/mdi/archive-arrow-up-outline"
+import MdiArchiveOutline from "~icons/mdi/archive-outline"
 import MdiCheckboxBlankOffOutline from "~icons/mdi/checkbox-blank-off-outline"
 import MdiInformationOutline from "~icons/mdi/information-outline"
+import MdiTrashCanOutline from "~icons/mdi/trash-can-outline"
 import EditorDialogHeader from "./EditorDialogHeader.vue"
 import type { Event as EventModel } from "@/types"
 import type { Timezone } from "@/composables/schedule_overlap/types"
@@ -706,6 +724,7 @@ const SUPPORTED_TIME_INCREMENTS = new Set([15, 30, 60])
 const submitAttempted = ref(false)
 const description = ref("")
 const confirmDelete = ref(false)
+const showDangerZoneActions = ref(false)
 
 function normalizeTimeIncrement(value: unknown): number {
   const candidate =

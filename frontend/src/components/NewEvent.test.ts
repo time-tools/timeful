@@ -13,6 +13,7 @@ import { createLocalStorageMock } from "@/test/localStorage"
 import {
   buildEventEditorStubs,
   type ComponentStubMap,
+  passThroughStub,
   vSelectStub as VSelectStub,
 } from "@/test/componentStubs"
 import type * as UtilsModule from "@/utils"
@@ -21,6 +22,9 @@ import NewEvent from "./NewEvent.vue"
 import newEventSource from "./NewEvent.vue?raw"
 import timeRangePickerSource from "./TimeRangePicker.vue?raw"
 import MdiAlertCircle from "~icons/mdi/alert-circle"
+import MdiArchiveArrowUpOutline from "~icons/mdi/archive-arrow-up-outline"
+import MdiArchiveOutline from "~icons/mdi/archive-outline"
+import MdiTrashCanOutline from "~icons/mdi/trash-can-outline"
 
 const mountedWrappers: ReturnType<typeof baseShallowMount>[] = []
 const shallowMount: typeof baseShallowMount = (...args) => {
@@ -296,6 +300,60 @@ const VDialogModelStub = {
   template: `<div v-if="modelValue" class="v-dialog-stub"><slot /></div>`,
 }
 
+const ExpandableSectionModelStub = {
+  name: "ExpandableSection",
+  props: {
+    modelValue: {
+      type: Boolean,
+      default: false,
+    },
+    label: {
+      type: String,
+      default: "",
+    },
+  },
+  emits: ["update:modelValue"],
+  template: `
+    <div class="expandable-section-stub">
+      <button
+        class="expandable-section-stub__toggle"
+        @click="$emit('update:modelValue', !modelValue)"
+      >{{ label }}</button>
+      <div v-if="modelValue"><slot /></div>
+    </div>
+  `,
+}
+
+const DangerZoneButtonStub = {
+  name: "VBtn",
+  props: {
+    color: {
+      type: String,
+      default: undefined,
+    },
+  },
+  emits: ["click"],
+  template: `
+    <button :data-color="color" @click="$emit('click')">
+      <slot />
+    </button>
+  `,
+}
+
+const dangerZoneStubs: ComponentStubMap = {
+  ...defaultStubs,
+  ExpandableSection: ExpandableSectionModelStub,
+  "v-btn": DangerZoneButtonStub,
+  "v-icon": passThroughStub,
+}
+
+const expandDangerZone = async (
+  wrapper: ReturnType<typeof baseShallowMount>,
+) => {
+  await wrapper.get(".expandable-section-stub__toggle").trigger("click")
+  await nextTick()
+}
+
 const managedEvent = (overrides: Partial<EventModel> = {}): EventModel => ({
   _id: "evt-1",
   name: "Managed event",
@@ -409,18 +467,34 @@ describe("NewEvent", () => {
     ])
   })
 
-  it("renders the Danger zone rows for a managed event in edit mode", () => {
+  it("renders the collapsed Danger zone and expands it into framed red action rows for a managed event in edit mode", async () => {
     const wrapper = shallowMount(NewEvent, {
       props: { edit: true, event: managedEvent() },
-      global: { stubs: defaultStubs },
+      global: { stubs: dangerZoneStubs },
     })
 
     const dangerZone = wrapper.get(".danger-zone")
     expect(dangerZone.text()).toContain("Danger zone")
-    expect(dangerZone.classes()).toContain("tw:flex-col")
-    expect(dangerZone.findAll("button").map((button) => button.text())).toEqual(
-      ["Archive event", "Delete event"],
-    )
+    expect(dangerZone.find(".danger-zone-frame").exists()).toBe(false)
+
+    await expandDangerZone(wrapper)
+
+    const frame = dangerZone.get(".danger-zone-frame")
+    expect(frame.classes()).toContain("tw:flex-col")
+    expect(frame.classes()).toContain("tw:border-red")
+    expect(frame.classes()).toContain("tw:rounded-lg")
+
+    const buttons = frame.findAll("button")
+    expect(buttons.map((button) => button.text())).toEqual([
+      "Archive event",
+      "Delete event",
+    ])
+    expect(
+      buttons.every((button) => button.attributes("data-color") === "error"),
+    ).toBe(true)
+    expect(buttons[0].findComponent(MdiArchiveOutline).exists()).toBe(true)
+    expect(buttons[0].findComponent(MdiTrashCanOutline).exists()).toBe(false)
+    expect(buttons[1].findComponent(MdiTrashCanOutline).exists()).toBe(true)
   })
 
   it("hides the Danger zone outside managed edit mode", () => {
@@ -440,8 +514,10 @@ describe("NewEvent", () => {
   it("archives and unarchives the event from the Danger zone", async () => {
     const activeWrapper = shallowMount(NewEvent, {
       props: { edit: true, event: managedEvent() },
-      global: { stubs: defaultStubs },
+      global: { stubs: dangerZoneStubs },
     })
+    await expandDangerZone(activeWrapper)
+    expect(activeWrapper.findComponent(MdiArchiveOutline).exists()).toBe(true)
     await activeWrapper
       .findAll("button")
       .find((button) => button.text() === "Archive event")
@@ -455,8 +531,12 @@ describe("NewEvent", () => {
 
     const archivedWrapper = shallowMount(NewEvent, {
       props: { edit: true, event: managedEvent({ isArchived: true }) },
-      global: { stubs: defaultStubs },
+      global: { stubs: dangerZoneStubs },
     })
+    await expandDangerZone(archivedWrapper)
+    expect(
+      archivedWrapper.findComponent(MdiArchiveArrowUpOutline).exists(),
+    ).toBe(true)
     await archivedWrapper
       .findAll("button")
       .find((button) => button.text() === "Unarchive event")
@@ -472,8 +552,11 @@ describe("NewEvent", () => {
   it("confirms deletion from the Danger zone before deleting and navigating home", async () => {
     const wrapper = shallowMount(NewEvent, {
       props: { edit: true, event: managedEvent() },
-      global: { stubs: { ...defaultStubs, "v-dialog": VDialogModelStub } },
+      global: {
+        stubs: { ...dangerZoneStubs, "v-dialog": VDialogModelStub },
+      },
     })
+    await expandDangerZone(wrapper)
 
     const findButton = (label: string) =>
       wrapper.findAll("button").find((button) => button.text() === label)

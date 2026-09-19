@@ -265,6 +265,9 @@ for (const mode of ["guest", "owner", "signed-in"] as const) {
         await targetPage
           .getByRole("button", { name: "Edit event", exact: true })
           .click()
+        await targetPage
+          .getByRole("button", { name: "Danger zone", exact: true })
+          .click()
         await expect(
           targetPage.getByRole("button", {
             name: "Archive event",
