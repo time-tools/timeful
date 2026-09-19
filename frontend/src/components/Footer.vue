@@ -156,8 +156,6 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue"
-import { useMainStore } from "@/stores/main"
 import { feedbackUrl } from "@/utils/feedback"
 import { gitHubRepoUrl } from "@/utils/github"
 import { privacyPolicyEnabled } from "@/utils/privacyPolicy"
@@ -167,28 +165,6 @@ import MdiGithub from "~icons/mdi/github"
 import MdiReddit from "~icons/mdi/reddit"
 
 defineOptions({ name: "AppFooter" })
-
-const mainStore = useMainStore()
-
-const contractAddress = "2uHvhSasjzHm4PPAWaVpuU7yKtd4yUGYx6WK2oxutQnm"
-
-const contractAddressTruncated = computed(
-  () => contractAddress.slice(0, 6) + "..." + contractAddress.slice(-4),
-)
-
-const copyContractAddress = () => {
-  navigator.clipboard
-    .writeText(contractAddress)
-    .then(() => {
-      mainStore.showInfo("Contract address copied to clipboard!")
-    })
-    .catch((err: unknown) => {
-      console.error("Failed to copy contract address: ", err)
-    })
-}
-
-void contractAddressTruncated.value
-void copyContractAddress
 </script>
 
 <style scoped lang="postcss">

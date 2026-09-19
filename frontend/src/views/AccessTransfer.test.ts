@@ -147,6 +147,24 @@ describe("target access transfer", () => {
     expect(wrapper.text()).toContain("Copy code")
     wrapper.unmount()
   })
+  it("reverts the copied confirmation after two seconds", async () => {
+    vi.useFakeTimers()
+    vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined)
+    const wrapper = render()
+    await flushPromises()
+
+    await click(wrapper, "Copy code")
+    expect(wrapper.text()).toContain("Copied")
+
+    await vi.advanceTimersByTimeAsync(2000)
+
+    expect(wrapper.text()).toContain("Copy code")
+    expect(wrapper.text()).not.toContain("Copied")
+    expect(
+      wrapper.findAll('[aria-live="polite"]').map((status) => status.text()),
+    ).not.toContain("Matching code copied")
+    wrapper.unmount()
+  })
   it("requires explicit account-switch consent and cancellation does not redeem", async () => {
     const wrapper = render()
     await flushPromises()

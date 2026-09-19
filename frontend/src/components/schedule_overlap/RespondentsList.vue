@@ -263,16 +263,20 @@
                     class="email-hover-target tw:flex tw:items-center tw:rounded-xs tw:p-px tw:text-xs tw:text-dark-gray tw:transition-all tw:hover:bg-light-gray"
                     :class="respondentClass(user._id ?? '')"
                     @mouseover.stop
-                    @click.stop="copyEmailToClipboard(user.email)"
+                    @click.stop="copyEmailToClipboard(user)"
                   >
                     {{ user.email }}
-                    <v-icon class="tw:ml-1 tw:text-xs"
-                      ><MdiContentCopy
-                    /></v-icon>
+                    <v-icon class="tw:ml-1 tw:text-xs">
+                      <MdiCheck v-if="isEmailCopied(user)" />
+                      <MdiContentCopy v-else />
+                    </v-icon>
                   </div>
                 </div>
               </div>
             </transition-group>
+            <p aria-live="polite" class="tw:sr-only">
+              {{ emailCopyAnnouncement }}
+            </p>
             <div :class="event.daysOnly ? 'tw:h-1' : 'tw:h-2'"></div>
           </template>
         </div>
@@ -392,6 +396,7 @@ import type {
   Timezone,
 } from "@/composables/schedule_overlap/types"
 import { canGuestEditResponse } from "@/composables/schedule_overlap/useScheduleOverlapUI"
+import { useCopyFeedback } from "@/composables/useCopyFeedback"
 import type { User } from "@/types"
 import { useRespondentsCsvExport } from "./useRespondentsCsvExport"
 import {
@@ -461,6 +466,15 @@ const emit = defineEmits<{
 const mainStore = useMainStore()
 const { authUser } = storeToRefs(mainStore)
 const { showError, showInfo } = mainStore
+const {
+  announcement: emailCopyAnnouncement,
+  copied: emailCopied,
+  copy: copyToClipboard,
+} = useCopyFeedback({ announcement: "Email copied" })
+const copiedEmailId = ref("")
+function isEmailCopied(user: User) {
+  return emailCopied.value && copiedEmailId.value === (user._id ?? user.email)
+}
 
 const { isPhone } = useDisplayHelpers()
 
@@ -595,12 +609,14 @@ async function deleteAvailability(user: User | null) {
   }
 }
 
-async function copyEmailToClipboard(email: string | undefined) {
+async function copyEmailToClipboard(user: User) {
+  const email = user.email
   if (!email) return
+  copiedEmailId.value = user._id ?? email
   try {
-    await navigator.clipboard.writeText(email)
-    showInfo("Email copied to clipboard!")
+    await copyToClipboard(email)
   } catch (err: unknown) {
+    copiedEmailId.value = ""
     console.error("Failed to copy email: ", err)
     showError("Failed to copy email.")
   }

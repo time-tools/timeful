@@ -44,9 +44,11 @@
                   >{{ part }}</span
                 >
               </p>
-              <v-btn :prepend-icon="MdiContentCopy" @click="copyCode">{{
-                copied ? "Copied" : "Copy code"
-              }}</v-btn>
+              <v-btn
+                :prepend-icon="copied ? MdiCheck : MdiContentCopy"
+                @click="copyCode"
+                >{{ copied ? "Copied" : "Copy code" }}</v-btn
+              >
             </div>
             <p
               v-else-if="!error"
@@ -89,7 +91,7 @@
           </li>
         </ol>
         <p aria-live="polite" class="tw:sr-only">
-          {{ copied ? "Matching code copied" : "" }}
+          {{ copyAnnouncement }}
         </p>
       </v-card-text>
     </v-card>
@@ -135,6 +137,8 @@ import {
   transferAction,
 } from "@/composables/transfer/transferBoundary"
 import { useMainStore } from "@/stores/main"
+import { useCopyFeedback } from "@/composables/useCopyFeedback"
+import MdiCheck from "~icons/mdi/check"
 import MdiContentCopy from "~icons/mdi/content-copy"
 const props = defineProps<{ eventId: string; transferId: string }>()
 const store = useMainStore()
@@ -146,7 +150,11 @@ const UNAVAILABLE_MESSAGE =
 const confirmSwitch = ref(false)
 const error = ref("")
 const busy = ref(false)
-const copied = ref(false)
+const {
+  announcement: copyAnnouncement,
+  copied,
+  copy: copyToClipboard,
+} = useCopyFeedback({ announcement: "Matching code copied" })
 const polling = ref(false)
 let timer: ReturnType<typeof setInterval> | undefined
 const activeStep = computed(() => (approved.value ? 3 : 2))
@@ -214,8 +222,7 @@ onMounted(async () => {
 })
 async function copyCode() {
   try {
-    await navigator.clipboard.writeText(code.value)
-    copied.value = true
+    await copyToClipboard(code.value)
     error.value = ""
   } catch {
     error.value =

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { flushPromises, shallowMount } from "@vue/test-utils"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { nextTick, ref } from "vue"
 import { Temporal } from "temporal-polyfill"
 import { durations, UTC } from "@/constants"
@@ -16,6 +16,8 @@ import type * as UtilsModule from "@/utils"
 import type { TimedCellState } from "@/composables/schedule_overlap/types"
 import RespondentsList from "./RespondentsList.vue"
 import respondentsListSource from "./RespondentsList.vue?raw"
+import MdiCheck from "~icons/mdi/check"
+import MdiContentCopy from "~icons/mdi/content-copy"
 import MdiDelete from "~icons/mdi/delete"
 import MdiDotsVertical from "~icons/mdi/dots-vertical"
 import MdiLock from "~icons/mdi/lock"
@@ -82,6 +84,8 @@ const mountRespondentsList = ({
   empty = false,
   maxHeight,
   stubs,
+  isOwner = false,
+  collectEmails = false,
 }: {
   curDate?: Temporal.ZonedDateTime
   setEntry: Temporal.ZonedDateTime
@@ -96,6 +100,8 @@ const mountRespondentsList = ({
   empty?: boolean
   maxHeight?: number
   stubs?: ComponentStubMap
+  isOwner?: boolean
+  collectEmails?: boolean
 }) => {
   const eventSlot = curDate ?? baseDate
 
@@ -104,7 +110,7 @@ const mountRespondentsList = ({
       eventId: "evt-1",
       event: {
         blindAvailabilityEnabled: false,
-        collectEmails: false,
+        collectEmails,
         dates: [eventSlot.toPlainDate()],
         timeSeed: eventSlot,
         duration: durations.ONE_HOUR,
@@ -131,6 +137,7 @@ const mountRespondentsList = ({
               _id: "user-1",
               firstName: "Ada",
               lastName: "Lovelace",
+              email: "ada@example.com",
               picture: "https://example.com/ada.png",
             } as never,
           ],
@@ -150,7 +157,7 @@ const mountRespondentsList = ({
               guest: false,
             },
           },
-      isOwner: false,
+      isOwner,
       isGroup: false,
       showCalendarEvents: false,
       responsesFormatted: new ZdtMap<Set<string>>(),
@@ -173,6 +180,40 @@ const mountRespondentsList = ({
 }
 
 describe("RespondentsList", () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it("confirms an email copy in place and reverts it", async () => {
+    vi.useFakeTimers()
+    const writeText = vi
+      .spyOn(navigator.clipboard, "writeText")
+      .mockResolvedValue(undefined)
+    const wrapper = mountRespondentsList({
+      setEntry: baseDate,
+      isOwner: true,
+      collectEmails: true,
+      stubs: { "v-icon": { template: "<span><slot /></span>" } },
+    })
+
+    const emailTarget = wrapper.get(".email-hover-target")
+    await emailTarget.trigger("click")
+    await flushPromises()
+
+    expect(writeText).toHaveBeenCalledWith("ada@example.com")
+    expect(emailTarget.findComponent(MdiCheck).exists()).toBe(true)
+    expect(emailTarget.findComponent(MdiContentCopy).exists()).toBe(false)
+    expect(
+      wrapper.findAll('[aria-live="polite"]').map((status) => status.text()),
+    ).toContain("Email copied")
+
+    await vi.advanceTimersByTimeAsync(2000)
+
+    expect(emailTarget.findComponent(MdiCheck).exists()).toBe(false)
+    expect(emailTarget.findComponent(MdiContentCopy).exists()).toBe(true)
+  })
+
   it("shows a read-only dates-only event timezone above Responses", () => {
     const wrapper = mountRespondentsList({
       curDate: undefined,

@@ -59,7 +59,7 @@
                 <v-btn
                   v-if="canCopy"
                   class="tw:flex-1"
-                  :prepend-icon="MdiContentCopy"
+                  :prepend-icon="copied ? MdiCheck : MdiContentCopy"
                   @click="copy"
                   >{{ copied ? "Copied" : "Copy link" }}</v-btn
                 >
@@ -182,7 +182,7 @@
             </div>
           </section>
           <p aria-live="polite" class="tw:sr-only">
-            {{ copied ? "Transfer link copied" : "" }}
+            {{ copyAnnouncement }}
           </p>
         </v-card-text>
       </v-card>
@@ -206,6 +206,8 @@ import {
   type AccessTransfer,
   type SavedTransfer,
 } from "@/composables/transfer/transferBoundary"
+import { useCopyFeedback } from "@/composables/useCopyFeedback"
+import MdiCheck from "~icons/mdi/check"
 import MdiContentCopy from "~icons/mdi/content-copy"
 import MdiRefresh from "~icons/mdi/refresh"
 
@@ -216,9 +218,15 @@ const dialog = ref(false)
 const busy = ref(false)
 const busyAction = ref<PendingAction>()
 const copying = ref(false)
+const linkCopied = ref(false)
 const polling = ref(false)
 const error = ref("")
-const copied = ref(false)
+const {
+  announcement: copyAnnouncement,
+  copied,
+  copy: copyToClipboard,
+  reset: resetCopyFeedback,
+} = useCopyFeedback({ announcement: "Transfer link copied" })
 const currentId = ref("")
 const current = ref<AccessTransfer>()
 const code = ref("")
@@ -253,7 +261,7 @@ const statusLabel = computed(() => {
 const activeStep = computed(() => {
   if (isPending.value) {
     if ((current.value?.requests.length ?? 0) > 0) return 3
-    return copied.value ? 2 : 1
+    return linkCopied.value ? 2 : 1
   }
   return isApproved.value ? 3 : 1
 })
@@ -423,7 +431,8 @@ async function start() {
         currentId.value = created.id
         tracked.value.push(rememberTransfer(eventId, currentId.value))
         code.value = ""
-        copied.value = false
+        linkCopied.value = false
+        resetCopyFeedback()
       } catch (cause) {
         if (retired) updateTransfer(retired.entry, retired.state)
         throw cause
@@ -437,8 +446,8 @@ async function copy() {
   copying.value = true
   error.value = ""
   try {
-    await navigator.clipboard.writeText(link.value)
-    copied.value = true
+    await copyToClipboard(link.value)
+    linkCopied.value = true
   } catch {
     error.value =
       "Could not copy the transfer link. Select the link and copy it manually."

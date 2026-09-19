@@ -284,6 +284,20 @@ describe("EventItem", () => {
     )
   })
 
+  it("reports a failed copy without a success toast", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    clipboardWriteTextMock.mockRejectedValue(new Error("denied"))
+    const wrapper = mountEventItem()
+
+    await findButtonByText(wrapper, "Copy link").trigger("click")
+    await flushPromises()
+
+    expect(showInfoMock).not.toHaveBeenCalled()
+    expect(showErrorMock).toHaveBeenCalledWith(
+      "Could not copy the link to the clipboard.",
+    )
+  })
+
   it("keeps owner menus compact and preserves duplicate, copy, archive, and move actions", async () => {
     const wrapper = mountEventItem()
 
@@ -302,6 +316,7 @@ describe("EventItem", () => {
     ).toBe(true)
 
     await findButtonByText(wrapper, "Copy link").trigger("click")
+    await flushPromises()
     expect(clipboardWriteTextMock).toHaveBeenCalledWith(
       "http://localhost:3000/e/evt-1",
     )

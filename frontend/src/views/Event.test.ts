@@ -238,6 +238,8 @@ vi.mock("@/composables/event/useEventEditing", () => ({
     addAvailabilityAsGuest: addAvailabilityAsGuestMock,
     cancelEditing: vi.fn(),
     copyLink: copyLinkMock,
+    linkCopied: ref(false),
+    linkCopyAnnouncement: ref(""),
     deleteAvailability: vi.fn(),
     editEvent: editEventMock,
     saveChanges: vi.fn(),

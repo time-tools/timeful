@@ -268,6 +268,42 @@ it("announces the copied link politely", async () => {
   wrapper.unmount()
 })
 
+it("reverts the copied confirmation after two seconds", async () => {
+  vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined)
+  const wrapper = render()
+  await click(wrapper, "Manage access")
+  await click(wrapper, "Create new transfer link")
+  await click(wrapper, "Copy link")
+  expect(wrapper.text()).toContain("Copied")
+
+  await vi.advanceTimersByTimeAsync(2000)
+  await flushPromises()
+
+  expect(wrapper.text()).toContain("Copy link")
+  expect(wrapper.text()).not.toContain("Copied")
+  const announcements = wrapper
+    .findAll('[aria-live="polite"]')
+    .map((status) => status.text())
+  expect(announcements).not.toContain("Transfer link copied")
+  wrapper.unmount()
+})
+
+it("keeps step 2 current after the copied confirmation reverts", async () => {
+  vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined)
+  const wrapper = render()
+  await click(wrapper, "Manage access")
+  await click(wrapper, "Create new transfer link")
+  await click(wrapper, "Copy link")
+  expect(steps(wrapper)[1].attributes("aria-current")).toBe("step")
+
+  await vi.advanceTimersByTimeAsync(2000)
+  await flushPromises()
+
+  expect(steps(wrapper)[1].attributes("aria-current")).toBe("step")
+  expect(steps(wrapper)[0].attributes("aria-current")).toBeUndefined()
+  wrapper.unmount()
+})
+
 it("restores a saved pending transfer after a reload", async () => {
   localStorage.setItem(
     "timeful.transfers.EVENT123",

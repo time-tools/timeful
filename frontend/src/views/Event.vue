@@ -443,9 +443,17 @@
                     class="event-metadata-action-button"
                     @click="copyLink"
                   >
-                    <v-icon class="tw:text-green"><MdiContentCopy /></v-icon>
-                    <span class="tw:ml-1 tw:text-green">Copy link</span>
+                    <v-icon class="tw:text-green">
+                      <MdiCheck v-if="linkCopied" />
+                      <MdiContentCopy v-else />
+                    </v-icon>
+                    <span class="tw:ml-1 tw:text-green">{{
+                      linkCopied ? "Copied" : "Copy link"
+                    }}</span>
                   </v-btn>
+                  <p aria-live="polite" class="tw:sr-only">
+                    {{ linkCopyAnnouncement }}
+                  </p>
                   <EventAccessTransfer :event="event" />
                 </div>
                 <div
@@ -1128,6 +1136,7 @@ import EventOptions from "@/components/schedule_overlap/EventOptions.vue"
 import { privacyPolicyEnabled } from "@/utils/privacyPolicy"
 import MdiCalendarCheck from "~icons/mdi/calendar-check"
 import MdiCalendarToday from "~icons/mdi/calendar-today"
+import MdiCheck from "~icons/mdi/check"
 import MdiContentCopy from "~icons/mdi/content-copy"
 import MdiPencil from "~icons/mdi/pencil"
 import MdiPlus from "~icons/mdi/plus"
@@ -1559,6 +1568,8 @@ const {
   addAvailabilityAsGuest,
   cancelEditing,
   copyLink,
+  linkCopied,
+  linkCopyAnnouncement,
   deleteAvailability,
   editEvent,
   saveChanges,

@@ -1,6 +1,9 @@
+// @vitest-environment happy-dom
+
 import { computed, ref } from "vue"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { durations } from "@/constants"
+import { COPY_FEEDBACK_DURATION_MS } from "@/composables/useCopyFeedback"
 import type { Event } from "@/types"
 import type { ScheduleOverlapInstance } from "./types"
 import { useEventEditing } from "./useEventEditing"
@@ -255,5 +258,83 @@ describe("useEventEditing", () => {
 
     expect(clearSelectedGuestOwnership).toHaveBeenCalledTimes(1)
     expect(startEditing).toHaveBeenCalledTimes(1)
+  })
+})
+
+function createEditing(event: Event) {
+  return useEventEditing({
+    event: ref(event),
+    eventId: ref("evt-1"),
+    authUser: computed(() => null),
+    scheduleOverlapRef: ref<ScheduleOverlapInstance | null>(null),
+    isSignUp: computed(() => false),
+    isGroup: computed(() => false),
+    userHasResponded: computed(() => false),
+    curGuestId: ref(""),
+    addingAvailabilityAsGuest: ref(false),
+    calendarPermissionGranted: ref(false),
+    refreshEvent: vi.fn().mockResolvedValue(undefined),
+  })
+}
+
+describe("useEventEditing copyLink", () => {
+  const writeText = vi.fn()
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    writeText.mockReset().mockResolvedValue(undefined)
+    vi.stubGlobal("navigator", { clipboard: { writeText } })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+
+  it("copies the public event link and confirms in place", async () => {
+    const editing = createEditing({ _id: "abc123" })
+
+    await editing.copyLink()
+
+    expect(writeText).toHaveBeenCalledWith("http://localhost:3000/e/abc123")
+    expect(editing.linkCopied.value).toBe(true)
+    expect(editing.linkCopyAnnouncement.value).toBe("Link copied")
+    expect(showErrorMock).not.toHaveBeenCalled()
+  })
+
+  it("reverts the link confirmation after the feedback duration", async () => {
+    const editing = createEditing({ _id: "abc123" })
+    await editing.copyLink()
+
+    vi.advanceTimersByTime(COPY_FEEDBACK_DURATION_MS)
+
+    expect(editing.linkCopied.value).toBe(false)
+    expect(editing.linkCopyAnnouncement.value).toBe("")
+  })
+
+  it("restarts the confirmation timer on repeated activation", async () => {
+    const editing = createEditing({ _id: "abc123" })
+    await editing.copyLink()
+    vi.advanceTimersByTime(1500)
+
+    await editing.copyLink()
+    vi.advanceTimersByTime(1500)
+    expect(editing.linkCopied.value).toBe(true)
+
+    vi.advanceTimersByTime(500)
+    expect(editing.linkCopied.value).toBe(false)
+  })
+
+  it("reports a failed copy without confirming success", async () => {
+    writeText.mockRejectedValue(new Error("denied"))
+    const editing = createEditing({ _id: "abc123" })
+
+    await editing.copyLink()
+
+    expect(editing.linkCopied.value).toBe(false)
+    expect(showInfoMock).not.toHaveBeenCalled()
+    expect(showErrorMock).toHaveBeenCalledWith(
+      "Could not copy the event link. Copy it from the address bar instead.",
+    )
   })
 })
