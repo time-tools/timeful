@@ -7,7 +7,7 @@ import {
 } from "@vue/test-utils"
 import { nextTick, ref } from "vue"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { durations, eventTypes } from "@/constants"
+import { durations, eventTypes, guestUserId } from "@/constants"
 import { Temporal } from "temporal-polyfill"
 import { createLocalStorageMock } from "@/test/localStorage"
 import {
@@ -19,6 +19,7 @@ import {
 import type * as UtilsModule from "@/utils"
 import type { Event as EventModel } from "@/types"
 import NewEvent from "./NewEvent.vue"
+import AlertText from "./AlertText.vue"
 import newEventSource from "./NewEvent.vue?raw"
 import timeRangePickerSource from "./TimeRangePicker.vue?raw"
 import MdiAlertCircle from "~icons/mdi/alert-circle"
@@ -1750,6 +1751,27 @@ describe("NewEvent", () => {
     }
 
     expect(vm.timeIncrement ?? vm.$.setupState?.timeIncrement).toBe(30)
+  })
+
+  it("does not show the anonymous-created note banner when editing", () => {
+    const wrapper = shallowMount(NewEvent, {
+      props: {
+        edit: true,
+        event: {
+          _id: "evt-guest-created",
+          ownerId: guestUserId,
+        },
+      },
+      global: {
+        stubs: defaultStubs,
+      },
+    })
+
+    expect(wrapper.findComponent(AlertText).exists()).toBe(false)
+    expect(newEventSource).not.toContain(
+      "Anybody can edit this event because it was created while not signed in",
+    )
+    expect(wrapper.find(".new-event-form").exists()).toBe(true)
   })
 
   it("commits ISO dates emitted by DatePicker into Temporal selected days", async () => {

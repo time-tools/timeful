@@ -25,9 +25,6 @@
         ref="cardText"
         class="tw:relative tw:flex-1 tw:overflow-auto tw:px-4 tw:py-1 tw:sm:px-8"
       >
-        <AlertText v-if="edit && guestEvent" class="tw:mb-4">
-          Anybody can edit this event because it was created while not signed in
-        </AlertText>
         <v-form
           ref="formRef"
           v-model="formValid"
@@ -626,7 +623,6 @@ import EmailInput from "./event/EmailInput.vue"
 import ExpandableSection from "./ExpandableSection.vue"
 import DatePicker from "@/components/DatePicker.vue"
 import SlideToggle from "./SlideToggle.vue"
-import AlertText from "@/components/AlertText.vue"
 import OverflowGradient from "@/components/OverflowGradient.vue"
 import MdiAlertCircle from "~icons/mdi/alert-circle"
 import MdiArchiveArrowUpOutline from "~icons/mdi/archive-arrow-up-outline"
