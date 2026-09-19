@@ -2,11 +2,12 @@
   <v-btn
     v-if="showUnarchive"
     variant="outlined"
+    color="primary"
     :disabled="busy"
     @click="toggleArchive"
   >
-    <v-icon><MdiArchiveArrowUpOutline /></v-icon>
-    <span class="tw:ml-1">Unarchive event</span>
+    <v-icon class="tw:text-green"><MdiArchiveArrowUpOutline /></v-icon>
+    <span class="tw:ml-1 tw:text-green">Unarchive event</span>
   </v-btn>
 </template>
 

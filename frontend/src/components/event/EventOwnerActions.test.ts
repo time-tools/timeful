@@ -3,7 +3,7 @@
 import { flushPromises, mount } from "@vue/test-utils"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import MdiArchiveArrowUpOutline from "~icons/mdi/archive-arrow-up-outline"
-import { clickButtonStub, passThroughStub } from "@/test/componentStubs"
+import { clickButtonStub } from "@/test/componentStubs"
 import EventOwnerActions from "./EventOwnerActions.vue"
 
 const { archiveEventMock, showErrorMock } = vi.hoisted(() => ({
@@ -30,10 +30,15 @@ const baseEvent = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 })
 
+const iconStub = {
+  inheritAttrs: false,
+  template: '<i v-bind="$attrs"><slot /></i>',
+}
+
 const mountActions = (event: ReturnType<typeof baseEvent>) =>
   mount(EventOwnerActions, {
     props: { event },
-    global: { stubs: { "v-btn": clickButtonStub, "v-icon": passThroughStub } },
+    global: { stubs: { "v-btn": clickButtonStub, "v-icon": iconStub } },
   })
 
 describe("EventOwnerActions", () => {
@@ -73,6 +78,16 @@ describe("EventOwnerActions", () => {
     const children = Array.from(button.element.children)
     expect(children[0].contains(icon.element)).toBe(true)
     expect(children[1].textContent).toBe("Unarchive event")
+  })
+
+  it("renders the unarchive action with the green outlined treatment", () => {
+    const wrapper = mountActions(baseEvent())
+    const button = wrapper.get("button")
+
+    expect(button.attributes("variant")).toBe("outlined")
+    expect(button.attributes("color")).toBe("primary")
+    expect(button.get("i").classes()).toContain("tw:text-green")
+    expect(button.get("span").classes()).toContain("tw:text-green")
   })
 
   it("unarchives the event and requests a refresh", async () => {

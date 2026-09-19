@@ -1,8 +1,8 @@
 <template>
   <template v-if="event.eventVisitorId && event._id">
-    <v-btn variant="outlined" @click="openDialog"
-      >Continue on another device</v-btn
-    >
+    <v-btn variant="outlined" color="primary" @click="openDialog">
+      <span class="tw:text-green">Continue on another device</span>
+    </v-btn>
     <v-dialog v-model="dialog" max-width="540">
       <v-card title="Continue on another device">
         <v-card-text class="tw:flex tw:flex-col tw:gap-4">

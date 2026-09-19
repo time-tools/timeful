@@ -68,6 +68,18 @@ async function click(wrapper: ReturnType<typeof render>, text: string) {
   await button?.trigger("click")
   await flushPromises()
 }
+it("renders the trigger with the green outlined treatment", () => {
+  const wrapper = render()
+  const button = wrapper
+    .findAll("button")
+    .find((button) => button.text() === "Continue on another device")
+
+  expect(button).toBeDefined()
+  expect(button?.attributes("variant")).toBe("outlined")
+  expect(button?.attributes("color")).toBe("primary")
+  expect(button?.get("span").classes()).toContain("tw:text-green")
+})
+
 it("keeps wrong-code feedback visible across status polling", async () => {
   const wrapper = render()
   await click(wrapper, "Continue on another device")

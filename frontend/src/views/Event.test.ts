@@ -2259,6 +2259,37 @@ describe("Event guest edit action", () => {
     ).toEqual(["Unarchive event", "Copy link", "Continue on another device"])
   })
 
+  it("renders Unarchive event and Continue on another device with the green outlined treatment", async () => {
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      isArchived: true,
+    }
+
+    const wrapper = shallowMount(EventView, {
+      props: { eventId: "dEeaF" },
+      global: {
+        stubs: {
+          ...scheduleGateStubs,
+          EventOwnerActions: false,
+          EventAccessTransfer: false,
+        },
+      },
+    })
+
+    await flushDeferredMount()
+
+    const buttons = wrapper.get("#event-header-button-row").findAll("button")
+    const unarchiveButton = buttons[0]
+    const continueButton = buttons[2]
+
+    expect(unarchiveButton.attributes("data-variant")).toBe("outlined")
+    expect(unarchiveButton.attributes("data-color")).toBe("primary")
+    expect(unarchiveButton.get("span").classes()).toContain("tw:text-green")
+    expect(continueButton.attributes("data-variant")).toBe("outlined")
+    expect(continueButton.attributes("data-color")).toBe("primary")
+    expect(continueButton.get("span").classes()).toContain("tw:text-green")
+  })
+
   it("keeps Edit event first in the header action order", async () => {
     const wrapper = shallowMount(EventView, {
       props: { eventId: "dEeaF" },
