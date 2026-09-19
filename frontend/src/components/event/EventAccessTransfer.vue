@@ -1,22 +1,23 @@
 <template>
   <template v-if="event.eventVisitorId && event._id">
     <v-btn variant="outlined" color="primary" @click="openDialog">
-      <span class="tw:text-green">Continue on another device</span>
+      <span class="tw:text-green">Manage access</span>
     </v-btn>
     <v-dialog v-model="dialog" max-width="540">
-      <v-card title="Continue on another device">
+      <v-card title="Manage access">
         <v-card-text class="tw:flex tw:flex-col tw:gap-4">
           <p>
-            Open the link on your other browser. Within five minutes, enter the
-            matching code shown there and approve it here. Opening the link
-            alone gives no access.
+            Use this event on another browser, or revoke access you granted
+            earlier. Create a transfer link, open it on the other browser, and
+            approve the matching code shown there within five minutes. Opening
+            the link alone gives no access.
           </p>
           <p v-if="store.authUser">
             This signs the other browser in to your account.
           </p>
           <p v-else>
             This grants access to your responses and, if you own this event, its
-            owner controls. You can revoke granted access here.
+            owner controls.
           </p>
           <v-alert v-if="error" type="error">{{ error }}</v-alert>
           <v-btn :disabled="busy" @click="start">Create transfer link</v-btn>

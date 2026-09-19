@@ -2232,7 +2232,7 @@ describe("Event guest edit action", () => {
     expect(copyLinkButton.text()).toContain("Copy link")
   })
 
-  it("orders archived header actions as Unarchive event, Copy link, then Continue on another device", async () => {
+  it("orders archived header actions as Unarchive event, Copy link, then Manage access", async () => {
     loaderEventState.value = {
       ...createDefaultEventState(),
       isArchived: true,
@@ -2256,10 +2256,10 @@ describe("Event guest edit action", () => {
         .get("#event-header-button-row")
         .findAll("button")
         .map((button) => button.text()),
-    ).toEqual(["Unarchive event", "Copy link", "Continue on another device"])
+    ).toEqual(["Unarchive event", "Copy link", "Manage access"])
   })
 
-  it("renders Unarchive event and Continue on another device with the green outlined treatment", async () => {
+  it("renders Unarchive event and Manage access with the green outlined treatment", async () => {
     loaderEventState.value = {
       ...createDefaultEventState(),
       isArchived: true,
@@ -2280,14 +2280,14 @@ describe("Event guest edit action", () => {
 
     const buttons = wrapper.get("#event-header-button-row").findAll("button")
     const unarchiveButton = buttons[0]
-    const continueButton = buttons[2]
+    const manageAccessButton = buttons[2]
 
     expect(unarchiveButton.attributes("data-variant")).toBe("outlined")
     expect(unarchiveButton.attributes("data-color")).toBe("primary")
     expect(unarchiveButton.get("span").classes()).toContain("tw:text-green")
-    expect(continueButton.attributes("data-variant")).toBe("outlined")
-    expect(continueButton.attributes("data-color")).toBe("primary")
-    expect(continueButton.get("span").classes()).toContain("tw:text-green")
+    expect(manageAccessButton.attributes("data-variant")).toBe("outlined")
+    expect(manageAccessButton.attributes("data-color")).toBe("primary")
+    expect(manageAccessButton.get("span").classes()).toContain("tw:text-green")
   })
 
   it("keeps Edit event first in the header action order", async () => {
@@ -2309,7 +2309,7 @@ describe("Event guest edit action", () => {
         .get("#event-header-button-row")
         .findAll("button")
         .map((button) => button.text()),
-    ).toEqual(["Edit event", "Copy link", "Continue on another device"])
+    ).toEqual(["Edit event", "Copy link", "Manage access"])
   })
 
   it("hides the header date summary for timed specific-date events", async () => {

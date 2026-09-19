@@ -72,7 +72,7 @@ it("renders the trigger with the green outlined treatment", () => {
   const wrapper = render()
   const button = wrapper
     .findAll("button")
-    .find((button) => button.text() === "Continue on another device")
+    .find((button) => button.text() === "Manage access")
 
   expect(button).toBeDefined()
   expect(button?.attributes("variant")).toBe("outlined")
@@ -80,9 +80,18 @@ it("renders the trigger with the green outlined treatment", () => {
   expect(button?.get("span").classes()).toContain("tw:text-green")
 })
 
+it("explains the transfer flow in the dialog", () => {
+  const text = render().text()
+
+  expect(text).toContain("Use this event on another browser")
+  expect(text).toContain("revoke access you granted earlier")
+  expect(text).toContain("approve the matching code")
+  expect(text).toContain("Opening the link alone gives no access")
+})
+
 it("keeps wrong-code feedback visible across status polling", async () => {
   const wrapper = render()
-  await click(wrapper, "Continue on another device")
+  await click(wrapper, "Manage access")
   await click(wrapper, "Create transfer link")
   await wrapper
     .get('input[aria-label="Matching code from other browser"]')
@@ -122,7 +131,7 @@ it("prunes legacy history and polls only active transfers with stable grant numb
     })
   })
   const wrapper = render()
-  await click(wrapper, "Continue on another device")
+  await click(wrapper, "Manage access")
   expect(post).toHaveBeenCalledTimes(5)
   expect(savedTransfers("EVENT123").map(({ id }) => id)).toEqual([
     "first",
@@ -144,7 +153,7 @@ it("prunes legacy history and polls only active transfers with stable grant numb
   expect(post).not.toHaveBeenCalled()
   wrapper.unmount()
   const reopened = render()
-  await click(reopened, "Continue on another device")
+  await click(reopened, "Manage access")
   expect(reopened.text()).toContain("Granted access 3")
   reopened.unmount()
   post.mockClear()
@@ -154,7 +163,7 @@ it("prunes legacy history and polls only active transfers with stable grant numb
 
 it("polls the current transfer once and stops after a non-revocable completion", async () => {
   const wrapper = render()
-  await click(wrapper, "Continue on another device")
+  await click(wrapper, "Manage access")
   await click(wrapper, "Create transfer link")
   post.mockClear()
   await vi.advanceTimersByTimeAsync(2000)
@@ -176,7 +185,7 @@ it("polls the current transfer once and stops after a non-revocable completion",
 
 it("allows cancelling an approved transfer and stops tracking it", async () => {
   const wrapper = render()
-  await click(wrapper, "Continue on another device")
+  await click(wrapper, "Manage access")
   await click(wrapper, "Create transfer link")
   post.mockResolvedValue({ state: "approved" })
   await vi.advanceTimersByTimeAsync(2000)
@@ -200,7 +209,7 @@ it("allows cancelling an approved transfer and stops tracking it", async () => {
 it("does not drop a cancel while a status poll is in flight", async () => {
   let resolveStatus: (value: { state: string }) => void = () => {}
   const wrapper = render()
-  await click(wrapper, "Continue on another device")
+  await click(wrapper, "Manage access")
   await click(wrapper, "Create transfer link")
   post.mockResolvedValue({ state: "approved" })
   await vi.advanceTimersByTimeAsync(2000)
@@ -230,7 +239,7 @@ it("retains revocation handles and visible grants on transient status failures",
   localStorage.setItem("timeful.transfers.EVENT123", JSON.stringify(["grant"]))
   post.mockResolvedValue({ state: "redeemed", revocable: true })
   const wrapper = render()
-  await click(wrapper, "Continue on another device")
+  await click(wrapper, "Manage access")
   post.mockRejectedValue(
     Object.assign(new FetchError("Server error"), { status: 500 }),
   )
@@ -249,7 +258,7 @@ it("names clipboard failures and preserves the message across successful polls",
     new Error("denied"),
   )
   const wrapper = render()
-  await click(wrapper, "Continue on another device")
+  await click(wrapper, "Manage access")
   await click(wrapper, "Create transfer link")
   await click(wrapper, "Copy transfer link")
   expect(wrapper.get('[role="alert"]').text()).toContain(
