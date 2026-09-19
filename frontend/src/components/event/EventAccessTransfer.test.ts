@@ -45,8 +45,13 @@ function render() {
     global: {
       stubs: {
         VBtn: { template: "<button><slot /></button>" },
-        VDialog: { template: "<div><slot /></div>" },
+        VDialog: {
+          props: { contentProps: Object, scrollable: Boolean },
+          template:
+            '<div role="dialog" :aria-labelledby="contentProps && contentProps[\'aria-labelledby\']" :data-scrollable="String(scrollable)"><slot /></div>',
+        },
         VCard: { template: "<div><slot /></div>" },
+        VCardTitle: { template: "<div><slot /></div>" },
         VCardText: { template: "<div><slot /></div>" },
         VCardActions: { template: "<div><slot /></div>" },
         VAlert: { template: '<div role="alert"><slot /></div>' },
@@ -68,6 +73,9 @@ async function click(wrapper: ReturnType<typeof render>, text: string) {
   await button?.trigger("click")
   await flushPromises()
 }
+function steps(wrapper: ReturnType<typeof render>) {
+  return wrapper.findAll('[data-testid^="manage-access-step-"]')
+}
 it("renders the trigger with the green outlined treatment", () => {
   const wrapper = render()
   const button = wrapper
@@ -85,8 +93,151 @@ it("explains the transfer flow in the dialog", () => {
 
   expect(text).toContain("Use this event on another browser")
   expect(text).toContain("revoke access you granted earlier")
-  expect(text).toContain("approve the matching code")
+  expect(text).toContain("The link expires five minutes after you create it")
+  expect(text).toContain("It shows a matching code")
   expect(text).toContain("Opening the link alone gives no access")
+  expect(text).toContain("Enter its code and approve")
+})
+
+it("renders the three numbered steps behind an accessible dialog name", () => {
+  const wrapper = render()
+
+  expect(wrapper.get('[role="dialog"]').attributes("aria-labelledby")).toBe(
+    "manage-access-title",
+  )
+  expect(wrapper.get("#manage-access-title").text()).toBe("Manage access")
+  expect(wrapper.get('[role="dialog"]').attributes("data-scrollable")).toBe(
+    "true",
+  )
+  const rendered = steps(wrapper)
+  expect(rendered.map((step) => step.attributes("data-testid"))).toEqual([
+    "manage-access-step-1",
+    "manage-access-step-2",
+    "manage-access-step-3",
+  ])
+  expect(rendered[0].text()).toContain(
+    "Step 1: Create and copy a transfer link",
+  )
+  expect(rendered[1].text()).toContain(
+    "Step 2: Open the link in the other browser",
+  )
+  expect(rendered[2].text()).toContain("Step 3: Enter its code and approve")
+  wrapper.unmount()
+})
+
+it("starts with step 1 current and hides the code input until a transfer exists", () => {
+  const wrapper = render()
+  const rendered = steps(wrapper)
+
+  expect(rendered[0].attributes("aria-current")).toBe("step")
+  expect(rendered[1].attributes("aria-current")).toBeUndefined()
+  expect(rendered[2].attributes("aria-current")).toBeUndefined()
+  expect(
+    wrapper
+      .find('input[aria-label="Matching code from other browser"]')
+      .exists(),
+  ).toBe(false)
+  wrapper.unmount()
+})
+
+it("marks step 2 current after the link is copied and waits for the other browser", async () => {
+  vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined)
+  const wrapper = render()
+  await click(wrapper, "Manage access")
+  await click(wrapper, "Create new transfer link")
+  await click(wrapper, "Copy link")
+
+  expect(steps(wrapper)[1].attributes("aria-current")).toBe("step")
+  expect(wrapper.text()).toContain(
+    "Waiting for the other browser to open the link.",
+  )
+  wrapper.unmount()
+})
+
+it("marks step 3 current when the other browser is showing a code", async () => {
+  const wrapper = render()
+  await click(wrapper, "Manage access")
+  await click(wrapper, "Create new transfer link")
+  post.mockImplementation((url: string) =>
+    Promise.resolve(
+      url.endsWith("/transfers")
+        ? { id: "transfer", state: "pending" }
+        : {
+            state: "pending",
+            requests: [{ id: "request", code: "ABC123" }],
+          },
+    ),
+  )
+  await vi.advanceTimersByTimeAsync(2100)
+  await flushPromises()
+
+  expect(steps(wrapper)[2].attributes("aria-current")).toBe("step")
+  expect(wrapper.text()).toContain(
+    "The other browser is showing a code — enter it in step 3.",
+  )
+  wrapper.unmount()
+})
+
+it("keeps step 3 current while approved and returns to step 1 when terminal", async () => {
+  const wrapper = render()
+  await click(wrapper, "Manage access")
+  await click(wrapper, "Create new transfer link")
+  post.mockImplementation((url: string) =>
+    Promise.resolve(
+      url.endsWith("/transfers")
+        ? { id: "transfer", state: "pending" }
+        : { state: "approved", requests: [{ id: "request", code: "ABC123" }] },
+    ),
+  )
+  await vi.advanceTimersByTimeAsync(2100)
+  await flushPromises()
+
+  expect(steps(wrapper)[2].attributes("aria-current")).toBe("step")
+  expect(wrapper.text()).toContain("Approved — finish in the other browser.")
+
+  post.mockResolvedValue({ state: "redeemed", requests: [], revocable: false })
+  await vi.advanceTimersByTimeAsync(2100)
+  await flushPromises()
+
+  expect(steps(wrapper)[0].attributes("aria-current")).toBe("step")
+  expect(wrapper.text()).toContain("Completed.")
+  wrapper.unmount()
+})
+
+it("keeps the code input available before the first status poll and describes it", async () => {
+  const wrapper = render()
+  await click(wrapper, "Manage access")
+  await click(wrapper, "Create new transfer link")
+  const input = wrapper.get(
+    'input[aria-label="Matching code from other browser"]',
+  )
+
+  expect(input.attributes("autocapitalize")).toBe("characters")
+  expect(input.attributes("spellcheck")).toBe("false")
+  expect(input.attributes("hint")).toContain("other browser")
+  const approve = wrapper
+    .findAll("button")
+    .find((button) => button.text() === "Approve matching code")
+  expect(approve?.attributes("disabled")).toBeDefined()
+
+  await input.setValue("ABC123")
+
+  expect(approve?.attributes("disabled")).toBeUndefined()
+  wrapper.unmount()
+})
+
+it("announces the copied link politely", async () => {
+  vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined)
+  const wrapper = render()
+  await click(wrapper, "Manage access")
+  await click(wrapper, "Create new transfer link")
+  await click(wrapper, "Copy link")
+
+  const announcements = wrapper
+    .findAll('[aria-live="polite"]')
+    .map((status) => status.text())
+  expect(announcements).toContain("Transfer link copied")
+  wrapper.unmount()
 })
 
 it("restores a saved pending transfer after a reload", async () => {
@@ -101,7 +252,9 @@ it("restores a saved pending transfer after a reload", async () => {
   await click(wrapper, "Manage access")
 
   expect(wrapper.text()).toContain("Copy link")
-  expect(wrapper.text()).toContain("Transfer status: Waiting for approval")
+  expect(wrapper.text()).toContain(
+    "Waiting for the other browser to open the link.",
+  )
   expect(wrapper.text()).toContain("Approve matching code")
   expect(wrapper.text()).toContain("Cancel transfer")
   expect(
@@ -133,9 +286,7 @@ it("restores a saved approved transfer after a reload", async () => {
   const wrapper = render()
   await click(wrapper, "Manage access")
 
-  expect(wrapper.text()).toContain(
-    "Transfer status: Approved — waiting for the other browser",
-  )
+  expect(wrapper.text()).toContain("Approved — finish in the other browser.")
   expect(wrapper.text()).toContain("Cancel transfer")
   expect(wrapper.text()).not.toContain("Approve matching code")
   expect(wrapper.text()).toContain("Copy link")
@@ -191,9 +342,7 @@ it("restores the most recently created active transfer after a reload", async ()
   expect(
     wrapper.get('input[aria-label="Transfer link"]').attributes("value"),
   ).toBe("http://localhost:3000/transfer/EVENT123/second")
-  expect(wrapper.text()).toContain(
-    "Transfer status: Approved — waiting for the other browser",
-  )
+  expect(wrapper.text()).toContain("Approved — finish in the other browser.")
   expect(wrapper.text()).toContain("Cancel transfer")
   wrapper.unmount()
 })
@@ -223,7 +372,9 @@ it("cancels the live transfer before creating a replacement link", async () => {
   expect(savedTransfers("EVENT123").map(({ id }) => id)).toEqual([
     "replacement",
   ])
-  expect(wrapper.text()).toContain("Transfer status: Waiting for approval")
+  expect(wrapper.text()).toContain(
+    "Waiting for the other browser to open the link.",
+  )
   wrapper.unmount()
 })
 
@@ -251,7 +402,9 @@ it("keeps the live transfer visible while its replacement is created", async () 
   resolveCancel({ state: "cancelled" })
   await flushPromises()
 
-  expect(wrapper.text()).toContain("Transfer status: Waiting for approval")
+  expect(wrapper.text()).toContain(
+    "Waiting for the other browser to open the link.",
+  )
   expect(wrapper.text()).toContain("Copy link")
   expect(wrapper.text()).toContain("Approve matching code")
   expect(wrapper.text()).toContain("Cancel transfer")
@@ -265,7 +418,9 @@ it("keeps the live transfer visible while its replacement is created", async () 
   expect(
     wrapper.get('input[aria-label="Transfer link"]').attributes("value"),
   ).toBe("http://localhost:3000/transfer/EVENT123/replacement")
-  expect(wrapper.text()).toContain("Transfer status: Waiting for approval")
+  expect(wrapper.text()).toContain(
+    "Waiting for the other browser to open the link.",
+  )
   wrapper.unmount()
 })
 
@@ -286,7 +441,7 @@ it("reconciles a cancelled transfer when the replacement create fails", async ()
   expect(wrapper.get('[role="alert"]').text()).toContain(
     "Could not create a transfer link",
   )
-  expect(wrapper.text()).toContain("Transfer status: Cancelled")
+  expect(wrapper.text()).toContain("Cancelled.")
   expect(wrapper.text()).not.toContain("Copy link")
   expect(savedTransfers("EVENT123")).toEqual([])
   wrapper.unmount()
@@ -403,7 +558,7 @@ it("hides Copy link once the transfer is no longer live", async () => {
   await click(wrapper, "Cancel transfer")
 
   expect(wrapper.text()).not.toContain("Copy link")
-  expect(wrapper.text()).toContain("Transfer status: Cancelled")
+  expect(wrapper.text()).toContain("Cancelled.")
   expect(wrapper.find('input[aria-label="Transfer link"]').exists()).toBe(true)
   wrapper.unmount()
 })
@@ -491,11 +646,11 @@ it("polls the current transfer once and stops after a non-revocable completion",
   post.mockResolvedValue({ state: "approved" })
   await vi.advanceTimersByTimeAsync(2000)
   expect(savedTransfers("EVENT123")).toHaveLength(1)
-  expect(wrapper.text()).toContain("Approved — waiting for the other browser")
+  expect(wrapper.text()).toContain("Approved — finish in the other browser.")
   post.mockResolvedValue({ state: "redeemed", revocable: false })
   await vi.advanceTimersByTimeAsync(2000)
   expect(savedTransfers("EVENT123")).toEqual([])
-  expect(wrapper.text()).toContain("Completed")
+  expect(wrapper.text()).toContain("Completed.")
   post.mockClear()
   await vi.advanceTimersByTimeAsync(4000)
   expect(post).not.toHaveBeenCalled()
@@ -508,7 +663,7 @@ it("allows cancelling an approved transfer and stops tracking it", async () => {
   await click(wrapper, "Create new transfer link")
   post.mockResolvedValue({ state: "approved" })
   await vi.advanceTimersByTimeAsync(2000)
-  expect(wrapper.text()).toContain("Approved — waiting for the other browser")
+  expect(wrapper.text()).toContain("Approved — finish in the other browser.")
   expect(wrapper.text()).not.toContain("Approve matching code")
   post.mockResolvedValue({ state: "cancelled" })
   await click(wrapper, "Cancel transfer")
@@ -516,7 +671,7 @@ it("allows cancelling an approved transfer and stops tracking it", async () => {
     "/events/EVENT123/transfers/transfer/cancel",
     {},
   )
-  expect(wrapper.text()).toContain("Transfer status: Cancelled")
+  expect(wrapper.text()).toContain("Cancelled.")
   expect(wrapper.text()).not.toContain("Cancel transfer")
   expect(savedTransfers("EVENT123")).toEqual([])
   post.mockClear()
@@ -532,7 +687,7 @@ it("does not drop a cancel while a status poll is in flight", async () => {
   await click(wrapper, "Create new transfer link")
   post.mockResolvedValue({ state: "approved" })
   await vi.advanceTimersByTimeAsync(2000)
-  expect(wrapper.text()).toContain("Approved — waiting for the other browser")
+  expect(wrapper.text()).toContain("Approved — finish in the other browser.")
   post.mockImplementation((url: string) =>
     url.endsWith("/cancel")
       ? Promise.resolve({ state: "cancelled" })
@@ -548,7 +703,7 @@ it("does not drop a cancel while a status poll is in flight", async () => {
   )
   resolveStatus({ state: "approved" })
   await flushPromises()
-  expect(wrapper.text()).toContain("Transfer status: Cancelled")
+  expect(wrapper.text()).toContain("Cancelled.")
   expect(wrapper.text()).not.toContain("Cancel transfer")
   expect(savedTransfers("EVENT123")).toEqual([])
   wrapper.unmount()

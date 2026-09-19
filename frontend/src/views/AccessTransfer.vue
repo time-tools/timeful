@@ -1,28 +1,93 @@
 <template>
   <v-container class="tw:max-w-xl">
-    <v-card title="Continue on this device">
+    <v-card>
+      <v-card-title>
+        <h1 class="tw:text-2xl tw:font-medium">Continue on this device</h1>
+      </v-card-title>
       <v-card-text class="tw:flex tw:flex-col tw:gap-4">
-        <p>
-          Ask the source browser to approve this exact matching code within five
-          minutes of creating the link. You have no transferred access until
-          approval.
-        </p>
-        <p
-          v-if="code"
-          class="tw:text-3xl tw:font-bold"
-          data-testid="matching-code"
-        >
-          {{ code }}
-        </p>
-        <p v-if="approved" role="status">Approved — you can continue</p>
         <v-alert v-if="error" type="error">{{ error }}</v-alert>
-        <v-btn v-if="code" :loading="busy" @click="finish()"
-          >Continue after approval</v-btn
-        >
+        <ol class="tw:flex tw:flex-col tw:gap-4">
+          <li
+            data-testid="access-transfer-step-2"
+            class="tw:flex tw:flex-col tw:gap-3 tw:rounded-lg tw:border tw:p-3"
+            :class="stepClasses(2)"
+            :aria-current="!approved ? 'step' : undefined"
+          >
+            <h2 class="tw:flex tw:items-center tw:gap-2 tw:text-base">
+              <span
+                class="tw:flex tw:h-6 tw:w-6 tw:shrink-0 tw:items-center tw:justify-center tw:rounded-full tw:text-xs tw:font-semibold"
+                :class="stepNumberClasses(2)"
+                aria-hidden="true"
+                >2</span
+              >
+              <span
+                ><span class="tw:sr-only">Step 2: </span>Show this code to the
+                browser that created the link</span
+              >
+            </h2>
+            <p class="tw:text-sm tw:text-(--timeful-muted-foreground)">
+              In that browser, choose Manage access, enter this code exactly,
+              and approve it within five minutes of creating the link.
+            </p>
+            <p
+              v-if="code"
+              class="tw:text-3xl tw:font-bold"
+              data-testid="matching-code"
+            >
+              {{ code }}
+            </p>
+            <p
+              v-else-if="!error"
+              role="status"
+              class="tw:text-sm tw:text-(--timeful-muted-foreground)"
+            >
+              Loading the matching code…
+            </p>
+          </li>
+          <li
+            data-testid="access-transfer-step-3"
+            class="tw:flex tw:flex-col tw:gap-3 tw:rounded-lg tw:border tw:p-3"
+            :class="stepClasses(3)"
+            :aria-current="approved ? 'step' : undefined"
+          >
+            <h2 class="tw:flex tw:items-center tw:gap-2 tw:text-base">
+              <span
+                class="tw:flex tw:h-6 tw:w-6 tw:shrink-0 tw:items-center tw:justify-center tw:rounded-full tw:text-xs tw:font-semibold"
+                :class="stepNumberClasses(3)"
+                aria-hidden="true"
+                >3</span
+              >
+              <span
+                ><span class="tw:sr-only">Step 3: </span>Continue after
+                approval</span
+              >
+            </h2>
+            <p role="status">
+              {{
+                approved
+                  ? "Approved — you can continue"
+                  : "Waiting for approval in the other browser. You have no transferred access until then."
+              }}
+            </p>
+            <v-btn v-if="code" :loading="busy" @click="finish()"
+              >Continue after approval</v-btn
+            >
+          </li>
+        </ol>
       </v-card-text>
     </v-card>
-    <v-dialog v-model="confirmSwitch" max-width="480" persistent>
-      <v-card title="Switch accounts on this device?">
+    <v-dialog
+      v-model="confirmSwitch"
+      max-width="480"
+      persistent
+      :content-props="{ 'aria-labelledby': 'switch-accounts-title' }"
+    >
+      <v-card>
+        <v-card-title>
+          <h2 id="switch-accounts-title" class="tw:text-xl">
+            Switch accounts on this device?
+          </h2>
+        </v-card-title>
         <v-card-text>
           <p v-if="store.authUser">
             You are currently signed in as {{ store.authUser.firstName }}
@@ -46,7 +111,7 @@
   </v-container>
 </template>
 <script setup lang="ts">
-import { onMounted, ref } from "vue"
+import { computed, onMounted, onUnmounted, ref, watch } from "vue"
 import {
   requiresAccountSwitch,
   transferAction,
@@ -59,6 +124,50 @@ const approved = ref(false)
 const confirmSwitch = ref(false)
 const error = ref("")
 const busy = ref(false)
+const polling = ref(false)
+let timer: ReturnType<typeof setInterval> | undefined
+const activeStep = computed(() => (approved.value ? 3 : 2))
+function stepClasses(index: number) {
+  return index === activeStep.value
+    ? "tw:border-(--timeful-outline-neutral) tw:bg-(--timeful-selection-bg)"
+    : "tw:border-transparent"
+}
+function stepNumberClasses(index: number) {
+  if (index === activeStep.value)
+    return "tw:bg-(--timeful-primary-action-bg) tw:text-(--timeful-primary-action-fg)"
+  if (index < activeStep.value)
+    return "tw:bg-(--timeful-selection-bg) tw:text-(--timeful-selection-fg)"
+  return "tw:border tw:border-(--timeful-outline-neutral) tw:text-(--timeful-muted-foreground)"
+}
+async function checkApproval() {
+  if (polling.value || approved.value || busy.value) return
+  polling.value = true
+  try {
+    const transfer = await transferAction(
+      props.eventId,
+      props.transferId,
+      "open",
+    )
+    if (transfer.state === "approved") {
+      approved.value = true
+      error.value = ""
+    }
+  } catch {
+    // Keep waiting after transient failures once the initial open succeeded.
+  } finally {
+    polling.value = false
+  }
+}
+watch([code, approved], ([currentCode, isApproved]) => {
+  if (timer) clearInterval(timer)
+  if (currentCode && !isApproved)
+    timer = setInterval(() => {
+      void checkApproval()
+    }, 2000)
+})
+onUnmounted(() => {
+  if (timer) clearInterval(timer)
+})
 onMounted(async () => {
   try {
     const transfer = await transferAction(

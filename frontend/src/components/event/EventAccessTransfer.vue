@@ -3,73 +3,178 @@
     <v-btn variant="outlined" color="primary" @click="openDialog">
       <span class="tw:text-green">Manage access</span>
     </v-btn>
-    <v-dialog v-model="dialog" max-width="540">
-      <v-card title="Manage access">
+    <v-dialog
+      v-model="dialog"
+      max-width="540"
+      scrollable
+      :content-props="{ 'aria-labelledby': 'manage-access-title' }"
+    >
+      <v-card>
+        <v-card-title>
+          <h2 id="manage-access-title" class="tw:text-xl">Manage access</h2>
+        </v-card-title>
         <v-card-text class="tw:flex tw:flex-col tw:gap-4">
-          <p>
+          <p class="tw:text-(--timeful-muted-foreground)">
             Use this event on another browser, or revoke access you granted
-            earlier. Create a transfer link and copy it, open it on the other
-            browser, and approve the matching code shown there within five
-            minutes. Opening the link alone gives no access.
-          </p>
-          <p v-if="store.authUser">
-            This signs the other browser in to your account.
-          </p>
-          <p v-else>
-            This grants access to your responses and, if you own this event, its
-            owner controls.
+            earlier.
           </p>
           <v-alert v-if="error" type="error">{{ error }}</v-alert>
-          <div class="tw:flex tw:flex-wrap tw:justify-center tw:gap-2">
-            <v-btn
-              :class="canCopy && 'tw:flex-1'"
-              :disabled="busyAction === 'start'"
-              :prepend-icon="MdiRefresh"
-              @click="start"
-              >Create new transfer link</v-btn
+          <ol class="tw:flex tw:flex-col tw:gap-4">
+            <li
+              data-testid="manage-access-step-1"
+              class="tw:flex tw:flex-col tw:gap-3 tw:rounded-lg tw:border tw:p-3"
+              :class="stepClasses(1)"
+              :aria-current="activeStep === 1 ? 'step' : undefined"
             >
-            <v-btn
-              v-if="canCopy"
-              class="tw:flex-1"
-              :prepend-icon="MdiContentCopy"
-              @click="copy"
-              >{{ copied ? "Copied" : "Copy link" }}</v-btn
-            >
-          </div>
-          <template v-if="currentId">
-            <v-text-field label="Transfer link" :model-value="link" readonly />
-            <p role="status">Transfer status: {{ statusLabel }}</p>
-            <template v-if="current?.state === 'pending'">
+              <h3 class="tw:flex tw:items-center tw:gap-2 tw:text-base">
+                <span
+                  class="tw:flex tw:h-6 tw:w-6 tw:shrink-0 tw:items-center tw:justify-center tw:rounded-full tw:text-xs tw:font-semibold"
+                  :class="stepNumberClasses(1)"
+                  aria-hidden="true"
+                  >1</span
+                >
+                <span
+                  ><span class="tw:sr-only">Step 1: </span>Create and copy a
+                  transfer link</span
+                >
+              </h3>
+              <p class="tw:text-sm tw:text-(--timeful-muted-foreground)">
+                The link expires five minutes after you create it.
+              </p>
+              <div class="tw:flex tw:flex-wrap tw:justify-center tw:gap-2">
+                <v-btn
+                  :class="canCopy && 'tw:flex-1'"
+                  :disabled="busyAction === 'start'"
+                  :prepend-icon="MdiRefresh"
+                  @click="start"
+                  >Create new transfer link</v-btn
+                >
+                <v-btn
+                  v-if="canCopy"
+                  class="tw:flex-1"
+                  :prepend-icon="MdiContentCopy"
+                  @click="copy"
+                  >{{ copied ? "Copied" : "Copy link" }}</v-btn
+                >
+              </div>
               <v-text-field
-                v-model="code"
-                label="Matching code from other browser"
-                autocomplete="off"
+                v-if="currentId"
+                label="Transfer link"
+                :model-value="link"
+                readonly
               />
-              <v-btn
-                :disabled="busyAction === 'approve' || !code"
-                @click="approve"
-                >Approve matching code</v-btn
+              <p
+                role="status"
+                class="tw:text-sm tw:text-(--timeful-muted-foreground)"
               >
-            </template>
-            <v-btn
-              v-if="
-                current?.state === 'pending' || current?.state === 'approved'
-              "
-              :disabled="busyAction === 'cancel'"
-              @click="cancel"
-              >Cancel transfer</v-btn
+                {{ currentId ? statusLabel : "" }}
+              </p>
+              <v-btn
+                v-if="canCancel"
+                :disabled="busyAction === 'cancel'"
+                @click="cancel"
+                >Cancel transfer</v-btn
+              >
+            </li>
+            <li
+              data-testid="manage-access-step-2"
+              class="tw:flex tw:flex-col tw:gap-3 tw:rounded-lg tw:border tw:p-3"
+              :class="stepClasses(2)"
+              :aria-current="activeStep === 2 ? 'step' : undefined"
             >
-          </template>
-          <div
-            v-for="entry in history"
-            :key="entry.id"
-            class="tw:flex tw:items-center tw:gap-2"
+              <h3 class="tw:flex tw:items-center tw:gap-2 tw:text-base">
+                <span
+                  class="tw:flex tw:h-6 tw:w-6 tw:shrink-0 tw:items-center tw:justify-center tw:rounded-full tw:text-xs tw:font-semibold"
+                  :class="stepNumberClasses(2)"
+                  aria-hidden="true"
+                  >2</span
+                >
+                <span
+                  ><span class="tw:sr-only">Step 2: </span>Open the link in the
+                  other browser</span
+                >
+              </h3>
+              <p class="tw:text-sm tw:text-(--timeful-muted-foreground)">
+                It shows a matching code. Opening the link alone gives no
+                access.
+              </p>
+            </li>
+            <li
+              data-testid="manage-access-step-3"
+              class="tw:flex tw:flex-col tw:gap-3 tw:rounded-lg tw:border tw:p-3"
+              :class="stepClasses(3)"
+              :aria-current="activeStep === 3 ? 'step' : undefined"
+            >
+              <h3 class="tw:flex tw:items-center tw:gap-2 tw:text-base">
+                <span
+                  class="tw:flex tw:h-6 tw:w-6 tw:shrink-0 tw:items-center tw:justify-center tw:rounded-full tw:text-xs tw:font-semibold"
+                  :class="stepNumberClasses(3)"
+                  aria-hidden="true"
+                  >3</span
+                >
+                <span
+                  ><span class="tw:sr-only">Step 3: </span>Enter its code and
+                  approve</span
+                >
+              </h3>
+              <p
+                v-if="store.authUser"
+                class="tw:text-sm tw:text-(--timeful-muted-foreground)"
+              >
+                Approving signs the other browser in to your account.
+              </p>
+              <p v-else class="tw:text-sm tw:text-(--timeful-muted-foreground)">
+                Approving grants access to your responses and, if you own this
+                event, its owner controls.
+              </p>
+              <template v-if="isPending">
+                <v-text-field
+                  v-model="code"
+                  label="Matching code from other browser"
+                  autocomplete="off"
+                  autocapitalize="characters"
+                  spellcheck="false"
+                  persistent-hint
+                  hint="Type the code exactly as the other browser shows it."
+                />
+                <v-btn
+                  :disabled="busyAction === 'approve' || !code"
+                  @click="approve"
+                  >Approve matching code</v-btn
+                >
+              </template>
+              <p
+                v-else-if="isApproved"
+                class="tw:text-sm tw:text-(--timeful-muted-foreground)"
+              >
+                Approved — finish in the other browser.
+              </p>
+            </li>
+          </ol>
+          <section
+            v-if="history.length"
+            class="tw:flex tw:flex-col tw:gap-2"
+            aria-labelledby="granted-access-title"
           >
-            <span>Granted access {{ entry.number }}</span>
-            <v-btn :disabled="busyAction === 'revoke'" @click="revoke(entry.id)"
-              >Revoke access</v-btn
+            <h3 id="granted-access-title" class="tw:text-base">
+              Granted access
+            </h3>
+            <div
+              v-for="entry in history"
+              :key="entry.id"
+              class="tw:flex tw:items-center tw:gap-2"
             >
-          </div>
+              <span>Granted access {{ entry.number }}</span>
+              <v-btn
+                :disabled="busyAction === 'revoke'"
+                @click="revoke(entry.id)"
+                >Revoke access</v-btn
+              >
+            </div>
+          </section>
+          <p aria-live="polite" class="tw:sr-only">
+            {{ copied ? "Transfer link copied" : "" }}
+          </p>
         </v-card-text>
         <v-card-actions
           ><v-btn @click="dialog = false">Close</v-btn></v-card-actions
@@ -112,19 +217,33 @@ const code = ref("")
 const history = ref<SavedTransfer[]>([])
 const tracked = ref<SavedTransfer[]>([])
 const statusLabels: Record<string, string> = {
-  pending: "Waiting for approval",
-  approved: "Approved — waiting for the other browser",
-  redeemed: "Completed",
-  cancelled: "Cancelled",
-  expired: "Expired — create a new link",
-  revoked: "Access revoked",
-  unavailable: "Unavailable — create a new link",
+  pending: "Waiting for the other browser to open the link.",
+  approved: "Approved — finish in the other browser.",
+  redeemed: "Completed.",
+  cancelled: "Cancelled.",
+  expired: "Expired — create a new link.",
+  revoked: "Access revoked.",
+  unavailable: "Unavailable — create a new link.",
 }
-const statusLabel = computed(
-  () =>
-    statusLabels[current.value?.state ?? "pending"] ??
-    "Unavailable — create a new link",
-)
+const isPending = computed(() => current.value?.state === "pending")
+const isApproved = computed(() => current.value?.state === "approved")
+const canCancel = computed(() => isPending.value || isApproved.value)
+const statusLabel = computed(() => {
+  const transfer = current.value
+  if (transfer?.state === "pending" && transfer.requests.length > 0)
+    return "The other browser is showing a code — enter it in step 3."
+  return (
+    statusLabels[transfer?.state ?? "pending"] ??
+    "Unavailable — create a new link."
+  )
+})
+const activeStep = computed(() => {
+  if (isPending.value) {
+    if ((current.value?.requests.length ?? 0) > 0) return 3
+    return copied.value ? 2 : 1
+  }
+  return isApproved.value ? 3 : 1
+})
 const link = computed(
   () =>
     `${window.location.origin}/transfer/${props.event._id}/${currentId.value}`,
@@ -135,6 +254,18 @@ const canCopy = computed(
 )
 let timer: ReturnType<typeof setInterval> | undefined
 
+function stepClasses(index: number) {
+  return index === activeStep.value
+    ? "tw:border-(--timeful-outline-neutral) tw:bg-(--timeful-selection-bg)"
+    : "tw:border-transparent"
+}
+function stepNumberClasses(index: number) {
+  if (index === activeStep.value)
+    return "tw:bg-(--timeful-primary-action-bg) tw:text-(--timeful-primary-action-fg)"
+  if (index < activeStep.value)
+    return "tw:bg-(--timeful-selection-bg) tw:text-(--timeful-selection-fg)"
+  return "tw:border tw:border-(--timeful-outline-neutral) tw:text-(--timeful-muted-foreground)"
+}
 async function run(
   action: PendingAction,
   work: () => Promise<void>,

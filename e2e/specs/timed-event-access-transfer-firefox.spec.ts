@@ -141,6 +141,12 @@ for (const mode of ["guest", "owner", "signed-in"] as const) {
     await page
       .getByRole("button", { name: "Create new transfer link", exact: true })
       .click()
+    await expect(page.getByTestId("manage-access-step-1")).toContainText(
+      "Create and copy a transfer link",
+    )
+    await expect(page.getByTestId("manage-access-step-2")).toContainText(
+      "Opening the link alone gives no access",
+    )
     const linkField = page.getByLabel("Transfer link", { exact: true })
     await expect(linkField).toHaveValue(/\/transfer\//)
     const link = await linkField.inputValue()
@@ -154,6 +160,9 @@ for (const mode of ["guest", "owner", "signed-in"] as const) {
     await targetPage.goto(link, { waitUntil: "domcontentloaded" })
     const code = targetPage.getByTestId("matching-code")
     await expect(code).toHaveText(/^[A-Z0-9]{8}$/)
+    await expect(
+      targetPage.getByTestId("access-transfer-step-2"),
+    ).toContainText("Show this code to the browser that created the link")
     await targetPage
       .getByRole("button", { name: "Continue after approval" })
       .click()
@@ -181,7 +190,19 @@ for (const mode of ["guest", "owner", "signed-in"] as const) {
         .fill(await code.innerText())
       await page.getByRole("button", { name: "Approve matching code" }).click()
       await expect(page.getByRole("status")).toContainText(
-        "Approved — waiting for the other browser",
+        "Approved — finish in the other browser.",
+      )
+      await expect(page.getByTestId("manage-access-step-3")).toHaveAttribute(
+        "aria-current",
+        "step",
+      )
+    })
+    await test.step("Target sees approval without reloading", async () => {
+      await expect(
+        targetPage.getByTestId("access-transfer-step-3"),
+      ).toHaveAttribute("aria-current", "step")
+      await expect(targetPage.getByRole("status")).toContainText(
+        "Approved — you can continue",
       )
     })
     await test.step("Reject the other browser and redeem only on the approved target", async () => {
@@ -531,13 +552,13 @@ test("Source cancels approved access before the target redeems", async ({
     .fill(await code.innerText())
   await page.getByRole("button", { name: "Approve matching code" }).click()
   await expect(page.getByRole("status")).toContainText(
-    "Approved — waiting for the other browser",
+    "Approved — finish in the other browser.",
   )
   await test.step("Restore the approved transfer after a source reload", async () => {
     await page.reload({ waitUntil: "domcontentloaded" })
     await page.getByRole("button", { name: "Manage access" }).click()
     await expect(page.getByRole("status")).toContainText(
-      "Approved — waiting for the other browser",
+      "Approved — finish in the other browser.",
     )
     await expect(page.getByLabel("Transfer link", { exact: true })).toHaveValue(
       /\/transfer\//,
