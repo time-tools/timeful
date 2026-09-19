@@ -234,6 +234,7 @@ For guidance on authoring functional requirements, read [`functional/README.md`]
 | [FR-122](functional/fr/FR-122.md) | Resolve retained MongoDB records to the authoritative account (deprecated)                                                                                                                                                          | backend           |
 | [FR-123](functional/fr/FR-123.md) | Delete an account                                                                                                                                                                                                                   | frontend, backend |
 | [FR-124](functional/fr/FR-124.md) | Place event archive and delete in the edit-event form Danger zone                                                                                                                                                                   | frontend          |
+| [FR-125](functional/fr/FR-125.md) | Outline [Legend Section](../terminology/glossary.md#legend-section) square items                                                                                                                                                    | frontend          |
 
 ## Quality Requirements
 
