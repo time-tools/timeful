@@ -1394,9 +1394,11 @@ export interface paths {
                             requests?: {
                                 code?: string;
                                 id?: string;
+                                userAgent?: string;
                             }[];
                             revocable?: boolean;
                             state?: string;
+                            targetUserAgent?: string;
                         };
                     };
                 };

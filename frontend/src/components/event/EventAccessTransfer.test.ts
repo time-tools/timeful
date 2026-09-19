@@ -750,6 +750,94 @@ it("retains revocation handles and visible grants on transient status failures",
   wrapper.unmount()
 })
 
+it("labels granted access and pending status with the target browser", async () => {
+  localStorage.setItem("timeful.transfers.EVENT123", JSON.stringify(["grant"]))
+  post.mockImplementation((url: string) =>
+    url.endsWith("/transfers")
+      ? Promise.resolve({ id: "transfer", state: "pending" })
+      : Promise.resolve({
+          state: "pending",
+          requests: [
+            {
+              id: "request",
+              code: "ABCDEFGH",
+              userAgent:
+                "Mozilla/5.0 (X11; Linux x86_64; rv:141.0) Gecko/20100101 Firefox/141.0",
+            },
+          ],
+        }),
+  )
+  const wrapper = render()
+  await click(wrapper, "Manage access")
+  expect(wrapper.text()).toContain(
+    "Firefox on Linux is showing a code — enter it in step 3.",
+  )
+  post.mockResolvedValue({
+    state: "redeemed",
+    revocable: true,
+    targetUserAgent:
+      "Mozilla/5.0 (X11; Linux x86_64; rv:141.0) Gecko/20100101 Firefox/141.0",
+  })
+  await vi.advanceTimersByTimeAsync(2000)
+  expect(wrapper.text()).toContain("Granted access 1 · Firefox on Linux")
+  wrapper.unmount()
+})
+
+it("falls back to generic status and numbered labels without a target browser", async () => {
+  localStorage.setItem("timeful.transfers.EVENT123", JSON.stringify(["grant"]))
+  post.mockImplementation((url: string) =>
+    url.endsWith("/transfers")
+      ? Promise.resolve({ id: "transfer", state: "pending" })
+      : Promise.resolve({
+          state: "pending",
+          requests: [{ id: "request", code: "ABCDEFGH" }],
+        }),
+  )
+  const wrapper = render()
+  await click(wrapper, "Manage access")
+  expect(wrapper.text()).toContain(
+    "The other browser is showing a code — enter it in step 3.",
+  )
+  post.mockResolvedValue({ state: "redeemed", revocable: true })
+  await vi.advanceTimersByTimeAsync(2000)
+  expect(wrapper.text()).toContain("Granted access 1")
+  expect(wrapper.text()).not.toContain("Granted access 1 ·")
+  wrapper.unmount()
+})
+
+it("keeps the generic status when several target browsers show codes", async () => {
+  post.mockImplementation((url: string) =>
+    url.endsWith("/transfers")
+      ? Promise.resolve({ id: "transfer", state: "pending" })
+      : Promise.resolve({
+          state: "pending",
+          requests: [
+            {
+              id: "one",
+              code: "AAAAAAAA",
+              userAgent:
+                "Mozilla/5.0 (X11; Linux x86_64; rv:141.0) Gecko/20100101 Firefox/141.0",
+            },
+            {
+              id: "two",
+              code: "BBBBBBBB",
+              userAgent:
+                "Mozilla/5.0 (X11; Linux x86_64; rv:141.0) Gecko/20100101 Firefox/141.0",
+            },
+          ],
+        }),
+  )
+  const wrapper = render()
+  await click(wrapper, "Manage access")
+  await click(wrapper, "Create new transfer link")
+  await vi.advanceTimersByTimeAsync(2000)
+  expect(wrapper.text()).toContain(
+    "The other browser is showing a code — enter it in step 3.",
+  )
+  expect(wrapper.text()).not.toContain("Firefox on Linux is showing a code")
+  wrapper.unmount()
+})
+
 it("names clipboard failures and preserves the message across successful polls", async () => {
   vi.spyOn(navigator.clipboard, "writeText").mockRejectedValue(
     new Error("denied"),

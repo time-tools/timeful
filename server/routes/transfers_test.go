@@ -23,6 +23,23 @@ type failingTransferSession struct{ sessions.Session }
 
 func (s failingTransferSession) Save() error { return errors.New("injected session encoding failure") }
 
+func TestTransferUserAgent(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "trims surrounding whitespace", input: "  Firefox/141.0  ", want: "Firefox/141.0"},
+		{name: "blank header stays empty", input: "   ", want: ""},
+		{name: "caps oversized values", input: strings.Repeat("a", 600), want: strings.Repeat("a", 512)},
+		{name: "caps by rune", input: strings.Repeat("é", 600), want: strings.Repeat("é", 512)},
+	} {
+		if got := transferUserAgent(test.input); got != test.want {
+			t.Fatalf("%s: got %q, want %q", test.name, got, test.want)
+		}
+	}
+}
+
 func TestAccessTransfers(t *testing.T) {
 	router := anonymousEventRouter(t).(*gin.Engine)
 	router.POST("/test/sign-in/:id", func(c *gin.Context) {
@@ -44,11 +61,16 @@ func TestAccessTransfers(t *testing.T) {
 	server := httptest.NewServer(router)
 	defer server.Close()
 	client := func() *http.Client { jar, _ := cookiejar.New(nil); return &http.Client{Jar: jar} }
-	request := func(who *http.Client, method, path string, body any, status int) map[string]json.RawMessage {
+	request := func(who *http.Client, method, path string, body any, status int, userAgents ...string) map[string]json.RawMessage {
 		t.Helper()
 		raw, _ := json.Marshal(body)
 		req, _ := http.NewRequest(method, server.URL+path, bytes.NewReader(raw))
 		req.Header.Set("Content-Type", "application/json")
+		userAgent := "timeful-test-agent"
+		if len(userAgents) > 0 {
+			userAgent = userAgents[0]
+		}
+		req.Header.Set("User-Agent", userAgent)
 		res, err := who.Do(req)
 		if err != nil {
 			t.Fatal(err)
@@ -126,7 +148,7 @@ func TestAccessTransfers(t *testing.T) {
 				}
 			}
 			first := request(attacker, "POST", base+"open", nil, 200)
-			pending := request(target, "POST", base+"open", nil, 200)
+			pending := request(target, "POST", base+"open", nil, 200, "Firefox/141.0")
 			if str(first, "code") == str(pending, "code") {
 				t.Fatal("target codes collided")
 			}
@@ -204,6 +226,23 @@ func TestAccessTransfers(t *testing.T) {
 			status := request(source, "POST", base+"status", nil, 200)
 			if string(status["revocable"]) != map[bool]string{true: "false", false: "true"}[mode == "session"] {
 				t.Fatal("incorrect revocation capability")
+			}
+			if str(status, "targetUserAgent") != "Firefox/141.0" {
+				t.Fatal("status lost the approved target user agent")
+			}
+			var statusRequests []struct {
+				ID        string `json:"id"`
+				UserAgent string `json:"userAgent"`
+			}
+			if err := json.Unmarshal(status["requests"], &statusRequests); err != nil {
+				t.Fatal(err)
+			}
+			agents := map[string]string{}
+			for _, entry := range statusRequests {
+				agents[entry.ID] = entry.UserAgent
+			}
+			if agents[str(pending, "requestId")] != "Firefox/141.0" || agents[str(first, "requestId")] != "timeful-test-agent" {
+				t.Fatalf("request user agents: %v", agents)
 			}
 			after := request(target, "GET", path, nil, 200)
 			if str(after, "eventVisitorId") != str(targetBefore, "eventVisitorId") {

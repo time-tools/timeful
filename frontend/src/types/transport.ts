@@ -680,6 +680,7 @@ export interface RawAccessTransfer {
   state?: string
   requestId?: string
   code?: string
-  requests?: { id: string; code: string }[]
+  requests?: { id: string; code: string; userAgent?: string }[]
+  targetUserAgent?: string
   confirmationRequired?: boolean
 }

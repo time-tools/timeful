@@ -171,7 +171,7 @@
               :key="entry.id"
               class="tw:flex tw:items-center tw:gap-2"
             >
-              <span>Granted access {{ entry.number }}</span>
+              <span>{{ grantedLabel(entry) }}</span>
               <v-btn
                 :disabled="busyAction === 'revoke'"
                 @click="revoke(entry.id)"
@@ -220,6 +220,7 @@ const currentId = ref("")
 const current = ref<AccessTransfer>()
 const code = ref("")
 const history = ref<SavedTransfer[]>([])
+const grantBrowsers = ref<Record<string, string>>({})
 const tracked = ref<SavedTransfer[]>([])
 const statusLabels: Record<string, string> = {
   pending: "Waiting for the other browser to open the link.",
@@ -235,8 +236,12 @@ const isApproved = computed(() => current.value?.state === "approved")
 const canCancel = computed(() => isPending.value || isApproved.value)
 const statusLabel = computed(() => {
   const transfer = current.value
-  if (transfer?.state === "pending" && transfer.requests.length > 0)
+  if (transfer?.state === "pending" && transfer.requests.length > 0) {
+    const [request] = transfer.requests
+    if (transfer.requests.length === 1 && request.browser)
+      return `${request.browser} is showing a code — enter it in step 3.`
     return "The other browser is showing a code — enter it in step 3."
+  }
   return (
     statusLabels[transfer?.state ?? "pending"] ??
     "Unavailable — create a new link."
@@ -297,10 +302,19 @@ function updateTransfer(entry: SavedTransfer, state: AccessTransfer) {
   if (state.revocable) {
     history.value.push(entry)
     history.value.sort((a, b) => a.number - b.number)
+    if (state.targetBrowser) grantBrowsers.value[entry.id] = state.targetBrowser
+    else delete grantBrowsers.value[entry.id]
   } else if (state.state !== "pending" && state.state !== "approved") {
     tracked.value = tracked.value.filter(({ id }) => id !== entry.id)
+    delete grantBrowsers.value[entry.id]
     if (props.event._id) forgetTransfer(props.event._id, entry.id)
   }
+}
+function grantedLabel(entry: SavedTransfer) {
+  const browser = grantBrowsers.value[entry.id]
+  return browser
+    ? `Granted access ${entry.number} · ${browser}`
+    : `Granted access ${entry.number}`
 }
 async function refresh() {
   const eventId = props.event._id
@@ -322,6 +336,7 @@ async function refresh() {
             requestId: "",
             code: "",
             requests: [],
+            targetBrowser: "",
             confirmationRequired: false,
           }
           states.set(entry.id, state)

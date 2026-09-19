@@ -1,4 +1,5 @@
 import { FetchError, post } from "@/utils/fetch_utils"
+import { describeTargetBrowser } from "@/utils/userAgent"
 import type { RawAccessTransfer } from "@/types/transport"
 
 export interface AccessTransfer {
@@ -7,7 +8,8 @@ export interface AccessTransfer {
   state: string
   requestId: string
   code: string
-  requests: { id: string; code: string }[]
+  requests: { id: string; code: string; browser: string }[]
+  targetBrowser: string
   confirmationRequired: boolean
 }
 
@@ -18,7 +20,12 @@ export function decodeTransfer(raw: RawAccessTransfer): AccessTransfer {
     state: raw.state ?? "pending",
     requestId: raw.requestId ?? "",
     code: raw.code ?? "",
-    requests: (raw.requests ?? []).map(({ id, code }) => ({ id, code })),
+    requests: (raw.requests ?? []).map(({ id, code, userAgent }) => ({
+      id,
+      code,
+      browser: describeTargetBrowser(userAgent ?? ""),
+    })),
+    targetBrowser: describeTargetBrowser(raw.targetUserAgent ?? ""),
     confirmationRequired: raw.confirmationRequired === true,
   }
 }

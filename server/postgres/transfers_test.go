@@ -71,8 +71,8 @@ func TestAccessTransferRepository(t *testing.T) {
 			t.Fatalf("non-canonical transfer ID %q lookup: %v", nonCanonical, err)
 		}
 	}
-	for _, code := range []string{"AAAAAAAA", "BBBBBBBB"} {
-		target := &TransferRequest{Code: code, TargetHash: hash[:]}
+	for i, code := range []string{"AAAAAAAA", "BBBBBBBB"} {
+		target := &TransferRequest{Code: code, TargetHash: hash[:], UserAgent: []string{"Firefox/141.0", "Chrome/140.0"}[i]}
 		if err := repo.CreateTransferRequest(ctx, transfer.ID, target); err != nil {
 			t.Fatal(err)
 		}
@@ -80,6 +80,13 @@ func TestAccessTransferRepository(t *testing.T) {
 	requests, err := repo.ListTransferRequests(ctx, transfer.ID)
 	if err != nil || len(requests) != 2 || requests[0].ID == requests[1].ID {
 		t.Fatalf("independent requests: %v", err)
+	}
+	agents := map[string]string{}
+	for _, request := range requests {
+		agents[request.Code] = request.UserAgent
+	}
+	if agents["AAAAAAAA"] != "Firefox/141.0" || agents["BBBBBBBB"] != "Chrome/140.0" {
+		t.Fatalf("lost request user agents: %v", agents)
 	}
 	grant := &EventVisitorCredential{EventVisitorIdentityID: visitor.ID, CredentialHash: hash[:], Kind: CredentialKindGranted}
 	if err := repo.CreateEventVisitorCredential(ctx, grant); err != nil {

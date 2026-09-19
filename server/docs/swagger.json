@@ -1483,6 +1483,9 @@
                                             },
                                             "id": {
                                                 "type": "string"
+                                            },
+                                            "userAgent": {
+                                                "type": "string"
                                             }
                                         }
                                     }
@@ -1491,6 +1494,9 @@
                                     "type": "boolean"
                                 },
                                 "state": {
+                                    "type": "string"
+                                },
+                                "targetUserAgent": {
                                     "type": "string"
                                 }
                             }

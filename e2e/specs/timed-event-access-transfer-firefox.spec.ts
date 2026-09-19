@@ -334,6 +334,9 @@ for (const mode of ["guest", "owner", "signed-in"] as const) {
           .getByRole("button", { name: "Not now", exact: true })
           .click()
       }
+      await expect(
+        page.getByText(/Granted access 1 · Firefox on /),
+      ).toBeVisible()
       await page
         .getByRole("button", { name: "Revoke access", exact: true })
         .click()

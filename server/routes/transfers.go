@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -36,6 +37,17 @@ func transferProof(c *gin.Context, name string, hash []byte) bool {
 	value, err := c.Cookie(name)
 	digest := sha256.Sum256([]byte(value))
 	return err == nil && value != "" && subtle.ConstantTimeCompare(digest[:], hash) == 1
+}
+
+// transferUserAgent keeps the target browser's identifying header bounded
+// before it is stored; an absent or blank header stores the empty string.
+func transferUserAgent(raw string) string {
+	const maxRunes = 512
+	value := strings.TrimSpace(raw)
+	if utf8.RuneCountInString(value) <= maxRunes {
+		return value
+	}
+	return string([]rune(value)[:maxRunes])
 }
 func transferDenied(c *gin.Context, err error) {
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -136,7 +148,7 @@ func createTransfer(c *gin.Context) {
 // @Param transferId path string true "Transfer ID"
 // @Param action path string true "Transfer action"
 // @Param payload body object{requestId=string,code=string,confirmAccountSwitch=bool} true "Approval selection, explicit account-switch consent, or empty object"
-// @Success 200 {object} object{state=string,revocable=bool,requestId=string,code=string,requests=[]object{id=string,code=string}}
+// @Success 200 {object} object{state=string,revocable=bool,requestId=string,code=string,targetUserAgent=string,requests=[]object{id=string,code=string,userAgent=string}}
 // @Failure 403
 // @Failure 409 {object} object{accountSwitchRequired=bool} "Explicit consent required to replace a different sign-in"
 // @Router /events/{eventId}/transfers/{transferId}/{action} [post]
@@ -203,6 +215,13 @@ func transferAction(c *gin.Context) {
 			}
 			requests, err := tx.ListTransferRequests(ctx, transfer.ID)
 			result["requests"] = requests
+			if transfer.ApprovedRequestID != nil {
+				for _, request := range requests {
+					if request.ID == *transfer.ApprovedRequestID {
+						result["targetUserAgent"] = request.UserAgent
+					}
+				}
+			}
 			return err
 		}
 		if time.Now().After(transfer.ExpiresAt) || transfer.State == "cancelled" || transfer.State == "redeemed" || (sourceCredential != nil && sourceCredential.RevokedAt != nil) {
@@ -252,7 +271,7 @@ func transferAction(c *gin.Context) {
 			if err != nil {
 				return err
 			}
-			request := &pgstore.TransferRequest{Code: code, TargetHash: hash}
+			request := &pgstore.TransferRequest{Code: code, TargetHash: hash, UserAgent: transferUserAgent(c.Request.UserAgent())}
 			if err := tx.CreateTransferRequest(ctx, transfer.ID, request); err != nil {
 				return err
 			}

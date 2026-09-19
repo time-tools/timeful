@@ -23,6 +23,7 @@ type AccessTransfer struct {
 type TransferRequest struct {
 	ID         string `json:"id"`
 	Code       string `json:"code"`
+	UserAgent  string `json:"userAgent"`
 	TargetHash []byte `json:"-"`
 }
 
@@ -53,7 +54,7 @@ func (r *Repository) SaveAccessTransfer(ctx context.Context, v *AccessTransfer) 
 }
 
 func (r *Repository) CreateTransferRequest(ctx context.Context, transferID string, v *TransferRequest) error {
-	return r.db.QueryRow(ctx, `INSERT INTO access_transfer_requests(transfer_id,target_hash,code) VALUES($1,$2,$3) RETURNING id`, transferID, v.TargetHash, v.Code).Scan(&v.ID)
+	return r.db.QueryRow(ctx, `INSERT INTO access_transfer_requests(transfer_id,target_hash,code,user_agent) VALUES($1,$2,$3,$4) RETURNING id`, transferID, v.TargetHash, v.Code, v.UserAgent).Scan(&v.ID)
 }
 
 // PruneExpiredAccessTransfers deletes past-deadline transfers that can no
@@ -65,7 +66,7 @@ func (r *Repository) PruneExpiredAccessTransfers(ctx context.Context) error {
 }
 
 func (r *Repository) ListTransferRequests(ctx context.Context, transferID string) ([]TransferRequest, error) {
-	rows, err := r.db.Query(ctx, `SELECT id,code,target_hash FROM access_transfer_requests WHERE transfer_id=$1 ORDER BY id`, transferID)
+	rows, err := r.db.Query(ctx, `SELECT id,code,target_hash,user_agent FROM access_transfer_requests WHERE transfer_id=$1 ORDER BY id`, transferID)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +74,7 @@ func (r *Repository) ListTransferRequests(ctx context.Context, transferID string
 	result := []TransferRequest{}
 	for rows.Next() {
 		var v TransferRequest
-		if err := rows.Scan(&v.ID, &v.Code, &v.TargetHash); err != nil {
+		if err := rows.Scan(&v.ID, &v.Code, &v.TargetHash, &v.UserAgent); err != nil {
 			return nil, err
 		}
 		result = append(result, v)
