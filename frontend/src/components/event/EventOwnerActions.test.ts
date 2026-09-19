@@ -2,7 +2,8 @@
 
 import { flushPromises, mount } from "@vue/test-utils"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { clickButtonStub } from "@/test/componentStubs"
+import MdiArchiveArrowUpOutline from "~icons/mdi/archive-arrow-up-outline"
+import { clickButtonStub, passThroughStub } from "@/test/componentStubs"
 import EventOwnerActions from "./EventOwnerActions.vue"
 
 const { archiveEventMock, showErrorMock } = vi.hoisted(() => ({
@@ -32,7 +33,7 @@ const baseEvent = (overrides: Record<string, unknown> = {}) => ({
 const mountActions = (event: ReturnType<typeof baseEvent>) =>
   mount(EventOwnerActions, {
     props: { event },
-    global: { stubs: { "v-btn": clickButtonStub } },
+    global: { stubs: { "v-btn": clickButtonStub, "v-icon": passThroughStub } },
   })
 
 describe("EventOwnerActions", () => {
@@ -61,6 +62,17 @@ describe("EventOwnerActions", () => {
         .find("button")
         .exists(),
     ).toBe(false)
+  })
+
+  it("renders the unarchive icon to the left of the label", () => {
+    const wrapper = mountActions(baseEvent())
+    const button = wrapper.get("button")
+    const icon = button.findComponent(MdiArchiveArrowUpOutline)
+
+    expect(icon.exists()).toBe(true)
+    const children = Array.from(button.element.children)
+    expect(children[0].contains(icon.element)).toBe(true)
+    expect(children[1].textContent).toBe("Unarchive event")
   })
 
   it("unarchives the event and requests a refresh", async () => {

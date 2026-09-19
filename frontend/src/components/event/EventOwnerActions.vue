@@ -5,12 +5,14 @@
     :disabled="busy"
     @click="toggleArchive"
   >
-    Unarchive event
+    <v-icon><MdiArchiveArrowUpOutline /></v-icon>
+    <span class="tw:ml-1">Unarchive event</span>
   </v-btn>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from "vue"
+import MdiArchiveArrowUpOutline from "~icons/mdi/archive-arrow-up-outline"
 import type { Event } from "@/types"
 import { canManageEventAsCurrentViewer } from "@/composables/event/eventOwnership"
 import { archiveEvent } from "@/utils/services/EventService"
