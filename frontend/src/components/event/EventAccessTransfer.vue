@@ -8,9 +8,9 @@
         <v-card-text class="tw:flex tw:flex-col tw:gap-4">
           <p>
             Use this event on another browser, or revoke access you granted
-            earlier. Create a transfer link, open it on the other browser, and
-            approve the matching code shown there within five minutes. Opening
-            the link alone gives no access.
+            earlier. Create a transfer link and copy it, open it on the other
+            browser, and approve the matching code shown there within five
+            minutes. Opening the link alone gives no access.
           </p>
           <p v-if="store.authUser">
             This signs the other browser in to your account.
@@ -20,12 +20,24 @@
             owner controls.
           </p>
           <v-alert v-if="error" type="error">{{ error }}</v-alert>
-          <v-btn :disabled="busy" @click="start">Create transfer link</v-btn>
+          <div class="tw:flex tw:flex-wrap tw:justify-center tw:gap-2">
+            <v-btn
+              :class="canCopy && 'tw:flex-1'"
+              :disabled="busy"
+              :prepend-icon="MdiRefresh"
+              @click="start"
+              >Create new transfer link</v-btn
+            >
+            <v-btn
+              v-if="canCopy"
+              class="tw:flex-1"
+              :prepend-icon="MdiContentCopy"
+              @click="copy"
+              >{{ copied ? "Copied" : "Copy link" }}</v-btn
+            >
+          </div>
           <template v-if="currentId">
             <v-text-field label="Transfer link" :model-value="link" readonly />
-            <v-btn @click="copy">{{
-              copied ? "Copied" : "Copy transfer link"
-            }}</v-btn>
             <p role="status">Transfer status: {{ statusLabel }}</p>
             <template v-if="current?.state === 'pending'">
               <v-text-field
@@ -79,6 +91,8 @@ import {
   type AccessTransfer,
   type SavedTransfer,
 } from "@/composables/transfer/transferBoundary"
+import MdiContentCopy from "~icons/mdi/content-copy"
+import MdiRefresh from "~icons/mdi/refresh"
 
 const props = defineProps<{ event: Event }>()
 const store = useMainStore()
@@ -109,6 +123,10 @@ const statusLabel = computed(
 const link = computed(
   () =>
     `${window.location.origin}/transfer/${props.event._id}/${currentId.value}`,
+)
+const canCopy = computed(
+  () =>
+    current.value?.state === "pending" || current.value?.state === "approved",
 )
 let timer: ReturnType<typeof setInterval> | undefined
 
@@ -209,10 +227,25 @@ function openDialog() {
 }
 async function start() {
   await run(async () => {
-    if (!props.event._id) return
-    current.value = await createTransfer(props.event._id)
+    const eventId = props.event._id
+    if (!eventId) return
+    if (canCopy.value && currentId.value) {
+      const transferId = currentId.value
+      const entry = tracked.value.find(({ id }) => id === transferId)
+      try {
+        const state = await transferAction(eventId, transferId, "cancel")
+        if (entry) updateTransfer(entry, state)
+      } catch (cause) {
+        if (!isTransferUnavailable(cause)) throw cause
+        // The target may have redeemed the transfer since the last poll.
+        // Refresh before deciding whether the old transfer is still live.
+        await refresh()
+        if (canCopy.value) throw cause
+      }
+    }
+    current.value = await createTransfer(eventId)
     currentId.value = current.value.id
-    tracked.value.push(rememberTransfer(props.event._id, currentId.value))
+    tracked.value.push(rememberTransfer(eventId, currentId.value))
     code.value = ""
     copied.value = false
   }, "Could not create a transfer link. Please try again.")

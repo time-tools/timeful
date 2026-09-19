@@ -139,7 +139,7 @@ for (const mode of ["guest", "owner", "signed-in"] as const) {
       })
       .click()
     await page
-      .getByRole("button", { name: "Create transfer link", exact: true })
+      .getByRole("button", { name: "Create new transfer link", exact: true })
       .click()
     const linkField = page.getByLabel("Transfer link", { exact: true })
     await expect(linkField).toHaveValue(/\/transfer\//)
@@ -518,7 +518,7 @@ test("Source cancels approved access before the target redeems", async ({
   const { eventId } = (await created.json()) as { eventId: string }
   await page.goto(`/e/${eventId}`, { waitUntil: "domcontentloaded" })
   await page.getByRole("button", { name: "Manage access" }).click()
-  await page.getByRole("button", { name: "Create transfer link" }).click()
+  await page.getByRole("button", { name: "Create new transfer link" }).click()
   const linkField = page.getByLabel("Transfer link", { exact: true })
   await expect(linkField).toHaveValue(/\/transfer\//)
   const link = await linkField.inputValue()

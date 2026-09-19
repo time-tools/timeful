@@ -100,7 +100,7 @@ it("restores a saved pending transfer after a reload", async () => {
   const wrapper = render()
   await click(wrapper, "Manage access")
 
-  expect(wrapper.text()).toContain("Copy transfer link")
+  expect(wrapper.text()).toContain("Copy link")
   expect(wrapper.text()).toContain("Transfer status: Waiting for approval")
   expect(wrapper.text()).toContain("Approve matching code")
   expect(wrapper.text()).toContain("Cancel transfer")
@@ -138,6 +138,7 @@ it("restores a saved approved transfer after a reload", async () => {
   )
   expect(wrapper.text()).toContain("Cancel transfer")
   expect(wrapper.text()).not.toContain("Approve matching code")
+  expect(wrapper.text()).toContain("Copy link")
   wrapper.unmount()
 })
 
@@ -159,8 +160,8 @@ it("does not restore a terminal saved transfer as current after a reload", async
   const wrapper = render()
   await click(wrapper, "Manage access")
 
-  expect(wrapper.text()).toContain("Create transfer link")
-  expect(wrapper.text()).not.toContain("Copy transfer link")
+  expect(wrapper.text()).toContain("Create new transfer link")
+  expect(wrapper.text()).not.toContain("Copy link")
   expect(wrapper.text()).not.toContain("Cancel transfer")
   expect(wrapper.find('input[aria-label="Transfer link"]').exists()).toBe(false)
   wrapper.unmount()
@@ -197,10 +198,104 @@ it("restores the most recently created active transfer after a reload", async ()
   wrapper.unmount()
 })
 
+it("cancels the live transfer before creating a replacement link", async () => {
+  const wrapper = render()
+  await click(wrapper, "Manage access")
+  await click(wrapper, "Create new transfer link")
+  post.mockImplementation((url: string) =>
+    Promise.resolve(
+      url.endsWith("/cancel")
+        ? { state: "cancelled" }
+        : { id: "replacement", state: "pending" },
+    ),
+  )
+
+  await click(wrapper, "Create new transfer link")
+
+  expect(post).toHaveBeenCalledWith(
+    "/events/EVENT123/transfers/transfer/cancel",
+    {},
+  )
+  expect(post).toHaveBeenLastCalledWith("/events/EVENT123/transfers")
+  expect(
+    wrapper.get('input[aria-label="Transfer link"]').attributes("value"),
+  ).toBe("http://localhost:3000/transfer/EVENT123/replacement")
+  expect(savedTransfers("EVENT123").map(({ id }) => id)).toEqual([
+    "replacement",
+  ])
+  expect(wrapper.text()).toContain("Transfer status: Waiting for approval")
+  wrapper.unmount()
+})
+
+it("copies the current link without creating another transfer", async () => {
+  const writeText = vi
+    .spyOn(navigator.clipboard, "writeText")
+    .mockResolvedValue(undefined)
+  const wrapper = render()
+  await click(wrapper, "Manage access")
+  await click(wrapper, "Create new transfer link")
+  post.mockClear()
+
+  await click(wrapper, "Copy link")
+
+  expect(post).not.toHaveBeenCalled()
+  expect(writeText).toHaveBeenCalledWith(
+    "http://localhost:3000/transfer/EVENT123/transfer",
+  )
+  expect(wrapper.text()).toContain("Copied")
+  expect(savedTransfers("EVENT123")).toHaveLength(1)
+  wrapper.unmount()
+})
+
+it("creates a new transfer without cancelling after a terminal transfer", async () => {
+  localStorage.setItem(
+    "timeful.transfers.EVENT123",
+    JSON.stringify({
+      nextNumber: 2,
+      transfers: [{ id: "transfer", number: 1 }],
+    }),
+  )
+  post.mockImplementation((url: string) =>
+    Promise.resolve(
+      url.endsWith("/transfers")
+        ? { id: "fresh", state: "pending" }
+        : { state: "expired", requests: [] },
+    ),
+  )
+  const wrapper = render()
+  await click(wrapper, "Manage access")
+  await click(wrapper, "Create new transfer link")
+
+  expect(post).not.toHaveBeenCalledWith(
+    "/events/EVENT123/transfers/transfer/cancel",
+    {},
+  )
+  expect(
+    wrapper.get('input[aria-label="Transfer link"]').attributes("value"),
+  ).toBe("http://localhost:3000/transfer/EVENT123/fresh")
+  expect(savedTransfers("EVENT123").map(({ id }) => id)).toEqual(["fresh"])
+  wrapper.unmount()
+})
+
+it("hides Copy link once the transfer is no longer live", async () => {
+  const wrapper = render()
+  await click(wrapper, "Manage access")
+  await click(wrapper, "Create new transfer link")
+  expect(wrapper.text()).toContain("Copy link")
+  post.mockResolvedValue({ state: "cancelled" })
+
+  await click(wrapper, "Cancel transfer")
+
+  expect(wrapper.text()).not.toContain("Copy link")
+  expect(wrapper.text()).toContain("Transfer status: Cancelled")
+  expect(wrapper.find('input[aria-label="Transfer link"]').exists()).toBe(true)
+  wrapper.unmount()
+})
+
 it("keeps wrong-code feedback visible across status polling", async () => {
   const wrapper = render()
   await click(wrapper, "Manage access")
-  await click(wrapper, "Create transfer link")
+  await click(wrapper, "Create new transfer link")
   await wrapper
     .get('input[aria-label="Matching code from other browser"]')
     .setValue("WRONG")
@@ -272,7 +367,7 @@ it("prunes legacy history and polls only active transfers with stable grant numb
 it("polls the current transfer once and stops after a non-revocable completion", async () => {
   const wrapper = render()
   await click(wrapper, "Manage access")
-  await click(wrapper, "Create transfer link")
+  await click(wrapper, "Create new transfer link")
   post.mockClear()
   await vi.advanceTimersByTimeAsync(2000)
   expect(post).toHaveBeenCalledTimes(1)
@@ -294,7 +389,7 @@ it("polls the current transfer once and stops after a non-revocable completion",
 it("allows cancelling an approved transfer and stops tracking it", async () => {
   const wrapper = render()
   await click(wrapper, "Manage access")
-  await click(wrapper, "Create transfer link")
+  await click(wrapper, "Create new transfer link")
   post.mockResolvedValue({ state: "approved" })
   await vi.advanceTimersByTimeAsync(2000)
   expect(wrapper.text()).toContain("Approved — waiting for the other browser")
@@ -318,7 +413,7 @@ it("does not drop a cancel while a status poll is in flight", async () => {
   let resolveStatus: (value: { state: string }) => void = () => {}
   const wrapper = render()
   await click(wrapper, "Manage access")
-  await click(wrapper, "Create transfer link")
+  await click(wrapper, "Create new transfer link")
   post.mockResolvedValue({ state: "approved" })
   await vi.advanceTimersByTimeAsync(2000)
   expect(wrapper.text()).toContain("Approved — waiting for the other browser")
@@ -367,8 +462,8 @@ it("names clipboard failures and preserves the message across successful polls",
   )
   const wrapper = render()
   await click(wrapper, "Manage access")
-  await click(wrapper, "Create transfer link")
-  await click(wrapper, "Copy transfer link")
+  await click(wrapper, "Create new transfer link")
+  await click(wrapper, "Copy link")
   expect(wrapper.get('[role="alert"]').text()).toContain(
     "Could not copy the transfer link",
   )
