@@ -205,13 +205,15 @@ for (const mode of ["guest", "owner", "signed-in"] as const) {
         "Approved — you can continue",
       )
     })
-    await test.step("Reject the other browser and redeem only on the approved target", async () => {
-      await otherPage
-        .getByRole("button", { name: "Continue after approval" })
-        .click()
+    await test.step("End the other browser's wait and redeem only on the approved target", async () => {
+      // Another request was approved, so this browser's link can no longer
+      // grant access; its waiting page ends without a Continue click.
+      await expect(otherPage.getByRole("status")).toContainText(
+        "This link is expired, cancelled, or unavailable",
+      )
       await expect(
-        otherPage.getByText(/Access has not been approved/),
-      ).toBeVisible()
+        otherPage.getByRole("button", { name: "Continue after approval" }),
+      ).toHaveCount(0)
       // This actor's journey is complete; finalize its recording before the
       // target's reload and revocation checks instead of encoding an idle page.
       await stranger.close()
@@ -585,7 +587,7 @@ test("Source cancels approved access before the target redeems", async ({
 })
 
 for (const state of ["cancelled", "expired"] as const) {
-  test(`A ${state} link cannot grant access`, async ({
+  test(`A ${state} link ends the waiting target page without granting access`, async ({
     page,
     actorContext,
   }) => {
@@ -614,12 +616,14 @@ for (const state of ["cancelled", "expired"] as const) {
     } else {
       expireTransfer(transfer.id)
     }
-    await targetPage
-      .getByRole("button", { name: "Continue after approval" })
-      .click()
-    await expect(
-      targetPage.getByText(/Access has not been approved/),
-    ).toBeVisible()
+    await test.step("The waiting page ends without a Continue click", async () => {
+      await expect(targetPage.getByRole("status")).toContainText(
+        "This link is expired, cancelled, or unavailable",
+      )
+      await expect(
+        targetPage.getByRole("button", { name: "Continue after approval" }),
+      ).toHaveCount(0)
+    })
     await targetPage.reload({ waitUntil: "domcontentloaded" })
     await expect(
       targetPage.getByText(

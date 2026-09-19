@@ -51,6 +51,9 @@ function switchRequired() {
     parsed: { accountSwitchRequired: true },
   })
 }
+function httpError(status: number, message = "Request failed") {
+  return Object.assign(new FetchError(message), { status })
+}
 beforeEach(() => {
   mocks.action
     .mockReset()
@@ -225,6 +228,57 @@ describe("target access transfer", () => {
     )
     wrapper.unmount()
   })
+  it("keeps waiting and polling through a transient 500", async () => {
+    vi.useFakeTimers()
+    mocks.action.mockResolvedValueOnce({ state: "pending", code: "12345678" })
+    const wrapper = render()
+    await flushPromises()
+
+    mocks.action.mockRejectedValue(httpError(500, "Server Error"))
+    await vi.advanceTimersByTimeAsync(2100)
+    await flushPromises()
+
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    expect(wrapper.get('[role="status"]').text()).toContain(
+      "Waiting for approval in the other browser",
+    )
+    expect(wrapper.find("button").exists()).toBe(true)
+
+    const calls = mocks.action.mock.calls.length
+    await vi.advanceTimersByTimeAsync(2100)
+    await flushPromises()
+
+    expect(mocks.action.mock.calls.length).toBeGreaterThan(calls)
+    wrapper.unmount()
+  })
+  it.each([403, 404])(
+    "ends the wait and stops polling when a poll definitively fails with %i",
+    async (status) => {
+      vi.useFakeTimers()
+      mocks.action.mockResolvedValueOnce({ state: "pending", code: "12345678" })
+      const wrapper = render()
+      await flushPromises()
+
+      mocks.action.mockRejectedValue(httpError(status))
+      await vi.advanceTimersByTimeAsync(2100)
+      await flushPromises()
+
+      expect(wrapper.get('[role="alert"]').text()).toContain(
+        "This transfer is expired, cancelled, or unavailable",
+      )
+      expect(wrapper.get('[role="status"]').text()).toContain(
+        "This link is expired, cancelled, or unavailable",
+      )
+      expect(wrapper.find("button").exists()).toBe(false)
+
+      const calls = mocks.action.mock.calls.length
+      await vi.advanceTimersByTimeAsync(6000)
+      await flushPromises()
+
+      expect(mocks.action).toHaveBeenCalledTimes(calls)
+      wrapper.unmount()
+    },
+  )
   it("clears an early redeem error when approval arrives", async () => {
     vi.useFakeTimers()
     mocks.action.mockResolvedValueOnce({ state: "pending", code: "12345678" })

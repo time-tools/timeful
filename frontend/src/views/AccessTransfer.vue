@@ -66,10 +66,12 @@
               {{
                 approved
                   ? "Approved — you can continue"
-                  : "Waiting for approval in the other browser. You have no transferred access until then."
+                  : unavailable
+                    ? "This link is expired, cancelled, or unavailable. Ask the source browser for a new link."
+                    : "Waiting for approval in the other browser. You have no transferred access until then."
               }}
             </p>
-            <v-btn v-if="code" :loading="busy" @click="finish()"
+            <v-btn v-if="code && !unavailable" :loading="busy" @click="finish()"
               >Continue after approval</v-btn
             >
           </li>
@@ -113,6 +115,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue"
 import {
+  isTransferUnavailable,
   requiresAccountSwitch,
   transferAction,
 } from "@/composables/transfer/transferBoundary"
@@ -121,6 +124,9 @@ const props = defineProps<{ eventId: string; transferId: string }>()
 const store = useMainStore()
 const code = ref("")
 const approved = ref(false)
+const unavailable = ref(false)
+const UNAVAILABLE_MESSAGE =
+  "This transfer is expired, cancelled, or unavailable. Ask the source browser for a new link."
 const confirmSwitch = ref(false)
 const error = ref("")
 const busy = ref(false)
@@ -139,8 +145,13 @@ function stepNumberClasses(index: number) {
     return "tw:bg-(--timeful-selection-bg) tw:text-(--timeful-selection-fg)"
   return "tw:border tw:border-(--timeful-outline-neutral) tw:text-(--timeful-muted-foreground)"
 }
+function endWaitUnavailable() {
+  unavailable.value = true
+  error.value = UNAVAILABLE_MESSAGE
+  if (timer) clearInterval(timer)
+}
 async function checkApproval() {
-  if (polling.value || approved.value || busy.value) return
+  if (polling.value || approved.value || unavailable.value || busy.value) return
   polling.value = true
   try {
     const transfer = await transferAction(
@@ -152,8 +163,10 @@ async function checkApproval() {
       approved.value = true
       error.value = ""
     }
-  } catch {
-    // Keep waiting after transient failures once the initial open succeeded.
+  } catch (cause) {
+    // A definitive 403/404 means the link can no longer grant access; other
+    // failures, such as a 500 or a network error, stay transient.
+    if (isTransferUnavailable(cause)) endWaitUnavailable()
   } finally {
     polling.value = false
   }
@@ -178,8 +191,7 @@ onMounted(async () => {
     code.value = transfer.code
     approved.value = transfer.state === "approved"
   } catch {
-    error.value =
-      "This transfer is expired, cancelled, or unavailable. Ask the source browser for a new link."
+    error.value = UNAVAILABLE_MESSAGE
   }
 })
 async function finish(confirmAccountSwitch = false) {
