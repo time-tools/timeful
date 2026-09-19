@@ -643,6 +643,24 @@ describe("Event guest edit action", () => {
     expect(eventViewSource).toContain("tw:sm:text-3xl tw:sm:leading-10")
   })
 
+  it("renders the event title as non-interactive text", async () => {
+    authUserState.value = { _id: "owner-1" }
+
+    const wrapper = mountScheduleGateEvent()
+    await flushDeferredMount()
+
+    const title = wrapper.get(".tw\\:text-xl")
+    expect(title.text()).toBe("dfg")
+    expect(title.classes()).not.toContain("tw:cursor-pointer")
+    expect(title.classes()).not.toContain("tw:hover:bg-light-gray")
+
+    await title.trigger("click")
+    expect(editEventMock).not.toHaveBeenCalled()
+
+    await wrapper.get("#edit-event-btn").trigger("click")
+    expect(editEventMock).toHaveBeenCalledOnce()
+  })
+
   it("uses explicit desktop rows for metadata actions", () => {
     expect(eventViewSource).toContain('id="event-header-meta-row"')
     expect(eventViewSource).toContain(
@@ -3817,8 +3835,6 @@ describe("Event guest edit action", () => {
     expect(editAvailabilityButton.text()).toContain("Edit availability")
     expect(editAvailabilityButton.attributes("disabled")).toBeDefined()
     expect(editEventButton.attributes("disabled")).toBeDefined()
-    await wrapper.find(".tw\\:text-xl").trigger("click")
-    expect(editEventMock).not.toHaveBeenCalled()
     expect(wrapper.find("#show-best-times-header-toggle").exists()).toBe(true)
     expect(wrapper.find("#desktop-header-more-options").exists()).toBe(true)
     expect(wrapper.text()).toContain("Cancel")

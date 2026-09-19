@@ -154,14 +154,7 @@
                   <div
                     class="sm:mb-2 tw:flex tw:flex-wrap tw:items-center tw:gap-x-4 tw:gap-y-2"
                   >
-                    <div
-                      class="tw:text-xl tw:sm:text-3xl tw:sm:leading-10"
-                      :class="
-                        canEditMetadata &&
-                        'tw:-mx-2 tw:-my-1 tw:cursor-pointer tw:rounded tw:px-2 tw:py-1 tw:transition-all tw:hover:bg-light-gray'
-                      "
-                      @click="canEditMetadata && !isScheduling && editEvent()"
-                    >
+                    <div class="tw:text-xl tw:sm:text-3xl tw:sm:leading-10">
                       {{ event.name }}
                     </div>
                     <v-chip
