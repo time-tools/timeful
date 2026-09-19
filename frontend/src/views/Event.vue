@@ -432,7 +432,6 @@
                       >
                     </v-btn>
                   </template>
-                  <EventAccessTransfer :event="event" />
                   <EventOwnerActions :event="event" @changed="refreshEvent" />
                   <v-btn
                     v-if="!isGroup"
@@ -445,6 +444,7 @@
                     <v-icon class="tw:text-green"><MdiContentCopy /></v-icon>
                     <span class="tw:ml-1 tw:text-green">Copy link</span>
                   </v-btn>
+                  <EventAccessTransfer :event="event" />
                 </div>
                 <div
                   v-if="

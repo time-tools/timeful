@@ -2232,6 +2232,55 @@ describe("Event guest edit action", () => {
     expect(copyLinkButton.text()).toContain("Copy link")
   })
 
+  it("orders archived header actions as Unarchive event, Copy link, then Continue on another device", async () => {
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      isArchived: true,
+    }
+
+    const wrapper = shallowMount(EventView, {
+      props: { eventId: "dEeaF" },
+      global: {
+        stubs: {
+          ...scheduleGateStubs,
+          EventOwnerActions: false,
+          EventAccessTransfer: false,
+        },
+      },
+    })
+
+    await flushDeferredMount()
+
+    expect(
+      wrapper
+        .get("#event-header-button-row")
+        .findAll("button")
+        .map((button) => button.text()),
+    ).toEqual(["Unarchive event", "Copy link", "Continue on another device"])
+  })
+
+  it("keeps Edit event first in the header action order", async () => {
+    const wrapper = shallowMount(EventView, {
+      props: { eventId: "dEeaF" },
+      global: {
+        stubs: {
+          ...scheduleGateStubs,
+          EventOwnerActions: false,
+          EventAccessTransfer: false,
+        },
+      },
+    })
+
+    await flushDeferredMount()
+
+    expect(
+      wrapper
+        .get("#event-header-button-row")
+        .findAll("button")
+        .map((button) => button.text()),
+    ).toEqual(["Edit event", "Copy link", "Continue on another device"])
+  })
+
   it("hides the header date summary for timed specific-date events", async () => {
     loaderEventState.value = {
       ...createDefaultEventState(),
