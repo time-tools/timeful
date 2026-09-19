@@ -9,11 +9,18 @@
       scrollable
       :content-props="{ 'aria-labelledby': 'manage-access-title' }"
     >
-      <v-card>
-        <v-card-title>
-          <h2 id="manage-access-title" class="tw:text-xl">Manage access</h2>
-        </v-card-title>
-        <v-card-text class="tw:flex tw:flex-col tw:gap-4">
+      <v-card class="tw:pt-4">
+        <EditorDialogHeader
+          title="Manage access"
+          title-id="manage-access-title"
+          subtitle=""
+          help-header=""
+          :dialog="true"
+          :show-help="false"
+          :hide-dialog-actions="false"
+          @close="dialog = false"
+        />
+        <v-card-text class="tw:flex tw:flex-col tw:gap-4 tw:px-4 tw:sm:px-8">
           <p class="tw:text-(--timeful-muted-foreground)">
             Use this event on another browser, or revoke access you granted
             earlier.
@@ -176,9 +183,6 @@
             {{ copied ? "Transfer link copied" : "" }}
           </p>
         </v-card-text>
-        <v-card-actions
-          ><v-btn @click="dialog = false">Close</v-btn></v-card-actions
-        >
       </v-card>
     </v-dialog>
   </template>
@@ -187,6 +191,7 @@
 import { computed, onUnmounted, ref, watch } from "vue"
 import type { Event } from "@/types"
 import { useMainStore } from "@/stores/main"
+import EditorDialogHeader from "@/components/EditorDialogHeader.vue"
 import {
   createTransfer,
   transferAction,

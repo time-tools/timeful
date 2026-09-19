@@ -584,6 +584,20 @@ test("Source cancels approved access before the target redeems", async ({
       cookie.name.startsWith("timeful_grant_"),
     ),
   ).toBe(false)
+  await test.step("Dismiss the dialog from the named top-right close control", async () => {
+    const dialog = page.getByRole("dialog")
+    const title = dialog.getByText("Manage access", { exact: true })
+    const body = dialog.getByText("Use this event on another browser")
+    await expect(title).toBeVisible()
+    await expect(body).toBeVisible()
+    const titleBox = await title.boundingBox()
+    const bodyBox = await body.boundingBox()
+    expect(titleBox).not.toBeNull()
+    expect(bodyBox).not.toBeNull()
+    expect(titleBox?.x).toBe(bodyBox?.x)
+    await dialog.getByRole("button", { name: "Close" }).click()
+    await expect(dialog).toBeHidden()
+  })
 })
 
 for (const state of ["cancelled", "expired"] as const) {

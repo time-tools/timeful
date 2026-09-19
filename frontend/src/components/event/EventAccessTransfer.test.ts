@@ -2,6 +2,7 @@
 import { flushPromises, mount } from "@vue/test-utils"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import EventAccessTransfer from "./EventAccessTransfer.vue"
+import EditorDialogHeader from "@/components/EditorDialogHeader.vue"
 import { eventTypes } from "@/constants"
 import { createLocalStorageMock } from "@/test/localStorage"
 
@@ -44,6 +45,7 @@ function render() {
     },
     global: {
       stubs: {
+        HelpDialog: true,
         VBtn: { template: "<button><slot /></button>" },
         VDialog: {
           props: { contentProps: Object, scrollable: Boolean },
@@ -71,6 +73,10 @@ async function click(wrapper: ReturnType<typeof render>, text: string) {
     .find((button) => button.text() === text)
   expect(button).toBeDefined()
   await button?.trigger("click")
+  await flushPromises()
+}
+async function clickClose(wrapper: ReturnType<typeof render>) {
+  await wrapper.get('button[aria-label="Close"]').trigger("click")
   await flushPromises()
 }
 function steps(wrapper: ReturnType<typeof render>) {
@@ -122,6 +128,23 @@ it("renders the three numbered steps behind an accessible dialog name", () => {
     "Step 2: Open the link in the other browser",
   )
   expect(rendered[2].text()).toContain("Step 3: Enter its code and approve")
+  wrapper.unmount()
+})
+
+it("renders the shared editor header with a named top-right close control", () => {
+  const wrapper = render()
+  const header = wrapper.findComponent(EditorDialogHeader)
+
+  expect(header.exists()).toBe(true)
+  expect(header.props("title")).toBe("Manage access")
+  expect(header.props("titleId")).toBe("manage-access-title")
+  expect(header.props("showHelp")).toBe(false)
+  expect(wrapper.get("#manage-access-title").text()).toBe("Manage access")
+  expect(wrapper.find(".tw\\:pt-4").exists()).toBe(true)
+  expect(wrapper.find('button[aria-label="Close"]').exists()).toBe(true)
+  expect(
+    wrapper.findAll("button").filter((button) => button.text() === "Close"),
+  ).toHaveLength(0)
   wrapper.unmount()
 })
 
@@ -621,7 +644,7 @@ it("prunes legacy history and polls only active transfers with stable grant numb
   post.mockClear()
   await vi.advanceTimersByTimeAsync(2000)
   expect(post).toHaveBeenCalledTimes(1)
-  await click(wrapper, "Close")
+  await clickClose(wrapper)
   post.mockClear()
   await vi.advanceTimersByTimeAsync(6000)
   expect(post).not.toHaveBeenCalled()
