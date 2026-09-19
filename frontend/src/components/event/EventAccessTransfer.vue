@@ -98,6 +98,7 @@ const props = defineProps<{ event: Event }>()
 const store = useMainStore()
 const dialog = ref(false)
 const busy = ref(false)
+const copying = ref(false)
 const polling = ref(false)
 const error = ref("")
 const copied = ref(false)
@@ -229,12 +230,13 @@ async function start() {
   await run(async () => {
     const eventId = props.event._id
     if (!eventId) return
+    let retired: { entry: SavedTransfer; state: AccessTransfer } | undefined
     if (canCopy.value && currentId.value) {
       const transferId = currentId.value
       const entry = tracked.value.find(({ id }) => id === transferId)
       try {
         const state = await transferAction(eventId, transferId, "cancel")
-        if (entry) updateTransfer(entry, state)
+        if (entry) retired = { entry, state }
       } catch (cause) {
         if (!isTransferUnavailable(cause)) throw cause
         // The target may have redeemed the transfer since the last poll.
@@ -243,18 +245,33 @@ async function start() {
         if (canCopy.value) throw cause
       }
     }
-    current.value = await createTransfer(eventId)
-    currentId.value = current.value.id
-    tracked.value.push(rememberTransfer(eventId, currentId.value))
-    code.value = ""
-    copied.value = false
+    try {
+      const created = await createTransfer(eventId)
+      if (retired) updateTransfer(retired.entry, retired.state)
+      current.value = created
+      currentId.value = created.id
+      tracked.value.push(rememberTransfer(eventId, currentId.value))
+      code.value = ""
+      copied.value = false
+    } catch (cause) {
+      if (retired) updateTransfer(retired.entry, retired.state)
+      throw cause
+    }
   }, "Could not create a transfer link. Please try again.")
 }
 async function copy() {
-  await run(async () => {
+  if (busy.value || copying.value) return
+  copying.value = true
+  error.value = ""
+  try {
     await navigator.clipboard.writeText(link.value)
     copied.value = true
-  }, "Could not copy the transfer link. Select the link and copy it manually.")
+  } catch {
+    error.value =
+      "Could not copy the transfer link. Select the link and copy it manually."
+  } finally {
+    copying.value = false
+  }
 }
 async function approve() {
   await run(async () => {

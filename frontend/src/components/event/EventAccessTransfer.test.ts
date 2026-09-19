@@ -227,6 +227,98 @@ it("cancels the live transfer before creating a replacement link", async () => {
   wrapper.unmount()
 })
 
+it("keeps the live transfer visible while its replacement is created", async () => {
+  const wrapper = render()
+  await click(wrapper, "Manage access")
+  await click(wrapper, "Create new transfer link")
+  let resolveCancel: (value: { state: string }) => void = () => {}
+  let resolveCreate: (value: { id: string; state: string }) => void = () => {}
+  post.mockImplementation((url: string) =>
+    url.endsWith("/cancel")
+      ? new Promise((resolve) => {
+          resolveCancel = resolve
+        })
+      : new Promise((resolve) => {
+          resolveCreate = resolve
+        }),
+  )
+
+  const button = wrapper
+    .findAll("button")
+    .find((button) => button.text() === "Create new transfer link")
+  await button?.trigger("click")
+  await flushPromises()
+  resolveCancel({ state: "cancelled" })
+  await flushPromises()
+
+  expect(wrapper.text()).toContain("Transfer status: Waiting for approval")
+  expect(wrapper.text()).toContain("Copy link")
+  expect(wrapper.text()).toContain("Approve matching code")
+  expect(wrapper.text()).toContain("Cancel transfer")
+  expect(
+    wrapper.get('input[aria-label="Transfer link"]').attributes("value"),
+  ).toBe("http://localhost:3000/transfer/EVENT123/transfer")
+
+  resolveCreate({ id: "replacement", state: "pending" })
+  await flushPromises()
+
+  expect(
+    wrapper.get('input[aria-label="Transfer link"]').attributes("value"),
+  ).toBe("http://localhost:3000/transfer/EVENT123/replacement")
+  expect(wrapper.text()).toContain("Transfer status: Waiting for approval")
+  wrapper.unmount()
+})
+
+it("reconciles a cancelled transfer when the replacement create fails", async () => {
+  const wrapper = render()
+  await click(wrapper, "Manage access")
+  await click(wrapper, "Create new transfer link")
+  post.mockImplementation((url: string) =>
+    url.endsWith("/cancel")
+      ? Promise.resolve({ state: "cancelled" })
+      : Promise.reject(
+          Object.assign(new FetchError("Server error"), { status: 500 }),
+        ),
+  )
+
+  await click(wrapper, "Create new transfer link")
+
+  expect(wrapper.get('[role="alert"]').text()).toContain(
+    "Could not create a transfer link",
+  )
+  expect(wrapper.text()).toContain("Transfer status: Cancelled")
+  expect(wrapper.text()).not.toContain("Copy link")
+  expect(savedTransfers("EVENT123")).toEqual([])
+  wrapper.unmount()
+})
+
+it("keeps Create new transfer link enabled while a copy is pending", async () => {
+  let resolveWrite: () => void = () => {}
+  vi.spyOn(navigator.clipboard, "writeText").mockImplementation(
+    () =>
+      new Promise<void>((resolve) => {
+        resolveWrite = resolve
+      }),
+  )
+  const wrapper = render()
+  await click(wrapper, "Manage access")
+  await click(wrapper, "Create new transfer link")
+  const createButton = wrapper
+    .findAll("button")
+    .find((button) => button.text() === "Create new transfer link")
+
+  await click(wrapper, "Copy link")
+
+  expect(createButton?.attributes("disabled")).toBeUndefined()
+  expect(wrapper.text()).not.toContain("Copied")
+
+  resolveWrite()
+  await flushPromises()
+
+  expect(wrapper.text()).toContain("Copied")
+  wrapper.unmount()
+})
+
 it("copies the current link without creating another transfer", async () => {
   const writeText = vi
     .spyOn(navigator.clipboard, "writeText")
