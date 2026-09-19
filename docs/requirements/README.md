@@ -237,6 +237,7 @@ For guidance on authoring functional requirements, read [`functional/README.md`]
 | [FR-125](functional/fr/FR-125.md) | Outline [Legend Section](../terminology/glossary.md#legend-section) square items                                                                                                                                                    | frontend          |
 | [FR-126](functional/fr/FR-126.md) | Describe the target browser in the Manage access dialog                                                                                                                                                                             | frontend, backend |
 | [FR-127](functional/fr/FR-127.md) | Use a six-digit numeric matching code for [Access Transfers](../terminology/glossary.md#access-transfer)                                                                                                                            | frontend, backend |
+| [FR-128](functional/fr/FR-128.md) | Present an [Access Transfer](../terminology/glossary.md#access-transfer) as numbered steps with live status                                                                                                                         | frontend, backend |
 
 ## Quality Requirements
 
