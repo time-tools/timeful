@@ -144,13 +144,16 @@ async function refresh() {
   const eventId = props.event._id
   if (!eventId) return
   let failed = false
+  const states = new Map<string, AccessTransfer>()
   await Promise.all(
     tracked.value.map(async (entry) => {
       try {
-        updateTransfer(entry, await transferAction(eventId, entry.id, "status"))
+        const state = await transferAction(eventId, entry.id, "status")
+        states.set(entry.id, state)
+        updateTransfer(entry, state)
       } catch (cause) {
         if (isTransferUnavailable(cause)) {
-          updateTransfer(entry, {
+          const state: AccessTransfer = {
             id: entry.id,
             state: "unavailable",
             revocable: false,
@@ -158,13 +161,28 @@ async function refresh() {
             code: "",
             requests: [],
             confirmationRequired: false,
-          })
+          }
+          states.set(entry.id, state)
+          updateTransfer(entry, state)
         } else {
           failed = true
         }
       }
     }),
   )
+  if (!currentId.value) {
+    const active = [...tracked.value]
+      .sort((a, b) => b.number - a.number)
+      .find((entry) => {
+        const state = states.get(entry.id)?.state
+        return state === "pending" || state === "approved"
+      })
+    const state = active ? states.get(active.id) : undefined
+    if (active && state) {
+      currentId.value = active.id
+      current.value = state
+    }
+  }
   if (failed) throw new Error("Status refresh failed")
 }
 async function poll() {

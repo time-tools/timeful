@@ -89,6 +89,114 @@ it("explains the transfer flow in the dialog", () => {
   expect(text).toContain("Opening the link alone gives no access")
 })
 
+it("restores a saved pending transfer after a reload", async () => {
+  localStorage.setItem(
+    "timeful.transfers.EVENT123",
+    JSON.stringify({
+      nextNumber: 2,
+      transfers: [{ id: "transfer", number: 1 }],
+    }),
+  )
+  const wrapper = render()
+  await click(wrapper, "Manage access")
+
+  expect(wrapper.text()).toContain("Copy transfer link")
+  expect(wrapper.text()).toContain("Transfer status: Waiting for approval")
+  expect(wrapper.text()).toContain("Approve matching code")
+  expect(wrapper.text()).toContain("Cancel transfer")
+  expect(
+    wrapper.get('input[aria-label="Transfer link"]').attributes("value"),
+  ).toBe("http://localhost:3000/transfer/EVENT123/transfer")
+  expect(
+    wrapper
+      .get('input[aria-label="Matching code from other browser"]')
+      .attributes("aria-label"),
+  ).toBe("Matching code from other browser")
+  wrapper.unmount()
+})
+
+it("restores a saved approved transfer after a reload", async () => {
+  localStorage.setItem(
+    "timeful.transfers.EVENT123",
+    JSON.stringify({
+      nextNumber: 2,
+      transfers: [{ id: "transfer", number: 1 }],
+    }),
+  )
+  post.mockImplementation((url: string) =>
+    Promise.resolve(
+      url.endsWith("/transfers")
+        ? { id: "transfer", state: "pending" }
+        : { state: "approved", requests: [] },
+    ),
+  )
+  const wrapper = render()
+  await click(wrapper, "Manage access")
+
+  expect(wrapper.text()).toContain(
+    "Transfer status: Approved — waiting for the other browser",
+  )
+  expect(wrapper.text()).toContain("Cancel transfer")
+  expect(wrapper.text()).not.toContain("Approve matching code")
+  wrapper.unmount()
+})
+
+it("does not restore a terminal saved transfer as current after a reload", async () => {
+  localStorage.setItem(
+    "timeful.transfers.EVENT123",
+    JSON.stringify({
+      nextNumber: 2,
+      transfers: [{ id: "transfer", number: 1 }],
+    }),
+  )
+  post.mockImplementation((url: string) =>
+    Promise.resolve(
+      url.endsWith("/transfers")
+        ? { id: "transfer", state: "pending" }
+        : { state: "expired", requests: [] },
+    ),
+  )
+  const wrapper = render()
+  await click(wrapper, "Manage access")
+
+  expect(wrapper.text()).toContain("Create transfer link")
+  expect(wrapper.text()).not.toContain("Copy transfer link")
+  expect(wrapper.text()).not.toContain("Cancel transfer")
+  expect(wrapper.find('input[aria-label="Transfer link"]').exists()).toBe(false)
+  wrapper.unmount()
+})
+
+it("restores the most recently created active transfer after a reload", async () => {
+  localStorage.setItem(
+    "timeful.transfers.EVENT123",
+    JSON.stringify({
+      nextNumber: 3,
+      transfers: [
+        { id: "first", number: 1 },
+        { id: "second", number: 2 },
+      ],
+    }),
+  )
+  post.mockImplementation((url: string) =>
+    Promise.resolve(
+      url.endsWith("/transfers")
+        ? { id: "second", state: "pending" }
+        : { state: url.includes("/first/") ? "pending" : "approved" },
+    ),
+  )
+  const wrapper = render()
+  await click(wrapper, "Manage access")
+
+  expect(
+    wrapper.get('input[aria-label="Transfer link"]').attributes("value"),
+  ).toBe("http://localhost:3000/transfer/EVENT123/second")
+  expect(wrapper.text()).toContain(
+    "Transfer status: Approved — waiting for the other browser",
+  )
+  expect(wrapper.text()).toContain("Cancel transfer")
+  wrapper.unmount()
+})
+
 it("keeps wrong-code feedback visible across status polling", async () => {
   const wrapper = render()
   await click(wrapper, "Manage access")

@@ -533,6 +533,16 @@ test("Source cancels approved access before the target redeems", async ({
   await expect(page.getByRole("status")).toContainText(
     "Approved — waiting for the other browser",
   )
+  await test.step("Restore the approved transfer after a source reload", async () => {
+    await page.reload({ waitUntil: "domcontentloaded" })
+    await page.getByRole("button", { name: "Manage access" }).click()
+    await expect(page.getByRole("status")).toContainText(
+      "Approved — waiting for the other browser",
+    )
+    await expect(page.getByLabel("Transfer link", { exact: true })).toHaveValue(
+      /\/transfer\//,
+    )
+  })
   await page
     .getByRole("button", { name: "Cancel transfer", exact: true })
     .click()
