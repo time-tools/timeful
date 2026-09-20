@@ -275,7 +275,7 @@ function onChangeValue(val: string | null) {
   font-weight: 500;
 }
 
-.timezone-select--compact-button :deep(.v-select__selection-text) {
+.timezone-select--compact-button :deep(.timezone-select__selection-text) {
   color: rgb(0, 0, 0);
   font-family: inherit;
   font-size: 0.875rem;
