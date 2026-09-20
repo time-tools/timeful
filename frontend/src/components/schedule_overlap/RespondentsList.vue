@@ -133,6 +133,11 @@
                 v-for="user in orderedRespondents"
                 :key="user._id"
                 class="respondent-row tw:group tw:relative tw:flex tw:cursor-pointer tw:items-center tw:py-1 tw:text-sm tw:leading-5"
+                :class="{
+                  'respondent-row--selected': respondentSelected(
+                    user._id ?? '',
+                  ),
+                }"
                 @mouseover="
                   (e: MouseEvent) =>
                     $emit('mouseOverRespondent', e, user._id ?? '')
@@ -145,7 +150,7 @@
                 >
                   <button
                     type="button"
-                    class="respondent-control tw:inline-flex tw:h-5 tw:appearance-none tw:items-center tw:gap-1 tw:border-0 tw:bg-transparent tw:p-0 tw:leading-none tw:shadow-none"
+                    class="respondent-control tw:inline-flex tw:h-5 tw:appearance-none tw:items-center tw:border-0 tw:bg-transparent tw:p-0 tw:leading-none tw:shadow-none"
                     :aria-pressed="respondentSelected(user._id ?? '')"
                     :aria-label="
                       respondentSelected(user._id ?? '')
@@ -180,21 +185,6 @@
                         </v-avatar>
                       </template>
                     </span>
-                    <span
-                      class="respondent-control__checkbox tw:flex tw:h-4 tw:w-4 tw:shrink-0 tw:items-center tw:justify-center tw:rounded-[2px] tw:border-2 tw:border-solid tw:bg-white"
-                      :class="{
-                        'respondent-control__checkbox--always-visible': isPhone,
-                      }"
-                    >
-                      <v-icon
-                        v-if="respondentSelected(user._id ?? '')"
-                        size="12"
-                        color="primary"
-                        class="tw:block"
-                      >
-                        <MdiCheck />
-                      </v-icon>
-                    </span>
                   </button>
                 </div>
                 <div
@@ -209,55 +199,81 @@
                     >
                       {{ formatRespondentName(user) }}
                     </div>
-                    <div
-                      class="respondent-row-actions tw:flex tw:shrink-0 tw:items-center tw:gap-1 tw:transition-none tw:group-hover:opacity-100 tw:group-[&:has(.email-hover-target:hover)]:opacity-0"
-                      :class="isPhone ? 'tw:opacity-100' : 'tw:opacity-0'"
-                    >
-                      <component
-                        :is="
-                          respondentEditActionState(user) === 'editable'
-                            ? 'button'
-                            : 'div'
-                        "
-                        v-if="respondentEditActionState(user) !== 'none'"
-                        type="button"
-                        class="respondent-edit-status tw:flex tw:h-5 tw:w-5 tw:items-center tw:justify-center tw:rounded-full tw:bg-white tw:p-0 tw:text-sm tw:leading-5"
-                        :class="
-                          respondentEditActionState(user) === 'editable'
-                            ? 'tw:cursor-pointer'
-                            : 'tw:cursor-default'
-                        "
-                        :aria-label="
-                          respondentEditActionState(user) === 'editable'
-                            ? `Edit ${formatRespondentName(user)}`
-                            : `${formatRespondentName(user)} cannot be edited`
-                        "
-                        :aria-disabled="
-                          respondentEditActionState(user) === 'locked'
-                        "
+                    <div class="tw:flex tw:shrink-0 tw:items-center tw:gap-1">
+                      <span
+                        class="respondent-control__checkbox tw:flex tw:h-4 tw:w-4 tw:shrink-0 tw:cursor-pointer tw:items-center tw:justify-center tw:rounded-[2px] tw:border-2 tw:border-solid tw:bg-white"
+                        :class="{
+                          'respondent-control__checkbox--always-visible':
+                            isPhone,
+                        }"
+                        aria-hidden="true"
                         @click.stop="
-                          respondentEditActionState(user) === 'editable' &&
-                          $emit('editGuestAvailability', user._id ?? '')
+                          (e: MouseEvent) =>
+                            $emit('clickRespondent', e, user._id ?? '')
                         "
                       >
-                        <v-icon size="16" color="#4F4F4F">
-                          <MdiPencil
-                            v-if="
-                              respondentEditActionState(user) === 'editable'
-                            "
-                          />
-                          <MdiLock v-else />
+                        <v-icon
+                          v-if="respondentSelected(user._id ?? '')"
+                          size="12"
+                          color="primary"
+                          class="tw:block"
+                        >
+                          <MdiCheck />
                         </v-icon>
-                      </component>
-                      <v-btn
-                        v-if="!isPhone && isOwner && !isGroup"
-                        icon
-                        size="small"
-                        class="tw:bg-white"
-                        @click="() => showDeleteAvailabilityDialog(user)"
-                        ><v-icon small class="tw:hover:text-red" color="#4F4F4F"
-                          ><MdiDelete /></v-icon
-                      ></v-btn>
+                      </span>
+                      <div
+                        class="respondent-row-actions tw:flex tw:shrink-0 tw:items-center tw:gap-1 tw:transition-none tw:group-hover:opacity-100 tw:group-[&:has(.email-hover-target:hover)]:opacity-0"
+                        :class="isPhone ? 'tw:opacity-100' : 'tw:opacity-0'"
+                      >
+                        <component
+                          :is="
+                            respondentEditActionState(user) === 'editable'
+                              ? 'button'
+                              : 'div'
+                          "
+                          v-if="respondentEditActionState(user) !== 'none'"
+                          type="button"
+                          class="respondent-edit-status tw:flex tw:h-5 tw:w-5 tw:items-center tw:justify-center tw:rounded-full tw:bg-white tw:p-0 tw:text-sm tw:leading-5"
+                          :class="
+                            respondentEditActionState(user) === 'editable'
+                              ? 'tw:cursor-pointer'
+                              : 'tw:cursor-default'
+                          "
+                          :aria-label="
+                            respondentEditActionState(user) === 'editable'
+                              ? `Edit ${formatRespondentName(user)}`
+                              : `${formatRespondentName(user)} cannot be edited`
+                          "
+                          :aria-disabled="
+                            respondentEditActionState(user) === 'locked'
+                          "
+                          @click.stop="
+                            respondentEditActionState(user) === 'editable' &&
+                            $emit('editGuestAvailability', user._id ?? '')
+                          "
+                        >
+                          <v-icon size="16" color="#4F4F4F">
+                            <MdiPencil
+                              v-if="
+                                respondentEditActionState(user) === 'editable'
+                              "
+                            />
+                            <MdiLock v-else />
+                          </v-icon>
+                        </component>
+                        <v-btn
+                          v-if="!isPhone && isOwner && !isGroup"
+                          icon
+                          size="small"
+                          class="tw:bg-white"
+                          @click="() => showDeleteAvailabilityDialog(user)"
+                          ><v-icon
+                            small
+                            class="tw:hover:text-red"
+                            color="#4F4F4F"
+                            ><MdiDelete /></v-icon
+                        ></v-btn>
+                      </div>
                     </div>
                   </div>
                   <div
@@ -639,14 +655,14 @@ async function copyEmailToClipboard(user: User) {
 }
 
 .respondent-row:hover .respondent-control__checkbox,
-.respondent-control[aria-pressed="true"] .respondent-control__checkbox,
+.respondent-row--selected .respondent-control__checkbox,
 .respondent-control__checkbox--always-visible {
   visibility: visible;
   opacity: 1;
 }
 
 .respondent-row:hover .respondent-control__checkbox,
-.respondent-control[aria-pressed="true"] .respondent-control__checkbox {
+.respondent-row--selected .respondent-control__checkbox {
   border-color: var(--timeful-primary-action-bg);
 }
 

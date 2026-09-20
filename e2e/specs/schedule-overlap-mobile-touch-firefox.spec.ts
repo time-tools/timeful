@@ -518,7 +518,7 @@ test("Responses panel list scrolls under a static Responses heading", async ({
   )
 })
 
-test("selected phone respondent keeps the availability status beside the checkbox", async ({
+test("phone respondent selection sits after the name and keeps the status visible", async ({
   page,
   request,
 }) => {
@@ -583,26 +583,26 @@ test("selected phone respondent keeps the availability status beside the checkbo
   await expect(checkbox).toBeVisible()
   await expect(checkbox).toHaveCSS("border-top-color", "rgb(189, 189, 189)")
 
-  const [statusBox, checkboxBox, nameBeforeSelection] = await Promise.all([
+  const [statusBox, nameBeforeSelection, checkboxBox] = await Promise.all([
     statusSquare.boundingBox(),
-    checkbox.boundingBox(),
     name.boundingBox(),
+    checkbox.boundingBox(),
   ])
   expect(statusBox).not.toBeNull()
-  expect(checkboxBox).not.toBeNull()
   expect(nameBeforeSelection).not.toBeNull()
-  if (!statusBox || !checkboxBox || !nameBeforeSelection) {
+  expect(checkboxBox).not.toBeNull()
+  if (!statusBox || !nameBeforeSelection || !checkboxBox) {
     throw new Error("Expected the respondent control boxes to be measurable")
   }
 
-  expect(checkboxBox.x).toBeGreaterThanOrEqual(
+  expect(nameBeforeSelection.x).toBeGreaterThanOrEqual(
     statusBox.x + statusBox.width - 1,
   )
-  expect(nameBeforeSelection.x).toBeGreaterThanOrEqual(
-    checkboxBox.x + checkboxBox.width - 1,
+  expect(checkboxBox.x).toBeGreaterThanOrEqual(
+    nameBeforeSelection.x + nameBeforeSelection.width - 1,
   )
 
-  await row.click()
+  await checkbox.click()
   await expect(control).toHaveAttribute("aria-pressed", "true")
   await expect(statusSquare).toBeVisible()
   await expect(checkbox).toBeVisible()

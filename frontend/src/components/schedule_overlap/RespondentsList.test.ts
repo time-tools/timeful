@@ -286,7 +286,7 @@ describe("RespondentsList", () => {
     expect(timedWrapper.find(".tw\\:h-2").exists()).toBe(true)
   })
 
-  it("uses a fixed respondent control slot with the checkbox after the avatar", () => {
+  it("keeps the left indicator slot avatar-only and the checkbox after the name", () => {
     const wrapper = mountRespondentsList({
       curDate: undefined,
       setEntry: baseDate,
@@ -312,18 +312,22 @@ describe("RespondentsList", () => {
       true,
     )
     const selectionButton = wrapper.find('button[aria-pressed="false"]')
-    const checkboxShell = selectionButton.find(".respondent-control__checkbox")
     const avatar = selectionButton.find(".respondent-control__avatar")
+    const checkboxShell = wrapper.find(".respondent-control__checkbox")
+    const rowActions = wrapper.find(".respondent-row-actions")
 
     expect(selectionButton.exists()).toBe(true)
     expect(selectionButton.classes()).toContain("tw:appearance-none")
     expect(selectionButton.classes()).toContain("tw:h-5")
     expect(selectionButton.classes()).toContain("tw:inline-flex")
-    expect(selectionButton.classes()).toContain("tw:gap-1")
     expect(selectionButton.classes()).toContain("respondent-control")
+    expect(selectionButton.classes()).not.toContain("tw:gap-1")
     expect(avatar.exists()).toBe(true)
     expect(avatar.classes()).toContain("tw:flex")
     expect(avatar.classes()).toContain("tw:shrink-0")
+    expect(selectionButton.find(".respondent-control__checkbox").exists()).toBe(
+      false,
+    )
     expect(checkboxShell.exists()).toBe(true)
     expect(checkboxShell.classes()).toContain("tw:flex")
     expect(checkboxShell.classes()).toContain("tw:h-4")
@@ -332,8 +336,13 @@ describe("RespondentsList", () => {
     expect(checkboxShell.classes()).toContain("tw:border-solid")
     expect(checkboxShell.classes()).not.toContain("tw:border-primary")
     expect(checkboxShell.attributes("style")).toBeUndefined()
+    expect(checkboxShell.attributes("aria-hidden")).toBe("true")
     expect(
-      avatar.element.compareDocumentPosition(checkboxShell.element) &
+      nameLabel.element.compareDocumentPosition(checkboxShell.element) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(
+      checkboxShell.element.compareDocumentPosition(rowActions.element) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
   })
@@ -356,7 +365,7 @@ describe("RespondentsList", () => {
         setEntry: baseDate,
       })
       const desktopCheckbox = desktopWrapper.find(
-        'button[aria-pressed="false"] .respondent-control__checkbox',
+        ".respondent-row .respondent-control__checkbox",
       )
 
       expect(desktopCheckbox.exists()).toBe(true)
@@ -368,12 +377,12 @@ describe("RespondentsList", () => {
     }
   })
 
-  it("reveals the reserved checkbox on hover or selection beside the status", () => {
+  it("reveals the reserved checkbox on hover or selection after the name", () => {
     expect(respondentsListSource).toContain(
       ".respondent-row:hover .respondent-control__checkbox",
     )
     expect(respondentsListSource).toContain(
-      '.respondent-control[aria-pressed="true"] .respondent-control__checkbox',
+      ".respondent-row--selected .respondent-control__checkbox",
     )
     expect(respondentsListSource).toContain(
       "border-color: var(--timeful-outline-neutral)",
@@ -510,11 +519,14 @@ describe("RespondentsList", () => {
     const statusSquare = selectionButton.find(
       ".respondent-control__avatar div.tw\\:h-4.tw\\:w-4",
     )
-    const checkboxShell = selectionButton.find(".respondent-control__checkbox")
+    const checkboxShell = wrapper.find(".respondent-control__checkbox")
 
     expect(selectionButton.exists()).toBe(true)
     expect(statusSquare.exists()).toBe(true)
     expect(checkboxShell.exists()).toBe(true)
+    expect(selectionButton.find(".respondent-control__checkbox").exists()).toBe(
+      false,
+    )
     expect(
       statusSquare.element.compareDocumentPosition(checkboxShell.element) &
         Node.DOCUMENT_POSITION_FOLLOWING,
@@ -534,16 +546,32 @@ describe("RespondentsList", () => {
     const statusSquare = selectionButton.find(
       ".respondent-control__avatar div.tw\\:h-4.tw\\:w-4",
     )
-    const checkboxShell = selectionButton.find(".respondent-control__checkbox")
+    const checkboxShell = wrapper.find(".respondent-control__checkbox")
 
     expect(selectionButton.exists()).toBe(true)
     expect(statusSquare.exists()).toBe(true)
     expect(statusSquare.classes()).toContain("tw:bg-[#00994C77]")
     expect(checkboxShell.findComponent(MdiCheck).exists()).toBe(true)
+    expect(wrapper.find(".respondent-row").classes()).toContain(
+      "respondent-row--selected",
+    )
     expect(
       statusSquare.element.compareDocumentPosition(checkboxShell.element) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
+  })
+
+  it("toggles selection once when the checkbox is clicked", async () => {
+    const wrapper = mountRespondentsList({
+      curDate: baseDate,
+      setEntry: baseDate,
+    })
+
+    await wrapper.get(".respondent-control__checkbox").trigger("click")
+
+    expect(wrapper.emitted("clickRespondent")).toEqual([
+      [expect.any(MouseEvent), "user-1"],
+    ])
   })
 
   it("keeps the respondent action in the same inline row as the respondent name", () => {

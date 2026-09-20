@@ -6,7 +6,7 @@ import {
   seedCanonicalTimedEvent,
 } from "../helpers/timed-event-helpers"
 
-test("respondent selection reveals beside the row indicator without moving the name", async ({
+test("respondent selection reveals after the name without moving it", async ({
   page,
 }) => {
   const now = Temporal.Now.instant()
@@ -51,40 +51,55 @@ test("respondent selection reveals beside the row indicator without moving the n
   const indicator = row.locator(".respondent-control__avatar")
   const checkbox = row.locator(".respondent-control__checkbox")
   const name = row.locator(".respondent-name-line")
+  const editAction = row.locator(".respondent-edit-status")
+  const legendLabel = page
+    .locator(".color-legend__indicator-slot + span")
+    .first()
 
   await expect(indicator).toBeVisible()
   await expect(checkbox).toBeHidden()
 
-  const nameBeforeHover = await name.boundingBox()
+  const [nameBeforeHover, legendLabelBox] = await Promise.all([
+    name.boundingBox(),
+    legendLabel.boundingBox(),
+  ])
   expect(nameBeforeHover).not.toBeNull()
-  if (!nameBeforeHover) {
-    throw new Error("Expected the respondent name to have a bounding box")
+  expect(legendLabelBox).not.toBeNull()
+  if (!nameBeforeHover || !legendLabelBox) {
+    throw new Error("Expected the respondent name and legend to be measurable")
   }
+  expect(Math.abs(nameBeforeHover.x - legendLabelBox.x)).toBeLessThanOrEqual(1)
 
   await row.hover()
   await expect(checkbox).toBeVisible()
   await expect(indicator).toBeVisible()
   await expect(checkbox).toHaveCSS("border-top-color", "rgb(0, 153, 76)")
 
-  const [indicatorBox, checkboxBox, nameAfterHover] = await Promise.all([
-    indicator.boundingBox(),
-    checkbox.boundingBox(),
-    name.boundingBox(),
-  ])
+  const [indicatorBox, checkboxBox, nameAfterHover, editActionBox] =
+    await Promise.all([
+      indicator.boundingBox(),
+      checkbox.boundingBox(),
+      name.boundingBox(),
+      editAction.boundingBox(),
+    ])
   expect(indicatorBox).not.toBeNull()
   expect(checkboxBox).not.toBeNull()
   expect(nameAfterHover).not.toBeNull()
-  if (!indicatorBox || !checkboxBox || !nameAfterHover) {
+  expect(editActionBox).not.toBeNull()
+  if (!indicatorBox || !checkboxBox || !nameAfterHover || !editActionBox) {
     throw new Error("Expected the respondent control boxes to be measurable")
   }
 
   expect(checkboxBox.x).toBeGreaterThanOrEqual(
-    indicatorBox.x + indicatorBox.width - 1,
+    nameAfterHover.x + nameAfterHover.width - 1,
+  )
+  expect(checkboxBox.x + checkboxBox.width).toBeLessThanOrEqual(
+    editActionBox.x + 1,
   )
   expect(Math.abs(nameAfterHover.x - nameBeforeHover.x)).toBeLessThanOrEqual(1)
   expect(Math.abs(nameAfterHover.y - nameBeforeHover.y)).toBeLessThanOrEqual(1)
 
-  await row.click()
+  await checkbox.click()
   await expect(control).toHaveAttribute("aria-pressed", "true")
   await expect(indicator).toBeVisible()
   await expect(checkbox).toBeVisible()
@@ -101,4 +116,15 @@ test("respondent selection reveals beside the row indicator without moving the n
   expect(
     Math.abs(nameAfterSelection.y - nameBeforeHover.y),
   ).toBeLessThanOrEqual(1)
+
+  await page.mouse.move(0, 0)
+  await expect(checkbox).toBeVisible()
+  await expect(checkbox.locator("svg")).toBeVisible()
+  await expect(checkbox).toHaveCSS("border-top-color", "rgb(0, 153, 76)")
+
+  await checkbox.click()
+  await expect(control).toHaveAttribute("aria-pressed", "false")
+
+  await page.mouse.move(0, 0)
+  await expect(checkbox).toBeHidden()
 })
