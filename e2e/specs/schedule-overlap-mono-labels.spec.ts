@@ -100,18 +100,37 @@ test("grid time labels render Chivo Mono through the layered mono utility", asyn
   // of anchoring to one row id.
   const firstMonoElement = page.locator("[class*='font-mono']").first()
   await expect(firstMonoElement).toBeVisible()
-  const monoFamilies = await page.evaluate(() =>
+  const monoStyles = await page.evaluate(() =>
     Array.from(
       document.querySelectorAll<HTMLElement>("[class*='font-mono']"),
-    ).map((element) => getComputedStyle(element).fontFamily),
+    ).map((element) => {
+      const computed = getComputedStyle(element)
+      return { family: computed.fontFamily, weight: computed.fontWeight }
+    }),
   )
-  expect(monoFamilies.length).toBeGreaterThan(0)
-  for (const family of monoFamilies) {
+  expect(monoStyles.length).toBeGreaterThan(0)
+  for (const { family, weight } of monoStyles) {
     expect(family).toContain("Chivo Mono")
+    // TASK-0240.03 self-hosts only the Chivo Mono latin 400 face: no mono
+    // element or ancestor selects another weight, so a different weight here
+    // means the retained font faces no longer cover the UI.
+    expect(weight).toBe("400")
   }
 
   const bodyFamily = await page.evaluate(
     () => getComputedStyle(document.body).fontFamily,
   )
   expect(bodyFamily).toContain("DM Sans")
+
+  // The computed family list still starts with the bundled names even when a
+  // face is missing, so assert the retained latin faces actually load.
+  const loadedFaces = await page.evaluate(async () => {
+    await document.fonts.ready
+    return {
+      chivo: document.fonts.check('400 16px "Chivo Mono"'),
+      dmSans: document.fonts.check("400 16px 'DM Sans'"),
+    }
+  })
+  expect(loadedFaces.chivo).toBe(true)
+  expect(loadedFaces.dmSans).toBe(true)
 })
