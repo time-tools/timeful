@@ -2,22 +2,26 @@
   <v-app>
     <AutoSnackbar color="error" :text="error" />
     <AutoSnackbar color="tw:bg-blue" :text="info" />
-    <SignInNotSupportedDialog v-model="webviewDialog" />
-    <GrantedAccessConfirmation />
+    <SignInNotSupportedDialog
+      v-if="webviewDialogRequested"
+      v-model="webviewDialog"
+    />
+    <GrantedAccessConfirmation v-if="authUser" />
     <SignInDialog
-      v-if="signInEnabled"
+      v-if="signInEnabled && signInDialogRequested"
       v-model="signInDialog"
       @sign-in="_signIn"
       @email-sign-in="_emailSignIn"
     />
     <NewDialog
+      v-if="newDialogRequested"
       v-model="newDialogOptions.show"
       :type="newDialogOptions.openNewGroup ? 'group' : 'event'"
       :contacts-payload="newDialogOptions.contactsPayload"
       :no-tabs="newDialogOptions.eventOnly"
       :folder-id="newDialogOptions.folderId"
     />
-    <UpvoteRedditSnackbar />
+    <UpvoteRedditSnackbar v-if="upvoteSnackbarRequested" />
     <div
       v-if="showHeader"
       data-testid="app-header"
@@ -45,6 +49,7 @@
           v-if="$route.name === 'event' && !isPhone"
           id="top-right-create-btn"
           variant="text"
+          @pointerenter="preloadNewDialog"
           @click="() => _createNew(true)"
         >
           Create an event
@@ -74,6 +79,7 @@
           <v-list id="mobile-header-menu">
             <v-list-item
               id="mobile-header-create-btn"
+              @pointerenter="preloadNewDialog"
               @click="_createNew(true)"
             >
               <v-list-item-title>Create an event</v-list-item-title>
@@ -123,6 +129,7 @@
           :style="{
             boxShadow: '0px 2px 8px 0px #00994C80',
           }"
+          @pointerenter="preloadNewDialog"
           @click="() => _createNew()"
         >
           + Create new
@@ -147,7 +154,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue"
+import {
+  ref,
+  computed,
+  defineAsyncComponent,
+  onMounted,
+  onBeforeUnmount,
+  watch,
+} from "vue"
 import { useRoute, useRouter } from "vue-router"
 import { useHead } from "@unhead/vue"
 import { storeToRefs } from "pinia"
@@ -166,13 +180,35 @@ import { signInEnabled } from "@/utils/signInAvailability"
 import AutoSnackbar from "@/components/AutoSnackbar.vue"
 import AuthUserMenu from "@/components/AuthUserMenu.vue"
 import Logo from "@/components/Logo.vue"
-import NewDialog from "@/components/NewDialog.vue"
-import SignInDialog from "@/components/SignInDialog.vue"
-import SignInNotSupportedDialog from "@/components/SignInNotSupportedDialog.vue"
-import GrantedAccessConfirmation from "@/components/event/GrantedAccessConfirmation.vue"
-import UpvoteRedditSnackbar from "@/components/UpvoteRedditSnackbar.vue"
 import MdiGithub from "~icons/mdi/github"
 import MdiMenu from "~icons/mdi/menu"
+
+const loadNewDialog = () => import("@/components/NewDialog.vue")
+const NewDialog = defineAsyncComponent(loadNewDialog)
+const SignInDialog = defineAsyncComponent(
+  () => import("@/components/SignInDialog.vue"),
+)
+const SignInNotSupportedDialog = defineAsyncComponent(
+  () => import("@/components/SignInNotSupportedDialog.vue"),
+)
+const GrantedAccessConfirmation = defineAsyncComponent(
+  () => import("@/components/event/GrantedAccessConfirmation.vue"),
+)
+const UpvoteRedditSnackbar = defineAsyncComponent(
+  () => import("@/components/UpvoteRedditSnackbar.vue"),
+)
+
+function useRequestLatch(source: () => boolean) {
+  const requested = ref(false)
+  watch(
+    source,
+    (value) => {
+      if (value) requested.value = true
+    },
+    { immediate: true },
+  )
+  return requested
+}
 
 useHead({ htmlAttrs: { lang: "en-US" } })
 
@@ -185,6 +221,13 @@ const { isPhone } = useDisplayHelpers()
 const loaded = ref(false)
 const webviewDialog = ref(false)
 const signInDialog = ref(false)
+
+const webviewDialogRequested = useRequestLatch(() => webviewDialog.value)
+const signInDialogRequested = useRequestLatch(() => signInDialog.value)
+const newDialogRequested = useRequestLatch(() => newDialogOptions.value.show)
+const upvoteSnackbarRequested = useRequestLatch(
+  () => route.name === "home" && !isPhone.value,
+)
 
 const showHeader = computed(
   () =>
@@ -217,6 +260,10 @@ const routerViewClass = computed(() => {
 
 function handleScroll() {
   // scrollY tracked externally if needed; kept for scroll listener lifecycle
+}
+
+function preloadNewDialog() {
+  void loadNewDialog()
 }
 
 function _createNew(eventOnly = false) {

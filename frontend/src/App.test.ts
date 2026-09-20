@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { flushPromises, shallowMount } from "@vue/test-utils"
-import { ref } from "vue"
+import { nextTick, ref } from "vue"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type * as UtilsModule from "@/utils"
 import { authTypes } from "@/constants"
@@ -268,6 +268,8 @@ describe("App auth restore state", () => {
     })
 
     await Promise.resolve()
+    ;(wrapper.vm as unknown as { signInDialog: boolean }).signInDialog = true
+    await nextTick()
     await wrapper.get('[data-test="provider-sign-in"]').trigger("click")
 
     expect(signInGoogleMock).toHaveBeenCalledWith({
