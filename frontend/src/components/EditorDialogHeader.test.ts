@@ -73,4 +73,30 @@ describe("EditorDialogHeader", () => {
 
     expect(wrapper.find(".tw\\:items-start").exists()).toBe(true)
   })
+
+  it("binds a caller title id and names the icon-only close control", () => {
+    const wrapper = shallowMount(EditorDialogHeader, {
+      props: {
+        title: "Manage access",
+        subtitle: "",
+        helpHeader: "",
+        dialog: true,
+        showHelp: false,
+        hideDialogActions: false,
+        titleId: "manage-access-title",
+      },
+      global: {
+        stubs: {
+          HelpDialog: passThroughStub,
+          "v-btn": VBtnStub,
+          "v-card-title": passThroughStub,
+          "v-icon": VIconStub,
+          "v-spacer": true,
+        },
+      },
+    })
+
+    expect(wrapper.get("#manage-access-title").text()).toBe("Manage access")
+    expect(wrapper.get("button").attributes("aria-label")).toBe("Close")
+  })
 })

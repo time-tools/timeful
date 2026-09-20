@@ -77,6 +77,7 @@ Frontend build-time variables:
 - `VITE_POSTHOG_API_HOST`
 - `VITE_ENABLE_SIGN_IN`
 - `VITE_ENABLE_RICH_LANDING`
+- `VITE_ENABLE_CALENDAR_AUTOFILL`
 - `VITE_FEEDBACK_URL`
 - `VITE_SUPPORT_EMAIL`
 - `VITE_GITHUB_REPO_URL`
@@ -104,6 +105,11 @@ Compose-to-frontend build arg mappings:
   This minimal mode
   hides landing sign-in affordances, the in-page how-it-works section, testimonials, the FAQ,
   and the footer.
+- **`VITE_ENABLE_CALENDAR_AUTOFILL`** — Controls whether the frontend fills availability from calendar data on event pages.
+  Defaults to `true` when unset or blank.
+  Set to `false` to start
+  `Add availability` and `Edit availability` in manual mode without the availability-source choice dialog, to skip every automatic calendar fill, and to hide the `Calendar options` control during availability editing.
+  Calendar account connections, calendar event overlays, and the landing-page calendar demonstration stay available.
 - **`VITE_FEEDBACK_URL`** — Controls where frontend “Give feedback” links point.
   Defaults to `https://github.com/deemp/timeful/issues` when unset or blank.
 - **`VITE_SUPPORT_EMAIL`** — Controls the support email address shown in the frontend.

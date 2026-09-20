@@ -63,6 +63,7 @@ import {
   type StoredGuestOwnership,
 } from "./scheduleOverlapStorage"
 import { normalizeTimedResponseSlots } from "@/utils/timedResponseSlots"
+import { calendarAutofillEnabled } from "@/utils/calendarAutofillAvailability"
 
 declare global {
   interface Window {
@@ -584,6 +585,7 @@ export function useAvailabilityData(opts: UseAvailabilityDataOptions) {
     const authUser = mainStore.authUser
     const responses = opts.event.value.responses
     if (
+      calendarAutofillEnabled &&
       opts.state.value === states.EDIT_AVAILABILITY &&
       // Responses are keyed by opaque public IDs, so an authUser._id
       // membership test cannot decide whether the visitor already responded.

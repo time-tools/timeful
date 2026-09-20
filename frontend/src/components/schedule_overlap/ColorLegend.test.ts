@@ -32,7 +32,7 @@ describe("ColorLegend", () => {
     expect(wrapper.text()).toContain("Scheduled event")
     expect(wrapper.find(".scheduled-event-legend-indicator").classes()).toEqual(
       expect.arrayContaining([
-        "tw:border-scheduled-event",
+        "tw:border-(--timeful-grid-line-color)",
         "tw:bg-scheduled-event",
       ]),
     )
@@ -46,9 +46,9 @@ describe("ColorLegend", () => {
 
     expectStructuralColors(wrapper)
     expect(labels(wrapper)).toEqual([
+      "Scheduled event",
       "Disabled, inside the event dates in the event timezone",
       "Disabled, outside the event dates in the event timezone",
-      "Scheduled event",
     ])
     expect(wrapper.html()).not.toContain("tw:bg-[#F9CCCC]")
   })
@@ -59,9 +59,9 @@ describe("ColorLegend", () => {
     expectStructuralColors(wrapper)
     expect(labels(wrapper)).toEqual([
       "Unavailable, change in Add/Edit availability",
+      "Scheduled event",
       "Disabled, inside the event dates in the event timezone",
       "Disabled, outside the event dates in the event timezone",
-      "Scheduled event",
     ])
     expect(wrapper.html()).toContain("tw:bg-[#F9CCCC]")
   })
@@ -78,7 +78,14 @@ describe("ColorLegend", () => {
       "Unavailable, change in Add/Edit availability",
     )
     expect(wrapper.html()).toContain("tw:bg-[#F9CCCC]")
-    expect(labels(wrapper)).toHaveLength(6)
+    expect(labels(wrapper)).toEqual([
+      "Available",
+      "If needed",
+      "Unavailable, change in Add/Edit availability",
+      "Scheduled event",
+      "Disabled, inside the event dates in the event timezone",
+      "Disabled, outside the event dates in the event timezone",
+    ])
   })
 
   it("shows the response palette and active-slot guidance while adding availability", () => {
@@ -92,7 +99,14 @@ describe("ColorLegend", () => {
     expect(wrapper.text()).toContain(
       "Unavailable, change in Add/Edit availability",
     )
-    expect(labels(wrapper)).toHaveLength(6)
+    expect(labels(wrapper)).toEqual([
+      "Available",
+      "If needed",
+      "Unavailable, change in Add/Edit availability",
+      "Scheduled event",
+      "Disabled, inside the event dates in the event timezone",
+      "Disabled, outside the event dates in the event timezone",
+    ])
   })
 
   it("uses the respondent checkbox control geometry for each indicator", () => {
@@ -134,5 +148,32 @@ describe("ColorLegend", () => {
       /\.color-legend-indicator--collapsed\s*\{[^}]*dashed/,
     )
     expect(colorLegendSource).not.toContain("dotted")
+  })
+
+  it("outlines every indicator with the shared grid-line grey", () => {
+    const wrapper = mountLegend({
+      activeSlotsCount: 1,
+      responseCount: 1,
+      canCollapseHours: true,
+    })
+
+    const indicatorSlots = wrapper.findAll(".color-legend__indicator-slot")
+    expect(indicatorSlots).toHaveLength(7)
+
+    for (const indicatorSlot of indicatorSlots) {
+      const indicator = indicatorSlot.get("div")
+      if (indicator.classes().includes("color-legend-indicator--collapsed")) {
+        expect(indicator.classes()).toContain(
+          "tw:bg-(--timeful-collapsed-hours-bg)",
+        )
+        continue
+      }
+      expect(indicator.classes()).toContain(
+        "tw:border-(--timeful-grid-line-color)",
+      )
+    }
+
+    expect(wrapper.html()).not.toContain("tw:border-outline-neutral")
+    expect(wrapper.html()).not.toContain("tw:border-scheduled-event")
   })
 })

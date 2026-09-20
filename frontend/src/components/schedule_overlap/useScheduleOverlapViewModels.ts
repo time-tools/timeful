@@ -153,8 +153,6 @@ interface UseScheduleOverlapViewModelsFlatOptions {
   timeslotClassStyle: ComputedRef<ClassStyle[]>
   timeslotVon: ComputedRef<Record<string, () => void>[]>
   noEventNames: ComputedRef<boolean>
-  hintTextShown: ComputedRef<boolean>
-  hintText: ComputedRef<string>
   max: Ref<number>
   fetchedResponses: Ref<Record<string, FetchedResponse | undefined>>
   loadingResponsesLoading: ComputedRef<boolean>
@@ -413,8 +411,6 @@ export function useScheduleOverlapViewModels(
   const mobileOverlayViewModel =
     computed<ScheduleOverlapMobileOverlayViewModel>(() => ({
       bottomOffset: "4rem",
-      hintTextShown: opts.hintTextShown.value,
-      hintText: opts.hintText.value,
       isGroup: opts.isGroup.value,
       editing: opts.editing.value,
       isSignUp: opts.isSignUp.value,
@@ -468,8 +464,6 @@ export function useScheduleOverlapViewModels(
       dayTimeslotVon: opts.dayTimeslotVon.value,
       allowDrag: opts.allowDrag.value,
       isPhone: opts.isPhone.value,
-      hintTextShown: opts.hintTextShown.value,
-      hintText: opts.hintText.value,
       calendarOnly: opts.calendarOnly.value,
       toolRow: toolRowViewModel.value,
     }),
@@ -515,8 +509,6 @@ export function useScheduleOverlapViewModels(
     timeslotClassStyle: opts.timeslotClassStyle.value,
     timeslotVon: opts.timeslotVon.value,
     noEventNames: opts.noEventNames.value,
-    hintTextShown: opts.hintTextShown.value,
-    hintText: opts.hintText.value,
     isPhone: opts.isPhone.value,
     loadingResponsesLoading: opts.loadingResponsesLoading.value,
     allowDrag: opts.allowDrag.value,

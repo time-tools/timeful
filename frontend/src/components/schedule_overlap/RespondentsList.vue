@@ -133,6 +133,11 @@
                 v-for="user in orderedRespondents"
                 :key="user._id"
                 class="respondent-row tw:group tw:relative tw:flex tw:cursor-pointer tw:items-center tw:py-1 tw:text-sm tw:leading-5"
+                :class="{
+                  'respondent-row--selected': respondentSelected(
+                    user._id ?? '',
+                  ),
+                }"
                 @mouseover="
                   (e: MouseEvent) =>
                     $emit('mouseOverRespondent', e, user._id ?? '')
@@ -141,11 +146,11 @@
                 @click="(e: MouseEvent) => clickRespondent(e, user._id ?? '')"
               >
                 <div
-                  class="tw:ml-1 tw:mr-3 tw:flex tw:h-5 tw:w-5 tw:shrink-0 tw:items-center tw:justify-center"
+                  class="tw:ml-1 tw:mr-3 tw:flex tw:h-5 tw:shrink-0 tw:items-center"
                 >
                   <button
                     type="button"
-                    class="respondent-control tw:flex tw:h-5 tw:w-5 tw:appearance-none tw:items-center tw:justify-center tw:border-0 tw:bg-transparent tw:p-0 tw:leading-none tw:shadow-none"
+                    class="respondent-control tw:inline-flex tw:h-5 tw:appearance-none tw:items-center tw:border-0 tw:bg-transparent tw:p-0 tw:leading-none tw:shadow-none"
                     :aria-pressed="respondentSelected(user._id ?? '')"
                     :aria-label="
                       respondentSelected(user._id ?? '')
@@ -158,20 +163,7 @@
                     "
                   >
                     <span
-                      class="respondent-control__checkbox tw:flex tw:h-4 tw:w-4 tw:items-center tw:justify-center tw:rounded-[2px] tw:border-2 tw:border-solid tw:bg-white"
-                      style="border-color: var(--timeful-primary-action-bg)"
-                    >
-                      <v-icon
-                        v-if="respondentSelected(user._id ?? '')"
-                        size="12"
-                        color="primary"
-                        class="tw:block"
-                      >
-                        <MdiCheck />
-                      </v-icon>
-                    </span>
-                    <span
-                      class="respondent-control__avatar tw:flex tw:h-4 tw:w-4 tw:items-center tw:justify-center"
+                      class="respondent-control__avatar tw:flex tw:h-5 tw:w-5 tw:shrink-0 tw:items-center tw:justify-center"
                     >
                       <div
                         v-if="respondentSlotStatus(user._id ?? '')"
@@ -207,55 +199,81 @@
                     >
                       {{ formatRespondentName(user) }}
                     </div>
-                    <div
-                      class="respondent-row-actions tw:flex tw:shrink-0 tw:items-center tw:gap-1 tw:transition-none tw:group-hover:opacity-100 tw:group-[&:has(.email-hover-target:hover)]:opacity-0"
-                      :class="isPhone ? 'tw:opacity-100' : 'tw:opacity-0'"
-                    >
-                      <component
-                        :is="
-                          respondentEditActionState(user) === 'editable'
-                            ? 'button'
-                            : 'div'
-                        "
-                        v-if="respondentEditActionState(user) !== 'none'"
-                        type="button"
-                        class="respondent-edit-status tw:flex tw:h-5 tw:w-5 tw:items-center tw:justify-center tw:rounded-full tw:bg-white tw:p-0 tw:text-sm tw:leading-5"
-                        :class="
-                          respondentEditActionState(user) === 'editable'
-                            ? 'tw:cursor-pointer'
-                            : 'tw:cursor-default'
-                        "
-                        :aria-label="
-                          respondentEditActionState(user) === 'editable'
-                            ? `Edit ${formatRespondentName(user)}`
-                            : `${formatRespondentName(user)} cannot be edited`
-                        "
-                        :aria-disabled="
-                          respondentEditActionState(user) === 'locked'
-                        "
+                    <div class="tw:flex tw:shrink-0 tw:items-center tw:gap-1">
+                      <span
+                        class="respondent-control__checkbox tw:flex tw:h-4 tw:w-4 tw:shrink-0 tw:cursor-pointer tw:items-center tw:justify-center tw:rounded-[2px] tw:border-2 tw:border-solid tw:bg-white"
+                        :class="{
+                          'respondent-control__checkbox--always-visible':
+                            isPhone,
+                        }"
+                        aria-hidden="true"
                         @click.stop="
-                          respondentEditActionState(user) === 'editable' &&
-                          $emit('editGuestAvailability', user._id ?? '')
+                          (e: MouseEvent) =>
+                            $emit('clickRespondent', e, user._id ?? '')
                         "
                       >
-                        <v-icon size="16" color="#4F4F4F">
-                          <MdiPencil
-                            v-if="
-                              respondentEditActionState(user) === 'editable'
-                            "
-                          />
-                          <MdiLock v-else />
+                        <v-icon
+                          v-if="respondentSelected(user._id ?? '')"
+                          size="12"
+                          color="primary"
+                          class="tw:block"
+                        >
+                          <MdiCheck />
                         </v-icon>
-                      </component>
-                      <v-btn
-                        v-if="!isPhone && isOwner && !isGroup"
-                        icon
-                        size="small"
-                        class="tw:bg-white"
-                        @click="() => showDeleteAvailabilityDialog(user)"
-                        ><v-icon small class="tw:hover:text-red" color="#4F4F4F"
-                          ><MdiDelete /></v-icon
-                      ></v-btn>
+                      </span>
+                      <div
+                        class="respondent-row-actions tw:flex tw:shrink-0 tw:items-center tw:gap-1 tw:transition-none tw:group-hover:opacity-100 tw:group-[&:has(.email-hover-target:hover)]:opacity-0"
+                        :class="isPhone ? 'tw:opacity-100' : 'tw:opacity-0'"
+                      >
+                        <component
+                          :is="
+                            respondentEditActionState(user) === 'editable'
+                              ? 'button'
+                              : 'div'
+                          "
+                          v-if="respondentEditActionState(user) !== 'none'"
+                          type="button"
+                          class="respondent-edit-status tw:flex tw:h-5 tw:w-5 tw:items-center tw:justify-center tw:rounded-full tw:bg-white tw:p-0 tw:text-sm tw:leading-5"
+                          :class="
+                            respondentEditActionState(user) === 'editable'
+                              ? 'tw:cursor-pointer'
+                              : 'tw:cursor-default'
+                          "
+                          :aria-label="
+                            respondentEditActionState(user) === 'editable'
+                              ? `Edit ${formatRespondentName(user)}`
+                              : `${formatRespondentName(user)} cannot be edited`
+                          "
+                          :aria-disabled="
+                            respondentEditActionState(user) === 'locked'
+                          "
+                          @click.stop="
+                            respondentEditActionState(user) === 'editable' &&
+                            $emit('editGuestAvailability', user._id ?? '')
+                          "
+                        >
+                          <v-icon size="16" color="#4F4F4F">
+                            <MdiPencil
+                              v-if="
+                                respondentEditActionState(user) === 'editable'
+                              "
+                            />
+                            <MdiLock v-else />
+                          </v-icon>
+                        </component>
+                        <v-btn
+                          v-if="!isPhone && isOwner && !isGroup"
+                          icon
+                          size="small"
+                          class="tw:bg-white"
+                          @click="() => showDeleteAvailabilityDialog(user)"
+                          ><v-icon
+                            small
+                            class="tw:hover:text-red"
+                            color="#4F4F4F"
+                            ><MdiDelete /></v-icon
+                        ></v-btn>
+                      </div>
                     </div>
                   </div>
                   <div
@@ -263,16 +281,20 @@
                     class="email-hover-target tw:flex tw:items-center tw:rounded-xs tw:p-px tw:text-xs tw:text-dark-gray tw:transition-all tw:hover:bg-light-gray"
                     :class="respondentClass(user._id ?? '')"
                     @mouseover.stop
-                    @click.stop="copyEmailToClipboard(user.email)"
+                    @click.stop="copyEmailToClipboard(user)"
                   >
                     {{ user.email }}
-                    <v-icon class="tw:ml-1 tw:text-xs"
-                      ><MdiContentCopy
-                    /></v-icon>
+                    <v-icon class="tw:ml-1 tw:text-xs">
+                      <MdiCheck v-if="isEmailCopied(user)" />
+                      <MdiContentCopy v-else />
+                    </v-icon>
                   </div>
                 </div>
               </div>
             </transition-group>
+            <p aria-live="polite" class="tw:sr-only">
+              {{ emailCopyAnnouncement }}
+            </p>
             <div :class="event.daysOnly ? 'tw:h-1' : 'tw:h-2'"></div>
           </template>
         </div>
@@ -392,6 +414,7 @@ import type {
   Timezone,
 } from "@/composables/schedule_overlap/types"
 import { canGuestEditResponse } from "@/composables/schedule_overlap/useScheduleOverlapUI"
+import { useCopyFeedback } from "@/composables/useCopyFeedback"
 import type { User } from "@/types"
 import { useRespondentsCsvExport } from "./useRespondentsCsvExport"
 import {
@@ -461,6 +484,15 @@ const emit = defineEmits<{
 const mainStore = useMainStore()
 const { authUser } = storeToRefs(mainStore)
 const { showError, showInfo } = mainStore
+const {
+  announcement: emailCopyAnnouncement,
+  copied: emailCopied,
+  copy: copyToClipboard,
+} = useCopyFeedback({ announcement: "Email copied" })
+const copiedEmailId = ref("")
+function isEmailCopied(user: User) {
+  return emailCopied.value && copiedEmailId.value === (user._id ?? user.email)
+}
 
 const { isPhone } = useDisplayHelpers()
 
@@ -506,6 +538,9 @@ const {
   curTimeslotCellState: computed(() => props.curTimeslotCellState),
   curTimeslotCollapsed: computed(() => props.curTimeslotCollapsed),
   parsedResponses: computed(() => props.parsedResponses),
+  ownedGuestResponseLookupKeys: computed(
+    () => new Set(props.ownedGuestResponseLookupKeys),
+  ),
   curDate: computed(() => props.curDate),
   hideIfNeeded: computed(() => props.hideIfNeeded),
   isGroup: computed(() => props.isGroup),
@@ -595,12 +630,14 @@ async function deleteAvailability(user: User | null) {
   }
 }
 
-async function copyEmailToClipboard(email: string | undefined) {
+async function copyEmailToClipboard(user: User) {
+  const email = user.email
   if (!email) return
+  copiedEmailId.value = user._id ?? email
   try {
-    await navigator.clipboard.writeText(email)
-    showInfo("Email copied to clipboard!")
+    await copyToClipboard(email)
   } catch (err: unknown) {
+    copiedEmailId.value = ""
     console.error("Failed to copy email: ", err)
     showError("Failed to copy email.")
   }
@@ -614,40 +651,22 @@ async function copyEmailToClipboard(email: string | undefined) {
   transition: transform 0.5s;
 }
 
-.respondent-control {
-  position: relative;
-  width: 20px;
-  height: 20px;
-}
-
-.respondent-control__checkbox,
-.respondent-control__avatar {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-}
-
 .respondent-control__checkbox {
-  opacity: 0;
   visibility: hidden;
-}
-
-.respondent-control__avatar {
-  opacity: 1;
-  visibility: visible;
+  opacity: 0;
+  border-color: var(--timeful-outline-neutral);
 }
 
 .respondent-row:hover .respondent-control__checkbox,
-.respondent-control[aria-pressed="true"] .respondent-control__checkbox {
-  opacity: 1;
+.respondent-row--selected .respondent-control__checkbox,
+.respondent-control__checkbox--always-visible {
   visibility: visible;
+  opacity: 1;
 }
 
-.respondent-row:hover .respondent-control__avatar,
-.respondent-control[aria-pressed="true"] .respondent-control__avatar {
-  opacity: 0;
-  visibility: hidden;
+.respondent-row:hover .respondent-control__checkbox,
+.respondent-row--selected .respondent-control__checkbox {
+  border-color: var(--timeful-primary-action-bg);
 }
 
 .respondent-status--collapsed {

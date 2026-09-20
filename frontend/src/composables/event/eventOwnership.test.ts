@@ -3,6 +3,7 @@ import { guestUserId } from "@/constants"
 import {
   canEditAvailabilityAsCurrentViewer,
   canEditEventMetadata,
+  canManageEventAsCurrentViewer,
   getRealOwnerId,
   isAnonymousOwnerId,
   isSignedInOwner,
@@ -25,6 +26,38 @@ describe("event ownership semantics", () => {
         null,
       ),
     ).toBe(false)
+  })
+
+  it("requires server-proven owner control for lifecycle actions", () => {
+    expect(
+      canManageEventAsCurrentViewer({
+        ownerId: guestUserId,
+        eventVisitorId: "visitor",
+        canManageEvent: true,
+      }),
+    ).toBe(true)
+    expect(
+      canManageEventAsCurrentViewer({
+        ownerId: guestUserId,
+        eventVisitorId: "visitor",
+        canManageEvent: false,
+      }),
+    ).toBe(false)
+    expect(
+      canManageEventAsCurrentViewer({
+        ownerId: "user-1",
+        canManageEvent: true,
+      }),
+    ).toBe(false)
+    expect(canManageEventAsCurrentViewer(null)).toBe(false)
+    expect(
+      canManageEventAsCurrentViewer({
+        ownerId: guestUserId,
+        eventVisitorId: "visitor",
+        canManageEvent: true,
+        isArchived: true,
+      }),
+    ).toBe(true)
   })
 
   it("treats empty owner ids as anonymous at the shared helper boundary", () => {

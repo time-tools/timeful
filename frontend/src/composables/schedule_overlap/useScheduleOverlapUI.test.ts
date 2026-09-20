@@ -2,9 +2,9 @@
 
 import { computed, ref } from "vue"
 import { describe, expect, it, vi } from "vitest"
-import { availabilityTypes } from "@/constants"
+import { availabilityTypes, type AvailabilityType } from "@/constants"
 import { COMPACT_RESPONDENTS_PANEL_WIDTH } from "@/components/schedule_overlap/layout"
-import { states } from "./types"
+import { states, type ScheduleOverlapState } from "./types"
 import { useScheduleOverlapUI } from "./useScheduleOverlapUI"
 import { SCHEDULE_OVERLAP_COMPACT_DESKTOP_BREAKPOINT } from "@/components/schedule_overlap/scheduleOverlapBreakpoints"
 
@@ -23,6 +23,10 @@ vi.mock("@/plugins/posthog", () => ({
 function createUi() {
   const isPhone = ref(false)
   const isSignUp = ref(false)
+  const isGroup = ref(false)
+  const daysOnly = ref(false)
+  const state = ref<ScheduleOverlapState>(states.EDIT_AVAILABILITY)
+  const availabilityType = ref<AvailabilityType>(availabilityTypes.AVAILABLE)
   const curTimeslot = ref({ row: 2, col: 3 })
   const curTimeslotAvailability = ref<Record<string, boolean>>({
     "user-1": true,
@@ -35,13 +39,13 @@ function createUi() {
   const ui = useScheduleOverlapUI({
     isPhone,
     isSignUp: computed(() => isSignUp.value),
-    isGroup: computed(() => false),
-    showHintText: ref(false),
-    state: ref(states.EDIT_AVAILABILITY),
+    isGroup: computed(() => isGroup.value),
+    daysOnly,
+    state,
     showBestTimes: ref(false),
     defaultState: computed(() => states.HEATMAP),
     allowDrag: computed(() => true),
-    availabilityType: ref(availabilityTypes.AVAILABLE),
+    availabilityType,
     parsedResponses: computed(() => ({})),
     curTimeslot,
     endDrag,
@@ -61,6 +65,10 @@ function createUi() {
     ui,
     isPhone,
     isSignUp,
+    isGroup,
+    daysOnly,
+    state,
+    availabilityType,
     curTimeslot,
     curTimeslotInactive,
     curTimeslotCollapsed,
@@ -198,5 +206,83 @@ describe("useScheduleOverlapUI deselectRespondents", () => {
 
   it("uses the shared 640px breakpoint contract for compact desktop layout decisions", () => {
     expect(SCHEDULE_OVERLAP_COMPACT_DESKTOP_BREAKPOINT).toBe(640)
+  })
+})
+
+describe("useScheduleOverlapUI hintText", () => {
+  it("points at the grid below and adapts the verb to the viewport", () => {
+    const { ui, isPhone } = createUi()
+
+    expect(ui.hintText.value).toBe(
+      'Click and drag on the grid below to add your "available" times in green.',
+    )
+
+    isPhone.value = true
+    expect(ui.hintText.value).toBe(
+      'Tap and drag on the grid below to add your "available" times in green.',
+    )
+  })
+
+  it("describes if-needed availability in yellow", () => {
+    const { ui, availabilityType } = createUi()
+    availabilityType.value = availabilityTypes.IF_NEEDED
+
+    expect(ui.hintText.value).toBe(
+      'Click and drag on the grid below to add your "if needed" times in yellow.',
+    )
+  })
+
+  it("describes toggling calendars for availability groups", () => {
+    const { ui, isGroup } = createUi()
+    isGroup.value = true
+
+    expect(ui.hintText.value).toBe(
+      "Toggle which calendars are used. Click and drag on the grid below to edit your availability.",
+    )
+  })
+
+  it("points at the grid below while scheduling", () => {
+    const { ui, state } = createUi()
+    state.value = states.SCHEDULE_EVENT
+
+    expect(ui.hintText.value).toBe(
+      "Click and drag on the grid below to schedule a Google Calendar event during those times.",
+    )
+  })
+
+  it("uses days for dates-only events", () => {
+    const { ui, daysOnly } = createUi()
+    daysOnly.value = true
+
+    expect(ui.hintText.value).toBe(
+      'Click and drag on the grid below to add your "available" days in green.',
+    )
+  })
+
+  it("describes if-needed dates-only availability in yellow", () => {
+    const { ui, daysOnly, availabilityType } = createUi()
+    daysOnly.value = true
+    availabilityType.value = availabilityTypes.IF_NEEDED
+
+    expect(ui.hintText.value).toBe(
+      'Click and drag on the grid below to add your "if needed" days in yellow.',
+    )
+  })
+
+  it("uses days while scheduling a dates-only event", () => {
+    const { ui, daysOnly, state } = createUi()
+    daysOnly.value = true
+    state.value = states.SCHEDULE_EVENT
+
+    expect(ui.hintText.value).toBe(
+      "Click and drag on the grid below to schedule a Google Calendar event during those days.",
+    )
+  })
+
+  it("does not produce a hint outside editing and scheduling", () => {
+    const { ui, state } = createUi()
+    state.value = states.HEATMAP
+
+    expect(ui.hintText.value).toBe("")
   })
 })

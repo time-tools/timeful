@@ -69,15 +69,50 @@ describe("access transfer boundary", () => {
       decodeTransfer({ state: "cancelled", revocable: false }).revocable,
     ).toBe(false)
   })
+  it("describes transfer targets from their transport user agents", () => {
+    const state = decodeTransfer({
+      state: "redeemed",
+      revocable: true,
+      targetUserAgent:
+        "Mozilla/5.0 (X11; Linux x86_64; rv:141.0) Gecko/20100101 Firefox/141.0",
+      requests: [
+        {
+          id: "target",
+          code: "ABCDEFGH",
+          userAgent:
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+        },
+      ],
+    })
+
+    expect(state.targetBrowser).toBe("Firefox on Linux")
+    expect(state.requests).toEqual([
+      { id: "target", code: "ABCDEFGH", browser: "Chrome on Windows" },
+    ])
+  })
+  it("decodes missing user agents as unknown browsers", () => {
+    const state = decodeTransfer({
+      state: "pending",
+      requests: [{ id: "target", code: "ABCDEFGH" }],
+    })
+
+    expect(state.targetBrowser).toBe("")
+    expect(state.requests).toEqual([
+      { id: "target", code: "ABCDEFGH", browser: "" },
+    ])
+  })
   it("approves only the exact target code", () => {
     const state = decodeTransfer({
       requests: [
-        { id: "attacker", code: "ABCDEFGH" },
-        { id: "target", code: "12345678" },
+        { id: "attacker", code: "111111" },
+        { id: "target", code: "123456" },
       ],
     })
-    expect(matchingRequest(state, " 12345678 ")?.id).toBe("target")
-    expect(matchingRequest(state, "1234567")).toBeUndefined()
+    expect(matchingRequest(state, " 123456 ")?.id).toBe("target")
+    expect(matchingRequest(state, "123 456")?.id).toBe("target")
+    expect(matchingRequest(state, "123-456")?.id).toBe("target")
+    expect(matchingRequest(state, "12345")).toBeUndefined()
+    expect(matchingRequest(state, "123457")).toBeUndefined()
     expect(matchingRequest(state, "wrong")).toBeUndefined()
   })
   it("inspects without consent and sends consent only explicitly", async () => {

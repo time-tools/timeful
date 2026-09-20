@@ -21,7 +21,10 @@ test("Only the event owner can edit settings; a base EVCC never grants owner act
   ).toBeVisible()
   await expect(
     page.getByRole("button", { name: "Archive event", exact: true }),
-  ).toBeVisible()
+  ).toHaveCount(0)
+  await expect(
+    page.getByRole("button", { name: "Delete event", exact: true }),
+  ).toHaveCount(0)
   const cookies = await page.context().cookies()
   expect(
     cookies.find((cookie) => cookie.name === `timeful_owner_${eventId}`),
@@ -30,6 +33,20 @@ test("Only the event owner can edit settings; a base EVCC never grants owner act
     "timeful_owner_",
   )
   await page.getByRole("button", { name: "Edit event", exact: true }).click()
+  await expect(page.getByText("Danger zone", { exact: true })).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Archive event", exact: true }),
+  ).toHaveCount(0)
+  await expect(
+    page.getByRole("button", { name: "Delete event", exact: true }),
+  ).toHaveCount(0)
+  await page.getByRole("button", { name: "Danger zone", exact: true }).click()
+  await expect(
+    page.getByRole("button", { name: "Archive event", exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Delete event", exact: true }),
+  ).toBeVisible()
   await page.getByLabel("Event name (required)").fill("Owner edited title")
   const saved = page.waitForResponse(
     (response) =>
@@ -97,6 +114,8 @@ test("The event owner archives, restores, and deletes an event through the event
   })
   expect(response.status()).toBe(200)
   await page.goto(`/e/${eventId}`)
+  await page.getByRole("button", { name: "Edit event", exact: true }).click()
+  await page.getByRole("button", { name: "Danger zone", exact: true }).click()
   await page.getByRole("button", { name: "Archive event", exact: true }).click()
   await expect(
     page.getByText("This event is archived and read-only."),
@@ -138,6 +157,8 @@ test("The event owner archives, restores, and deletes an event through the event
   await expect(
     page.getByRole("button", { name: "Schedule event", exact: true }),
   ).toBeVisible()
+  await page.getByRole("button", { name: "Edit event", exact: true }).click()
+  await page.getByRole("button", { name: "Danger zone", exact: true }).click()
   await page.getByRole("button", { name: "Delete event", exact: true }).click()
   await page.getByRole("button", { name: "Cancel", exact: true }).click()
   expect((await page.request.get(`/api/events/${eventId}`)).status()).toBe(200)

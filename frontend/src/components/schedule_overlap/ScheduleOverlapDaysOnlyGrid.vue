@@ -69,26 +69,6 @@
         class="tw:absolute tw:right-0 tw:top-0 tw:h-full tw:w-3"
       />
     </div>
-
-    <v-expand-transition>
-      <div
-        v-if="!daysOnlyGrid.isPhone && daysOnlyGrid.hintTextShown"
-        :key="daysOnlyGrid.hintText"
-        class="tw:sticky tw:bottom-4 tw:z-10 tw:flex"
-      >
-        <div
-          class="tw:mt-2 tw:flex tw:w-full tw:items-center tw:justify-between tw:gap-1 tw:rounded-md tw:bg-off-white tw:p-2 tw:px-[7px] tw:text-sm tw:text-very-dark-gray"
-        >
-          <div class="tw:flex tw:items-center tw:gap-1">
-            <v-icon small><MdiInformationOutline /></v-icon>
-            {{ daysOnlyGrid.hintText }}
-          </div>
-          <v-icon small @click="daysOnlyGrid.actions.closeHint()"
-            ><MdiClose
-          /></v-icon>
-        </div>
-      </div>
-    </v-expand-transition>
   </div>
 </template>
 
@@ -97,8 +77,6 @@ import type { ScheduleOverlapDaysOnlyGridViewModel } from "./scheduleOverlapView
 import ZigZag from "./ZigZag.vue"
 import MdiChevronLeft from "~icons/mdi/chevron-left"
 import MdiChevronRight from "~icons/mdi/chevron-right"
-import MdiClose from "~icons/mdi/close"
-import MdiInformationOutline from "~icons/mdi/information-outline"
 
 defineOptions({
   name: "ScheduleOverlapDaysOnlyGrid",

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { flushPromises, shallowMount } from "@vue/test-utils"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { nextTick, ref } from "vue"
 import { Temporal } from "temporal-polyfill"
 import { durations, UTC } from "@/constants"
@@ -16,6 +16,8 @@ import type * as UtilsModule from "@/utils"
 import type { TimedCellState } from "@/composables/schedule_overlap/types"
 import RespondentsList from "./RespondentsList.vue"
 import respondentsListSource from "./RespondentsList.vue?raw"
+import MdiCheck from "~icons/mdi/check"
+import MdiContentCopy from "~icons/mdi/content-copy"
 import MdiDelete from "~icons/mdi/delete"
 import MdiDotsVertical from "~icons/mdi/dots-vertical"
 import MdiLock from "~icons/mdi/lock"
@@ -82,6 +84,9 @@ const mountRespondentsList = ({
   empty = false,
   maxHeight,
   stubs,
+  isOwner = false,
+  collectEmails = false,
+  curRespondents = [],
 }: {
   curDate?: Temporal.ZonedDateTime
   setEntry: Temporal.ZonedDateTime
@@ -96,6 +101,9 @@ const mountRespondentsList = ({
   empty?: boolean
   maxHeight?: number
   stubs?: ComponentStubMap
+  isOwner?: boolean
+  collectEmails?: boolean
+  curRespondents?: string[]
 }) => {
   const eventSlot = curDate ?? baseDate
 
@@ -104,7 +112,7 @@ const mountRespondentsList = ({
       eventId: "evt-1",
       event: {
         blindAvailabilityEnabled: false,
-        collectEmails: false,
+        collectEmails,
         dates: [eventSlot.toPlainDate()],
         timeSeed: eventSlot,
         duration: durations.ONE_HOUR,
@@ -118,7 +126,7 @@ const mountRespondentsList = ({
       times: [],
       curDate,
       curRespondent: "",
-      curRespondents: [],
+      curRespondents,
       curTimeslot: { dayIndex: -1, timeIndex: -1 },
       curTimeslotAvailability,
       curTimeslotInactive,
@@ -131,6 +139,7 @@ const mountRespondentsList = ({
               _id: "user-1",
               firstName: "Ada",
               lastName: "Lovelace",
+              email: "ada@example.com",
               picture: "https://example.com/ada.png",
             } as never,
           ],
@@ -150,7 +159,7 @@ const mountRespondentsList = ({
               guest: false,
             },
           },
-      isOwner: false,
+      isOwner,
       isGroup: false,
       showCalendarEvents: false,
       responsesFormatted: new ZdtMap<Set<string>>(),
@@ -173,6 +182,40 @@ const mountRespondentsList = ({
 }
 
 describe("RespondentsList", () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it("confirms an email copy in place and reverts it", async () => {
+    vi.useFakeTimers()
+    const writeText = vi
+      .spyOn(navigator.clipboard, "writeText")
+      .mockResolvedValue(undefined)
+    const wrapper = mountRespondentsList({
+      setEntry: baseDate,
+      isOwner: true,
+      collectEmails: true,
+      stubs: { "v-icon": { template: "<span><slot /></span>" } },
+    })
+
+    const emailTarget = wrapper.get(".email-hover-target")
+    await emailTarget.trigger("click")
+    await flushPromises()
+
+    expect(writeText).toHaveBeenCalledWith("ada@example.com")
+    expect(emailTarget.findComponent(MdiCheck).exists()).toBe(true)
+    expect(emailTarget.findComponent(MdiContentCopy).exists()).toBe(false)
+    expect(
+      wrapper.findAll('[aria-live="polite"]').map((status) => status.text()),
+    ).toContain("Email copied")
+
+    await vi.advanceTimersByTimeAsync(2000)
+
+    expect(emailTarget.findComponent(MdiCheck).exists()).toBe(false)
+    expect(emailTarget.findComponent(MdiContentCopy).exists()).toBe(true)
+  })
+
   it("shows a read-only dates-only event timezone above Responses", () => {
     const wrapper = mountRespondentsList({
       curDate: undefined,
@@ -243,7 +286,7 @@ describe("RespondentsList", () => {
     expect(timedWrapper.find(".tw\\:h-2").exists()).toBe(true)
   })
 
-  it("uses a fixed respondent control slot with hover-visible checkbox shell", () => {
+  it("keeps the left indicator slot avatar-only and the checkbox after the name", () => {
     const wrapper = mountRespondentsList({
       curDate: undefined,
       setEntry: baseDate,
@@ -257,7 +300,7 @@ describe("RespondentsList", () => {
       ".tw\\:mr-1.tw\\:text-sm.tw\\:leading-5.tw\\:transition-all",
     )
     const controlSlot = wrapper.find(
-      ".tw\\:ml-1.tw\\:mr-3.tw\\:flex.tw\\:h-5.tw\\:w-5.tw\\:shrink-0.tw\\:items-center.tw\\:justify-center",
+      ".tw\\:ml-1.tw\\:mr-3.tw\\:flex.tw\\:h-5.tw\\:shrink-0.tw\\:items-center",
     )
 
     expect(respondentRow.classes()).toContain("tw:text-sm")
@@ -269,16 +312,22 @@ describe("RespondentsList", () => {
       true,
     )
     const selectionButton = wrapper.find('button[aria-pressed="false"]')
-    const checkboxShell = selectionButton.find(".respondent-control__checkbox")
     const avatar = selectionButton.find(".respondent-control__avatar")
+    const checkboxShell = wrapper.find(".respondent-control__checkbox")
+    const rowActions = wrapper.find(".respondent-row-actions")
 
     expect(selectionButton.exists()).toBe(true)
     expect(selectionButton.classes()).toContain("tw:appearance-none")
     expect(selectionButton.classes()).toContain("tw:h-5")
-    expect(selectionButton.classes()).toContain("tw:w-5")
+    expect(selectionButton.classes()).toContain("tw:inline-flex")
     expect(selectionButton.classes()).toContain("respondent-control")
+    expect(selectionButton.classes()).not.toContain("tw:gap-1")
     expect(avatar.exists()).toBe(true)
     expect(avatar.classes()).toContain("tw:flex")
+    expect(avatar.classes()).toContain("tw:shrink-0")
+    expect(selectionButton.find(".respondent-control__checkbox").exists()).toBe(
+      false,
+    )
     expect(checkboxShell.exists()).toBe(true)
     expect(checkboxShell.classes()).toContain("tw:flex")
     expect(checkboxShell.classes()).toContain("tw:h-4")
@@ -286,9 +335,59 @@ describe("RespondentsList", () => {
     expect(checkboxShell.classes()).toContain("tw:border-2")
     expect(checkboxShell.classes()).toContain("tw:border-solid")
     expect(checkboxShell.classes()).not.toContain("tw:border-primary")
-    expect(checkboxShell.attributes("style")).toContain(
-      "border-color: var(--timeful-primary-action-bg);",
+    expect(checkboxShell.attributes("style")).toBeUndefined()
+    expect(checkboxShell.attributes("aria-hidden")).toBe("true")
+    expect(
+      nameLabel.element.compareDocumentPosition(checkboxShell.element) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(
+      checkboxShell.element.compareDocumentPosition(rowActions.element) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it("shows the checkbox on every phone row and hides it for unselected desktop rows", () => {
+    const phoneWrapper = mountRespondentsList({
+      curDate: baseDate,
+      setEntry: baseDate,
+    })
+
+    const phoneCheckbox = phoneWrapper.find(".respondent-control__checkbox")
+    expect(phoneCheckbox.classes()).toContain(
+      "respondent-control__checkbox--always-visible",
     )
+
+    isPhoneValue.value = false
+    try {
+      const desktopWrapper = mountRespondentsList({
+        curDate: baseDate,
+        setEntry: baseDate,
+      })
+      const desktopCheckbox = desktopWrapper.find(
+        ".respondent-row .respondent-control__checkbox",
+      )
+
+      expect(desktopCheckbox.exists()).toBe(true)
+      expect(desktopCheckbox.classes()).not.toContain(
+        "respondent-control__checkbox--always-visible",
+      )
+    } finally {
+      isPhoneValue.value = true
+    }
+  })
+
+  it("reveals the reserved checkbox on hover or selection after the name", () => {
+    expect(respondentsListSource).toContain(
+      ".respondent-row:hover .respondent-control__checkbox",
+    )
+    expect(respondentsListSource).toContain(
+      ".respondent-row--selected .respondent-control__checkbox",
+    )
+    expect(respondentsListSource).toContain(
+      "border-color: var(--timeful-outline-neutral)",
+    )
+    expect(respondentsListSource).not.toContain("position: absolute")
   })
 
   it("shows the profile avatar when no grid slot is in context", () => {
@@ -410,20 +509,69 @@ describe("RespondentsList", () => {
     )
   })
 
-  it("keeps the hover-to-select checkbox shell when a status square is shown", () => {
+  it("keeps the availability status visible before the hover-to-select checkbox", () => {
     const wrapper = mountRespondentsList({
       curDate: baseDate,
       setEntry: baseDate,
     })
 
     const selectionButton = wrapper.find('button[aria-pressed="false"]')
+    const statusSquare = selectionButton.find(
+      ".respondent-control__avatar div.tw\\:h-4.tw\\:w-4",
+    )
+    const checkboxShell = wrapper.find(".respondent-control__checkbox")
+
     expect(selectionButton.exists()).toBe(true)
+    expect(statusSquare.exists()).toBe(true)
+    expect(checkboxShell.exists()).toBe(true)
     expect(selectionButton.find(".respondent-control__checkbox").exists()).toBe(
-      true,
+      false,
     )
-    expect(selectionButton.find(".respondent-control__avatar").exists()).toBe(
-      true,
+    expect(
+      statusSquare.element.compareDocumentPosition(checkboxShell.element) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it("keeps the availability status beside a checked checkbox for a selected respondent", () => {
+    const wrapper = mountRespondentsList({
+      curDate: baseDate,
+      setEntry: baseDate,
+      availability: [baseDate],
+      curRespondents: ["user-1"],
+      stubs: { "v-icon": { template: "<span><slot /></span>" } },
+    })
+
+    const selectionButton = wrapper.find('button[aria-pressed="true"]')
+    const statusSquare = selectionButton.find(
+      ".respondent-control__avatar div.tw\\:h-4.tw\\:w-4",
     )
+    const checkboxShell = wrapper.find(".respondent-control__checkbox")
+
+    expect(selectionButton.exists()).toBe(true)
+    expect(statusSquare.exists()).toBe(true)
+    expect(statusSquare.classes()).toContain("tw:bg-[#00994C77]")
+    expect(checkboxShell.findComponent(MdiCheck).exists()).toBe(true)
+    expect(wrapper.find(".respondent-row").classes()).toContain(
+      "respondent-row--selected",
+    )
+    expect(
+      statusSquare.element.compareDocumentPosition(checkboxShell.element) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it("toggles selection once when the checkbox is clicked", async () => {
+    const wrapper = mountRespondentsList({
+      curDate: baseDate,
+      setEntry: baseDate,
+    })
+
+    await wrapper.get(".respondent-control__checkbox").trigger("click")
+
+    expect(wrapper.emitted("clickRespondent")).toEqual([
+      [expect.any(MouseEvent), "user-1"],
+    ])
   })
 
   it("keeps the respondent action in the same inline row as the respondent name", () => {

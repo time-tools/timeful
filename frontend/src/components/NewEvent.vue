@@ -25,9 +25,6 @@
         ref="cardText"
         class="tw:relative tw:flex-1 tw:overflow-auto tw:px-4 tw:py-1 tw:sm:px-8"
       >
-        <AlertText v-if="edit && guestEvent" class="tw:mb-4">
-          Anybody can edit this event because it was created while not signed in
-        </AlertText>
         <v-form
           ref="formRef"
           v-model="formValid"
@@ -485,6 +482,45 @@
             </div>
           </div>
         </v-form>
+
+        <div v-if="showDangerZone" class="danger-zone tw:pt-6">
+          <ExpandableSection
+            v-model="showDangerZoneActions"
+            label="Danger zone"
+            label-class="tw:text-lg tw:text-black"
+            :auto-scroll="dialog"
+          >
+            <div
+              class="danger-zone-frame tw:mt-3 tw:flex tw:flex-col tw:gap-3 tw:rounded-lg tw:border tw:border-solid tw:border-red tw:p-4"
+            >
+              <v-btn
+                variant="outlined"
+                color="error"
+                block
+                :disabled="loading"
+                @click="toggleArchive"
+              >
+                <v-icon v-if="event?.isArchived"
+                  ><MdiArchiveArrowUpOutline
+                /></v-icon>
+                <v-icon v-else><MdiArchiveOutline /></v-icon>
+                <span class="tw:ml-1">{{
+                  event?.isArchived ? "Unarchive event" : "Archive event"
+                }}</span>
+              </v-btn>
+              <v-btn
+                variant="outlined"
+                color="error"
+                block
+                :disabled="loading"
+                @click="confirmDelete = true"
+              >
+                <v-icon><MdiTrashCanOutline /></v-icon>
+                <span class="tw:ml-1">Delete event</span>
+              </v-btn>
+            </div>
+          </ExpandableSection>
+        </div>
       </v-card-text>
       <OverflowGradient
         v-if="hasMounted && cardTextElement"
@@ -529,6 +565,23 @@
       :scroll-container="cardTextElement"
       class="tw:bottom-[90px]"
     />
+
+    <v-dialog v-model="confirmDelete" max-width="420">
+      <v-card title="Delete event?">
+        <v-card-text
+          >The event link and all responses will become
+          inaccessible.</v-card-text
+        >
+        <v-card-actions>
+          <v-btn :disabled="loading" @click="confirmDelete = false"
+            >Cancel</v-btn
+          >
+          <v-btn color="error" :loading="loading" @click="deleteEvent"
+            >Delete</v-btn
+          >
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-card>
 </template>
 
@@ -538,8 +591,12 @@ import { computed, ref, watch } from "vue"
 import { useRouter } from "vue-router"
 import { storeToRefs } from "pinia"
 import { authTypes, dateOptions, eventTypes } from "@/constants"
-import { isAnonymousOwnerEvent } from "@/composables/event/eventOwnership"
 import {
+  canManageEventAsCurrentViewer,
+  isAnonymousOwnerEvent,
+} from "@/composables/event/eventOwnership"
+import {
+  _delete,
   addEventToCreatedList,
   plainTimeToTimeNum,
   put,
@@ -547,6 +604,7 @@ import {
   signInGoogle,
   timeNumToPlainTime,
 } from "@/utils"
+import { archiveEvent } from "@/utils/services/EventService"
 import { signInEnabled } from "@/utils/signInAvailability"
 import {
   EVENT_NAME_MAX_LENGTH,
@@ -565,11 +623,13 @@ import EmailInput from "./event/EmailInput.vue"
 import ExpandableSection from "./ExpandableSection.vue"
 import DatePicker from "@/components/DatePicker.vue"
 import SlideToggle from "./SlideToggle.vue"
-import AlertText from "@/components/AlertText.vue"
 import OverflowGradient from "@/components/OverflowGradient.vue"
 import MdiAlertCircle from "~icons/mdi/alert-circle"
+import MdiArchiveArrowUpOutline from "~icons/mdi/archive-arrow-up-outline"
+import MdiArchiveOutline from "~icons/mdi/archive-outline"
 import MdiCheckboxBlankOffOutline from "~icons/mdi/checkbox-blank-off-outline"
 import MdiInformationOutline from "~icons/mdi/information-outline"
+import MdiTrashCanOutline from "~icons/mdi/trash-can-outline"
 import EditorDialogHeader from "./EditorDialogHeader.vue"
 import type { Event as EventModel } from "@/types"
 import type { Timezone } from "@/composables/schedule_overlap/types"
@@ -631,6 +691,7 @@ const emit = defineEmits<{
       eventTimezone?: string
     },
   ]
+  deleted: []
   signIn: []
 }>()
 
@@ -658,6 +719,8 @@ const DEFAULT_START_ON_MONDAY = true
 const SUPPORTED_TIME_INCREMENTS = new Set([15, 30, 60])
 const submitAttempted = ref(false)
 const description = ref("")
+const confirmDelete = ref(false)
+const showDangerZoneActions = ref(false)
 
 function normalizeTimeIncrement(value: unknown): number {
   const candidate =
@@ -837,6 +900,12 @@ const endTimeOption = computed({
   },
 })
 const guestEvent = computed(() => isAnonymousOwnerEvent(props.event))
+const showDangerZone = computed(
+  () =>
+    props.edit &&
+    props.event !== undefined &&
+    canManageEventAsCurrentViewer(props.event),
+)
 const timeIncrementToggleOptions: SegmentedToggleOption[] = [
   { label: "15 min", value: 15 },
   { label: "30 min", value: 30 },
@@ -1056,6 +1125,38 @@ function submitIfAllowed() {
   if (loading.value || submitBlocked.value) return
   submitAttempted.value = true
   void submit()
+}
+
+async function toggleArchive() {
+  if (!props.event?._id || loading.value) return
+  loading.value = true
+  try {
+    await archiveEvent(props.event._id, !props.event.isArchived)
+    emit("refresh-event", { fromEditEvent: false })
+  } catch {
+    mainStore.showError(
+      "Could not update the event. Refresh the page and try again.",
+    )
+  } finally {
+    loading.value = false
+  }
+}
+
+async function deleteEvent() {
+  if (!props.event?._id || loading.value) return
+  loading.value = true
+  try {
+    await _delete(`/events/${props.event._id}`)
+    confirmDelete.value = false
+    emit("deleted")
+    await router.push("/")
+  } catch {
+    mainStore.showError(
+      "Could not delete the event. Refresh the page and try again.",
+    )
+  } finally {
+    loading.value = false
+  }
 }
 
 const requestContactsAccess = ({

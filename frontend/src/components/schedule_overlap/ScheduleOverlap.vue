@@ -108,6 +108,7 @@ import { useTimedGridPresentation } from "./useTimedGridPresentation"
 import { useTimedGridInteractions } from "./useTimedGridInteractions"
 import { useGuestAvailabilityActions } from "./useGuestAvailabilityActions"
 import { states } from "@/composables/schedule_overlap/types"
+import { calendarAutofillEnabled } from "@/utils/calendarAutofillAvailability"
 import type {
   FetchedResponse,
   RowCol,
@@ -149,7 +150,6 @@ const props = withDefaults(
     interactable?: boolean
     showSnackbar?: boolean
     animateTimeslotAlways?: boolean
-    showHintText?: boolean
     curGuestId?: string
     addingAvailabilityAsGuest?: boolean
     initialTimezone?: Timezone
@@ -171,7 +171,6 @@ const props = withDefaults(
     interactable: true,
     showSnackbar: true,
     animateTimeslotAlways: false,
-    showHintText: true,
     curGuestId: "",
     addingAvailabilityAsGuest: false,
     initialTimezone: undefined,
@@ -479,11 +478,13 @@ const ownedGuestResponseLookupKeys = computed<Set<string>>(
   () => new Set(ownedGuestResponses.value.map((record) => record.lookupKey)),
 )
 
+const daysOnly = computed(() => Boolean(props.event.daysOnly))
+
 const ui = useScheduleOverlapUI({
   isPhone,
   isSignUp,
   isGroup,
-  showHintText: computed(() => props.showHintText),
+  daysOnly,
   state,
   showBestTimes,
   defaultState,
@@ -684,7 +685,6 @@ const {
   scrolledToRespondents: _scrolledToRespondents,
   delayedShowStickyRespondents,
   delayedShowStickyRespondentsTimeout,
-  hintState: _hintState,
   curRespondent: _curRespondent,
   curRespondents: _curRespondents,
   editing,
@@ -692,10 +692,7 @@ const {
   curRespondentsSet,
   rightSideWidth: _rightSideWidth,
   showStickyRespondents: _showStickyRespondents,
-  hintStateLocalStorageKey: _hintStateLocalStorageKey,
-  hintText: _hintText,
-  hintClosed: _hintClosed,
-  hintTextShown: _hintTextShown,
+  hintText,
   showOverlayAvailabilityToggle: _showOverlayAvailabilityToggle,
   selectedGuestRespondent: _selectedGuestRespondent,
   canEditGuestName: _canEditGuestName,
@@ -708,7 +705,6 @@ const {
   onScroll,
   onShowBestTimesChange,
   updateOverlayAvailability,
-  closeHint,
 } = ui
 
 useScheduleOverlapController({
@@ -766,12 +762,7 @@ const showLoader = computed(
     loadingResponses.value.loading,
 )
 
-const showCalendarOptions = computed(
-  () =>
-    !props.addingAvailabilityAsGuest &&
-    props.calendarPermissionGranted &&
-    (isGroup.value || !userHasResponded.value),
-)
+const showCalendarOptions = computed(() => calendarAutofillEnabled)
 
 const curRespondentsMax = computed(() =>
   curRespondentsMaxFor(curRespondentsSet.value, allDays.value),
@@ -786,7 +777,7 @@ const formattedAttendees = computed(
 
 const timedGridInteractions = useTimedGridInteractions({
   isPhone,
-  daysOnly: computed(() => Boolean(props.event.daysOnly)),
+  daysOnly,
   interactable: computed(() => props.interactable),
   dragging,
   dragCur,
@@ -1037,7 +1028,6 @@ const sidebarListeners = {
 }
 
 const mobileOverlayListeners = {
-  closeHint,
   "update:availabilityType": updateAvailabilityType,
   "update:calendarOptionsDialog": updateCalendarOptionsDialog,
   "update:weekOffset": emitWeekOffsetUpdate,
@@ -1059,7 +1049,6 @@ const daysOnlyGridActions = computed<ScheduleOverlapDaysOnlyGridActions>(
     moveDrag,
     endDrag,
     resetCurTimeslot: ui.resetCurTimeslot,
-    closeHint,
   }),
 )
 
@@ -1071,7 +1060,6 @@ const timedGridActions = computed<ScheduleOverlapTimeGridActions>(() => ({
   moveDrag: moveTimedGridDrag,
   endDrag: endTimedGridDrag,
   resetCurTimeslot: ui.resetCurTimeslot,
-  closeHint,
   signUpForBlock: (block) => {
     handleSignUpBlockClick(block, emitSignUpForBlock)
   },
@@ -1227,6 +1215,7 @@ defineExpose({
   confirmScheduleEvent,
   clearScheduledEvent,
   getAllValidTimeRanges: _getAllValidTimeRanges,
+  hintText,
 })
 </script>
 

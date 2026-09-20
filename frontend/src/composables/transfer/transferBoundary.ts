@@ -1,4 +1,5 @@
 import { FetchError, post } from "@/utils/fetch_utils"
+import { describeTargetBrowser } from "@/utils/userAgent"
 import type { RawAccessTransfer } from "@/types/transport"
 
 export interface AccessTransfer {
@@ -7,7 +8,8 @@ export interface AccessTransfer {
   state: string
   requestId: string
   code: string
-  requests: { id: string; code: string }[]
+  requests: { id: string; code: string; browser: string }[]
+  targetBrowser: string
   confirmationRequired: boolean
 }
 
@@ -18,7 +20,12 @@ export function decodeTransfer(raw: RawAccessTransfer): AccessTransfer {
     state: raw.state ?? "pending",
     requestId: raw.requestId ?? "",
     code: raw.code ?? "",
-    requests: (raw.requests ?? []).map(({ id, code }) => ({ id, code })),
+    requests: (raw.requests ?? []).map(({ id, code, userAgent }) => ({
+      id,
+      code,
+      browser: describeTargetBrowser(userAgent ?? ""),
+    })),
+    targetBrowser: describeTargetBrowser(raw.targetUserAgent ?? ""),
     confirmationRequired: raw.confirmationRequired === true,
   }
 }
@@ -66,10 +73,14 @@ export async function grantAssociation(eventId: string, confirm = false) {
   )
 }
 
+export function normalizeTransferCode(value: string) {
+  return value.replace(/\D/g, "")
+}
+
 export function matchingRequest(transfer: AccessTransfer, code: string) {
-  return transfer.requests.find(
-    (request) => request.code === code.trim().toUpperCase(),
-  )
+  const normalized = normalizeTransferCode(code)
+  if (!normalized) return undefined
+  return transfer.requests.find((request) => request.code === normalized)
 }
 
 export interface SavedTransfer {

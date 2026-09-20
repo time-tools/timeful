@@ -50,7 +50,6 @@ function createTimeGridViewModel() {
     moveDrag: vi.fn(),
     endDrag: vi.fn(),
     resetCurTimeslot: vi.fn(),
-    closeHint: vi.fn(),
     signUpForBlock: vi.fn(),
     toggleCollapsedSpan: vi.fn(),
     markCollapsedRowInactive: vi.fn(),
@@ -121,8 +120,6 @@ function createTimeGridViewModel() {
     timeslotVon: [{}],
     allowDrag: true,
     noEventNames: false,
-    hintTextShown: false,
-    hintText: "",
     isPhone: false,
     loadingResponsesLoading: false,
     toolRow: {
@@ -216,7 +213,6 @@ function createDaysOnlyGridViewModel() {
     moveDrag: vi.fn(),
     endDrag: vi.fn(),
     resetCurTimeslot: vi.fn(),
-    closeHint: vi.fn(),
   }
 
   const daysOnlyGrid: ScheduleOverlapDaysOnlyGridViewModel = {
@@ -245,8 +241,6 @@ function createDaysOnlyGridViewModel() {
     dayTimeslotVon: [{}],
     allowDrag: true,
     isPhone: false,
-    hintTextShown: false,
-    hintText: "",
     calendarOnly: false,
     toolRow: {
       event: {

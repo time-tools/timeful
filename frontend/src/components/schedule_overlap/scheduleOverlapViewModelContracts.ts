@@ -50,7 +50,6 @@ export interface ScheduleOverlapDaysOnlyGridActions {
   moveDrag: (e: PointerEvent | MouseEvent) => void
   endDrag: (e?: PointerEvent | MouseEvent) => void
   resetCurTimeslot: () => void
-  closeHint: () => void
 }
 
 export interface ScheduleOverlapTimeGridActions {
@@ -61,7 +60,6 @@ export interface ScheduleOverlapTimeGridActions {
   moveDrag: (e: PointerEvent | MouseEvent) => void
   endDrag: (e?: PointerEvent | MouseEvent) => void
   resetCurTimeslot: () => void
-  closeHint: () => void
   signUpForBlock: (block: SignUpBlockLite) => void
   toggleCollapsedSpan: (id: string) => void
   markCollapsedRowInactive: () => void
@@ -155,8 +153,6 @@ export interface ScheduleOverlapSidebarViewModel {
 
 export interface ScheduleOverlapMobileOverlayViewModel {
   bottomOffset: string
-  hintTextShown: boolean
-  hintText: string
   isGroup: boolean
   editing: boolean
   isSignUp: boolean
@@ -209,8 +205,6 @@ export interface ScheduleOverlapDaysOnlyGridViewModel {
   dayTimeslotVon: Record<string, () => void>[]
   allowDrag: boolean
   isPhone: boolean
-  hintTextShown: boolean
-  hintText: string
   calendarOnly: boolean
   toolRow: ScheduleOverlapToolRowViewModel
 }
@@ -255,8 +249,6 @@ export interface ScheduleOverlapTimeGridViewModel {
   timeslotClassStyle: ClassStyle[]
   timeslotVon: Record<string, () => void>[]
   noEventNames: boolean
-  hintTextShown: boolean
-  hintText: string
   isPhone: boolean
   loadingResponsesLoading: boolean
   allowDrag: boolean

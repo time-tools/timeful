@@ -101,7 +101,7 @@ An event with no recoverable [Event Owner Edit Token](../../docs/terminology/glo
 
 [Access Transfers](../../docs/terminology/glossary.md#access-transfer) are source-confirmed browser-to-browser processes that delegate event authority or establish a platform session on another browser.
 A source creates a transfer link and approves the target browser's matching code within five minutes of creating the link.
-Opening the link alone grants no access, and each browser opening it receives an independent code.
+Opening the link alone grants no access, and each browser opening it receives an independent six-digit numeric matching code.
 The source can cancel a pending or approved-but-unredeemed link or create a new link after expiry.
 
 A signed-in source creates a normal session for the same [Platform Visitor Identity](../../docs/terminology/glossary.md#platform-visitor-identity) on the target.

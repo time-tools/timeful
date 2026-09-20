@@ -16,6 +16,7 @@ import { eventTypes, guestUserId } from "@/constants"
 import { Temporal } from "temporal-polyfill"
 import EventView from "./Event.vue"
 import eventViewSource from "./Event.vue?raw"
+import EventOwnerActions from "@/components/event/EventOwnerActions.vue"
 import MdiContentCopy from "~icons/mdi/content-copy"
 import MdiShare from "~icons/mdi/share"
 import MdiTrashCanOutline from "~icons/mdi/trash-can-outline"
@@ -69,6 +70,7 @@ interface EventTestState {
   canEditSettings?: boolean
   canManageEvent?: boolean
   isArchived?: boolean
+  isSignUpForm?: boolean
   name: string
   type: string
   daysOnly?: boolean
@@ -124,9 +126,40 @@ function createDefaultEventState(): EventTestState {
   return state
 }
 
+interface PostgresEventTestResponse {
+  name: string
+  availability: unknown[]
+  publicId: string
+  canEdit: boolean
+}
+
+function createVisitorIdentityEventState(
+  responses: Record<string, PostgresEventTestResponse>,
+): EventTestState {
+  return {
+    ...createDefaultEventState(),
+    eventVisitorId: "vp_visitor",
+    canEditSettings: true,
+    canManageEvent: true,
+    responses: responses as unknown as EventTestState["responses"],
+  }
+}
+
+function createBlindVisitorIdentityEventState(
+  responses: Record<string, PostgresEventTestResponse>,
+): EventTestState {
+  return {
+    ...createVisitorIdentityEventState(responses),
+    canEditSettings: false,
+    canManageEvent: false,
+    blindAvailabilityEnabled: true,
+  }
+}
+
 const {
   editGuestAvailabilityMock,
   editOwnedGuestAvailabilityMock,
+  addAvailabilityMock,
   authUserState,
   isPhoneState,
   curGuestIdState,
@@ -141,9 +174,11 @@ const {
   addAvailabilityAsGuestMock,
   copyLinkMock,
   editEventMock,
+  calendarAutofillEnabledState,
 } = vi.hoisted(() => ({
   editGuestAvailabilityMock: vi.fn(),
   editOwnedGuestAvailabilityMock: vi.fn(),
+  addAvailabilityMock: vi.fn(),
   authUserState: { value: null as null | { _id: string } },
   isPhoneState: { value: false },
   curGuestIdState: { value: "" },
@@ -160,6 +195,7 @@ const {
   addAvailabilityAsGuestMock: vi.fn(),
   copyLinkMock: vi.fn(),
   editEventMock: vi.fn(),
+  calendarAutofillEnabledState: { value: true },
 }))
 
 const scheduleOverlapMethodMocks: Record<string, ReturnType<typeof vi.fn>> = {
@@ -233,10 +269,12 @@ vi.mock("@/composables/event/useEventEditing", () => ({
     pagesNotVisitedDialog: ref(false),
     availabilityBtnOpacity: ref(1),
     availabilityBtnAttentionActive: ref(false),
-    addAvailability: vi.fn(),
+    addAvailability: addAvailabilityMock,
     addAvailabilityAsGuest: addAvailabilityAsGuestMock,
     cancelEditing: vi.fn(),
     copyLink: copyLinkMock,
+    linkCopied: ref(false),
+    linkCopyAnnouncement: ref(""),
     deleteAvailability: vi.fn(),
     editEvent: editEventMock,
     saveChanges: vi.fn(),
@@ -254,6 +292,12 @@ vi.mock("@/composables/event/useEventEditing", () => ({
 
 vi.mock("@/utils/services/UserService", () => ({
   fetchAuthUserProfile: vi.fn().mockResolvedValue(null),
+}))
+
+vi.mock("@/utils/calendarAutofillAvailability", () => ({
+  get calendarAutofillEnabled() {
+    return calendarAutofillEnabledState.value
+  },
 }))
 
 const ScheduleOverlapStub = {
@@ -297,6 +341,7 @@ const ScheduleOverlapStub = {
       startCalendarOnMonday: false,
       overlayAvailability: false,
       showOverlayAvailabilityToggle: true,
+      hintText: "",
       states: {
         SET_SPECIFIC_TIMES: "set_specific_times",
       },
@@ -378,6 +423,48 @@ const ScheduleOverlapResponsesWithoutOwnedGuestStub = {
       ...ScheduleOverlapStub.data(),
       ownedGuestResponses: [],
       respondents: [{ _id: "khh", name: "khh" }],
+    }
+  },
+}
+
+const ScheduleOverlapVisitorResponseStub = {
+  ...ScheduleOverlapStub,
+  data() {
+    return {
+      ...ScheduleOverlapStub.data(),
+      ownedGuestResponses: [
+        {
+          lookupKey: "rp_ada",
+          name: "Ada",
+          lastUsedAt: 1,
+        },
+      ],
+      respondents: [{ _id: "rp_ada", name: "Ada" }],
+    }
+  },
+}
+
+const ScheduleOverlapTwoVisitorResponsesStub = {
+  ...ScheduleOverlapStub,
+  data() {
+    return {
+      ...ScheduleOverlapStub.data(),
+      ownedGuestResponses: [
+        {
+          lookupKey: "rp_ada",
+          name: "Ada",
+          lastUsedAt: 2,
+        },
+        {
+          lookupKey: "rp_grace",
+          name: "Grace",
+          lastUsedAt: 1,
+        },
+      ],
+      respondents: [
+        { _id: "rp_ada", name: "Ada" },
+        { _id: "rp_grace", name: "Grace" },
+      ],
     }
   },
 }
@@ -491,6 +578,14 @@ const invitationDialogStub = {
   template: '<div :data-invitation-open="String(modelValue)" />',
 }
 
+const markAvailabilityDialogStub = {
+  name: "MarkAvailabilityDialogStub",
+  props: {
+    modelValue: { type: Boolean, required: true },
+  },
+  template: '<div :data-choice-open="String(modelValue)" />',
+}
+
 const buttonClickStub = {
   template: "<button @click=\"$emit('click', $event)\"><slot /></button>",
 }
@@ -513,6 +608,27 @@ const buttonSemanticStub = {
     >
       <slot />
     </button>
+  `,
+}
+
+const alertStub = {
+  name: "VAlert",
+  inheritAttrs: false,
+  props: {
+    closable: { type: Boolean, default: false },
+  },
+  emits: ["click:close"],
+  template: `
+    <div v-bind="$attrs">
+      <slot />
+      <button
+        v-if="closable"
+        class="alert-close"
+        @click="$emit('click:close', $event)"
+      >
+        close
+      </button>
+    </div>
   `,
 }
 
@@ -561,6 +677,36 @@ describe("Event primary availability button outline", () => {
     const appCssSource = readFileSync("src/index.css", "utf8")
     expect(appCssSource).toMatch(/--timeful-primary-action-bg:\s*#00994c;/i)
   })
+
+  it("matches the disabled Edit availability outline to the disabled fill", () => {
+    const disabledRuleBody = extractRuleBody(
+      "\\.desktop-primary-availability-button--edit\\.v-btn--disabled,\\s*\\.mobile-primary-availability-button--edit\\.v-btn--disabled",
+    )
+
+    expect(disabledRuleBody).toBeDefined()
+    const normalizedRuleBody = (disabledRuleBody ?? "").replace(/\s+/g, " ")
+    expect(normalizedRuleBody).toContain(
+      "border-color: color-mix( in srgb, var(--timeful-primary-action-fg) 46.1538%, var(--timeful-primary-action-bg) );",
+    )
+  })
+
+  it("gives the mobile Add availability primary the desktop shadow without the green glow", () => {
+    const desktopAddRuleBody = extractRuleBody(
+      "\\.desktop-primary-availability-button--add",
+    )
+    const mobileAddRuleBody = extractRuleBody(
+      "\\.mobile-primary-availability-button--add",
+    )
+
+    expect(desktopAddRuleBody).toBeDefined()
+    expect(mobileAddRuleBody).toBeDefined()
+    for (const ruleBody of [desktopAddRuleBody, mobileAddRuleBody]) {
+      expect(ruleBody).toContain(
+        "box-shadow: 0px 2px 6px 0px rgba(0, 0, 0, 0.14);",
+      )
+      expect(ruleBody).not.toContain("#00994c80")
+    }
+  })
 })
 
 describe("Event guest edit action", () => {
@@ -577,11 +723,323 @@ describe("Event guest edit action", () => {
     expect(eventViewSource).toContain("tw:sm:text-3xl tw:sm:leading-10")
   })
 
+  it("renders the event title as non-interactive text", async () => {
+    authUserState.value = { _id: "owner-1" }
+
+    const wrapper = mountScheduleGateEvent()
+    await flushDeferredMount()
+
+    const title = wrapper.get(".tw\\:text-xl")
+    expect(title.text()).toBe("dfg")
+    expect(title.classes()).not.toContain("tw:cursor-pointer")
+    expect(title.classes()).not.toContain("tw:hover:bg-light-gray")
+
+    await title.trigger("click")
+    expect(editEventMock).not.toHaveBeenCalled()
+
+    await wrapper.get("#edit-event-btn").trigger("click")
+    expect(editEventMock).toHaveBeenCalledOnce()
+  })
+
   it("uses explicit desktop rows for metadata actions", () => {
     expect(eventViewSource).toContain('id="event-header-meta-row"')
     expect(eventViewSource).toContain(
       "event-header-row tw:flex tw:flex-col tw:gap-2 tw:sm:flex-row tw:sm:items-center tw:sm:gap-4",
     )
+  })
+
+  it("keeps event lifecycle actions out of the page header", async () => {
+    const mountHeader = () =>
+      shallowMount(EventView, {
+        props: { eventId: "dEeaF" },
+        global: {
+          stubs: { ...scheduleGateStubs, EventOwnerActions: false },
+        },
+      })
+
+    const activeWrapper = mountHeader()
+    await flushDeferredMount()
+
+    expect(activeWrapper.findComponent(EventOwnerActions).exists()).toBe(false)
+    const activeButtons = activeWrapper
+      .findAll("button")
+      .map((button) => button.text())
+    expect(activeButtons).not.toContain("Archive event")
+    expect(activeButtons).not.toContain("Delete event")
+
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      isArchived: true,
+      canEditSettings: false,
+    }
+    const archivedWrapper = mountHeader()
+    await flushDeferredMount()
+
+    expect(
+      archivedWrapper
+        .get("#event-header-button-row")
+        .findAll("button")
+        .map((button) => button.text()),
+    ).not.toContain("Unarchive event")
+    expect(
+      archivedWrapper
+        .get("v-alert")
+        .findAll("button")
+        .map((button) => button.text()),
+    ).toContain("Unarchive event")
+  })
+
+  it("renders the archived read-only banner inside the event content column", async () => {
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      eventVisitorId: "visitor-1",
+      isArchived: true,
+      canEditSettings: false,
+    }
+
+    const wrapper = shallowMount(EventView, {
+      props: { eventId: "dEeaF" },
+      global: { stubs: scheduleGateStubs },
+    })
+
+    await flushDeferredMount()
+
+    const banner = wrapper.find("v-alert")
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toBe("This event is archived and read-only.")
+    expect(banner.classes()).toContain("tw:mx-4")
+
+    const header = wrapper.find("#event-header")
+    expect(header.exists()).toBe(true)
+    const bannerColumn = banner.element.closest(".tw\\:max-w-5xl")
+    expect(bannerColumn).not.toBeNull()
+    expect(bannerColumn).toBe(header.element.closest(".tw\\:max-w-5xl"))
+  })
+
+  it("renders Unarchive event inside the archived banner only for viewers who can manage it", async () => {
+    const mountBanner = () =>
+      shallowMount(EventView, {
+        props: { eventId: "dEeaF" },
+        global: {
+          stubs: { ...scheduleGateStubs, EventOwnerActions: false },
+        },
+      })
+
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      isArchived: true,
+      canEditSettings: false,
+    }
+    const managerWrapper = mountBanner()
+    await flushDeferredMount()
+
+    expect(
+      managerWrapper
+        .get("v-alert")
+        .findAll("button")
+        .map((button) => button.text()),
+    ).toEqual(["Unarchive event"])
+    expect(
+      managerWrapper
+        .get("#event-header-button-row")
+        .findAll("button")
+        .map((button) => button.text()),
+    ).not.toContain("Unarchive event")
+
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      isArchived: true,
+      canEditSettings: false,
+      canManageEvent: false,
+    }
+    const visitorWrapper = mountBanner()
+    await flushDeferredMount()
+
+    const visitorBanner = visitorWrapper.get("v-alert")
+    expect(visitorBanner.text()).toBe("This event is archived and read-only.")
+    expect(visitorBanner.findAll("button")).toHaveLength(0)
+  })
+
+  it("renders the add availability hint at the top for a viewer without a response", async () => {
+    const wrapper = mountAvailabilityHintEvent()
+    await flushDeferredMount()
+
+    const hint = wrapper.get('[data-testid="add-availability-hint"]')
+    expect(hint.text()).toBe(
+      "Add availability (in the event header) to show when you're available for this event.",
+    )
+    expect(hint.findAll("button")).toHaveLength(0)
+
+    const header = wrapper.get("#event-header")
+    expect(hint.element.closest(".tw\\:max-w-5xl")).not.toBeNull()
+    expect(hint.element.closest(".tw\\:max-w-5xl")).toBe(
+      header.element.closest(".tw\\:max-w-5xl"),
+    )
+    expect(
+      hint.element.compareDocumentPosition(header.element) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it("uses the bottom-of-screen wording for the add availability hint on a phone viewport", async () => {
+    isPhoneState.value = true
+
+    const wrapper = mountAvailabilityHintEvent()
+    await flushDeferredMount()
+
+    expect(wrapper.get('[data-testid="add-availability-hint"]').text()).toBe(
+      "Add availability (at the bottom of the screen) to show when you're available for this event.",
+    )
+  })
+
+  it("hides the add availability hint once the viewer has a response", async () => {
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      hasResponded: true,
+    }
+
+    const wrapper = mountAvailabilityHintEvent()
+    await flushDeferredMount()
+
+    expect(wrapper.find('[data-testid="add-availability-hint"]').exists()).toBe(
+      false,
+    )
+  })
+
+  it("hides the add availability hint on archived, group, and sign-up pages", async () => {
+    const hiddenStates: EventTestState[] = [
+      {
+        ...createDefaultEventState(),
+        isArchived: true,
+        canEditSettings: false,
+      },
+      {
+        ...createDefaultEventState(),
+        type: eventTypes.GROUP,
+        canEditSettings: false,
+      },
+      {
+        ...createDefaultEventState(),
+        isSignUpForm: true,
+        canEditSettings: false,
+      },
+    ]
+
+    for (const state of hiddenStates) {
+      loaderEventState.value = state
+      const wrapper = mountAvailabilityHintEvent()
+      await flushDeferredMount()
+
+      expect(
+        wrapper.find('[data-testid="add-availability-hint"]').exists(),
+      ).toBe(false)
+    }
+  })
+
+  it("shows the add availability hint when responses exist without an editable response", async () => {
+    const wrapper = mountAvailabilityHintEvent({
+      ScheduleOverlap: ScheduleOverlapResponsesWithoutOwnedGuestStub,
+    })
+    await flushDeferredMount()
+
+    const hint = wrapper.get('[data-testid="add-availability-hint"]')
+    expect(hint.text()).toBe(
+      "Add availability (in the event header) to show when you're available for this event.",
+    )
+    expect(
+      wrapper.get("#desktop-primary-availability-btn").attributes("disabled"),
+    ).toBe("")
+    expect(wrapper.get("#desktop-secondary-availability-btn").text()).toContain(
+      "Add availability",
+    )
+  })
+
+  it("renders the editing instruction at the top of the page content", async () => {
+    const wrapper = mountScheduleGateEvent()
+    await flushDeferredMount()
+
+    await wrapper.findComponent(ScheduleOverlapStub).setData({
+      hintText:
+        'Tap and drag on the grid below to add your "available" times in green.',
+    })
+
+    const hint = wrapper.get('[data-testid="availability-editing-hint"]')
+    expect(hint.text()).toBe(
+      'Tap and drag on the grid below to add your "available" times in green.',
+    )
+    expect(hint.element.closest(".tw\\:max-w-5xl")).toBe(
+      wrapper.get("#event-header").element.closest(".tw\\:max-w-5xl"),
+    )
+    expect(
+      hint.element.compareDocumentPosition(
+        wrapper.get("#event-header").element,
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it("renders the editing instruction without a dismiss control and clears it when editing ends", async () => {
+    const wrapper = mountAvailabilityHintEvent({ "v-alert": alertStub })
+    await flushDeferredMount()
+
+    await wrapper.findComponent(ScheduleOverlapStub).setData({
+      hintText: "Tap and drag on the grid below.",
+    })
+
+    const hint = wrapper.get('[data-testid="availability-editing-hint"]')
+    expect(hint.text()).toBe("Tap and drag on the grid below.")
+    expect(hint.findAll("button")).toHaveLength(0)
+
+    await wrapper.findComponent(ScheduleOverlapStub).setData({ hintText: "" })
+    expect(
+      wrapper.find('[data-testid="availability-editing-hint"]').exists(),
+    ).toBe(false)
+  })
+
+  it("renders the editing instruction when a legacy dismissal key is stored", async () => {
+    localStorage.setItem("closedHintTextedit_availability", "true")
+
+    try {
+      const wrapper = mountAvailabilityHintEvent({ "v-alert": alertStub })
+      await flushDeferredMount()
+      await wrapper.findComponent(ScheduleOverlapStub).setData({
+        hintText: "Tap and drag on the grid below.",
+      })
+
+      const hint = wrapper.get('[data-testid="availability-editing-hint"]')
+      expect(hint.text()).toBe("Tap and drag on the grid below.")
+      expect(hint.findAll("button")).toHaveLength(0)
+    } finally {
+      localStorage.removeItem("closedHintTextedit_availability")
+    }
+  })
+
+  it("scrolls the editing instruction into view when editing starts on a phone viewport", async () => {
+    isPhoneState.value = true
+    const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView")
+
+    try {
+      const wrapper = mountAvailabilityHintEvent({ "v-alert": alertStub })
+      await flushDeferredMount()
+
+      await wrapper.findComponent(ScheduleOverlapStub).setData({
+        hintText: "Tap and drag on the grid below.",
+        editing: true,
+      })
+      await nextTick()
+      await nextTick()
+
+      expect(scrollIntoView).toHaveBeenCalledWith({
+        block: "start",
+        behavior: "smooth",
+      })
+      expect(
+        wrapper.get('[data-testid="availability-editing-hint"]').classes(),
+      ).toEqual(
+        expect.arrayContaining(["tw:scroll-mt-18", "tw:sm:scroll-mt-20"]),
+      )
+    } finally {
+      scrollIntoView.mockRestore()
+    }
   })
 
   it("aligns mobile footer action edges with the elevated panel above", () => {
@@ -606,6 +1064,7 @@ describe("Event guest edit action", () => {
     authUserState.value = null
     isPhoneState.value = false
     curGuestIdState.value = ""
+    calendarAutofillEnabledState.value = true
     routeState.value = { name: "event", query: {} }
     loaderEventState.value = {
       ...createDefaultEventState(),
@@ -650,6 +1109,21 @@ describe("Event guest edit action", () => {
     return shallowMount(EventView, {
       props: { eventId: "dEeaF" },
       global: { stubs: scheduleGateStubs },
+    })
+  }
+
+  function mountAvailabilityHintEvent(
+    extraStubs: Record<string, unknown> = {},
+  ) {
+    return shallowMount(EventView, {
+      props: { eventId: "dEeaF" },
+      global: {
+        stubs: {
+          ...scheduleGateStubs,
+          ScheduleOverlap: ScheduleOverlapNoOwnedGuestResponsesStub,
+          ...extraStubs,
+        },
+      },
     })
   }
 
@@ -1034,6 +1508,12 @@ describe("Event guest edit action", () => {
     expect(wrapper.find("#show-best-times-header-toggle").exists()).toBe(true)
     expect(wrapper.find("#desktop-header-more-options").exists()).toBe(true)
     expect(wrapper.find("#collapse-disabled-times-toggle").exists()).toBe(false)
+    const moreOptionsActivatorClass = wrapper
+      .get("#desktop-header-more-options")
+      .get("event-options-stub")
+      .attributes("menuactivatorclass")
+    expect(moreOptionsActivatorClass).toContain("tw:justify-center")
+    expect(moreOptionsActivatorClass).not.toContain("tw:justify-between")
   })
 
   it("uses the add-specific desktop CTA styling when the primary action is Add availability", async () => {
@@ -1130,7 +1610,372 @@ describe("Event guest edit action", () => {
     )
   })
 
-  it("uses the elevated green treatment for mobile add availability", async () => {
+  it("shows the secondary add availability action for a signed-out visitor owning a PostgreSQL response", async () => {
+    loaderEventState.value = createVisitorIdentityEventState({
+      rp_ada: {
+        name: "Ada",
+        availability: [],
+        publicId: "rp_ada",
+        canEdit: true,
+      },
+    })
+
+    const wrapper = shallowMount(EventView, {
+      props: {
+        eventId: "dEeaF",
+      },
+      global: {
+        stubs: {
+          ScheduleOverlap: ScheduleOverlapVisitorResponseStub,
+          EventOptions: true,
+          NewDialog: true,
+          GuestDialog: true,
+          SignUpForSlotDialog: true,
+          SignInNotSupportedDialog: true,
+          MarkAvailabilityDialog: true,
+          InvitationDialog: true,
+          HelpDialog: true,
+          EventDescription: true,
+          AccessDenied: true,
+          NotSignedIn: true,
+          RouterLink: true,
+          "v-chip": true,
+          "v-icon": true,
+          "v-card": true,
+          "v-card-title": true,
+          "v-card-text": true,
+          "v-card-actions": true,
+          "v-dialog": true,
+          "v-spacer": true,
+          "v-btn": buttonSemanticStub,
+        },
+      },
+    })
+
+    await flushDeferredMount()
+
+    const primaryButton = wrapper.get("#desktop-primary-availability-btn")
+    expect(primaryButton.text()).toContain("Edit availability")
+    expect(primaryButton.attributes("disabled")).toBeUndefined()
+
+    const secondaryButton = wrapper.get("#desktop-secondary-availability-btn")
+    expect(secondaryButton.text()).toContain("Add availability")
+
+    await secondaryButton.trigger("click")
+
+    expect(addAvailabilityMock).toHaveBeenCalledTimes(1)
+    expect(editOwnedGuestAvailabilityMock).not.toHaveBeenCalled()
+  })
+
+  it("shows the mobile secondary add availability action for a signed-out visitor owning a PostgreSQL response", async () => {
+    isPhoneState.value = true
+    loaderEventState.value = createVisitorIdentityEventState({
+      rp_ada: {
+        name: "Ada",
+        availability: [],
+        publicId: "rp_ada",
+        canEdit: true,
+      },
+    })
+
+    const wrapper = shallowMount(EventView, {
+      props: {
+        eventId: "dEeaF",
+      },
+      global: {
+        stubs: {
+          ScheduleOverlap: ScheduleOverlapVisitorResponseStub,
+          EventOptions: true,
+          NewDialog: true,
+          GuestDialog: true,
+          SignUpForSlotDialog: true,
+          SignInNotSupportedDialog: true,
+          MarkAvailabilityDialog: true,
+          InvitationDialog: true,
+          HelpDialog: true,
+          EventDescription: true,
+          AccessDenied: true,
+          NotSignedIn: true,
+          RouterLink: true,
+          "v-chip": true,
+          "v-icon": true,
+          "v-card": true,
+          "v-card-title": true,
+          "v-card-text": true,
+          "v-card-actions": true,
+          "v-dialog": true,
+          "v-spacer": true,
+          "v-btn": buttonSemanticStub,
+        },
+      },
+    })
+
+    await flushDeferredMount()
+
+    const secondaryButton = wrapper.get("#mobile-secondary-availability-btn")
+    expect(secondaryButton.text()).toContain("Add availability")
+
+    await secondaryButton.trigger("click")
+
+    expect(addAvailabilityMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("keeps both owned PostgreSQL responses selectable through the primary chooser", async () => {
+    loaderEventState.value = createVisitorIdentityEventState({
+      rp_ada: {
+        name: "Ada",
+        availability: [],
+        publicId: "rp_ada",
+        canEdit: true,
+      },
+      rp_grace: {
+        name: "Grace",
+        availability: [],
+        publicId: "rp_grace",
+        canEdit: true,
+      },
+    })
+
+    const wrapper = shallowMount(EventView, {
+      props: {
+        eventId: "dEeaF",
+      },
+      global: {
+        stubs: {
+          ScheduleOverlap: ScheduleOverlapTwoVisitorResponsesStub,
+          EventOptions: true,
+          NewDialog: true,
+          GuestDialog: true,
+          SignUpForSlotDialog: true,
+          SignInNotSupportedDialog: true,
+          MarkAvailabilityDialog: true,
+          InvitationDialog: true,
+          HelpDialog: true,
+          EventDescription: true,
+          AccessDenied: true,
+          NotSignedIn: true,
+          RouterLink: true,
+          "v-chip": true,
+          "v-icon": true,
+          "v-card": true,
+          "v-card-title": true,
+          "v-card-text": true,
+          "v-card-actions": true,
+          "v-dialog": true,
+          "v-menu": menuStub,
+          "v-spacer": true,
+          "v-btn": buttonSemanticStub,
+        },
+      },
+    })
+
+    await flushDeferredMount()
+    await wrapper.get("#desktop-primary-availability-btn").trigger("click")
+    await nextTick()
+
+    const vm = wrapper.vm as unknown as {
+      showGuestEditMenu: boolean
+      ownedGuestEditOptions: { lookupKey: string; name: string }[]
+      editOwnedGuestAvailability: (lookupKey: string) => void
+    }
+
+    expect(vm.showGuestEditMenu).toBe(true)
+    expect(vm.ownedGuestEditOptions).toHaveLength(2)
+    expect(
+      vm.ownedGuestEditOptions.map((option) => option.name).sort(),
+    ).toEqual(["Ada", "Grace"])
+
+    vm.editOwnedGuestAvailability("rp_grace")
+    await nextTick()
+
+    expect(editOwnedGuestAvailabilityMock).toHaveBeenCalledWith("rp_grace")
+  })
+
+  it("keeps the secondary add availability action for a blind-mode visitor owning a response on desktop", async () => {
+    loaderEventState.value = createBlindVisitorIdentityEventState({
+      rp_ada: {
+        name: "Ada",
+        availability: [],
+        publicId: "rp_ada",
+        canEdit: true,
+      },
+    })
+
+    const wrapper = shallowMount(EventView, {
+      props: {
+        eventId: "dEeaF",
+      },
+      global: {
+        stubs: {
+          ScheduleOverlap: ScheduleOverlapVisitorResponseStub,
+          EventOptions: true,
+          NewDialog: true,
+          GuestDialog: true,
+          SignUpForSlotDialog: true,
+          SignInNotSupportedDialog: true,
+          MarkAvailabilityDialog: true,
+          InvitationDialog: true,
+          HelpDialog: true,
+          EventDescription: true,
+          AccessDenied: true,
+          NotSignedIn: true,
+          RouterLink: true,
+          "v-chip": true,
+          "v-icon": true,
+          "v-card": true,
+          "v-card-title": true,
+          "v-card-text": true,
+          "v-card-actions": true,
+          "v-dialog": true,
+          "v-spacer": true,
+          "v-btn": buttonSemanticStub,
+        },
+      },
+    })
+
+    await flushDeferredMount()
+
+    const primaryButton = wrapper.get("#desktop-primary-availability-btn")
+    expect(primaryButton.text()).toContain("Edit availability")
+    expect(primaryButton.attributes("disabled")).toBeUndefined()
+
+    const secondaryButton = wrapper.get("#desktop-secondary-availability-btn")
+    expect(secondaryButton.text()).toContain("Add availability")
+
+    await secondaryButton.trigger("click")
+
+    expect(addAvailabilityMock).toHaveBeenCalledTimes(1)
+    expect(editOwnedGuestAvailabilityMock).not.toHaveBeenCalled()
+  })
+
+  it("keeps the mobile secondary add availability action for a blind-mode visitor owning a response", async () => {
+    isPhoneState.value = true
+    loaderEventState.value = createBlindVisitorIdentityEventState({
+      rp_ada: {
+        name: "Ada",
+        availability: [],
+        publicId: "rp_ada",
+        canEdit: true,
+      },
+    })
+
+    const wrapper = shallowMount(EventView, {
+      props: {
+        eventId: "dEeaF",
+      },
+      global: {
+        stubs: {
+          ScheduleOverlap: ScheduleOverlapVisitorResponseStub,
+          EventOptions: true,
+          NewDialog: true,
+          GuestDialog: true,
+          SignUpForSlotDialog: true,
+          SignInNotSupportedDialog: true,
+          MarkAvailabilityDialog: true,
+          InvitationDialog: true,
+          HelpDialog: true,
+          EventDescription: true,
+          AccessDenied: true,
+          NotSignedIn: true,
+          RouterLink: true,
+          "v-chip": true,
+          "v-icon": true,
+          "v-card": true,
+          "v-card-title": true,
+          "v-card-text": true,
+          "v-card-actions": true,
+          "v-dialog": true,
+          "v-spacer": true,
+          "v-btn": buttonSemanticStub,
+        },
+      },
+    })
+
+    await flushDeferredMount()
+
+    const secondaryButton = wrapper.get("#mobile-secondary-availability-btn")
+    expect(secondaryButton.text()).toContain("Add availability")
+
+    await secondaryButton.trigger("click")
+
+    expect(addAvailabilityMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("keeps both blind-mode owned responses selectable through the primary chooser", async () => {
+    loaderEventState.value = createBlindVisitorIdentityEventState({
+      rp_ada: {
+        name: "Ada",
+        availability: [],
+        publicId: "rp_ada",
+        canEdit: true,
+      },
+      rp_grace: {
+        name: "Grace",
+        availability: [],
+        publicId: "rp_grace",
+        canEdit: true,
+      },
+    })
+
+    const wrapper = shallowMount(EventView, {
+      props: {
+        eventId: "dEeaF",
+      },
+      global: {
+        stubs: {
+          ScheduleOverlap: ScheduleOverlapTwoVisitorResponsesStub,
+          EventOptions: true,
+          NewDialog: true,
+          GuestDialog: true,
+          SignUpForSlotDialog: true,
+          SignInNotSupportedDialog: true,
+          MarkAvailabilityDialog: true,
+          InvitationDialog: true,
+          HelpDialog: true,
+          EventDescription: true,
+          AccessDenied: true,
+          NotSignedIn: true,
+          RouterLink: true,
+          "v-chip": true,
+          "v-icon": true,
+          "v-card": true,
+          "v-card-title": true,
+          "v-card-text": true,
+          "v-card-actions": true,
+          "v-dialog": true,
+          "v-menu": menuStub,
+          "v-spacer": true,
+          "v-btn": buttonSemanticStub,
+        },
+      },
+    })
+
+    await flushDeferredMount()
+    expect(wrapper.find("#desktop-secondary-availability-btn").exists()).toBe(
+      true,
+    )
+    await wrapper.get("#desktop-primary-availability-btn").trigger("click")
+    await nextTick()
+
+    const vm = wrapper.vm as unknown as {
+      showGuestEditMenu: boolean
+      ownedGuestEditOptions: { lookupKey: string; name: string }[]
+      editOwnedGuestAvailability: (lookupKey: string) => void
+    }
+
+    expect(vm.showGuestEditMenu).toBe(true)
+    expect(vm.ownedGuestEditOptions).toHaveLength(2)
+    expect(
+      vm.ownedGuestEditOptions.map((option) => option.name).sort(),
+    ).toEqual(["Ada", "Grace"])
+
+    vm.editOwnedGuestAvailability("rp_grace")
+    await nextTick()
+
+    expect(editOwnedGuestAvailabilityMock).toHaveBeenCalledWith("rp_grace")
+  })
+
+  it("uses the solid desktop primary treatment for mobile add availability", async () => {
     isPhoneState.value = true
     loaderEventState.value = {
       ...loaderEventState.value,
@@ -1171,15 +2016,21 @@ describe("Event guest edit action", () => {
 
     await flushDeferredMount()
 
-    expect(wrapper.get("#mobile-primary-availability-btn").text()).toContain(
-      "Add availability",
-    )
-    expect(wrapper.get("#mobile-primary-availability-btn").classes()).toContain(
+    const mobilePrimaryButton = wrapper.get("#mobile-primary-availability-btn")
+    expect(mobilePrimaryButton.text()).toContain("Add availability")
+    expect(mobilePrimaryButton.classes()).toContain(
       "mobile-primary-availability-button",
     )
-    expect(wrapper.get("#mobile-primary-availability-btn").classes()).toContain(
+    expect(mobilePrimaryButton.classes()).toContain(
+      "mobile-primary-availability-button--add",
+    )
+    expect(mobilePrimaryButton.classes()).toContain("tw:bg-green")
+    expect(mobilePrimaryButton.classes()).toContain("tw:text-white")
+    expect(mobilePrimaryButton.classes()).not.toContain(
       "timeful-elevated-button",
     )
+    expect(mobilePrimaryButton.classes()).not.toContain("tw:bg-white")
+    expect(mobilePrimaryButton.classes()).not.toContain("tw:text-green")
     const scheduleButton = wrapper
       .findAll("button")
       .find((button) => button.text().includes("Schedule"))
@@ -2172,6 +3023,95 @@ describe("Event guest edit action", () => {
     expect(copyLinkButton.text()).toContain("Copy link")
   })
 
+  it("orders archived header actions as Copy link, then Manage access", async () => {
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      isArchived: true,
+    }
+
+    const wrapper = shallowMount(EventView, {
+      props: { eventId: "dEeaF" },
+      global: {
+        stubs: {
+          ...scheduleGateStubs,
+          EventOwnerActions: false,
+          EventAccessTransfer: false,
+        },
+      },
+    })
+
+    await flushDeferredMount()
+
+    expect(
+      wrapper
+        .get("#event-header-button-row")
+        .findAll("button")
+        .map((button) => button.text()),
+    ).toEqual(["Copy link", "Manage access"])
+    expect(
+      wrapper
+        .get("v-alert")
+        .findAll("button")
+        .map((button) => button.text()),
+    ).toEqual(["Unarchive event"])
+  })
+
+  it("renders the banner Unarchive event action solid green and Manage access outlined", async () => {
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      isArchived: true,
+    }
+
+    const wrapper = shallowMount(EventView, {
+      props: { eventId: "dEeaF" },
+      global: {
+        stubs: {
+          ...scheduleGateStubs,
+          EventOwnerActions: false,
+          EventAccessTransfer: false,
+        },
+      },
+    })
+
+    await flushDeferredMount()
+
+    const unarchiveButton = wrapper.get("v-alert").get("button")
+    expect(unarchiveButton.attributes("data-variant")).toBe("flat")
+    expect(unarchiveButton.classes()).toContain("tw:bg-green")
+    expect(unarchiveButton.classes()).toContain("tw:text-white")
+
+    const headerButtons = wrapper
+      .get("#event-header-button-row")
+      .findAll("button")
+    const manageAccessButton = headerButtons[1]
+
+    expect(manageAccessButton.attributes("data-variant")).toBe("outlined")
+    expect(manageAccessButton.attributes("data-color")).toBe("primary")
+    expect(manageAccessButton.get("span").classes()).toContain("tw:text-green")
+  })
+
+  it("keeps Edit event first in the header action order", async () => {
+    const wrapper = shallowMount(EventView, {
+      props: { eventId: "dEeaF" },
+      global: {
+        stubs: {
+          ...scheduleGateStubs,
+          EventOwnerActions: false,
+          EventAccessTransfer: false,
+        },
+      },
+    })
+
+    await flushDeferredMount()
+
+    expect(
+      wrapper
+        .get("#event-header-button-row")
+        .findAll("button")
+        .map((button) => button.text()),
+    ).toEqual(["Edit event", "Copy link", "Manage access"])
+  })
+
   it("hides the header date summary for timed specific-date events", async () => {
     loaderEventState.value = {
       ...createDefaultEventState(),
@@ -2749,9 +3689,12 @@ describe("Event guest edit action", () => {
     expect(
       moreOptions.get("event-options-stub").attributes("menubuttonlabel"),
     ).toBe("More options")
-    expect(
-      moreOptions.get("event-options-stub").attributes("menuactivatorclass"),
-    ).toContain("desktop-event-header-control")
+    const moreOptionsActivatorClass = moreOptions
+      .get("event-options-stub")
+      .attributes("menuactivatorclass")
+    expect(moreOptionsActivatorClass).toContain("desktop-event-header-control")
+    expect(moreOptionsActivatorClass).toContain("tw:justify-center")
+    expect(moreOptionsActivatorClass).not.toContain("tw:justify-between")
     expect(moreOptions.get("event-options-stub").classes()).toContain(
       "tw:w-full",
     )
@@ -3360,8 +4303,6 @@ describe("Event guest edit action", () => {
     expect(editAvailabilityButton.text()).toContain("Edit availability")
     expect(editAvailabilityButton.attributes("disabled")).toBeDefined()
     expect(editEventButton.attributes("disabled")).toBeDefined()
-    await wrapper.find(".tw\\:text-xl").trigger("click")
-    expect(editEventMock).not.toHaveBeenCalled()
     expect(wrapper.find("#show-best-times-header-toggle").exists()).toBe(true)
     expect(wrapper.find("#desktop-header-more-options").exists()).toBe(true)
     expect(wrapper.text()).toContain("Cancel")
@@ -3751,6 +4692,75 @@ describe("Event guest edit action", () => {
 
     expect(wrapper.find("#event-description-stub").exists()).toBe(false)
     expect(wrapper.find('[data-invitation-open="true"]').exists()).toBe(true)
+  })
+
+  it("does not auto-open the group invitation dialog when calendar autofill is disabled", async () => {
+    calendarAutofillEnabledState.value = false
+    routeState.value = { name: "group", query: {} }
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      type: eventTypes.GROUP,
+      ownerId: "owner-1",
+      canEditSettings: false,
+      canManageEvent: false,
+      responses: {},
+    }
+
+    const wrapper = shallowMount(EventView, {
+      props: {
+        eventId: "dEeaF",
+      },
+      global: {
+        stubs: {
+          ...scheduleGateStubs,
+          InvitationDialog: invitationDialogStub,
+        },
+      },
+    })
+
+    await flushDeferredMount()
+
+    expect(wrapper.find('[data-invitation-open="true"]').exists()).toBe(false)
+  })
+
+  it("does not open the availability choice dialog for the Apple link flow when calendar autofill is disabled", async () => {
+    calendarAutofillEnabledState.value = false
+
+    const wrapper = shallowMount(EventView, {
+      props: {
+        eventId: "dEeaF",
+        linkApple: true,
+      },
+      global: {
+        stubs: {
+          ...scheduleGateStubs,
+          MarkAvailabilityDialog: markAvailabilityDialogStub,
+        },
+      },
+    })
+
+    await flushDeferredMount()
+
+    expect(wrapper.find('[data-choice-open="true"]').exists()).toBe(false)
+  })
+
+  it("opens the availability choice dialog for the Apple link flow when calendar autofill is enabled", async () => {
+    const wrapper = shallowMount(EventView, {
+      props: {
+        eventId: "dEeaF",
+        linkApple: true,
+      },
+      global: {
+        stubs: {
+          ...scheduleGateStubs,
+          MarkAvailabilityDialog: markAvailabilityDialogStub,
+        },
+      },
+    })
+
+    await flushDeferredMount()
+
+    expect(wrapper.find('[data-choice-open="true"]').exists()).toBe(true)
   })
 
   it("does not auto-open the group invitation dialog for a viewer reported as responded", async () => {

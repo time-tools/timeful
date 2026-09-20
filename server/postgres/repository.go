@@ -93,6 +93,27 @@ func GenerateShortID() (string, error) {
 
 func GenerateEventShortID() (string, error) { return GenerateShortID() }
 
+// GenerateTransferCode returns a six-digit decimal matching code. Rejection
+// sampling keeps the value uniform without modulo bias, and formatting keeps
+// leading zeros so every code is exactly six digits.
+func GenerateTransferCode() (string, error) {
+	var raw [4]byte
+	for {
+		if _, err := rand.Read(raw[:]); err != nil {
+			return "", fmt.Errorf("generate transfer code: %w", err)
+		}
+		value := uint32(raw[0])<<24 | uint32(raw[1])<<16 | uint32(raw[2])<<8 | uint32(raw[3])
+		if value >= 4_000_000_000 {
+			continue
+		}
+		return formatTransferCode(value % 1_000_000), nil
+	}
+}
+
+func formatTransferCode(value uint32) string {
+	return fmt.Sprintf("%06d", value)
+}
+
 func encodeCrockford(value []byte, length int) string {
 	result := make([]byte, length)
 	var buffer uint64

@@ -1,16 +1,28 @@
 // @vitest-environment happy-dom
 
-import { computed, ref } from "vue"
+import { computed, nextTick, ref } from "vue"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { createLocalStorageMock } from "@/test/localStorage"
+import type { ScheduleOverlapInstance } from "./types"
 import { useEventLoader } from "./useEventLoader"
 
-const { getMock, fetchEventFromPathMock, fetchCalendarEventsMapMock } =
-  vi.hoisted(() => ({
-    getMock: vi.fn(),
-    fetchEventFromPathMock: vi.fn(),
-    fetchCalendarEventsMapMock: vi.fn(),
-  }))
+const {
+  getMock,
+  fetchEventFromPathMock,
+  fetchCalendarEventsMapMock,
+  calendarAutofillEnabledState,
+} = vi.hoisted(() => ({
+  getMock: vi.fn(),
+  fetchEventFromPathMock: vi.fn(),
+  fetchCalendarEventsMapMock: vi.fn(),
+  calendarAutofillEnabledState: { value: true },
+}))
+
+vi.mock("@/utils/calendarAutofillAvailability", () => ({
+  get calendarAutofillEnabled() {
+    return calendarAutofillEnabledState.value
+  },
+}))
 
 vi.mock("@/utils", () => ({
   get: getMock,
@@ -33,6 +45,7 @@ describe("useEventLoader", () => {
     getMock.mockReset()
     fetchEventFromPathMock.mockReset()
     fetchCalendarEventsMapMock.mockReset()
+    calendarAutofillEnabledState.value = true
     getMock.mockResolvedValue({ longId: "evt.long" })
     fetchEventFromPathMock.mockResolvedValue({
       _id: "evt.long",
@@ -69,5 +82,52 @@ describe("useEventLoader", () => {
 
     expect(fetchCalendarEventsMapMock).toHaveBeenCalled()
     expect(loader.calendarPermissionGranted.value).toBe(true)
+  })
+
+  it("does not refill availability automatically when calendar autofill is disabled", async () => {
+    calendarAutofillEnabledState.value = false
+    const setAvailabilityAutomatically = vi.fn()
+    const scheduleOverlapRef = ref<ScheduleOverlapInstance | null>({
+      setAvailabilityAutomatically,
+    } as unknown as ScheduleOverlapInstance)
+    const loader = useEventLoader({
+      eventId: ref("evt.long"),
+      weekOffset: ref(0),
+      authUser: computed(() => ({ _id: "user-1" })),
+      scheduleOverlapRef,
+      isEditing: computed(() => true),
+      userHasResponded: computed(() => false),
+      areUnsavedChanges: computed(() => false),
+    })
+
+    await loader.refreshEvent()
+    fetchCalendarEventsMapMock.mockResolvedValue({})
+    await loader.fetchAuthUserCalendarEvents()
+    await nextTick()
+
+    expect(setAvailabilityAutomatically).not.toHaveBeenCalled()
+  })
+
+  it("refills availability automatically after calendar events load when calendar autofill is enabled", async () => {
+    const setAvailabilityAutomatically = vi.fn()
+    const scheduleOverlapRef = ref<ScheduleOverlapInstance | null>({
+      setAvailabilityAutomatically,
+    } as unknown as ScheduleOverlapInstance)
+    const loader = useEventLoader({
+      eventId: ref("evt.long"),
+      weekOffset: ref(0),
+      authUser: computed(() => ({ _id: "user-1" })),
+      scheduleOverlapRef,
+      isEditing: computed(() => true),
+      userHasResponded: computed(() => false),
+      areUnsavedChanges: computed(() => false),
+    })
+
+    await loader.refreshEvent()
+    fetchCalendarEventsMapMock.mockResolvedValue({})
+    await loader.fetchAuthUserCalendarEvents()
+    await nextTick()
+
+    expect(setAvailabilityAutomatically).toHaveBeenCalledTimes(1)
   })
 })

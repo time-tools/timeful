@@ -91,6 +91,16 @@ async function signIn(request: APIRequestContext, label: string) {
   return verifySignIn(request, seedAccount(label))
 }
 
+// A wrong code must differ from every pending request, so tests derive it from
+// the codes the browsers displayed instead of using a fixed literal.
+function wrongCodeFrom(...codes: string[]) {
+  let candidate = String((Number(codes[0]) + 1) % 1_000_000).padStart(6, "0")
+  while (codes.includes(candidate)) {
+    candidate = String((Number(candidate) + 1) % 1_000_000).padStart(6, "0")
+  }
+  return candidate
+}
+
 for (const mode of ["guest", "owner", "signed-in"] as const) {
   test(`Source approves the exact target code for ${mode} access`, async ({
     page,
@@ -134,13 +144,19 @@ for (const mode of ["guest", "owner", "signed-in"] as const) {
     await page.goto(`/e/${eventId}`, { waitUntil: "domcontentloaded" })
     await page
       .getByRole("button", {
-        name: "Continue on another device",
+        name: "Manage access",
         exact: true,
       })
       .click()
     await page
-      .getByRole("button", { name: "Create transfer link", exact: true })
+      .getByRole("button", { name: "Create new transfer link", exact: true })
       .click()
+    await expect(page.getByTestId("manage-access-step-1")).toContainText(
+      "Create and copy a transfer link",
+    )
+    await expect(page.getByTestId("manage-access-step-2")).toContainText(
+      "Opening the link alone gives no access",
+    )
     const linkField = page.getByLabel("Transfer link", { exact: true })
     await expect(linkField).toHaveValue(/\/transfer\//)
     const link = await linkField.inputValue()
@@ -153,7 +169,10 @@ for (const mode of ["guest", "owner", "signed-in"] as const) {
     ])
     await targetPage.goto(link, { waitUntil: "domcontentloaded" })
     const code = targetPage.getByTestId("matching-code")
-    await expect(code).toHaveText(/^[A-Z0-9]{8}$/)
+    await expect(code).toHaveText(/^\d{6}$/)
+    await expect(
+      targetPage.getByTestId("access-transfer-step-2"),
+    ).toContainText("Show this code to the browser that created the link")
     await targetPage
       .getByRole("button", { name: "Continue after approval" })
       .click()
@@ -171,26 +190,44 @@ for (const mode of ["guest", "owner", "signed-in"] as const) {
       await code.innerText(),
     )
     await test.step("Reject a wrong code and approve the selected target", async () => {
-      await page.getByLabel("Matching code from other browser").fill("WRONG")
+      const targetCode = await code.innerText()
+      const otherCode = await otherPage.getByTestId("matching-code").innerText()
+      await page
+        .getByLabel("Matching code from other browser")
+        .fill(wrongCodeFrom(targetCode, otherCode))
       await page.getByRole("button", { name: "Approve matching code" }).click()
       await expect(
         page.getByText(/Could not approve the transfer. Check the code/),
       ).toBeVisible()
       await page
         .getByLabel("Matching code from other browser")
-        .fill(await code.innerText())
+        .fill(targetCode)
       await page.getByRole("button", { name: "Approve matching code" }).click()
       await expect(page.getByRole("status")).toContainText(
-        "Approved — waiting for the other browser",
+        "Approved — finish in the other browser.",
+      )
+      await expect(page.getByTestId("manage-access-step-3")).toHaveAttribute(
+        "aria-current",
+        "step",
       )
     })
-    await test.step("Reject the other browser and redeem only on the approved target", async () => {
-      await otherPage
-        .getByRole("button", { name: "Continue after approval" })
-        .click()
+    await test.step("Target sees approval without reloading", async () => {
       await expect(
-        otherPage.getByText(/Access has not been approved/),
-      ).toBeVisible()
+        targetPage.getByTestId("access-transfer-step-3"),
+      ).toHaveAttribute("aria-current", "step")
+      await expect(targetPage.getByRole("status")).toContainText(
+        "Approved — you can continue",
+      )
+    })
+    await test.step("End the other browser's wait and redeem only on the approved target", async () => {
+      // Another request was approved, so this browser's link can no longer
+      // grant access; its waiting page ends without a Continue click.
+      await expect(otherPage.getByRole("status")).toContainText(
+        "This link is expired, cancelled, or unavailable",
+      )
+      await expect(
+        otherPage.getByRole("button", { name: "Continue after approval" }),
+      ).toHaveCount(0)
       // This actor's journey is complete; finalize its recording before the
       // target's reload and revocation checks instead of encoding an idle page.
       await stranger.close()
@@ -262,6 +299,12 @@ for (const mode of ["guest", "owner", "signed-in"] as const) {
         "timeful_grant_",
       )
       if (mode === "owner") {
+        await targetPage
+          .getByRole("button", { name: "Edit event", exact: true })
+          .click()
+        await targetPage
+          .getByRole("button", { name: "Danger zone", exact: true })
+          .click()
         await expect(
           targetPage.getByRole("button", {
             name: "Archive event",
@@ -305,6 +348,9 @@ for (const mode of ["guest", "owner", "signed-in"] as const) {
           .getByRole("button", { name: "Not now", exact: true })
           .click()
       }
+      await expect(
+        page.getByText(/Granted access 1 · Firefox on /),
+      ).toBeVisible()
       await page
         .getByRole("button", { name: "Revoke access", exact: true })
         .click()
@@ -419,7 +465,7 @@ for (const mode of ["guest", "account-switch"] as const) {
     await test.step("Approve the on-page code and restore it after reload", async () => {
       await targetPage.goto(link, { waitUntil: "domcontentloaded" })
       const code = targetPage.getByTestId("matching-code")
-      await expect(code).toHaveText(/^[A-Z0-9]{8}$/)
+      await expect(code).toHaveText(/^\d{6}$/)
       const matchingCode = await code.innerText()
       const status = await page.request.post(`${transferApi}/status`, {
         data: {},
@@ -511,22 +557,32 @@ test("Source cancels approved access before the target redeems", async ({
   expect(created.status()).toBe(201)
   const { eventId } = (await created.json()) as { eventId: string }
   await page.goto(`/e/${eventId}`, { waitUntil: "domcontentloaded" })
-  await page.getByRole("button", { name: "Continue on another device" }).click()
-  await page.getByRole("button", { name: "Create transfer link" }).click()
+  await page.getByRole("button", { name: "Manage access" }).click()
+  await page.getByRole("button", { name: "Create new transfer link" }).click()
   const linkField = page.getByLabel("Transfer link", { exact: true })
   await expect(linkField).toHaveValue(/\/transfer\//)
   const link = await linkField.inputValue()
   const targetPage = await target.newPage()
   await targetPage.goto(link, { waitUntil: "domcontentloaded" })
   const code = targetPage.getByTestId("matching-code")
-  await expect(code).toHaveText(/^[A-Z0-9]{8}$/)
+  await expect(code).toHaveText(/^\d{6}$/)
   await page
     .getByLabel("Matching code from other browser")
     .fill(await code.innerText())
   await page.getByRole("button", { name: "Approve matching code" }).click()
   await expect(page.getByRole("status")).toContainText(
-    "Approved — waiting for the other browser",
+    "Approved — finish in the other browser.",
   )
+  await test.step("Restore the approved transfer after a source reload", async () => {
+    await page.reload({ waitUntil: "domcontentloaded" })
+    await page.getByRole("button", { name: "Manage access" }).click()
+    await expect(page.getByRole("status")).toContainText(
+      "Approved — finish in the other browser.",
+    )
+    await expect(page.getByLabel("Transfer link", { exact: true })).toHaveValue(
+      /\/transfer\//,
+    )
+  })
   await page
     .getByRole("button", { name: "Cancel transfer", exact: true })
     .click()
@@ -545,10 +601,24 @@ test("Source cancels approved access before the target redeems", async ({
       cookie.name.startsWith("timeful_grant_"),
     ),
   ).toBe(false)
+  await test.step("Dismiss the dialog from the named top-right close control", async () => {
+    const dialog = page.getByRole("dialog")
+    const title = dialog.getByText("Manage access", { exact: true })
+    const body = dialog.getByText("Use this event on another browser")
+    await expect(title).toBeVisible()
+    await expect(body).toBeVisible()
+    const titleBox = await title.boundingBox()
+    const bodyBox = await body.boundingBox()
+    expect(titleBox).not.toBeNull()
+    expect(bodyBox).not.toBeNull()
+    expect(titleBox?.x).toBe(bodyBox?.x)
+    await dialog.getByRole("button", { name: "Close" }).click()
+    await expect(dialog).toBeHidden()
+  })
 })
 
 for (const state of ["cancelled", "expired"] as const) {
-  test(`A ${state} link cannot grant access`, async ({
+  test(`A ${state} link ends the waiting target page without granting access`, async ({
     page,
     actorContext,
   }) => {
@@ -564,7 +634,7 @@ for (const state of ["cancelled", "expired"] as const) {
     const link = `/transfer/${created.eventId}/${transfer.id}`
     await targetPage.goto(link, { waitUntil: "domcontentloaded" })
     await expect(targetPage.getByTestId("matching-code")).toHaveText(
-      /^[A-Z0-9]{8}$/,
+      /^\d{6}$/,
     )
     if (state === "cancelled") {
       expect(
@@ -577,12 +647,14 @@ for (const state of ["cancelled", "expired"] as const) {
     } else {
       expireTransfer(transfer.id)
     }
-    await targetPage
-      .getByRole("button", { name: "Continue after approval" })
-      .click()
-    await expect(
-      targetPage.getByText(/Access has not been approved/),
-    ).toBeVisible()
+    await test.step("The waiting page ends without a Continue click", async () => {
+      await expect(targetPage.getByRole("status")).toContainText(
+        "This link is expired, cancelled, or unavailable",
+      )
+      await expect(
+        targetPage.getByRole("button", { name: "Continue after approval" }),
+      ).toHaveCount(0)
+    })
     await targetPage.reload({ waitUntil: "domcontentloaded" })
     await expect(
       targetPage.getByText(

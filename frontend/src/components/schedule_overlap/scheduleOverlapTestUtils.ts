@@ -307,8 +307,6 @@ export const buildEditingAvailabilityAsViewModel =
 export const buildScheduleOverlapMobileOverlayViewModel =
   (): ScheduleOverlapMobileOverlayViewModel => ({
     bottomOffset: "4rem",
-    hintTextShown: false,
-    hintText: "",
     isGroup: false,
     editing: false,
     isSignUp: false,

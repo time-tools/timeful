@@ -1490,6 +1490,9 @@ const docTemplate = `{
                                             },
                                             "id": {
                                                 "type": "string"
+                                            },
+                                            "userAgent": {
+                                                "type": "string"
                                             }
                                         }
                                     }
@@ -1498,6 +1501,9 @@ const docTemplate = `{
                                     "type": "boolean"
                                 },
                                 "state": {
+                                    "type": "string"
+                                },
+                                "targetUserAgent": {
                                     "type": "string"
                                 }
                             }

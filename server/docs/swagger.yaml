@@ -1420,11 +1420,15 @@ paths:
                       type: string
                     id:
                       type: string
+                    userAgent:
+                      type: string
                   type: object
                 type: array
               revocable:
                 type: boolean
               state:
+                type: string
+              targetUserAgent:
                 type: string
             type: object
         "403":

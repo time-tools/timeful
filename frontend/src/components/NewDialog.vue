@@ -52,6 +52,7 @@
         :hide-dialog-actions="!_noTabs"
         @update:model-value="handleDialogInput"
         @refresh-event="handleRefreshEvent"
+        @deleted="exitDialog"
         @sign-in="emit('signIn')"
       />
       <NewGroup

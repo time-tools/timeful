@@ -142,6 +142,7 @@
   --timeful-overlay-availability-if-needed-shadow: #e5a8004d;
   --timeful-mobile-action-bar-surface: #ffffff;
   --timeful-mobile-action-bar-shadow: rgba(0, 0, 0, 0.18);
+  --timeful-header-shadow: rgba(0, 0, 0, 0.18);
 }
 
 /* Root-level font defaults replace the former universal `* { font-family }`
@@ -168,6 +169,10 @@ html {
 
 .timeful-tooltip-layer {
   z-index: 40;
+}
+
+.timeful-elevated-header {
+  box-shadow: 0 2px 8px var(--timeful-header-shadow);
 }
 
 .timeful-mobile-elevated-panel {

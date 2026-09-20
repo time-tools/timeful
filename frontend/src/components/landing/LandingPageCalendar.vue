@@ -11,7 +11,6 @@
         :show-snackbar="false"
         :always-show-calendar-events="true"
         animate-timeslot-always
-        :show-hint-text="false"
       />
     </div>
   </v-card>

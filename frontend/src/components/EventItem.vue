@@ -271,12 +271,18 @@ const moveEventToFolder = (folderId: string | null) => {
   })
   showMenu.value = false
 }
-const copyLink = () => {
-  void navigator.clipboard.writeText(
-    `${window.location.origin}/e/${eventPublicId(props.event)}`,
-  )
-  mainStore.showInfo("Link copied to clipboard!")
+const copyLink = async () => {
   showMenu.value = false
+  try {
+    await navigator.clipboard.writeText(
+      `${window.location.origin}/e/${eventPublicId(props.event)}`,
+    )
+  } catch (cause) {
+    console.error("Failed to copy event link: ", cause)
+    mainStore.showError("Could not copy the link to the clipboard.")
+    return
+  }
+  mainStore.showInfo("Link copied to clipboard!")
 }
 const removeEvent = () => {
   _delete(`/events/${props.event._id ?? ""}`)

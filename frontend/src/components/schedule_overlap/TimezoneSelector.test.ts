@@ -497,8 +497,43 @@ describe("TimezoneSelector", () => {
       ".timezone-select--compact-button :deep(.v-field__input) {\n  align-items: center;\n  min-height: 32px;\n  padding-top: 0;\n  padding-bottom: 0;\n  font-size: 0.875rem;\n  font-weight: 500;",
     )
     expect(timezoneSelectorSource).toContain(
-      ".timezone-select--compact-button :deep(.v-select__selection-text) {\n  color: rgb(0, 0, 0);\n  font-family: inherit;\n  font-size: 0.875rem;\n  font-weight: 500;",
+      ".timezone-select--compact-button :deep(.timezone-select__selection-text) {\n  color: rgb(0, 0, 0);\n  font-family: inherit;\n  font-size: 0.875rem;\n  font-weight: 500;",
     )
+  })
+
+  it("targets the class the selection slot renders so the compact label is black", () => {
+    const colorRule = timezoneSelectorSource.match(
+      /\.timezone-select--compact-button :deep\(\.([\w-]+)\) \{\n\s{2}color: rgb\(0, 0, 0\);/,
+    )
+    if (colorRule === null) {
+      throw new Error("Expected the compact selection text color rule")
+    }
+
+    const wrapper = shallowMount(TimezoneSelector, {
+      props: {
+        compact: true,
+        compactButton: true,
+        fieldVariant: "solo",
+        modelValue: {
+          value: "America/New_York",
+          label: "Eastern Time",
+          gmtString: "(GMT-5:00)",
+          offset: Temporal.Duration.from({ hours: -5 }),
+        },
+      },
+      global: {
+        stubs: {
+          "v-btn": true,
+          "v-icon": true,
+          "v-list-item": true,
+          "v-list-item-title": true,
+          "v-select": RenderingVSelectStub,
+        },
+      },
+    })
+
+    const selection = wrapper.get(".timezone-select__selection-text")
+    expect(selection.classes()).toContain(colorRule[1])
   })
 
   it("keeps the desktop toolbar zone label and chevron at the field sides", () => {

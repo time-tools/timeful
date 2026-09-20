@@ -4,7 +4,7 @@
     class="tw:mb-2 tw:flex tw:gap-2 tw:px-4 tw:sm:px-8"
   >
     <div>
-      <div class="tw:mb-1">{{ title }}</div>
+      <div :id="titleId" class="tw:mb-1">{{ title }}</div>
       <div
         v-if="showHelpCopy"
         class="tw:text-xs tw:font-normal tw:italic tw:text-dark-gray"
@@ -27,6 +27,7 @@
         v-else
         icon
         variant="text"
+        aria-label="Close"
         class="tw:text-dark-gray"
         @click="emit('close')"
       >
@@ -53,6 +54,7 @@ const props = defineProps<{
   dialog: boolean
   showHelp: boolean
   hideDialogActions: boolean
+  titleId?: string
 }>()
 
 const emit = defineEmits<{

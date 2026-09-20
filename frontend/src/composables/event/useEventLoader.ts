@@ -2,6 +2,7 @@ import { ref, nextTick, type Ref, type ComputedRef } from "vue"
 import { get, getRenderedWeekStart, processEvent } from "@/utils"
 import { eventTypes } from "@/constants"
 import { logEventBoot } from "@/utils/eventBootDebug"
+import { calendarAutofillEnabled } from "@/utils/calendarAutofillAvailability"
 import type { Event, User } from "@/types"
 import type {
   NormalizedCalendarEvent,
@@ -154,6 +155,7 @@ export function useEventLoader(opts: UseEventLoaderOptions) {
         }
 
         if (
+          calendarAutofillEnabled &&
           opts.authUser.value &&
           opts.isEditing?.value &&
           !opts.userHasResponded?.value &&

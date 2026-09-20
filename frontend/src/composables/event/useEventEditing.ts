@@ -5,6 +5,8 @@ import { authTypes, calendarTypes } from "@/constants"
 import isWebview from "is-ua-webview"
 import type { Event, User } from "@/types"
 import { useMainStore } from "@/stores/main"
+import { useCopyFeedback } from "@/composables/useCopyFeedback"
+import { calendarAutofillEnabled } from "@/utils/calendarAutofillAvailability"
 import type { ScheduleOverlapInstance } from "./types"
 
 interface SignInGoogleOptions {
@@ -45,6 +47,11 @@ export function useEventEditing(opts: UseEventEditingOptions) {
   const pagesNotVisitedDialog = ref(false)
   const availabilityBtnOpacity = ref(1)
   const availabilityBtnAttentionActive = ref(false)
+  const {
+    announcement: linkCopyAnnouncement,
+    copied: linkCopied,
+    copy: copyToClipboard,
+  } = useCopyFeedback({ announcement: "Link copied" })
   let availabilityBtnAttentionTimeout: ReturnType<typeof setTimeout> | null =
     null
 
@@ -80,6 +87,11 @@ export function useEventEditing(opts: UseEventEditingOptions) {
       return
     }
 
+    if (!calendarAutofillEnabled) {
+      setAvailabilityManually()
+      return
+    }
+
     if (
       (opts.authUser.value && opts.calendarPermissionGranted.value) ||
       opts.userHasResponded.value
@@ -111,14 +123,17 @@ export function useEventEditing(opts: UseEventEditingOptions) {
     opts.addingAvailabilityAsGuest.value = false
   }
 
-  function copyLink() {
+  async function copyLink() {
     const ev = opts.event.value
     if (!ev) return
     const publicID = eventPublicId(ev)
-    void navigator.clipboard.writeText(
-      `${window.location.origin}/e/${publicID}`,
-    )
-    mainStore.showInfo("Link copied to clipboard!")
+    try {
+      await copyToClipboard(`${window.location.origin}/e/${publicID}`)
+    } catch {
+      mainStore.showError(
+        "Could not copy the event link. Copy it from the address bar instead.",
+      )
+    }
   }
 
   async function deleteAvailability() {
@@ -215,6 +230,8 @@ export function useEventEditing(opts: UseEventEditingOptions) {
   function setAvailabilityAutomatically(
     calendarType: string = calendarTypes.GOOGLE,
   ) {
+    if (!calendarAutofillEnabled) return
+
     if (isWebview(navigator.userAgent)) {
       webviewDialog.value = true
     } else {
@@ -356,6 +373,8 @@ export function useEventEditing(opts: UseEventEditingOptions) {
     addAvailabilityAsGuest,
     cancelEditing,
     copyLink,
+    linkCopied,
+    linkCopyAnnouncement,
     deleteAvailability,
     editEvent,
     saveChanges,

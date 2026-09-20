@@ -517,3 +517,107 @@ test("Responses panel list scrolls under a static Responses heading", async ({
     scrollViewBox.y + scrollViewBox.height + 1,
   )
 })
+
+test("phone respondent selection sits after the name and keeps the status visible", async ({
+  page,
+  request,
+}) => {
+  const now = Temporal.Now.instant()
+  const today = now.toZonedDateTimeISO("UTC").toPlainDate().toString()
+  const slot = `${today}T09:00:00.000Z`
+  const timeIncrementMinutes = 60
+  const guestName = "Guest One"
+
+  const seed = await seedCanonicalTimedEvent(
+    request,
+    buildSpecificDateSeed({
+      name: `Mobile respondent selection layout ${String(now.epochMilliseconds)}`,
+      selectedDays: [today],
+      activeSlots: [slot, `${today}T10:00:00.000Z`],
+      eventTimezone: "UTC",
+      startTimeLocal: "09:00",
+      endTimeLocal: "17:00",
+      timeIncrementMinutes,
+    }),
+  )
+
+  const guestResponse = await request.post(
+    `/api/events/${seed.eventId}/response`,
+    {
+      data: {
+        guest: true,
+        createResponse: true,
+        name: guestName,
+        email: "",
+        availability: [slot],
+        ifNeeded: [],
+      },
+    },
+  )
+  expect(guestResponse.ok()).toBeTruthy()
+
+  await openEventPage(page, seed.shortId)
+
+  // Grid rows are indexed from midnight, so the first active slot at 09:00
+  // with a 60-minute increment sits at base row index 9.
+  const firstSlotRowIndex = rowIndexForTime(9, 0, timeIncrementMinutes)
+  const selectedSlot = page.locator(
+    `#drag-section .timeslot[data-row="${String(firstSlotRowIndex)}"][data-col="0"]`,
+  )
+  await selectedSlot.scrollIntoViewIfNeeded()
+  await selectedSlot.dispatchEvent("click")
+
+  const row = page
+    .locator(".respondent-row")
+    .filter({ hasText: guestName })
+    .first()
+  await expect(row).toBeVisible()
+
+  const control = row.locator(".respondent-control")
+  const statusSquare = row.locator(".respondent-control__avatar div")
+  const checkbox = row.locator(".respondent-control__checkbox")
+  const name = row.locator(".respondent-name-line")
+
+  await expect(row).toBeVisible()
+  await expect(statusSquare).toBeVisible()
+  await expect(checkbox).toBeVisible()
+  await expect(checkbox).toHaveCSS("border-top-color", "rgb(189, 189, 189)")
+
+  const [statusBox, nameBeforeSelection, checkboxBox] = await Promise.all([
+    statusSquare.boundingBox(),
+    name.boundingBox(),
+    checkbox.boundingBox(),
+  ])
+  expect(statusBox).not.toBeNull()
+  expect(nameBeforeSelection).not.toBeNull()
+  expect(checkboxBox).not.toBeNull()
+  if (!statusBox || !nameBeforeSelection || !checkboxBox) {
+    throw new Error("Expected the respondent control boxes to be measurable")
+  }
+
+  expect(nameBeforeSelection.x).toBeGreaterThanOrEqual(
+    statusBox.x + statusBox.width - 1,
+  )
+  expect(checkboxBox.x).toBeGreaterThanOrEqual(
+    nameBeforeSelection.x + nameBeforeSelection.width - 1,
+  )
+
+  await checkbox.click()
+  await expect(control).toHaveAttribute("aria-pressed", "true")
+  await expect(statusSquare).toBeVisible()
+  await expect(checkbox).toBeVisible()
+  await expect(checkbox.locator("svg")).toBeVisible()
+  await expect(checkbox).toHaveCSS("border-top-color", "rgb(0, 153, 76)")
+
+  const nameAfterSelection = await name.boundingBox()
+  expect(nameAfterSelection).not.toBeNull()
+  if (!nameAfterSelection) {
+    throw new Error("Expected the respondent name to keep a bounding box")
+  }
+  expect(
+    Math.abs(nameAfterSelection.x - nameBeforeSelection.x),
+  ).toBeLessThanOrEqual(1)
+  expect(
+    Math.abs(nameAfterSelection.y - nameBeforeSelection.y),
+  ).toBeLessThanOrEqual(1)
+})

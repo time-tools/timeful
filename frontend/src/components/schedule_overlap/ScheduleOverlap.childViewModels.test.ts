@@ -570,7 +570,7 @@ describe("ScheduleOverlap child view models", () => {
       })
       .props("daysOnlyGrid") as {
       event: { daysOnly?: boolean }
-      actions: { prevPage: () => void; closeHint: () => void }
+      actions: { prevPage: () => void }
       toolRow: {
         numResponses: number
         actions: { updateShowBestTimes: (value: boolean) => void }
@@ -579,7 +579,6 @@ describe("ScheduleOverlap child view models", () => {
 
     expect(daysOnlyGrid.event.daysOnly).toBe(true)
     expect(typeof daysOnlyGrid.actions.prevPage).toBe("function")
-    expect(typeof daysOnlyGrid.actions.closeHint).toBe("function")
     expect(daysOnlyGrid.toolRow.numResponses).toBe(0)
     expect(typeof daysOnlyGrid.toolRow.actions.updateShowBestTimes).toBe(
       "function",

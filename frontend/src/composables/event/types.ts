@@ -25,6 +25,7 @@ export interface ScheduleOverlapInstance {
   startCalendarOnMonday: boolean
   overlayAvailability: boolean
   showOverlayAvailabilityToggle: boolean
+  hintText: string
   startEditing(): void
   stopEditing(): void
   updateShowBestTimes(value: boolean): void

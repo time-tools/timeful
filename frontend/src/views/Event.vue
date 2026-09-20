@@ -1,14 +1,6 @@
 <template>
   <span>
     <div v-if="eventLoadStatus === 'ready' && event" class="tw:mt-8 tw:h-full">
-      <v-alert
-        v-if="event.eventVisitorId && event.isArchived"
-        type="info"
-        variant="tonal"
-        class="tw:mb-4"
-      >
-        This event is archived and read-only.
-      </v-alert>
       <!-- Mark availability option dialog -->
       <MarkAvailabilityDialog
         v-model="choiceDialog"
@@ -138,6 +130,36 @@
         class="tw:mx-auto tw:mt-4 tw:lg:flex tw:lg:items-start tw:lg:justify-center tw:lg:gap-6"
       >
         <div class="tw:mx-auto tw:max-w-5xl tw:flex-1">
+          <v-alert
+            v-if="event.eventVisitorId && event.isArchived"
+            type="info"
+            variant="tonal"
+            class="tw:mx-4 tw:mb-4"
+          >
+            <div class="tw:flex tw:flex-col tw:items-start tw:gap-2">
+              <span>This event is archived and read-only.</span>
+              <EventOwnerActions :event="event" @changed="refreshEvent" />
+            </div>
+          </v-alert>
+          <v-alert
+            v-if="showAddAvailabilityHint"
+            type="info"
+            variant="tonal"
+            class="tw:mx-4 tw:mb-4"
+            data-testid="add-availability-hint"
+          >
+            {{ addAvailabilityHintText }}
+          </v-alert>
+          <v-alert
+            v-if="scheduleOverlapHintTextShown"
+            ref="scheduleOverlapHintRef"
+            type="info"
+            variant="tonal"
+            class="tw:mx-4 tw:mb-4 tw:scroll-mt-18 tw:sm:scroll-mt-20"
+            data-testid="availability-editing-hint"
+          >
+            {{ scheduleOverlapHintText }}
+          </v-alert>
           <div v-if="!isSettingSpecificTimes" class="tw:mx-4">
             <!-- Desktop rows pair event details with their related controls. -->
             <div
@@ -151,14 +173,7 @@
                   <div
                     class="sm:mb-2 tw:flex tw:flex-wrap tw:items-center tw:gap-x-4 tw:gap-y-2"
                   >
-                    <div
-                      class="tw:text-xl tw:sm:text-3xl tw:sm:leading-10"
-                      :class="
-                        canEditMetadata &&
-                        'tw:-mx-2 tw:-my-1 tw:cursor-pointer tw:rounded tw:px-2 tw:py-1 tw:transition-all tw:hover:bg-light-gray'
-                      "
-                      @click="canEditMetadata && !isScheduling && editEvent()"
-                    >
+                    <div class="tw:text-xl tw:sm:text-3xl tw:sm:leading-10">
                       {{ event.name }}
                     </div>
                     <v-chip
@@ -432,12 +447,6 @@
                       >
                     </v-btn>
                   </template>
-                  <EventAccessTransfer :event="event" />
-                  <EventOwnerActions
-                    :event="event"
-                    @changed="refreshEvent"
-                    @deleted="router.push('/')"
-                  />
                   <v-btn
                     v-if="!isGroup"
                     id="copy-link-btn"
@@ -446,9 +455,18 @@
                     class="event-metadata-action-button"
                     @click="copyLink"
                   >
-                    <v-icon class="tw:text-green"><MdiContentCopy /></v-icon>
-                    <span class="tw:ml-1 tw:text-green">Copy link</span>
+                    <v-icon class="tw:text-green">
+                      <MdiCheck v-if="linkCopied" />
+                      <MdiContentCopy v-else />
+                    </v-icon>
+                    <span class="tw:ml-1 tw:text-green">{{
+                      linkCopied ? "Copied" : "Copy link"
+                    }}</span>
                   </v-btn>
+                  <p aria-live="polite" class="tw:sr-only">
+                    {{ linkCopyAnnouncement }}
+                  </p>
+                  <EventAccessTransfer :event="event" />
                 </div>
                 <div
                   v-if="
@@ -526,7 +544,7 @@
                       :num-responses="numResponses"
                       :include-show-best-times="false"
                       menu-button-label="More options"
-                      menu-activator-class="desktop-event-header-control desktop-event-header-options__menu-button tw:justify-between tw:w-full"
+                      menu-activator-class="desktop-event-header-control desktop-event-header-options__menu-button tw:justify-center tw:w-full"
                       @update:hide-if-needed="updateDesktopHideIfNeeded"
                       @update:collapse-disabled-times="
                         updateDesktopCollapseDisabledTimes
@@ -560,7 +578,10 @@
                     >
                       <template #label>
                         <div class="tw:text-sm tw:text-black">
-                          Collapse disabled times
+                          Collapse
+                          <span class="tw:whitespace-nowrap"
+                            >disabled times</span
+                          >
                         </div>
                       </template>
                     </v-switch>
@@ -642,7 +663,7 @@
                         :include-show-best-times="false"
                         :include-hide-if-needed="false"
                         menu-button-label="More options"
-                        menu-activator-class="desktop-event-header-control desktop-event-header-options__menu-button tw:justify-between tw:w-full"
+                        menu-activator-class="desktop-event-header-control desktop-event-header-options__menu-button tw:justify-center tw:w-full"
                         @update:hide-if-needed="updateDesktopHideIfNeeded"
                         @update:collapse-disabled-times="
                           updateDesktopCollapseDisabledTimes
@@ -927,7 +948,7 @@
               </v-btn>
               <v-btn
                 id="mobile-primary-availability-btn"
-                class="mobile-primary-availability-button tw:min-w-0 tw:whitespace-nowrap tw:px-2 tw:text-[13px] tw:transition-opacity tw:max-sm:px-1 tw:max-sm:text-xs"
+                class="mobile-primary-availability-button tw:min-w-0 tw:whitespace-nowrap tw:bg-green tw:px-2 tw:text-[13px] tw:text-white tw:transition-opacity tw:max-sm:px-1 tw:max-sm:text-xs"
                 :class="[
                   mobilePrimaryAvailabilityButtonClass,
                   {
@@ -1128,8 +1149,10 @@ import HelpDialog from "@/components/HelpDialog.vue"
 import EventDescription from "@/components/event/EventDescription.vue"
 import EventOptions from "@/components/schedule_overlap/EventOptions.vue"
 import { privacyPolicyEnabled } from "@/utils/privacyPolicy"
+import { calendarAutofillEnabled } from "@/utils/calendarAutofillAvailability"
 import MdiCalendarCheck from "~icons/mdi/calendar-check"
 import MdiCalendarToday from "~icons/mdi/calendar-today"
+import MdiCheck from "~icons/mdi/check"
 import MdiContentCopy from "~icons/mdi/content-copy"
 import MdiPencil from "~icons/mdi/pencil"
 import MdiPlus from "~icons/mdi/plus"
@@ -1301,15 +1324,6 @@ const userHasResponded = computed(() => {
     authUser.value?._id && ev?.responses && authUser.value._id in ev.responses,
   )
 })
-const guestAddedAvailability = computed(() =>
-  ownedGuestResponses.value.some((ownedGuest) =>
-    Object.values(loader.event.value?.responses ?? {}).some((response) =>
-      response.guestOwnershipMode === "token"
-        ? response.guestId === ownedGuest.lookupKey
-        : response.user?._id === ownedGuest.lookupKey,
-    ),
-  ),
-)
 const actionButtonText = computed(() => {
   if (isSignUp.value) return "Edit slots"
   else if (userHasResponded.value || isGroup.value) return "Edit availability"
@@ -1370,6 +1384,40 @@ const showDisabledEditAvailabilityPrimary = computed(
 const hasMultipleOwnedGuestResponses = computed(
   () => ownedGuestEditOptions.value.length > 1,
 )
+const showAddAvailabilityHint = computed(
+  () =>
+    scheduleOverlapReady.value &&
+    !isReadOnlyEvent.value &&
+    !isGroup.value &&
+    !isSignUp.value &&
+    !isEditing.value &&
+    !isScheduling.value &&
+    !isSettingSpecificTimes.value &&
+    !hasEditableAvailability.value,
+)
+const addAvailabilityHintText = computed(() =>
+  isPhone.value
+    ? "Add availability (at the bottom of the screen) to show when you're available for this event."
+    : "Add availability (in the event header) to show when you're available for this event.",
+)
+const scheduleOverlapHintText = computed(
+  () => scheduleOverlap.value?.hintText ?? "",
+)
+const scheduleOverlapHintTextShown = computed(
+  () => scheduleOverlapHintText.value !== "",
+)
+const scheduleOverlapHintRef = ref<{ $el?: Element | null } | null>(null)
+watch(isEditing, async (editing, wasEditing) => {
+  if (!editing || wasEditing || !isPhone.value) return
+  await nextTick()
+  const hintElement = scheduleOverlapHintRef.value?.$el
+  if (
+    hintElement instanceof HTMLElement &&
+    typeof hintElement.scrollIntoView === "function"
+  ) {
+    hintElement.scrollIntoView({ block: "start", behavior: "smooth" })
+  }
+})
 const guestActionButtonText = computed(() => "Edit availability")
 const secondaryAddAvailabilityButtonText = computed(() => {
   if (showDisabledEditAvailabilityPrimary.value) return "Add availability"
@@ -1379,13 +1427,7 @@ const secondaryAddAvailabilityButtonText = computed(() => {
 const showSecondaryAddAvailabilityAction = computed(() => {
   if (isGroup.value || isSignUp.value || isEditing.value) return false
   if (showDisabledEditAvailabilityPrimary.value) return true
-  if (!(authUser.value || guestAddedAvailability.value)) return false
-  const event = loader.event.value
-  if (!event) return false
-  return (
-    !event.blindAvailabilityEnabled ||
-    (event.eventVisitorId ? event.canManageEvent === true : isOwner.value)
-  )
+  return Boolean(authUser.value || ownedGuestEditOptions.value.length > 0)
 })
 const showScheduleEventButton = computed(
   () =>
@@ -1435,12 +1477,10 @@ const mobilePrimaryAvailabilityButtonText = computed(() => {
   return actionButtonText.value
 })
 const mobilePrimaryAvailabilityButtonClass = computed(() => ({
+  "mobile-primary-availability-button--add":
+    mobilePrimaryAvailabilityButtonText.value === "Add availability",
   "mobile-primary-availability-button--edit":
     mobilePrimaryAvailabilityButtonText.value === "Edit availability",
-  "tw:bg-green tw:text-white":
-    mobilePrimaryAvailabilityButtonText.value === "Edit availability",
-  "timeful-elevated-button tw:bg-white tw:text-green":
-    mobilePrimaryAvailabilityButtonText.value !== "Edit availability",
 }))
 const isIOS = computed(() => isIOSFn())
 const desktopShowBestTimes = computed(
@@ -1561,6 +1601,8 @@ const {
   addAvailabilityAsGuest,
   cancelEditing,
   copyLink,
+  linkCopied,
+  linkCopyAnnouncement,
   deleteAvailability,
   editEvent,
   saveChanges,
@@ -1914,7 +1956,7 @@ async function setSlots(e: MessageEvent<PluginMessageData>) {
   const timeIncrement = getTimeIncrementMinutes(ev)
   const payloadGuestName = normalizeGuestName(e.data.payload?.guestName)
   const hasGuestName = payloadGuestName != null
-  if (ev.blindAvailabilityEnabled) {
+  if (ev.blindAvailabilityEnabled && !ev.eventVisitorId) {
     const isOwner = isSignedInOwner(ev, authUser.value)
     if (!isOwner && hasGuestName) {
       sendPluginError(
@@ -1940,7 +1982,14 @@ async function setSlots(e: MessageEvent<PluginMessageData>) {
           (key) => responses[key]?.name === payloadGuestName,
         )
       : undefined
-    visitorResponseId = namedResponseId ?? selectedVisitorResponse(ev._id ?? "")
+    const selectedResponseId = selectedVisitorResponse(ev._id ?? "")
+    if (hasGuestName) {
+      visitorResponseId =
+        namedResponseId ??
+        (ev.blindAvailabilityEnabled ? undefined : selectedResponseId)
+    } else {
+      visitorResponseId = selectedResponseId
+    }
     if (hasGuestName) {
       guestName = payloadGuestName
     } else {
@@ -2421,7 +2470,7 @@ onMounted(() => {
   // for dev:
   // window.addEventListener("message", _interceptPluginResponses)
   editEventDialog.value = hasEventDraftData(props.contactsPayload)
-  if (props.linkApple) choiceDialog.value = true
+  if (calendarAutofillEnabled && props.linkApple) choiceDialog.value = true
   if (!hasSpecificTimesEntryState()) {
     queueScheduleOverlapMount()
   }
@@ -2452,7 +2501,12 @@ watch(scheduleOverlap, (so) => {
       so.startEditing()
       logEventBoot("EventView", "watch:scheduleOverlap-startEditing")
     }
-    if (isGroup.value && !userHasResponded.value && !canEditMetadata.value) {
+    if (
+      calendarAutofillEnabled &&
+      isGroup.value &&
+      !userHasResponded.value &&
+      !canEditMetadata.value
+    ) {
       invitationDialog.value = true
       logEventBoot("EventView", "watch:scheduleOverlap-openInvitation")
     }
@@ -2554,11 +2608,27 @@ watch(
   min-width: 0;
 }
 
+.mobile-primary-availability-button--add {
+  border: 1px solid var(--timeful-primary-action-bg);
+  -webkit-box-shadow: 0px 2px 6px 0px rgba(0, 0, 0, 0.14);
+  -moz-box-shadow: 0px 2px 6px 0px rgba(0, 0, 0, 0.14);
+  box-shadow: 0px 2px 6px 0px rgba(0, 0, 0, 0.14);
+}
+
 .mobile-primary-availability-button--edit {
   border: 1px solid var(--timeful-primary-action-bg);
   -webkit-box-shadow: none;
   -moz-box-shadow: none;
   box-shadow: none;
+}
+
+.desktop-primary-availability-button--edit.v-btn--disabled,
+.mobile-primary-availability-button--edit.v-btn--disabled {
+  border-color: color-mix(
+    in srgb,
+    var(--timeful-primary-action-fg) 46.1538%,
+    var(--timeful-primary-action-bg)
+  );
 }
 
 .mobile-schedule-button .v-btn__content,
@@ -2705,7 +2775,8 @@ watch(
   :deep(.v-selection-control) {
   height: 100%;
   min-height: var(--desktop-event-header-control-height);
-  inline-size: fit-content;
+  inline-size: 100%;
+  min-inline-size: 0;
 }
 
 .desktop-event-header-options__collapse-disabled-times-switch
@@ -2716,6 +2787,11 @@ watch(
 
 .desktop-event-header-options__collapse-disabled-times-switch :deep(.v-label) {
   flex: 0 0 auto;
+  inline-size: min-content;
+  max-inline-size: 100%;
+  line-height: 1.25;
+  overflow-wrap: break-word;
+  white-space: normal;
   padding-inline-start: 0;
   margin-inline-start: 0.35rem;
 }

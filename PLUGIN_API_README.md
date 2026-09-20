@@ -40,6 +40,7 @@ window.postMessage(
 
 Retrieves availability slots for all respondents to an event.
 Returns slots in the user's local timezone by default, with the ability to optionally specify timezone.
+For an event using Blind Availability Mode, a non-owner receives only the responses the caller is authorized to manage, while the Event Owner receives every response.
 
 ### Request Format
 
@@ -134,6 +135,7 @@ window.postMessage(
 Sets availability slots for the current user (logged-in user or guest).
 Converts timestamps from the user's timezone to UTC before storing in the backend.
 **Completely overwrites** existing availability (does not merge with previous slots).
+For an event using Blind Availability Mode, a non-owner can create and manage only the responses owned by the caller's Event Visitor Identity or associated with the caller's signed-in account: a `guestName` that matches a manageable response edits that response, and any other `guestName` creates a new response without changing the request shape.
 
 ### Request Format
 

@@ -24,7 +24,7 @@ export interface UseScheduleOverlapUIOptions {
   isPhone: Ref<boolean>
   isSignUp: ComputedRef<boolean>
   isGroup: ComputedRef<boolean>
-  showHintText: Ref<boolean>
+  daysOnly: Ref<boolean>
   /** Optional external state ref — if provided, used instead of creating one internally */
   state?: Ref<ScheduleOverlapState>
   showBestTimes?: Ref<boolean>
@@ -67,6 +67,35 @@ export function canGuestEditResponse(
   return Boolean(
     response.guestId && ownedGuestResponseLookupKeys.has(response.guestId),
   )
+}
+
+export function responseOrderTier(
+  response: ParsedResponse | undefined,
+  ownedGuestResponseLookupKeys: Set<string>,
+): 0 | 1 | 2 {
+  if (!response) {
+    return 2
+  }
+  if (response.publicId) {
+    return response.canEdit ? 0 : 2
+  }
+  if (!response.guest) {
+    return 2
+  }
+  const owned =
+    response.guestOwnershipMode === "token"
+      ? Boolean(
+          response.guestId &&
+          ownedGuestResponseLookupKeys.has(response.guestId),
+        )
+      : Boolean(
+          response.user._id &&
+          ownedGuestResponseLookupKeys.has(response.user._id),
+        )
+  if (owned) {
+    return 0
+  }
+  return response.guestEditPolicy === "open" ? 1 : 2
 }
 
 export function useScheduleOverlapUI(opts: UseScheduleOverlapUIOptions) {
@@ -122,8 +151,6 @@ export function useScheduleOverlapUI(opts: UseScheduleOverlapUIOptions) {
     typeof setTimeout
   > | null>(null)
 
-  const hintState = ref(true)
-
   const rightSideWidth = computed(() => {
     if (opts.isPhone.value) return "100%"
     return opts.isSignUp.value
@@ -140,43 +167,24 @@ export function useScheduleOverlapUI(opts: UseScheduleOverlapUIOptions) {
         curRespondents.value.length > 0),
   )
 
-  const hintStateLocalStorageKey = computed(
-    () =>
-      `closedHintText${state.value}` + (opts.isGroup.value ? "&isGroup" : ""),
-  )
-
   const hintText = computed(() => {
     const phone = opts.isPhone.value
     const verb = phone ? "Tap and drag" : "Click and drag"
+    const daysOrTimes = opts.daysOnly.value ? "days" : "times"
     if (opts.isGroup.value && state.value === states.EDIT_AVAILABILITY) {
-      return `Toggle which calendars are used. ${verb.toLowerCase()} to edit your availability.`
+      return `Toggle which calendars are used. ${verb} on the grid below to edit your availability.`
     }
     if (state.value === states.EDIT_AVAILABILITY) {
-      const daysOrTimes = "times" // event.daysOnly handled by caller via override
       if (availabilityType.value === availabilityTypes.IF_NEEDED) {
-        return `${verb} to add your "if needed" ${daysOrTimes} in yellow.`
+        return `${verb} on the grid below to add your "if needed" ${daysOrTimes} in yellow.`
       }
-      return `${verb} to add your "available" ${daysOrTimes} in green.`
+      return `${verb} on the grid below to add your "available" ${daysOrTimes} in green.`
     }
     if (state.value === states.SCHEDULE_EVENT) {
-      return `${verb} on the calendar to schedule a Google Calendar event during those times.`
+      return `${verb} on the grid below to schedule a Google Calendar event during those ${daysOrTimes}.`
     }
     return ""
   })
-
-  const hintClosed = computed(
-    () =>
-      !hintState.value || Boolean(localStorage[hintStateLocalStorageKey.value]),
-  )
-
-  const hintTextShown = computed(
-    () => opts.showHintText.value && hintText.value !== "" && !hintClosed.value,
-  )
-
-  const closeHint = () => {
-    hintState.value = false
-    localStorage[hintStateLocalStorageKey.value] = "true"
-  }
 
   const mouseOverRespondent = (_e: Event, id: string) => {
     if (curRespondents.value.length === 0) {
@@ -295,7 +303,6 @@ export function useScheduleOverlapUI(opts: UseScheduleOverlapUIOptions) {
     posthog.capture("overlay_availability_toggled", { enabled: !!val })
   }
 
-  const showCalendarOptions = computed(() => true) // computed by caller — placeholder
   const showOverlayAvailabilityToggle = computed(
     () =>
       opts.respondents.value.length > 0 &&
@@ -388,7 +395,6 @@ export function useScheduleOverlapUI(opts: UseScheduleOverlapUIOptions) {
     scrolledToRespondents,
     delayedShowStickyRespondents,
     delayedShowStickyRespondentsTimeout,
-    hintState,
     curRespondent,
     curRespondents,
     // computed
@@ -399,11 +405,7 @@ export function useScheduleOverlapUI(opts: UseScheduleOverlapUIOptions) {
     curRespondentsSet,
     rightSideWidth,
     showStickyRespondents,
-    hintStateLocalStorageKey,
     hintText,
-    hintClosed,
-    hintTextShown,
-    showCalendarOptions,
     showOverlayAvailabilityToggle,
     guestNameKey,
     selectedGuestRespondent,
@@ -420,7 +422,6 @@ export function useScheduleOverlapUI(opts: UseScheduleOverlapUIOptions) {
     onScroll,
     onShowBestTimesChange,
     updateOverlayAvailability,
-    closeHint,
   }
 }
 
