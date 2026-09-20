@@ -685,6 +685,18 @@ describe("Event primary availability button outline", () => {
     const appCssSource = readFileSync("src/index.css", "utf8")
     expect(appCssSource).toMatch(/--timeful-primary-action-bg:\s*#00994c;/i)
   })
+
+  it("matches the disabled Edit availability outline to the disabled fill", () => {
+    const disabledRuleBody = extractRuleBody(
+      "\\.desktop-primary-availability-button--edit\\.v-btn--disabled,\\s*\\.mobile-primary-availability-button--edit\\.v-btn--disabled",
+    )
+
+    expect(disabledRuleBody).toBeDefined()
+    const normalizedRuleBody = (disabledRuleBody ?? "").replace(/\s+/g, " ")
+    expect(normalizedRuleBody).toContain(
+      "border-color: color-mix( in srgb, var(--timeful-primary-action-fg) 46.1538%, var(--timeful-primary-action-bg) );",
+    )
+  })
 })
 
 describe("Event guest edit action", () => {

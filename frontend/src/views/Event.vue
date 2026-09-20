@@ -2611,6 +2611,15 @@ watch(
   box-shadow: none;
 }
 
+.desktop-primary-availability-button--edit.v-btn--disabled,
+.mobile-primary-availability-button--edit.v-btn--disabled {
+  border-color: color-mix(
+    in srgb,
+    var(--timeful-primary-action-fg) 46.1538%,
+    var(--timeful-primary-action-bg)
+  );
+}
+
 .mobile-schedule-button .v-btn__content,
 .mobile-schedule-button .v-icon {
   color: inherit;
