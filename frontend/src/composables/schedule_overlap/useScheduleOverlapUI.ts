@@ -24,6 +24,7 @@ export interface UseScheduleOverlapUIOptions {
   isPhone: Ref<boolean>
   isSignUp: ComputedRef<boolean>
   isGroup: ComputedRef<boolean>
+  daysOnly: Ref<boolean>
   showHintText: Ref<boolean>
   /** Optional external state ref — if provided, used instead of creating one internally */
   state?: Ref<ScheduleOverlapState>
@@ -148,18 +149,18 @@ export function useScheduleOverlapUI(opts: UseScheduleOverlapUIOptions) {
   const hintText = computed(() => {
     const phone = opts.isPhone.value
     const verb = phone ? "Tap and drag" : "Click and drag"
+    const daysOrTimes = opts.daysOnly.value ? "days" : "times"
     if (opts.isGroup.value && state.value === states.EDIT_AVAILABILITY) {
-      return `Toggle which calendars are used. ${verb.toLowerCase()} to edit your availability.`
+      return `Toggle which calendars are used. ${verb} on the grid below to edit your availability.`
     }
     if (state.value === states.EDIT_AVAILABILITY) {
-      const daysOrTimes = "times" // event.daysOnly handled by caller via override
       if (availabilityType.value === availabilityTypes.IF_NEEDED) {
-        return `${verb} to add your "if needed" ${daysOrTimes} in yellow.`
+        return `${verb} on the grid below to add your "if needed" ${daysOrTimes} in yellow.`
       }
-      return `${verb} to add your "available" ${daysOrTimes} in green.`
+      return `${verb} on the grid below to add your "available" ${daysOrTimes} in green.`
     }
     if (state.value === states.SCHEDULE_EVENT) {
-      return `${verb} on the calendar to schedule a Google Calendar event during those times.`
+      return `${verb} on the grid below to schedule a Google Calendar event during those ${daysOrTimes}.`
     }
     return ""
   })

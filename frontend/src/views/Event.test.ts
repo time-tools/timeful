@@ -70,6 +70,7 @@ interface EventTestState {
   canEditSettings?: boolean
   canManageEvent?: boolean
   isArchived?: boolean
+  isSignUpForm?: boolean
   name: string
   type: string
   daysOnly?: boolean
@@ -203,6 +204,7 @@ const scheduleOverlapMethodMocks: Record<string, ReturnType<typeof vi.fn>> = {
   confirmScheduleEvent: vi.fn(),
   clearScheduledEvent: vi.fn(),
   editOwnedGuestAvailability: editOwnedGuestAvailabilityMock,
+  closeHint: vi.fn(),
 }
 
 vi.mock("vue-router", () => ({
@@ -317,6 +319,11 @@ const ScheduleOverlapStub = {
       required: false,
       default: undefined,
     },
+    showHintText: {
+      type: Boolean,
+      required: false,
+      default: true,
+    },
   },
   data() {
     return {
@@ -340,6 +347,8 @@ const ScheduleOverlapStub = {
       startCalendarOnMonday: false,
       overlayAvailability: false,
       showOverlayAvailabilityToggle: true,
+      hintText: "",
+      hintClosed: false,
       states: {
         SET_SPECIFIC_TIMES: "set_specific_times",
       },
@@ -353,6 +362,7 @@ const ScheduleOverlapStub = {
     clearScheduledEvent: scheduleOverlapMethodMocks.clearScheduledEvent,
     editOwnedGuestAvailability:
       scheduleOverlapMethodMocks.editOwnedGuestAvailability,
+    closeHint: scheduleOverlapMethodMocks.closeHint,
     updateShowBestTimes(this: Record<string, boolean>, value: boolean) {
       this.showBestTimes = value
     },
@@ -609,6 +619,27 @@ const buttonSemanticStub = {
   `,
 }
 
+const alertStub = {
+  name: "VAlert",
+  inheritAttrs: false,
+  props: {
+    closable: { type: Boolean, default: false },
+  },
+  emits: ["click:close"],
+  template: `
+    <div v-bind="$attrs">
+      <slot />
+      <button
+        v-if="closable"
+        class="alert-close"
+        @click="$emit('click:close', $event)"
+      >
+        close
+      </button>
+    </div>
+  `,
+}
+
 const menuStub = {
   name: "VMenu",
   props: {
@@ -807,6 +838,158 @@ describe("Event guest edit action", () => {
     expect(visitorBanner.findAll("button")).toHaveLength(0)
   })
 
+  it("renders the add availability hint at the top for a viewer without a response", async () => {
+    const wrapper = mountAvailabilityHintEvent()
+    await flushDeferredMount()
+
+    const hint = wrapper.get('[data-testid="add-availability-hint"]')
+    expect(hint.text()).toBe(
+      "Add availability (in the event header) to show when you're available for this event.",
+    )
+    expect(hint.findAll("button")).toHaveLength(0)
+
+    const header = wrapper.get("#event-header")
+    expect(hint.element.closest(".tw\\:max-w-5xl")).not.toBeNull()
+    expect(hint.element.closest(".tw\\:max-w-5xl")).toBe(
+      header.element.closest(".tw\\:max-w-5xl"),
+    )
+    expect(
+      hint.element.compareDocumentPosition(header.element) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it("uses the bottom-of-screen wording for the add availability hint on a phone viewport", async () => {
+    isPhoneState.value = true
+
+    const wrapper = mountAvailabilityHintEvent()
+    await flushDeferredMount()
+
+    expect(wrapper.get('[data-testid="add-availability-hint"]').text()).toBe(
+      "Add availability (at the bottom of the screen) to show when you're available for this event.",
+    )
+  })
+
+  it("hides the add availability hint once the viewer has a response", async () => {
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      hasResponded: true,
+    }
+
+    const wrapper = mountAvailabilityHintEvent()
+    await flushDeferredMount()
+
+    expect(wrapper.find('[data-testid="add-availability-hint"]').exists()).toBe(
+      false,
+    )
+  })
+
+  it("hides the add availability hint on archived, group, and sign-up pages", async () => {
+    const hiddenStates: EventTestState[] = [
+      {
+        ...createDefaultEventState(),
+        isArchived: true,
+        canEditSettings: false,
+      },
+      {
+        ...createDefaultEventState(),
+        type: eventTypes.GROUP,
+        canEditSettings: false,
+      },
+      {
+        ...createDefaultEventState(),
+        isSignUpForm: true,
+        canEditSettings: false,
+      },
+    ]
+
+    for (const state of hiddenStates) {
+      loaderEventState.value = state
+      const wrapper = mountAvailabilityHintEvent()
+      await flushDeferredMount()
+
+      expect(
+        wrapper.find('[data-testid="add-availability-hint"]').exists(),
+      ).toBe(false)
+    }
+  })
+
+  it("shows the add availability hint when responses exist without an editable response", async () => {
+    const wrapper = mountAvailabilityHintEvent({
+      ScheduleOverlap: ScheduleOverlapResponsesWithoutOwnedGuestStub,
+    })
+    await flushDeferredMount()
+
+    const hint = wrapper.get('[data-testid="add-availability-hint"]')
+    expect(hint.text()).toBe(
+      "Add availability (in the event header) to show when you're available for this event.",
+    )
+    expect(
+      wrapper.get("#desktop-primary-availability-btn").attributes("disabled"),
+    ).toBe("")
+    expect(wrapper.get("#desktop-secondary-availability-btn").text()).toContain(
+      "Add availability",
+    )
+  })
+
+  it("renders the editing instruction at the top and suppresses the component hint strips", async () => {
+    const wrapper = mountScheduleGateEvent()
+    await flushDeferredMount()
+
+    await wrapper.findComponent(ScheduleOverlapStub).setData({
+      hintText:
+        'Tap and drag on the grid below to add your "available" times in green.',
+    })
+
+    const hint = wrapper.get('[data-testid="availability-editing-hint"]')
+    expect(hint.text()).toBe(
+      'Tap and drag on the grid below to add your "available" times in green.',
+    )
+    expect(hint.element.closest(".tw\\:max-w-5xl")).toBe(
+      wrapper.get("#event-header").element.closest(".tw\\:max-w-5xl"),
+    )
+    expect(
+      hint.element.compareDocumentPosition(
+        wrapper.get("#event-header").element,
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(
+      wrapper.findComponent(ScheduleOverlapStub).props("showHintText"),
+    ).toBe(false)
+  })
+
+  it("dismisses the editing instruction through the component close handler", async () => {
+    const wrapper = mountAvailabilityHintEvent({ "v-alert": alertStub })
+    await flushDeferredMount()
+
+    await wrapper.findComponent(ScheduleOverlapStub).setData({
+      hintText: "Tap and drag on the grid below.",
+    })
+
+    await wrapper
+      .get('[data-testid="availability-editing-hint"] button')
+      .trigger("click")
+
+    expect(scheduleOverlapMethodMocks.closeHint).toHaveBeenCalledOnce()
+  })
+
+  it("keeps the add availability hint independent from the editing instruction dismissal", async () => {
+    const wrapper = mountAvailabilityHintEvent()
+    await flushDeferredMount()
+
+    await wrapper.findComponent(ScheduleOverlapStub).setData({
+      hintText: "Tap and drag on the grid below.",
+      hintClosed: true,
+    })
+
+    expect(
+      wrapper.find('[data-testid="availability-editing-hint"]').exists(),
+    ).toBe(false)
+    expect(wrapper.find('[data-testid="add-availability-hint"]').exists()).toBe(
+      true,
+    )
+  })
+
   it("aligns mobile footer action edges with the elevated panel above", () => {
     expect(eventViewSource).toContain(
       "tw:flex tw:h-16 tw:w-full tw:items-center tw:px-4",
@@ -874,6 +1057,21 @@ describe("Event guest edit action", () => {
     return shallowMount(EventView, {
       props: { eventId: "dEeaF" },
       global: { stubs: scheduleGateStubs },
+    })
+  }
+
+  function mountAvailabilityHintEvent(
+    extraStubs: Record<string, unknown> = {},
+  ) {
+    return shallowMount(EventView, {
+      props: { eventId: "dEeaF" },
+      global: {
+        stubs: {
+          ...scheduleGateStubs,
+          ScheduleOverlap: ScheduleOverlapNoOwnedGuestResponsesStub,
+          ...extraStubs,
+        },
+      },
     })
   }
 

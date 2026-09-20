@@ -141,6 +141,26 @@
               <EventOwnerActions :event="event" @changed="refreshEvent" />
             </div>
           </v-alert>
+          <v-alert
+            v-if="showAddAvailabilityHint"
+            type="info"
+            variant="tonal"
+            class="tw:mx-4 tw:mb-4"
+            data-testid="add-availability-hint"
+          >
+            {{ addAvailabilityHintText }}
+          </v-alert>
+          <v-alert
+            v-if="scheduleOverlapHintTextShown"
+            type="info"
+            variant="tonal"
+            closable
+            class="tw:mx-4 tw:mb-4"
+            data-testid="availability-editing-hint"
+            @click:close="closeScheduleOverlapHint"
+          >
+            {{ scheduleOverlapHintText }}
+          </v-alert>
           <div v-if="!isSettingSpecificTimes" class="tw:mx-4">
             <!-- Desktop rows pair event details with their related controls. -->
             <div
@@ -814,6 +834,7 @@
             :initial-timezone="initialTimezone"
             :adding-availability-as-guest="addingAvailabilityAsGuest"
             :refresh-event-fn="refreshEvent"
+            :show-hint-text="false"
             @add-availability="addAvailability"
             @add-availability-as-guest="addAvailabilityAsGuest"
             @refresh-event="refreshEvent"
@@ -1362,6 +1383,35 @@ const showDisabledEditAvailabilityPrimary = computed(
 const hasMultipleOwnedGuestResponses = computed(
   () => ownedGuestEditOptions.value.length > 1,
 )
+const showAddAvailabilityHint = computed(
+  () =>
+    scheduleOverlapReady.value &&
+    !isReadOnlyEvent.value &&
+    !isGroup.value &&
+    !isSignUp.value &&
+    !isEditing.value &&
+    !isScheduling.value &&
+    !isSettingSpecificTimes.value &&
+    !hasEditableAvailability.value,
+)
+const addAvailabilityHintText = computed(() =>
+  isPhone.value
+    ? "Add availability (at the bottom of the screen) to show when you're available for this event."
+    : "Add availability (in the event header) to show when you're available for this event.",
+)
+const scheduleOverlapHintText = computed(
+  () => scheduleOverlap.value?.hintText ?? "",
+)
+const scheduleOverlapHintClosed = computed(
+  () => scheduleOverlap.value?.hintClosed ?? false,
+)
+const scheduleOverlapHintTextShown = computed(
+  () =>
+    scheduleOverlapHintText.value !== "" && !scheduleOverlapHintClosed.value,
+)
+function closeScheduleOverlapHint() {
+  scheduleOverlap.value?.closeHint()
+}
 const guestActionButtonText = computed(() => "Edit availability")
 const secondaryAddAvailabilityButtonText = computed(() => {
   if (showDisabledEditAvailabilityPrimary.value) return "Add availability"

@@ -480,10 +480,13 @@ const ownedGuestResponseLookupKeys = computed<Set<string>>(
   () => new Set(ownedGuestResponses.value.map((record) => record.lookupKey)),
 )
 
+const daysOnly = computed(() => Boolean(props.event.daysOnly))
+
 const ui = useScheduleOverlapUI({
   isPhone,
   isSignUp,
   isGroup,
+  daysOnly,
   showHintText: computed(() => props.showHintText),
   state,
   showBestTimes,
@@ -694,8 +697,8 @@ const {
   rightSideWidth: _rightSideWidth,
   showStickyRespondents: _showStickyRespondents,
   hintStateLocalStorageKey: _hintStateLocalStorageKey,
-  hintText: _hintText,
-  hintClosed: _hintClosed,
+  hintText,
+  hintClosed,
   hintTextShown: _hintTextShown,
   showOverlayAvailabilityToggle: _showOverlayAvailabilityToggle,
   selectedGuestRespondent: _selectedGuestRespondent,
@@ -782,7 +785,7 @@ const formattedAttendees = computed(
 
 const timedGridInteractions = useTimedGridInteractions({
   isPhone,
-  daysOnly: computed(() => Boolean(props.event.daysOnly)),
+  daysOnly,
   interactable: computed(() => props.interactable),
   dragging,
   dragCur,
@@ -1223,6 +1226,9 @@ defineExpose({
   confirmScheduleEvent,
   clearScheduledEvent,
   getAllValidTimeRanges: _getAllValidTimeRanges,
+  hintText,
+  hintClosed,
+  closeHint,
 })
 </script>
 

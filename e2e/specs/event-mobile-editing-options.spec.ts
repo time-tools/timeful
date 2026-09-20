@@ -1,10 +1,17 @@
 import { expect, test, type Page } from "@playwright/test"
+import { expectHintAboveGrid } from "../helpers/availability-hint-helpers"
 import {
   buildSpecificDateSeed,
   openEventPage,
   seedCanonicalTimedEvent,
+  waitForScheduleOverlapMounted,
 } from "../helpers/timed-event-helpers"
 import { Temporal } from "temporal-polyfill"
+
+const MOBILE_BANNER_TEXT =
+  "Add availability (at the bottom of the screen) to show when you're available for this event."
+const MOBILE_EDITING_HINT_TEXT =
+  'Tap and drag on the grid below to add your "available" times in green.'
 
 test.describe.configure({ mode: "serial" })
 
@@ -169,4 +176,80 @@ test("mobile editing with responses keeps Show best times in row 2 and More opti
   expect(
     Math.abs(saveBox.x + saveBox.width - (toggleRowBox.x + toggleRowBox.width)),
   ).toBeLessThanOrEqual(1)
+})
+
+test("mobile viewer without a response sees the add availability hint above the grid", async ({
+  page,
+  request,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "chromium-mobile",
+    "Mobile availability hint layout assertions",
+  )
+
+  const now = Temporal.Now.instant()
+  const today = now.toZonedDateTimeISO("UTC").toPlainDate().toString()
+
+  const seed = await seedCanonicalTimedEvent(
+    request,
+    buildSpecificDateSeed({
+      name: `Mobile add availability hint ${String(now.epochMilliseconds)}`,
+      selectedDays: [today],
+      activeSlots: [`${today}T09:00:00.000Z`, `${today}T10:00:00.000Z`],
+      eventTimezone: "UTC",
+      startTimeLocal: "09:00",
+      endTimeLocal: "17:00",
+      timeIncrementMinutes: 60,
+    }),
+  )
+
+  await openEventPage(page, seed.shortId)
+  await waitForScheduleOverlapMounted(page)
+
+  const hint = page.getByTestId("add-availability-hint")
+  await expect(hint).toBeVisible()
+  await expect(hint).toHaveText(MOBILE_BANNER_TEXT)
+  await expect(hint.getByRole("button")).toHaveCount(0)
+  await expectHintAboveGrid(hint, page)
+})
+
+test("mobile editing shows the instruction at the top instead of the bottom overlay", async ({
+  page,
+  request,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "chromium-mobile",
+    "Mobile availability hint layout assertions",
+  )
+
+  const now = Temporal.Now.instant()
+  const today = now.toZonedDateTimeISO("UTC").toPlainDate().toString()
+
+  const seed = await seedCanonicalTimedEvent(
+    request,
+    buildSpecificDateSeed({
+      name: `Mobile editing hint ${String(now.epochMilliseconds)}`,
+      selectedDays: [today],
+      activeSlots: [`${today}T09:00:00.000Z`, `${today}T10:00:00.000Z`],
+      eventTimezone: "UTC",
+      startTimeLocal: "09:00",
+      endTimeLocal: "17:00",
+      timeIncrementMinutes: 60,
+    }),
+  )
+
+  await openEventPage(page, seed.shortId)
+  await waitForScheduleOverlapMounted(page)
+  await page.locator("#mobile-primary-availability-btn").click()
+  await page.getByRole("button", { name: "Manually", exact: true }).click()
+
+  const hint = page.getByTestId("availability-editing-hint")
+  await expect(hint).toBeVisible()
+  await expect(hint).toHaveText(MOBILE_EDITING_HINT_TEXT)
+  await expectHintAboveGrid(hint, page)
+  await expect(
+    page
+      .locator(".schedule-overlap-mobile-overlay")
+      .getByText(MOBILE_EDITING_HINT_TEXT),
+  ).toHaveCount(0)
 })

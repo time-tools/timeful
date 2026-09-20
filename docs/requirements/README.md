@@ -241,6 +241,8 @@ For guidance on authoring functional requirements, read [`functional/README.md`]
 | [FR-129](functional/fr/FR-129.md) | Restore an active [Access Transfer](../terminology/glossary.md#access-transfer) after an event-page reload                                                                                                                          | frontend          |
 | [FR-130](functional/fr/FR-130.md) | Confirm clipboard copies at the initiating control                                                                                                                                                                                  | frontend          |
 | [FR-131](functional/fr/FR-131.md) | Hide calendar autofill when it is disabled                                                                                                                                                                                          | frontend          |
+| [FR-132](functional/fr/FR-132.md) | Cue the Add availability action on [Event Response](../terminology/glossary.md#event-response) creation pages                                                                                                                       | frontend          |
+| [FR-133](functional/fr/FR-133.md) | Place grid interaction instructions at the top of the event page                                                                                                                                                                    | frontend          |
 
 ## Quality Requirements
 
