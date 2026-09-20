@@ -697,6 +697,24 @@ describe("Event primary availability button outline", () => {
       "border-color: color-mix( in srgb, var(--timeful-primary-action-fg) 46.1538%, var(--timeful-primary-action-bg) );",
     )
   })
+
+  it("gives the mobile Add availability primary the desktop shadow without the green glow", () => {
+    const desktopAddRuleBody = extractRuleBody(
+      "\\.desktop-primary-availability-button--add",
+    )
+    const mobileAddRuleBody = extractRuleBody(
+      "\\.mobile-primary-availability-button--add",
+    )
+
+    expect(desktopAddRuleBody).toBeDefined()
+    expect(mobileAddRuleBody).toBeDefined()
+    for (const ruleBody of [desktopAddRuleBody, mobileAddRuleBody]) {
+      expect(ruleBody).toContain(
+        "box-shadow: 0px 2px 6px 0px rgba(0, 0, 0, 0.14);",
+      )
+      expect(ruleBody).not.toContain("#00994c80")
+    }
+  })
 })
 
 describe("Event guest edit action", () => {
@@ -1935,7 +1953,7 @@ describe("Event guest edit action", () => {
     expect(editOwnedGuestAvailabilityMock).toHaveBeenCalledWith("rp_grace")
   })
 
-  it("uses the elevated green treatment for mobile add availability", async () => {
+  it("uses the solid desktop primary treatment for mobile add availability", async () => {
     isPhoneState.value = true
     loaderEventState.value = {
       ...loaderEventState.value,
@@ -1976,15 +1994,21 @@ describe("Event guest edit action", () => {
 
     await flushDeferredMount()
 
-    expect(wrapper.get("#mobile-primary-availability-btn").text()).toContain(
-      "Add availability",
-    )
-    expect(wrapper.get("#mobile-primary-availability-btn").classes()).toContain(
+    const mobilePrimaryButton = wrapper.get("#mobile-primary-availability-btn")
+    expect(mobilePrimaryButton.text()).toContain("Add availability")
+    expect(mobilePrimaryButton.classes()).toContain(
       "mobile-primary-availability-button",
     )
-    expect(wrapper.get("#mobile-primary-availability-btn").classes()).toContain(
+    expect(mobilePrimaryButton.classes()).toContain(
+      "mobile-primary-availability-button--add",
+    )
+    expect(mobilePrimaryButton.classes()).toContain("tw:bg-green")
+    expect(mobilePrimaryButton.classes()).toContain("tw:text-white")
+    expect(mobilePrimaryButton.classes()).not.toContain(
       "timeful-elevated-button",
     )
+    expect(mobilePrimaryButton.classes()).not.toContain("tw:bg-white")
+    expect(mobilePrimaryButton.classes()).not.toContain("tw:text-green")
     const scheduleButton = wrapper
       .findAll("button")
       .find((button) => button.text().includes("Schedule"))

@@ -213,6 +213,51 @@ test("mobile viewer without a response sees the add availability hint above the 
   await expectHintAboveGrid(hint, page)
 })
 
+test("mobile no-response Add availability uses the solid desktop primary treatment", async ({
+  page,
+  request,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "chromium-mobile",
+    "Mobile primary action styling",
+  )
+
+  const now = Temporal.Now.instant()
+  const today = now.toZonedDateTimeISO("UTC").toPlainDate().toString()
+
+  const seed = await seedCanonicalTimedEvent(
+    request,
+    buildSpecificDateSeed({
+      name: `Mobile add availability fill ${String(now.epochMilliseconds)}`,
+      selectedDays: [today],
+      activeSlots: [`${today}T09:00:00.000Z`, `${today}T10:00:00.000Z`],
+      eventTimezone: "UTC",
+      startTimeLocal: "09:00",
+      endTimeLocal: "17:00",
+      timeIncrementMinutes: 60,
+    }),
+  )
+
+  await openEventPage(page, seed.shortId)
+  await waitForScheduleOverlapMounted(page)
+
+  const addAvailabilityButton = page.locator("#mobile-primary-availability-btn")
+  await expect(addAvailabilityButton).toHaveText(/Add availability/i)
+
+  const styles = await addAvailabilityButton.evaluate((element) => {
+    const computed = window.getComputedStyle(element)
+    return {
+      backgroundColor: computed.backgroundColor,
+      color: computed.color,
+      boxShadow: computed.boxShadow,
+    }
+  })
+
+  expect(styles.backgroundColor).toBe("rgb(0, 153, 76)")
+  expect(styles.color).toBe("rgb(255, 255, 255)")
+  expect(styles.boxShadow).toBe("rgba(0, 0, 0, 0.14) 0px 2px 6px 0px")
+})
+
 test("mobile editing shows the instruction at the top instead of the bottom overlay", async ({
   page,
   request,

@@ -950,7 +950,7 @@
               </v-btn>
               <v-btn
                 id="mobile-primary-availability-btn"
-                class="mobile-primary-availability-button tw:min-w-0 tw:whitespace-nowrap tw:px-2 tw:text-[13px] tw:transition-opacity tw:max-sm:px-1 tw:max-sm:text-xs"
+                class="mobile-primary-availability-button tw:min-w-0 tw:whitespace-nowrap tw:bg-green tw:px-2 tw:text-[13px] tw:text-white tw:transition-opacity tw:max-sm:px-1 tw:max-sm:text-xs"
                 :class="[
                   mobilePrimaryAvailabilityButtonClass,
                   {
@@ -1474,12 +1474,10 @@ const mobilePrimaryAvailabilityButtonText = computed(() => {
   return actionButtonText.value
 })
 const mobilePrimaryAvailabilityButtonClass = computed(() => ({
+  "mobile-primary-availability-button--add":
+    mobilePrimaryAvailabilityButtonText.value === "Add availability",
   "mobile-primary-availability-button--edit":
     mobilePrimaryAvailabilityButtonText.value === "Edit availability",
-  "tw:bg-green tw:text-white":
-    mobilePrimaryAvailabilityButtonText.value === "Edit availability",
-  "timeful-elevated-button tw:bg-white tw:text-green":
-    mobilePrimaryAvailabilityButtonText.value !== "Edit availability",
 }))
 const isIOS = computed(() => isIOSFn())
 const desktopShowBestTimes = computed(
@@ -2605,6 +2603,13 @@ watch(
 
 .mobile-primary-availability-button {
   min-width: 0;
+}
+
+.mobile-primary-availability-button--add {
+  border: 1px solid var(--timeful-primary-action-bg);
+  -webkit-box-shadow: 0px 2px 6px 0px rgba(0, 0, 0, 0.14);
+  -moz-box-shadow: 0px 2px 6px 0px rgba(0, 0, 0, 0.14);
+  box-shadow: 0px 2px 6px 0px rgba(0, 0, 0, 0.14);
 }
 
 .mobile-primary-availability-button--edit {
