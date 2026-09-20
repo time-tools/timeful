@@ -46,9 +46,9 @@ describe("ColorLegend", () => {
 
     expectStructuralColors(wrapper)
     expect(labels(wrapper)).toEqual([
+      "Scheduled event",
       "Disabled, inside the event dates in the event timezone",
       "Disabled, outside the event dates in the event timezone",
-      "Scheduled event",
     ])
     expect(wrapper.html()).not.toContain("tw:bg-[#F9CCCC]")
   })
@@ -59,9 +59,9 @@ describe("ColorLegend", () => {
     expectStructuralColors(wrapper)
     expect(labels(wrapper)).toEqual([
       "Unavailable, change in Add/Edit availability",
+      "Scheduled event",
       "Disabled, inside the event dates in the event timezone",
       "Disabled, outside the event dates in the event timezone",
-      "Scheduled event",
     ])
     expect(wrapper.html()).toContain("tw:bg-[#F9CCCC]")
   })
@@ -78,7 +78,14 @@ describe("ColorLegend", () => {
       "Unavailable, change in Add/Edit availability",
     )
     expect(wrapper.html()).toContain("tw:bg-[#F9CCCC]")
-    expect(labels(wrapper)).toHaveLength(6)
+    expect(labels(wrapper)).toEqual([
+      "Available",
+      "If needed",
+      "Unavailable, change in Add/Edit availability",
+      "Scheduled event",
+      "Disabled, inside the event dates in the event timezone",
+      "Disabled, outside the event dates in the event timezone",
+    ])
   })
 
   it("shows the response palette and active-slot guidance while adding availability", () => {
@@ -92,7 +99,14 @@ describe("ColorLegend", () => {
     expect(wrapper.text()).toContain(
       "Unavailable, change in Add/Edit availability",
     )
-    expect(labels(wrapper)).toHaveLength(6)
+    expect(labels(wrapper)).toEqual([
+      "Available",
+      "If needed",
+      "Unavailable, change in Add/Edit availability",
+      "Scheduled event",
+      "Disabled, inside the event dates in the event timezone",
+      "Disabled, outside the event dates in the event timezone",
+    ])
   })
 
   it("uses the respondent checkbox control geometry for each indicator", () => {

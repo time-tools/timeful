@@ -31,6 +31,14 @@
     <div class="tw:flex tw:items-start">
       <div class="color-legend__indicator-slot">
         <div
+          class="scheduled-event-legend-indicator tw:h-4 tw:w-4 tw:rounded tw:border tw:border-(--timeful-grid-line-color) tw:bg-scheduled-event"
+        ></div>
+      </div>
+      <span class="tw:text-sm">Scheduled event</span>
+    </div>
+    <div class="tw:flex tw:items-start">
+      <div class="color-legend__indicator-slot">
+        <div
           class="tw:h-4 tw:w-4 tw:rounded tw:border tw:border-(--timeful-grid-line-color) tw:bg-light-gray-stroke"
         ></div>
       </div>
@@ -55,14 +63,6 @@
         ></div>
       </div>
       <span class="tw:text-sm">Disabled, collapsed</span>
-    </div>
-    <div class="tw:flex tw:items-start">
-      <div class="color-legend__indicator-slot">
-        <div
-          class="scheduled-event-legend-indicator tw:h-4 tw:w-4 tw:rounded tw:border tw:border-(--timeful-grid-line-color) tw:bg-scheduled-event"
-        ></div>
-      </div>
-      <span class="tw:text-sm">Scheduled event</span>
     </div>
   </div>
 </template>
