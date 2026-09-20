@@ -173,6 +173,7 @@ const {
   addAvailabilityAsGuestMock,
   copyLinkMock,
   editEventMock,
+  calendarAutofillEnabledState,
 } = vi.hoisted(() => ({
   editGuestAvailabilityMock: vi.fn(),
   editOwnedGuestAvailabilityMock: vi.fn(),
@@ -193,6 +194,7 @@ const {
   addAvailabilityAsGuestMock: vi.fn(),
   copyLinkMock: vi.fn(),
   editEventMock: vi.fn(),
+  calendarAutofillEnabledState: { value: true },
 }))
 
 const scheduleOverlapMethodMocks: Record<string, ReturnType<typeof vi.fn>> = {
@@ -289,6 +291,12 @@ vi.mock("@/composables/event/useEventEditing", () => ({
 
 vi.mock("@/utils/services/UserService", () => ({
   fetchAuthUserProfile: vi.fn().mockResolvedValue(null),
+}))
+
+vi.mock("@/utils/calendarAutofillAvailability", () => ({
+  get calendarAutofillEnabled() {
+    return calendarAutofillEnabledState.value
+  },
 }))
 
 const ScheduleOverlapStub = {
@@ -568,6 +576,14 @@ const invitationDialogStub = {
   template: '<div :data-invitation-open="String(modelValue)" />',
 }
 
+const markAvailabilityDialogStub = {
+  name: "MarkAvailabilityDialogStub",
+  props: {
+    modelValue: { type: Boolean, required: true },
+  },
+  template: '<div :data-choice-open="String(modelValue)" />',
+}
+
 const buttonClickStub = {
   template: "<button @click=\"$emit('click', $event)\"><slot /></button>",
 }
@@ -813,6 +829,7 @@ describe("Event guest edit action", () => {
     authUserState.value = null
     isPhoneState.value = false
     curGuestIdState.value = ""
+    calendarAutofillEnabledState.value = true
     routeState.value = { name: "event", query: {} }
     loaderEventState.value = {
       ...createDefaultEventState(),
@@ -4419,6 +4436,75 @@ describe("Event guest edit action", () => {
 
     expect(wrapper.find("#event-description-stub").exists()).toBe(false)
     expect(wrapper.find('[data-invitation-open="true"]').exists()).toBe(true)
+  })
+
+  it("does not auto-open the group invitation dialog when calendar autofill is disabled", async () => {
+    calendarAutofillEnabledState.value = false
+    routeState.value = { name: "group", query: {} }
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      type: eventTypes.GROUP,
+      ownerId: "owner-1",
+      canEditSettings: false,
+      canManageEvent: false,
+      responses: {},
+    }
+
+    const wrapper = shallowMount(EventView, {
+      props: {
+        eventId: "dEeaF",
+      },
+      global: {
+        stubs: {
+          ...scheduleGateStubs,
+          InvitationDialog: invitationDialogStub,
+        },
+      },
+    })
+
+    await flushDeferredMount()
+
+    expect(wrapper.find('[data-invitation-open="true"]').exists()).toBe(false)
+  })
+
+  it("does not open the availability choice dialog for the Apple link flow when calendar autofill is disabled", async () => {
+    calendarAutofillEnabledState.value = false
+
+    const wrapper = shallowMount(EventView, {
+      props: {
+        eventId: "dEeaF",
+        linkApple: true,
+      },
+      global: {
+        stubs: {
+          ...scheduleGateStubs,
+          MarkAvailabilityDialog: markAvailabilityDialogStub,
+        },
+      },
+    })
+
+    await flushDeferredMount()
+
+    expect(wrapper.find('[data-choice-open="true"]').exists()).toBe(false)
+  })
+
+  it("opens the availability choice dialog for the Apple link flow when calendar autofill is enabled", async () => {
+    const wrapper = shallowMount(EventView, {
+      props: {
+        eventId: "dEeaF",
+        linkApple: true,
+      },
+      global: {
+        stubs: {
+          ...scheduleGateStubs,
+          MarkAvailabilityDialog: markAvailabilityDialogStub,
+        },
+      },
+    })
+
+    await flushDeferredMount()
+
+    expect(wrapper.find('[data-choice-open="true"]').exists()).toBe(true)
   })
 
   it("does not auto-open the group invitation dialog for a viewer reported as responded", async () => {

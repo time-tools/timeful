@@ -27,6 +27,7 @@ interface ImportMetaEnv {
   readonly VITE_MICROSOFT_CLIENT_ID: string
   readonly VITE_ENABLE_SIGN_IN?: string
   readonly VITE_ENABLE_RICH_LANDING?: string
+  readonly VITE_ENABLE_CALENDAR_AUTOFILL?: string
   readonly VITE_ENABLE_PRIVACY_POLICY?: string
   readonly VITE_FEEDBACK_URL?: string
   readonly VITE_SUPPORT_EMAIL?: string

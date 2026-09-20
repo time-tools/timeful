@@ -6,6 +6,7 @@ import isWebview from "is-ua-webview"
 import type { Event, User } from "@/types"
 import { useMainStore } from "@/stores/main"
 import { useCopyFeedback } from "@/composables/useCopyFeedback"
+import { calendarAutofillEnabled } from "@/utils/calendarAutofillAvailability"
 import type { ScheduleOverlapInstance } from "./types"
 
 interface SignInGoogleOptions {
@@ -83,6 +84,11 @@ export function useEventEditing(opts: UseEventEditingOptions) {
 
     if (ev?.daysOnly) {
       so.startEditing()
+      return
+    }
+
+    if (!calendarAutofillEnabled) {
+      setAvailabilityManually()
       return
     }
 
@@ -224,6 +230,8 @@ export function useEventEditing(opts: UseEventEditingOptions) {
   function setAvailabilityAutomatically(
     calendarType: string = calendarTypes.GOOGLE,
   ) {
+    if (!calendarAutofillEnabled) return
+
     if (isWebview(navigator.userAgent)) {
       webviewDialog.value = true
     } else {

@@ -108,6 +108,7 @@ import { useTimedGridPresentation } from "./useTimedGridPresentation"
 import { useTimedGridInteractions } from "./useTimedGridInteractions"
 import { useGuestAvailabilityActions } from "./useGuestAvailabilityActions"
 import { states } from "@/composables/schedule_overlap/types"
+import { calendarAutofillEnabled } from "@/utils/calendarAutofillAvailability"
 import type {
   FetchedResponse,
   RowCol,
@@ -766,12 +767,7 @@ const showLoader = computed(
     loadingResponses.value.loading,
 )
 
-const showCalendarOptions = computed(
-  () =>
-    !props.addingAvailabilityAsGuest &&
-    props.calendarPermissionGranted &&
-    (isGroup.value || !userHasResponded.value),
-)
+const showCalendarOptions = computed(() => calendarAutofillEnabled)
 
 const curRespondentsMax = computed(() =>
   curRespondentsMaxFor(curRespondentsSet.value, allDays.value),

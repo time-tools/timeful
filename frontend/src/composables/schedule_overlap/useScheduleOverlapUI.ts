@@ -295,7 +295,6 @@ export function useScheduleOverlapUI(opts: UseScheduleOverlapUIOptions) {
     posthog.capture("overlay_availability_toggled", { enabled: !!val })
   }
 
-  const showCalendarOptions = computed(() => true) // computed by caller — placeholder
   const showOverlayAvailabilityToggle = computed(
     () =>
       opts.respondents.value.length > 0 &&
@@ -403,7 +402,6 @@ export function useScheduleOverlapUI(opts: UseScheduleOverlapUIOptions) {
     hintText,
     hintClosed,
     hintTextShown,
-    showCalendarOptions,
     showOverlayAvailabilityToggle,
     guestNameKey,
     selectedGuestRespondent,

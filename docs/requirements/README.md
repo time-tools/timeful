@@ -240,6 +240,7 @@ For guidance on authoring functional requirements, read [`functional/README.md`]
 | [FR-128](functional/fr/FR-128.md) | Present an [Access Transfer](../terminology/glossary.md#access-transfer) as numbered steps with live status                                                                                                                         | frontend, backend |
 | [FR-129](functional/fr/FR-129.md) | Restore an active [Access Transfer](../terminology/glossary.md#access-transfer) after an event-page reload                                                                                                                          | frontend          |
 | [FR-130](functional/fr/FR-130.md) | Confirm clipboard copies at the initiating control                                                                                                                                                                                  | frontend          |
+| [FR-131](functional/fr/FR-131.md) | Hide calendar autofill when it is disabled                                                                                                                                                                                          | frontend          |
 
 ## Quality Requirements
 

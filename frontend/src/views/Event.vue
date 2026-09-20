@@ -1127,6 +1127,7 @@ import HelpDialog from "@/components/HelpDialog.vue"
 import EventDescription from "@/components/event/EventDescription.vue"
 import EventOptions from "@/components/schedule_overlap/EventOptions.vue"
 import { privacyPolicyEnabled } from "@/utils/privacyPolicy"
+import { calendarAutofillEnabled } from "@/utils/calendarAutofillAvailability"
 import MdiCalendarCheck from "~icons/mdi/calendar-check"
 import MdiCalendarToday from "~icons/mdi/calendar-today"
 import MdiCheck from "~icons/mdi/check"
@@ -2415,7 +2416,7 @@ onMounted(() => {
   // for dev:
   // window.addEventListener("message", _interceptPluginResponses)
   editEventDialog.value = hasEventDraftData(props.contactsPayload)
-  if (props.linkApple) choiceDialog.value = true
+  if (calendarAutofillEnabled && props.linkApple) choiceDialog.value = true
   if (!hasSpecificTimesEntryState()) {
     queueScheduleOverlapMount()
   }
@@ -2446,7 +2447,12 @@ watch(scheduleOverlap, (so) => {
       so.startEditing()
       logEventBoot("EventView", "watch:scheduleOverlap-startEditing")
     }
-    if (isGroup.value && !userHasResponded.value && !canEditMetadata.value) {
+    if (
+      calendarAutofillEnabled &&
+      isGroup.value &&
+      !userHasResponded.value &&
+      !canEditMetadata.value
+    ) {
       invitationDialog.value = true
       logEventBoot("EventView", "watch:scheduleOverlap-openInvitation")
     }

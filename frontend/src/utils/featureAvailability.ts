@@ -6,6 +6,10 @@ export interface LandingAvailabilityEnvironment {
   VITE_ENABLE_RICH_LANDING?: string
 }
 
+export interface CalendarAutofillAvailabilityEnvironment {
+  VITE_ENABLE_CALENDAR_AUTOFILL?: string
+}
+
 export interface LandingSignInAvailabilityEnvironment
   extends SignInAvailabilityEnvironment, LandingAvailabilityEnvironment {}
 
@@ -29,6 +33,12 @@ export function isRichLandingEnabled(
   env: LandingAvailabilityEnvironment = {},
 ): boolean {
   return isEnabled(env.VITE_ENABLE_RICH_LANDING)
+}
+
+export function isCalendarAutofillEnabled(
+  env: CalendarAutofillAvailabilityEnvironment = {},
+): boolean {
+  return isEnabled(env.VITE_ENABLE_CALENDAR_AUTOFILL)
 }
 
 export function isLandingSignInEnabled(
