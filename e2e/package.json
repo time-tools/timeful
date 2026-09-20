@@ -27,7 +27,7 @@
     "oxfmt": "^0.67.0",
     "oxlint": "^1.82.0",
     "oxlint-tsgolint": "^7.0.2001",
-    "temporal-polyfill": "^1.0.4",
+    "temporal-polyfill": "^1.0.5",
     "tsx": "^4.20.6",
     "typescript": "npm:typescript-native-bridge@^6.0.3-bridge.12.tsgo.7.0.2",
     "typescript-eslint": "^8.70.0",
