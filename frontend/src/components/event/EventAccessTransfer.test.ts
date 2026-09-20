@@ -10,6 +10,7 @@ vi.mock("@/stores/main", () => ({ useMainStore: () => ({}) }))
 import { savedTransfers } from "@/composables/transfer/transferBoundary"
 import { FetchError } from "@/utils/fetch_utils"
 import type * as FetchUtils from "@/utils/fetch_utils"
+import MdiDevices from "~icons/mdi/devices"
 
 const post = vi.hoisted(() => vi.fn())
 vi.mock("@/utils/fetch_utils", async (original) => ({
@@ -57,6 +58,7 @@ function render() {
         VCardText: { template: "<div><slot /></div>" },
         VCardActions: { template: "<div><slot /></div>" },
         VAlert: { template: '<div role="alert"><slot /></div>' },
+        "v-icon": { template: "<i><slot /></i>" },
         VTextField: {
           props: ["label", "modelValue"],
           emits: ["update:modelValue"],
@@ -91,7 +93,16 @@ it("renders the trigger with the green outlined treatment", () => {
   expect(button).toBeDefined()
   expect(button?.attributes("variant")).toBe("outlined")
   expect(button?.attributes("color")).toBe("primary")
-  expect(button?.get("span").classes()).toContain("tw:text-green")
+  const label = button?.get("span")
+  expect(label?.classes()).toContain("tw:text-green")
+
+  const icon = button?.findComponent(MdiDevices)
+  expect(icon?.exists()).toBe(true)
+  expect(button?.element.contains(icon?.element as Node)).toBe(true)
+  expect(
+    (icon?.element as Node).compareDocumentPosition(label?.element as Node) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy()
 })
 
 it("explains the transfer flow in the dialog", () => {

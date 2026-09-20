@@ -1,7 +1,8 @@
 <template>
   <template v-if="event.eventVisitorId && event._id">
     <v-btn variant="outlined" color="primary" @click="openDialog">
-      <span class="tw:text-green">Manage access</span>
+      <v-icon class="tw:text-green"><MdiDevices /></v-icon>
+      <span class="tw:ml-1 tw:text-green">Manage access</span>
     </v-btn>
     <v-dialog
       v-model="dialog"
@@ -209,6 +210,7 @@ import {
 import { useCopyFeedback } from "@/composables/useCopyFeedback"
 import MdiCheck from "~icons/mdi/check"
 import MdiContentCopy from "~icons/mdi/content-copy"
+import MdiDevices from "~icons/mdi/devices"
 import MdiRefresh from "~icons/mdi/refresh"
 
 const props = defineProps<{ event: Event }>()
