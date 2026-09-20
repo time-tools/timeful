@@ -1,9 +1,13 @@
-import { computed } from "vue"
+import { computed, nextTick, ref } from "vue"
 import { describe, expect, it } from "vitest"
 import { Temporal } from "temporal-polyfill"
 import { UTC } from "@/constants"
 import { ZdtSet } from "@/utils"
-import type { TimedCellState } from "@/composables/schedule_overlap/types"
+import type {
+  ParsedResponse,
+  ParsedResponses,
+  TimedCellState,
+} from "@/composables/schedule_overlap/types"
 import {
   respondentStatusClass,
   useRespondentsListState,
@@ -42,6 +46,7 @@ function makeState(options: {
     curTimeslotCellState: computed(() => options.cellState ?? null),
     curTimeslotCollapsed: computed(() => options.collapsed ?? false),
     parsedResponses: computed(() => parsedResponses),
+    ownedGuestResponseLookupKeys: computed(() => new Set<string>()),
     curDate: computed(() => options.active ?? undefined),
     hideIfNeeded: computed(() => options.hideIfNeeded ?? false),
     isGroup: computed(() => false),
@@ -132,5 +137,204 @@ describe("useRespondentsListState respondentSlotStatus", () => {
     )
     expect(respondentStatusClass("disabled-out-of-range")).toBe("tw:bg-gray")
     expect(respondentStatusClass(null)).toBe("")
+  })
+})
+
+function makeOrderingState(options: {
+  respondents: {
+    id: string
+    firstName: string
+    response?: Partial<ParsedResponse>
+  }[]
+  ownedGuestResponseLookupKeys?: string[]
+}) {
+  const parsedResponses: ParsedResponses = Object.fromEntries(
+    options.respondents.map((respondent) => [
+      respondent.id,
+      {
+        user: { _id: respondent.id, firstName: respondent.firstName },
+        availability: new ZdtSet(),
+        ifNeeded: new ZdtSet(),
+        guest: false,
+        ...respondent.response,
+      },
+    ]),
+  )
+  const selected = ref<string[]>([])
+  const state = useRespondentsListState({
+    event: { blindAvailabilityEnabled: false },
+    respondents: computed(() =>
+      options.respondents.map(
+        (respondent) => parsedResponses[respondent.id].user,
+      ),
+    ),
+    curRespondents: computed(() => selected.value),
+    curTimeslotAvailability: computed(() =>
+      Object.fromEntries(
+        options.respondents.map((respondent) => [respondent.id, false]),
+      ),
+    ),
+    curTimeslotInactive: computed(() => false),
+    curTimeslotCellState: computed(() => null),
+    curTimeslotCollapsed: computed(() => false),
+    parsedResponses: computed(() => parsedResponses),
+    ownedGuestResponseLookupKeys: computed(
+      () => new Set(options.ownedGuestResponseLookupKeys ?? []),
+    ),
+    curDate: computed(() => undefined),
+    hideIfNeeded: computed(() => false),
+    isGroup: computed(() => false),
+    attendees: computed(() => []),
+    isOwner: computed(() => false),
+    isPhone: computed(() => false),
+  })
+  return { state, selected }
+}
+
+describe("useRespondentsListState orderedRespondents", () => {
+  function orderedIds(state: ReturnType<typeof makeOrderingState>["state"]) {
+    return state.orderedRespondents.value.map((user) => user._id)
+  }
+
+  it("orders owned responses before other open responses and protected responses", () => {
+    const { state } = makeOrderingState({
+      respondents: [
+        {
+          id: "protected-ada",
+          firstName: "Ada",
+          response: { guest: true, guestEditPolicy: "protected" },
+        },
+        {
+          id: "open-bea",
+          firstName: "Bea",
+          response: {
+            guest: true,
+            guestId: "token-open",
+            guestEditPolicy: "open",
+            guestOwnershipMode: "token",
+          },
+        },
+        {
+          id: "owned-cora",
+          firstName: "Cora",
+          response: {
+            guest: true,
+            guestId: "token-owned",
+            guestEditPolicy: "protected",
+            guestOwnershipMode: "token",
+          },
+        },
+      ],
+      ownedGuestResponseLookupKeys: ["token-owned"],
+    })
+
+    expect(orderedIds(state)).toEqual([
+      "owned-cora",
+      "open-bea",
+      "protected-ada",
+    ])
+  })
+
+  it("treats canonical canEdit responses as owned", () => {
+    const { state } = makeOrderingState({
+      respondents: [
+        {
+          id: "canonical-locked",
+          firstName: "Ada",
+          response: { publicId: "pub-locked", canEdit: false },
+        },
+        {
+          id: "canonical-owned",
+          firstName: "Zoe",
+          response: { publicId: "pub-owned", canEdit: true },
+        },
+      ],
+    })
+
+    expect(orderedIds(state)).toEqual(["canonical-owned", "canonical-locked"])
+  })
+
+  it("treats legacy responses in the ownership keys as owned", () => {
+    const { state } = makeOrderingState({
+      respondents: [
+        {
+          id: "legacy-protected",
+          firstName: "Ada",
+          response: { guest: true, guestOwnershipMode: "legacy" },
+        },
+        {
+          id: "legacy-owned",
+          firstName: "Zoe",
+          response: { guest: true, guestOwnershipMode: "legacy" },
+        },
+      ],
+      ownedGuestResponseLookupKeys: ["legacy-owned"],
+    })
+
+    expect(orderedIds(state)).toEqual(["legacy-owned", "legacy-protected"])
+  })
+
+  it("keeps alphabetical order inside an ownership tier", () => {
+    const { state } = makeOrderingState({
+      respondents: [
+        { id: "protected-bea", firstName: "Bea", response: { guest: true } },
+        { id: "protected-ada", firstName: "Ada", response: { guest: true } },
+      ],
+    })
+
+    expect(orderedIds(state)).toEqual(["protected-ada", "protected-bea"])
+  })
+
+  it("keeps selected responses first and orders the rest by ownership tier", async () => {
+    const { state, selected } = makeOrderingState({
+      respondents: [
+        {
+          id: "owned-ada",
+          firstName: "Ada",
+          response: {
+            guest: true,
+            guestId: "token-owned",
+            guestOwnershipMode: "token",
+          },
+        },
+        {
+          id: "protected-zoe",
+          firstName: "Zoe",
+          response: { guest: true, guestEditPolicy: "protected" },
+        },
+        {
+          id: "protected-bea",
+          firstName: "Bea",
+          response: { guest: true, guestEditPolicy: "protected" },
+        },
+      ],
+      ownedGuestResponseLookupKeys: ["token-owned"],
+    })
+
+    selected.value = ["protected-zoe"]
+    await nextTick()
+
+    expect(orderedIds(state)).toEqual([
+      "protected-zoe",
+      "owned-ada",
+      "protected-bea",
+    ])
+  })
+
+  it("orders selected responses by click time", async () => {
+    const { state, selected } = makeOrderingState({
+      respondents: [
+        { id: "protected-ada", firstName: "Ada", response: { guest: true } },
+        { id: "protected-bea", firstName: "Bea", response: { guest: true } },
+      ],
+    })
+
+    selected.value = ["protected-bea"]
+    await nextTick()
+    await new Promise((resolve) => setTimeout(resolve, 2))
+    selected.value = ["protected-bea", "protected-ada"]
+    await nextTick()
+
+    expect(orderedIds(state)).toEqual(["protected-bea", "protected-ada"])
   })
 })

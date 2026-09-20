@@ -70,6 +70,35 @@ export function canGuestEditResponse(
   )
 }
 
+export function responseOrderTier(
+  response: ParsedResponse | undefined,
+  ownedGuestResponseLookupKeys: Set<string>,
+): 0 | 1 | 2 {
+  if (!response) {
+    return 2
+  }
+  if (response.publicId) {
+    return response.canEdit ? 0 : 2
+  }
+  if (!response.guest) {
+    return 2
+  }
+  const owned =
+    response.guestOwnershipMode === "token"
+      ? Boolean(
+          response.guestId &&
+          ownedGuestResponseLookupKeys.has(response.guestId),
+        )
+      : Boolean(
+          response.user._id &&
+          ownedGuestResponseLookupKeys.has(response.user._id),
+        )
+  if (owned) {
+    return 0
+  }
+  return response.guestEditPolicy === "open" ? 1 : 2
+}
+
 export function useScheduleOverlapUI(opts: UseScheduleOverlapUIOptions) {
   const mainStore = useMainStore()
 

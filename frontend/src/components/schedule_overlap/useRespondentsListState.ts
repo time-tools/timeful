@@ -2,6 +2,7 @@ import { computed, reactive, ref, watch, type ComputedRef } from "vue"
 import { calendarTypes } from "@/constants"
 import { zdtSetHas } from "@/utils"
 import { Temporal } from "temporal-polyfill"
+import { responseOrderTier } from "@/composables/schedule_overlap/useScheduleOverlapUI"
 import type {
   ParsedResponses,
   ScheduleOverlapEvent,
@@ -44,6 +45,7 @@ interface UseRespondentsListStateOptions {
   curTimeslotCellState: ComputedRef<TimedCellState | null>
   curTimeslotCollapsed: ComputedRef<boolean>
   parsedResponses: ComputedRef<ParsedResponses>
+  ownedGuestResponseLookupKeys: ComputedRef<Set<string>>
   curDate: ComputedRef<Temporal.ZonedDateTime | undefined>
   hideIfNeeded: ComputedRef<boolean>
   isGroup: ComputedRef<boolean>
@@ -176,6 +178,17 @@ export function useRespondentsListState(opts: UseRespondentsListStateOptions) {
       }
       if (curRespondentsSet.value.has(bId)) {
         return 1
+      }
+      const aTier = responseOrderTier(
+        opts.parsedResponses.value[aId],
+        opts.ownedGuestResponseLookupKeys.value,
+      )
+      const bTier = responseOrderTier(
+        opts.parsedResponses.value[bId],
+        opts.ownedGuestResponseLookupKeys.value,
+      )
+      if (aTier !== bTier) {
+        return aTier - bTier
       }
       return (a.firstName ?? "").localeCompare(b.firstName ?? "")
     })

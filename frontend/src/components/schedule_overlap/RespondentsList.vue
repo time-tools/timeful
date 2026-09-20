@@ -538,6 +538,9 @@ const {
   curTimeslotCellState: computed(() => props.curTimeslotCellState),
   curTimeslotCollapsed: computed(() => props.curTimeslotCollapsed),
   parsedResponses: computed(() => props.parsedResponses),
+  ownedGuestResponseLookupKeys: computed(
+    () => new Set(props.ownedGuestResponseLookupKeys),
+  ),
   curDate: computed(() => props.curDate),
   hideIfNeeded: computed(() => props.hideIfNeeded),
   isGroup: computed(() => props.isGroup),
