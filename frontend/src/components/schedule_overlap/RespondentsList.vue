@@ -141,11 +141,11 @@
                 @click="(e: MouseEvent) => clickRespondent(e, user._id ?? '')"
               >
                 <div
-                  class="tw:ml-1 tw:mr-3 tw:flex tw:h-5 tw:w-5 tw:shrink-0 tw:items-center tw:justify-center"
+                  class="tw:ml-1 tw:mr-3 tw:flex tw:h-5 tw:shrink-0 tw:items-center"
                 >
                   <button
                     type="button"
-                    class="respondent-control tw:flex tw:h-5 tw:w-5 tw:appearance-none tw:items-center tw:justify-center tw:border-0 tw:bg-transparent tw:p-0 tw:leading-none tw:shadow-none"
+                    class="respondent-control tw:inline-flex tw:h-5 tw:appearance-none tw:items-center tw:gap-1 tw:border-0 tw:bg-transparent tw:p-0 tw:leading-none tw:shadow-none"
                     :aria-pressed="respondentSelected(user._id ?? '')"
                     :aria-label="
                       respondentSelected(user._id ?? '')
@@ -158,20 +158,7 @@
                     "
                   >
                     <span
-                      class="respondent-control__checkbox tw:flex tw:h-4 tw:w-4 tw:items-center tw:justify-center tw:rounded-[2px] tw:border-2 tw:border-solid tw:bg-white"
-                      style="border-color: var(--timeful-primary-action-bg)"
-                    >
-                      <v-icon
-                        v-if="respondentSelected(user._id ?? '')"
-                        size="12"
-                        color="primary"
-                        class="tw:block"
-                      >
-                        <MdiCheck />
-                      </v-icon>
-                    </span>
-                    <span
-                      class="respondent-control__avatar tw:flex tw:h-4 tw:w-4 tw:items-center tw:justify-center"
+                      class="respondent-control__avatar tw:flex tw:h-5 tw:w-5 tw:shrink-0 tw:items-center tw:justify-center"
                     >
                       <div
                         v-if="respondentSlotStatus(user._id ?? '')"
@@ -192,6 +179,21 @@
                           <v-icon small><MdiAccount /></v-icon>
                         </v-avatar>
                       </template>
+                    </span>
+                    <span
+                      class="respondent-control__checkbox tw:flex tw:h-4 tw:w-4 tw:shrink-0 tw:items-center tw:justify-center tw:rounded-[2px] tw:border-2 tw:border-solid tw:bg-white"
+                      :class="{
+                        'respondent-control__checkbox--always-visible': isPhone,
+                      }"
+                    >
+                      <v-icon
+                        v-if="respondentSelected(user._id ?? '')"
+                        size="12"
+                        color="primary"
+                        class="tw:block"
+                      >
+                        <MdiCheck />
+                      </v-icon>
                     </span>
                   </button>
                 </div>
@@ -630,40 +632,22 @@ async function copyEmailToClipboard(user: User) {
   transition: transform 0.5s;
 }
 
-.respondent-control {
-  position: relative;
-  width: 20px;
-  height: 20px;
-}
-
-.respondent-control__checkbox,
-.respondent-control__avatar {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-}
-
 .respondent-control__checkbox {
-  opacity: 0;
   visibility: hidden;
+  opacity: 0;
+  border-color: var(--timeful-outline-neutral);
 }
 
-.respondent-control__avatar {
-  opacity: 1;
+.respondent-row:hover .respondent-control__checkbox,
+.respondent-control[aria-pressed="true"] .respondent-control__checkbox,
+.respondent-control__checkbox--always-visible {
   visibility: visible;
+  opacity: 1;
 }
 
 .respondent-row:hover .respondent-control__checkbox,
 .respondent-control[aria-pressed="true"] .respondent-control__checkbox {
-  opacity: 1;
-  visibility: visible;
-}
-
-.respondent-row:hover .respondent-control__avatar,
-.respondent-control[aria-pressed="true"] .respondent-control__avatar {
-  opacity: 0;
-  visibility: hidden;
+  border-color: var(--timeful-primary-action-bg);
 }
 
 .respondent-status--collapsed {

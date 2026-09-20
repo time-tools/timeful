@@ -86,6 +86,7 @@ const mountRespondentsList = ({
   stubs,
   isOwner = false,
   collectEmails = false,
+  curRespondents = [],
 }: {
   curDate?: Temporal.ZonedDateTime
   setEntry: Temporal.ZonedDateTime
@@ -102,6 +103,7 @@ const mountRespondentsList = ({
   stubs?: ComponentStubMap
   isOwner?: boolean
   collectEmails?: boolean
+  curRespondents?: string[]
 }) => {
   const eventSlot = curDate ?? baseDate
 
@@ -124,7 +126,7 @@ const mountRespondentsList = ({
       times: [],
       curDate,
       curRespondent: "",
-      curRespondents: [],
+      curRespondents,
       curTimeslot: { dayIndex: -1, timeIndex: -1 },
       curTimeslotAvailability,
       curTimeslotInactive,
@@ -284,7 +286,7 @@ describe("RespondentsList", () => {
     expect(timedWrapper.find(".tw\\:h-2").exists()).toBe(true)
   })
 
-  it("uses a fixed respondent control slot with hover-visible checkbox shell", () => {
+  it("uses a fixed respondent control slot with the checkbox after the avatar", () => {
     const wrapper = mountRespondentsList({
       curDate: undefined,
       setEntry: baseDate,
@@ -298,7 +300,7 @@ describe("RespondentsList", () => {
       ".tw\\:mr-1.tw\\:text-sm.tw\\:leading-5.tw\\:transition-all",
     )
     const controlSlot = wrapper.find(
-      ".tw\\:ml-1.tw\\:mr-3.tw\\:flex.tw\\:h-5.tw\\:w-5.tw\\:shrink-0.tw\\:items-center.tw\\:justify-center",
+      ".tw\\:ml-1.tw\\:mr-3.tw\\:flex.tw\\:h-5.tw\\:shrink-0.tw\\:items-center",
     )
 
     expect(respondentRow.classes()).toContain("tw:text-sm")
@@ -316,10 +318,12 @@ describe("RespondentsList", () => {
     expect(selectionButton.exists()).toBe(true)
     expect(selectionButton.classes()).toContain("tw:appearance-none")
     expect(selectionButton.classes()).toContain("tw:h-5")
-    expect(selectionButton.classes()).toContain("tw:w-5")
+    expect(selectionButton.classes()).toContain("tw:inline-flex")
+    expect(selectionButton.classes()).toContain("tw:gap-1")
     expect(selectionButton.classes()).toContain("respondent-control")
     expect(avatar.exists()).toBe(true)
     expect(avatar.classes()).toContain("tw:flex")
+    expect(avatar.classes()).toContain("tw:shrink-0")
     expect(checkboxShell.exists()).toBe(true)
     expect(checkboxShell.classes()).toContain("tw:flex")
     expect(checkboxShell.classes()).toContain("tw:h-4")
@@ -327,9 +331,54 @@ describe("RespondentsList", () => {
     expect(checkboxShell.classes()).toContain("tw:border-2")
     expect(checkboxShell.classes()).toContain("tw:border-solid")
     expect(checkboxShell.classes()).not.toContain("tw:border-primary")
-    expect(checkboxShell.attributes("style")).toContain(
-      "border-color: var(--timeful-primary-action-bg);",
+    expect(checkboxShell.attributes("style")).toBeUndefined()
+    expect(
+      avatar.element.compareDocumentPosition(checkboxShell.element) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it("shows the checkbox on every phone row and hides it for unselected desktop rows", () => {
+    const phoneWrapper = mountRespondentsList({
+      curDate: baseDate,
+      setEntry: baseDate,
+    })
+
+    const phoneCheckbox = phoneWrapper.find(".respondent-control__checkbox")
+    expect(phoneCheckbox.classes()).toContain(
+      "respondent-control__checkbox--always-visible",
     )
+
+    isPhoneValue.value = false
+    try {
+      const desktopWrapper = mountRespondentsList({
+        curDate: baseDate,
+        setEntry: baseDate,
+      })
+      const desktopCheckbox = desktopWrapper.find(
+        'button[aria-pressed="false"] .respondent-control__checkbox',
+      )
+
+      expect(desktopCheckbox.exists()).toBe(true)
+      expect(desktopCheckbox.classes()).not.toContain(
+        "respondent-control__checkbox--always-visible",
+      )
+    } finally {
+      isPhoneValue.value = true
+    }
+  })
+
+  it("reveals the reserved checkbox on hover or selection beside the status", () => {
+    expect(respondentsListSource).toContain(
+      ".respondent-row:hover .respondent-control__checkbox",
+    )
+    expect(respondentsListSource).toContain(
+      '.respondent-control[aria-pressed="true"] .respondent-control__checkbox',
+    )
+    expect(respondentsListSource).toContain(
+      "border-color: var(--timeful-outline-neutral)",
+    )
+    expect(respondentsListSource).not.toContain("position: absolute")
   })
 
   it("shows the profile avatar when no grid slot is in context", () => {
@@ -451,20 +500,50 @@ describe("RespondentsList", () => {
     )
   })
 
-  it("keeps the hover-to-select checkbox shell when a status square is shown", () => {
+  it("keeps the availability status visible before the hover-to-select checkbox", () => {
     const wrapper = mountRespondentsList({
       curDate: baseDate,
       setEntry: baseDate,
     })
 
     const selectionButton = wrapper.find('button[aria-pressed="false"]')
+    const statusSquare = selectionButton.find(
+      ".respondent-control__avatar div.tw\\:h-4.tw\\:w-4",
+    )
+    const checkboxShell = selectionButton.find(".respondent-control__checkbox")
+
     expect(selectionButton.exists()).toBe(true)
-    expect(selectionButton.find(".respondent-control__checkbox").exists()).toBe(
-      true,
+    expect(statusSquare.exists()).toBe(true)
+    expect(checkboxShell.exists()).toBe(true)
+    expect(
+      statusSquare.element.compareDocumentPosition(checkboxShell.element) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it("keeps the availability status beside a checked checkbox for a selected respondent", () => {
+    const wrapper = mountRespondentsList({
+      curDate: baseDate,
+      setEntry: baseDate,
+      availability: [baseDate],
+      curRespondents: ["user-1"],
+      stubs: { "v-icon": { template: "<span><slot /></span>" } },
+    })
+
+    const selectionButton = wrapper.find('button[aria-pressed="true"]')
+    const statusSquare = selectionButton.find(
+      ".respondent-control__avatar div.tw\\:h-4.tw\\:w-4",
     )
-    expect(selectionButton.find(".respondent-control__avatar").exists()).toBe(
-      true,
-    )
+    const checkboxShell = selectionButton.find(".respondent-control__checkbox")
+
+    expect(selectionButton.exists()).toBe(true)
+    expect(statusSquare.exists()).toBe(true)
+    expect(statusSquare.classes()).toContain("tw:bg-[#00994C77]")
+    expect(checkboxShell.findComponent(MdiCheck).exists()).toBe(true)
+    expect(
+      statusSquare.element.compareDocumentPosition(checkboxShell.element) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
   })
 
   it("keeps the respondent action in the same inline row as the respondent name", () => {
