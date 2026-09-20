@@ -29,7 +29,9 @@
       dark
     >
       <div
+        data-testid="app-header-content"
         class="tw:relative tw:m-auto tw:flex tw:h-full tw:max-w-5xl tw:items-center tw:justify-center tw:px-4"
+        :class="{ 'timeful-elevated-header': isScrolled }"
       >
         <router-link :to="{ name: 'home' }">
           <Logo type="timeful" />
@@ -221,6 +223,7 @@ const { isPhone } = useDisplayHelpers()
 const loaded = ref(false)
 const webviewDialog = ref(false)
 const signInDialog = ref(false)
+const isScrolled = ref(false)
 
 const webviewDialogRequested = useRequestLatch(() => webviewDialog.value)
 const signInDialogRequested = useRequestLatch(() => signInDialog.value)
@@ -259,7 +262,7 @@ const routerViewClass = computed(() => {
 })
 
 function handleScroll() {
-  // scrollY tracked externally if needed; kept for scroll listener lifecycle
+  isScrolled.value = window.scrollY > 0
 }
 
 function preloadNewDialog() {
@@ -359,6 +362,7 @@ async function bootstrapApp() {
     })
 
   window.addEventListener("scroll", handleScroll)
+  handleScroll()
   void mainStore.getEvents()
 }
 

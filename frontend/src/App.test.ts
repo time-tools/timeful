@@ -388,6 +388,55 @@ describe("App auth restore state", () => {
     )
   })
 
+  it("elevates the fixed header on scroll and flattens it again at the top", async () => {
+    const wrapper = shallowMount(App, {
+      global: {
+        mocks: {
+          $route: routeState,
+        },
+        stubs: {
+          SignInDialog: true,
+          AutoSnackbar: true,
+          SignInNotSupportedDialog: true,
+          NewDialog: true,
+          UpvoteRedditSnackbar: true,
+          Logo: true,
+          AuthUserMenu: true,
+          "router-link": true,
+          "router-view": true,
+          "v-app": { template: "<div><slot /></div>" },
+          "v-main": { template: "<div><slot /></div>" },
+          "v-btn": { template: "<button><slot /></button>" },
+          "v-expand-x-transition": { template: "<div><slot /></div>" },
+          "v-spacer": true,
+        },
+      },
+    })
+
+    await flushPromises()
+
+    const headerContent = wrapper.get('[data-testid="app-header-content"]')
+    expect(headerContent.classes()).not.toContain("timeful-elevated-header")
+
+    Object.defineProperty(window, "scrollY", {
+      configurable: true,
+      value: 120,
+    })
+    window.dispatchEvent(new Event("scroll"))
+    await nextTick()
+    expect(headerContent.classes()).toContain("timeful-elevated-header")
+
+    Object.defineProperty(window, "scrollY", {
+      configurable: true,
+      value: 0,
+    })
+    window.dispatchEvent(new Event("scroll"))
+    await nextTick()
+    expect(headerContent.classes()).not.toContain("timeful-elevated-header")
+
+    wrapper.unmount()
+  })
+
   it("does not retain the legacy global selection-control reset", () => {
     expect(appSource).not.toContain(".v-input--selection-controls")
   })

@@ -96,6 +96,60 @@ test.describe("landing hero", () => {
     }
   })
 
+  test("elevates the fixed header once the landing page is scrolled", async ({
+    page,
+  }) => {
+    const viewportSize = assertPresent(
+      page.viewportSize(),
+      "Expected a viewport size",
+    )
+    await page.setViewportSize({ width: viewportSize.width, height: 700 })
+    await stabilizeLanding(page)
+
+    const header = page.getByTestId("app-header")
+    const headerContent = page.getByTestId("app-header-content")
+    const headerBox = assertPresent(
+      await header.boundingBox(),
+      "Expected the fixed header box",
+    )
+    const headerContentBox = assertPresent(
+      await headerContent.boundingBox(),
+      "Expected the fixed header content box",
+    )
+    expect(headerContentBox.width).toBeLessThanOrEqual(1024)
+    expect(
+      Math.abs(
+        headerContentBox.x +
+          headerContentBox.width / 2 -
+          (headerBox.x + headerBox.width / 2),
+      ),
+    ).toBeLessThanOrEqual(1)
+
+    await expect(headerContent).toHaveCSS("box-shadow", "none")
+
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => document.documentElement.scrollHeight - window.innerHeight,
+        ),
+      )
+      .toBeGreaterThan(0)
+
+    await page.evaluate(() => {
+      window.scrollTo({
+        top: document.documentElement.scrollHeight,
+        behavior: "instant",
+      })
+    })
+    await expect(headerContent).toHaveClass(/timeful-elevated-header/)
+    await expect(headerContent).toHaveCSS("box-shadow", /rgba?\(0, 0, 0/)
+
+    await page.evaluate(() => {
+      window.scrollTo({ top: 0, behavior: "instant" })
+    })
+    await expect(headerContent).toHaveCSS("box-shadow", "none")
+  })
+
   test("keeps the mobile hero readable without overflow", async ({
     page,
     isMobile,
