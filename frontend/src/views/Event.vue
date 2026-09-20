@@ -579,7 +579,10 @@
                     >
                       <template #label>
                         <div class="tw:text-sm tw:text-black">
-                          Collapse disabled times
+                          Collapse
+                          <span class="tw:whitespace-nowrap"
+                            >disabled times</span
+                          >
                         </div>
                       </template>
                     </v-switch>
@@ -2764,7 +2767,8 @@ watch(
   :deep(.v-selection-control) {
   height: 100%;
   min-height: var(--desktop-event-header-control-height);
-  inline-size: fit-content;
+  inline-size: 100%;
+  min-inline-size: 0;
 }
 
 .desktop-event-header-options__collapse-disabled-times-switch
@@ -2775,6 +2779,11 @@ watch(
 
 .desktop-event-header-options__collapse-disabled-times-switch :deep(.v-label) {
   flex: 0 0 auto;
+  inline-size: min-content;
+  max-inline-size: 100%;
+  line-height: 1.25;
+  overflow-wrap: break-word;
+  white-space: normal;
   padding-inline-start: 0;
   margin-inline-start: 0.35rem;
 }

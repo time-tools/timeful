@@ -176,7 +176,11 @@ test("event page without responses pairs each header row with one action column"
     ).toBeLessThanOrEqual(1)
     expect(Math.abs(titleBox.x - (columnSideInset + 16))).toBeLessThanOrEqual(1)
 
-    const allHoursContentCenter = await page.evaluate<number | null>(() => {
+    const collapseContentBounds = await page.evaluate<{
+      left: number
+      right: number
+      center: number
+    } | null>(() => {
       const toggle = document.querySelector<HTMLElement>(
         "#collapse-disabled-times-toggle",
       )
@@ -190,19 +194,23 @@ test("event page without responses pairs each header row with one action column"
 
       const inputRect = input.getBoundingClientRect()
       const labelRect = label.getBoundingClientRect()
-      return (
-        (Math.min(inputRect.left, labelRect.left) +
-          Math.max(inputRect.right, labelRect.right)) /
-        2
-      )
+      const left = Math.min(inputRect.left, labelRect.left)
+      const right = Math.max(inputRect.right, labelRect.right)
+      return { left, right, center: (left + right) / 2 }
     })
-    expect(allHoursContentCenter).not.toBeNull()
-    if (allHoursContentCenter === null) {
+    expect(collapseContentBounds).not.toBeNull()
+    if (collapseContentBounds === null) {
       throw new Error("Expected the Collapse disabled times switch content")
     }
+    expect(collapseContentBounds.left).toBeGreaterThanOrEqual(
+      addAvailabilityBox.x - 1,
+    )
+    expect(collapseContentBounds.right).toBeLessThanOrEqual(
+      addAvailabilityBox.x + addAvailabilityBox.width + 1,
+    )
     expect(
       Math.abs(
-        allHoursContentCenter -
+        collapseContentBounds.center -
           (collapseDisabledTimesBox.x + collapseDisabledTimesBox.width / 2),
       ),
     ).toBeLessThanOrEqual(2)
