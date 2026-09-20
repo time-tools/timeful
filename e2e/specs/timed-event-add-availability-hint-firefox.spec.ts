@@ -80,16 +80,36 @@ test("The editing instruction renders at the top and replaces the grid strip", a
   await expectHintAboveGrid(hint, page)
   await expect(page.getByText(EDITING_HINT_TEXT)).toHaveCount(1)
 
-  await test.step("dismissal persists for the editing state", async () => {
-    await hint.getByRole("button", { name: "Close", exact: true }).click()
+  await test.step("the instruction has no dismiss control and clears when editing ends", async () => {
+    await expect(hint.getByRole("button")).toHaveCount(0)
+
+    await page.locator(".desktop-editing-cancel-button").click()
     await expect(hint).toHaveCount(0)
 
-    await page.reload({ waitUntil: "domcontentloaded" })
-    await waitForScheduleOverlapMounted(page)
     await page.locator("#desktop-primary-availability-btn").click()
     await page.getByRole("button", { name: "Manually", exact: true }).click()
-    await expect(page.getByTestId("availability-editing-hint")).toHaveCount(0)
+    await expect(hint).toBeVisible()
   })
+})
+
+test("The editing instruction renders despite a stored legacy dismissal", async ({
+  page,
+  request,
+}) => {
+  const { shortId } = await seedEvent(request)
+
+  await page.addInitScript(() => {
+    localStorage.setItem("closedHintTextedit_availability", "true")
+  })
+  await openEventPage(page, shortId)
+  await waitForScheduleOverlapMounted(page)
+  await page.locator("#desktop-primary-availability-btn").click()
+  await page.getByRole("button", { name: "Manually", exact: true }).click()
+
+  const hint = page.getByTestId("availability-editing-hint")
+  await expect(hint).toBeVisible()
+  await expect(hint).toHaveText(EDITING_HINT_TEXT)
+  await expect(hint.getByRole("button")).toHaveCount(0)
 })
 
 test("The add availability hint clears after the viewer saves an in-app response", async ({

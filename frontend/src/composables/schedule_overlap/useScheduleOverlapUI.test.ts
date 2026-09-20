@@ -41,7 +41,6 @@ function createUi() {
     isSignUp: computed(() => isSignUp.value),
     isGroup: computed(() => isGroup.value),
     daysOnly,
-    showHintText: ref(false),
     state,
     showBestTimes: ref(false),
     defaultState: computed(() => states.HEATMAP),

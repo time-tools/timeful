@@ -152,12 +152,11 @@
           </v-alert>
           <v-alert
             v-if="scheduleOverlapHintTextShown"
+            ref="scheduleOverlapHintRef"
             type="info"
             variant="tonal"
-            closable
-            class="tw:mx-4 tw:mb-4"
+            class="tw:mx-4 tw:mb-4 tw:scroll-mt-18 tw:sm:scroll-mt-20"
             data-testid="availability-editing-hint"
-            @click:close="closeScheduleOverlapHint"
           >
             {{ scheduleOverlapHintText }}
           </v-alert>
@@ -837,7 +836,6 @@
             :initial-timezone="initialTimezone"
             :adding-availability-as-guest="addingAvailabilityAsGuest"
             :refresh-event-fn="refreshEvent"
-            :show-hint-text="false"
             @add-availability="addAvailability"
             @add-availability-as-guest="addAvailabilityAsGuest"
             @refresh-event="refreshEvent"
@@ -1405,16 +1403,21 @@ const addAvailabilityHintText = computed(() =>
 const scheduleOverlapHintText = computed(
   () => scheduleOverlap.value?.hintText ?? "",
 )
-const scheduleOverlapHintClosed = computed(
-  () => scheduleOverlap.value?.hintClosed ?? false,
-)
 const scheduleOverlapHintTextShown = computed(
-  () =>
-    scheduleOverlapHintText.value !== "" && !scheduleOverlapHintClosed.value,
+  () => scheduleOverlapHintText.value !== "",
 )
-function closeScheduleOverlapHint() {
-  scheduleOverlap.value?.closeHint()
-}
+const scheduleOverlapHintRef = ref<{ $el?: Element | null } | null>(null)
+watch(isEditing, async (editing, wasEditing) => {
+  if (!editing || wasEditing || !isPhone.value) return
+  await nextTick()
+  const hintElement = scheduleOverlapHintRef.value?.$el
+  if (
+    hintElement instanceof HTMLElement &&
+    typeof hintElement.scrollIntoView === "function"
+  ) {
+    hintElement.scrollIntoView({ block: "start", behavior: "smooth" })
+  }
+})
 const guestActionButtonText = computed(() => "Edit availability")
 const secondaryAddAvailabilityButtonText = computed(() => {
   if (showDisabledEditAvailabilityPrimary.value) return "Add availability"

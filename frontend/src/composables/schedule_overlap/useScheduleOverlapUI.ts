@@ -25,7 +25,6 @@ export interface UseScheduleOverlapUIOptions {
   isSignUp: ComputedRef<boolean>
   isGroup: ComputedRef<boolean>
   daysOnly: Ref<boolean>
-  showHintText: Ref<boolean>
   /** Optional external state ref — if provided, used instead of creating one internally */
   state?: Ref<ScheduleOverlapState>
   showBestTimes?: Ref<boolean>
@@ -152,8 +151,6 @@ export function useScheduleOverlapUI(opts: UseScheduleOverlapUIOptions) {
     typeof setTimeout
   > | null>(null)
 
-  const hintState = ref(true)
-
   const rightSideWidth = computed(() => {
     if (opts.isPhone.value) return "100%"
     return opts.isSignUp.value
@@ -168,11 +165,6 @@ export function useScheduleOverlapUI(opts: UseScheduleOverlapUIOptions) {
       (opts.curTimeslot.value.row !== -1 ||
         curRespondent.value.length > 0 ||
         curRespondents.value.length > 0),
-  )
-
-  const hintStateLocalStorageKey = computed(
-    () =>
-      `closedHintText${state.value}` + (opts.isGroup.value ? "&isGroup" : ""),
   )
 
   const hintText = computed(() => {
@@ -193,20 +185,6 @@ export function useScheduleOverlapUI(opts: UseScheduleOverlapUIOptions) {
     }
     return ""
   })
-
-  const hintClosed = computed(
-    () =>
-      !hintState.value || Boolean(localStorage[hintStateLocalStorageKey.value]),
-  )
-
-  const hintTextShown = computed(
-    () => opts.showHintText.value && hintText.value !== "" && !hintClosed.value,
-  )
-
-  const closeHint = () => {
-    hintState.value = false
-    localStorage[hintStateLocalStorageKey.value] = "true"
-  }
 
   const mouseOverRespondent = (_e: Event, id: string) => {
     if (curRespondents.value.length === 0) {
@@ -417,7 +395,6 @@ export function useScheduleOverlapUI(opts: UseScheduleOverlapUIOptions) {
     scrolledToRespondents,
     delayedShowStickyRespondents,
     delayedShowStickyRespondentsTimeout,
-    hintState,
     curRespondent,
     curRespondents,
     // computed
@@ -428,10 +405,7 @@ export function useScheduleOverlapUI(opts: UseScheduleOverlapUIOptions) {
     curRespondentsSet,
     rightSideWidth,
     showStickyRespondents,
-    hintStateLocalStorageKey,
     hintText,
-    hintClosed,
-    hintTextShown,
     showOverlayAvailabilityToggle,
     guestNameKey,
     selectedGuestRespondent,
@@ -448,7 +422,6 @@ export function useScheduleOverlapUI(opts: UseScheduleOverlapUIOptions) {
     onScroll,
     onShowBestTimesChange,
     updateOverlayAvailability,
-    closeHint,
   }
 }
 

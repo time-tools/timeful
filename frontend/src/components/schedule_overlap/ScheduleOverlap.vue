@@ -150,7 +150,6 @@ const props = withDefaults(
     interactable?: boolean
     showSnackbar?: boolean
     animateTimeslotAlways?: boolean
-    showHintText?: boolean
     curGuestId?: string
     addingAvailabilityAsGuest?: boolean
     initialTimezone?: Timezone
@@ -172,7 +171,6 @@ const props = withDefaults(
     interactable: true,
     showSnackbar: true,
     animateTimeslotAlways: false,
-    showHintText: true,
     curGuestId: "",
     addingAvailabilityAsGuest: false,
     initialTimezone: undefined,
@@ -487,7 +485,6 @@ const ui = useScheduleOverlapUI({
   isSignUp,
   isGroup,
   daysOnly,
-  showHintText: computed(() => props.showHintText),
   state,
   showBestTimes,
   defaultState,
@@ -688,7 +685,6 @@ const {
   scrolledToRespondents: _scrolledToRespondents,
   delayedShowStickyRespondents,
   delayedShowStickyRespondentsTimeout,
-  hintState: _hintState,
   curRespondent: _curRespondent,
   curRespondents: _curRespondents,
   editing,
@@ -696,10 +692,7 @@ const {
   curRespondentsSet,
   rightSideWidth: _rightSideWidth,
   showStickyRespondents: _showStickyRespondents,
-  hintStateLocalStorageKey: _hintStateLocalStorageKey,
   hintText,
-  hintClosed,
-  hintTextShown: _hintTextShown,
   showOverlayAvailabilityToggle: _showOverlayAvailabilityToggle,
   selectedGuestRespondent: _selectedGuestRespondent,
   canEditGuestName: _canEditGuestName,
@@ -712,7 +705,6 @@ const {
   onScroll,
   onShowBestTimesChange,
   updateOverlayAvailability,
-  closeHint,
 } = ui
 
 useScheduleOverlapController({
@@ -1036,7 +1028,6 @@ const sidebarListeners = {
 }
 
 const mobileOverlayListeners = {
-  closeHint,
   "update:availabilityType": updateAvailabilityType,
   "update:calendarOptionsDialog": updateCalendarOptionsDialog,
   "update:weekOffset": emitWeekOffsetUpdate,
@@ -1058,7 +1049,6 @@ const daysOnlyGridActions = computed<ScheduleOverlapDaysOnlyGridActions>(
     moveDrag,
     endDrag,
     resetCurTimeslot: ui.resetCurTimeslot,
-    closeHint,
   }),
 )
 
@@ -1070,7 +1060,6 @@ const timedGridActions = computed<ScheduleOverlapTimeGridActions>(() => ({
   moveDrag: moveTimedGridDrag,
   endDrag: endTimedGridDrag,
   resetCurTimeslot: ui.resetCurTimeslot,
-  closeHint,
   signUpForBlock: (block) => {
     handleSignUpBlockClick(block, emitSignUpForBlock)
   },
@@ -1227,8 +1216,6 @@ defineExpose({
   clearScheduledEvent,
   getAllValidTimeRanges: _getAllValidTimeRanges,
   hintText,
-  hintClosed,
-  closeHint,
 })
 </script>
 

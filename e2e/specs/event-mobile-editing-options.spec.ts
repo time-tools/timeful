@@ -290,6 +290,7 @@ test("mobile editing shows the instruction at the top instead of the bottom over
 
   const hint = page.getByTestId("availability-editing-hint")
   await expect(hint).toBeVisible()
+  await expect(hint).toBeInViewport({ ratio: 1 })
   await expect(hint).toHaveText(MOBILE_EDITING_HINT_TEXT)
   await expectHintAboveGrid(hint, page)
   await expect(

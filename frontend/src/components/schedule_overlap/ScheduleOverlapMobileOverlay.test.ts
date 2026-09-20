@@ -30,8 +30,6 @@ describe("ScheduleOverlapMobileOverlay", () => {
       props: {
         overlay: {
           ...buildScheduleOverlapMobileOverlayViewModel(),
-          hintTextShown: true,
-          hintText: "Tap the grid to add availability",
           editing: true,
           availabilityType: availabilityTypes.AVAILABLE,
           isWeekly: true,

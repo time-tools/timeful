@@ -26,8 +26,6 @@ export interface ScheduleOverlapInstance {
   overlayAvailability: boolean
   showOverlayAvailabilityToggle: boolean
   hintText: string
-  hintClosed: boolean
-  closeHint(): void
   startEditing(): void
   stopEditing(): void
   updateShowBestTimes(value: boolean): void

@@ -204,7 +204,6 @@ const scheduleOverlapMethodMocks: Record<string, ReturnType<typeof vi.fn>> = {
   confirmScheduleEvent: vi.fn(),
   clearScheduledEvent: vi.fn(),
   editOwnedGuestAvailability: editOwnedGuestAvailabilityMock,
-  closeHint: vi.fn(),
 }
 
 vi.mock("vue-router", () => ({
@@ -319,11 +318,6 @@ const ScheduleOverlapStub = {
       required: false,
       default: undefined,
     },
-    showHintText: {
-      type: Boolean,
-      required: false,
-      default: true,
-    },
   },
   data() {
     return {
@@ -348,7 +342,6 @@ const ScheduleOverlapStub = {
       overlayAvailability: false,
       showOverlayAvailabilityToggle: true,
       hintText: "",
-      hintClosed: false,
       states: {
         SET_SPECIFIC_TIMES: "set_specific_times",
       },
@@ -362,7 +355,6 @@ const ScheduleOverlapStub = {
     clearScheduledEvent: scheduleOverlapMethodMocks.clearScheduledEvent,
     editOwnedGuestAvailability:
       scheduleOverlapMethodMocks.editOwnedGuestAvailability,
-    closeHint: scheduleOverlapMethodMocks.closeHint,
     updateShowBestTimes(this: Record<string, boolean>, value: boolean) {
       this.showBestTimes = value
     },
@@ -962,7 +954,7 @@ describe("Event guest edit action", () => {
     )
   })
 
-  it("renders the editing instruction at the top and suppresses the component hint strips", async () => {
+  it("renders the editing instruction at the top of the page content", async () => {
     const wrapper = mountScheduleGateEvent()
     await flushDeferredMount()
 
@@ -983,12 +975,9 @@ describe("Event guest edit action", () => {
         wrapper.get("#event-header").element,
       ) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
-    expect(
-      wrapper.findComponent(ScheduleOverlapStub).props("showHintText"),
-    ).toBe(false)
   })
 
-  it("dismisses the editing instruction through the component close handler", async () => {
+  it("renders the editing instruction without a dismiss control and clears it when editing ends", async () => {
     const wrapper = mountAvailabilityHintEvent({ "v-alert": alertStub })
     await flushDeferredMount()
 
@@ -996,28 +985,61 @@ describe("Event guest edit action", () => {
       hintText: "Tap and drag on the grid below.",
     })
 
-    await wrapper
-      .get('[data-testid="availability-editing-hint"] button')
-      .trigger("click")
+    const hint = wrapper.get('[data-testid="availability-editing-hint"]')
+    expect(hint.text()).toBe("Tap and drag on the grid below.")
+    expect(hint.findAll("button")).toHaveLength(0)
 
-    expect(scheduleOverlapMethodMocks.closeHint).toHaveBeenCalledOnce()
-  })
-
-  it("keeps the add availability hint independent from the editing instruction dismissal", async () => {
-    const wrapper = mountAvailabilityHintEvent()
-    await flushDeferredMount()
-
-    await wrapper.findComponent(ScheduleOverlapStub).setData({
-      hintText: "Tap and drag on the grid below.",
-      hintClosed: true,
-    })
-
+    await wrapper.findComponent(ScheduleOverlapStub).setData({ hintText: "" })
     expect(
       wrapper.find('[data-testid="availability-editing-hint"]').exists(),
     ).toBe(false)
-    expect(wrapper.find('[data-testid="add-availability-hint"]').exists()).toBe(
-      true,
-    )
+  })
+
+  it("renders the editing instruction when a legacy dismissal key is stored", async () => {
+    localStorage.setItem("closedHintTextedit_availability", "true")
+
+    try {
+      const wrapper = mountAvailabilityHintEvent({ "v-alert": alertStub })
+      await flushDeferredMount()
+      await wrapper.findComponent(ScheduleOverlapStub).setData({
+        hintText: "Tap and drag on the grid below.",
+      })
+
+      const hint = wrapper.get('[data-testid="availability-editing-hint"]')
+      expect(hint.text()).toBe("Tap and drag on the grid below.")
+      expect(hint.findAll("button")).toHaveLength(0)
+    } finally {
+      localStorage.removeItem("closedHintTextedit_availability")
+    }
+  })
+
+  it("scrolls the editing instruction into view when editing starts on a phone viewport", async () => {
+    isPhoneState.value = true
+    const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView")
+
+    try {
+      const wrapper = mountAvailabilityHintEvent({ "v-alert": alertStub })
+      await flushDeferredMount()
+
+      await wrapper.findComponent(ScheduleOverlapStub).setData({
+        hintText: "Tap and drag on the grid below.",
+        editing: true,
+      })
+      await nextTick()
+      await nextTick()
+
+      expect(scrollIntoView).toHaveBeenCalledWith({
+        block: "start",
+        behavior: "smooth",
+      })
+      expect(
+        wrapper.get('[data-testid="availability-editing-hint"]').classes(),
+      ).toEqual(
+        expect.arrayContaining(["tw:scroll-mt-18", "tw:sm:scroll-mt-20"]),
+      )
+    } finally {
+      scrollIntoView.mockRestore()
+    }
   })
 
   it("aligns mobile footer action edges with the elevated panel above", () => {

@@ -12,26 +12,6 @@
     @click.stop
   >
     <v-expand-transition>
-      <template v-if="overlay.hintTextShown">
-        <div :key="overlay.hintText">
-          <div
-            class="tw:flex tw:w-full tw:items-center tw:justify-between tw:gap-1 tw:bg-light-gray tw:px-2 tw:py-2 tw:text-sm tw:text-very-dark-gray"
-          >
-            <div
-              :class="`tw:flex tw:gap-${overlay.hintText.length > 60 ? 2 : 1}`"
-            >
-              <v-icon small><MdiInformationOutline /></v-icon>
-              <div>
-                {{ overlay.hintText }}
-              </div>
-            </div>
-            <v-icon small @click="emit('closeHint')"><MdiClose /></v-icon>
-          </div>
-        </div>
-      </template>
-    </v-expand-transition>
-
-    <v-expand-transition>
       <div
         v-if="!overlay.isGroup && overlay.editing && !overlay.isSignUp"
         class="timeful-mobile-elevated-panel tw:p-4"
@@ -130,15 +110,12 @@ import ScheduleOverlapRespondentsPanel from "./ScheduleOverlapRespondentsPanel.v
 import SpecificTimesInstructions from "./SpecificTimesInstructions.vue"
 import type { ScheduleOverlapMobileOverlayViewModel } from "./scheduleOverlapViewModelContracts"
 import MdiCalendar from "~icons/mdi/calendar"
-import MdiClose from "~icons/mdi/close"
-import MdiInformationOutline from "~icons/mdi/information-outline"
 
 defineProps<{
   overlay: ScheduleOverlapMobileOverlayViewModel
 }>()
 
 const emit = defineEmits<{
-  closeHint: []
   overlayHeightChange: [height: number]
   "update:availabilityType": [value: AvailabilityType]
   "update:calendarOptionsDialog": [value: boolean]
