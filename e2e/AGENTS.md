@@ -7,6 +7,7 @@ Specs live in `e2e/specs/`; `playwright.config.ts`, `isolated-test-stack.ts`, `c
 ## Failure Diagnosis Loop
 
 - Run a failing test in isolation before changing anything: `npm run test:e2e -- --project=chromium-desktop -g "<test title>"`.
+- For bug fixes, this isolated failing run is the regression check; record fail-before and pass-after evidence as required by the Bug Fix Protocol in `../AGENTS.md`.
 - Never pipe a run through `tail` or `head`: it hides progress until the run ends and can mask the suite's exit status.
   Run the command with full output streaming, and when a persistent log is needed, append `2>&1 | tee /tmp/opencode/<name>.log` instead of truncating.
 - Read the full error output first; Playwright prints the action call log with the waiting locator, the resolved element, and the retry attempts.

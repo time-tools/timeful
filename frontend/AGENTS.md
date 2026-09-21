@@ -94,4 +94,4 @@ After meaningful frontend changes, run:
 - `npm run build`
 - `npm run test:unit`
 
-Add regression coverage when fixing a reproduced migration bug unless there is a concrete reason it cannot be covered at that layer.
+Add regression coverage when fixing a reproduced migration bug unless there is a concrete reason it cannot be covered at that layer, and follow the Bug Fix Protocol in `../AGENTS.md` for the observed fail-before and pass-after steps.

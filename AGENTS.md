@@ -49,9 +49,19 @@ Unless the user explicitly asks for server changes:
 
 - treat `frontend/` as the primary working directory
 - use clean layout-based fixes, not hacks
-- prefer adding regression tests before fixing frontend bugs
 - keep repo-tracked frontend browser checks under `e2e`
-- newly added regression tests may fail when they are meant to expose an existing bug
+
+## Bug Fix Protocol
+
+For any bug fix, regardless of layer:
+
+- First add or update the regression check and observe it fail for the reported reason before changing the implementation.
+- After the fix, run the identical check and confirm it passes.
+- Prefer the narrowest layer that can capture the behavior: a unit test, then a browser E2E spec, then a scripted or documented manual reproduction.
+- If no test layer can capture the behavior, record the manual reproduction steps and why automated coverage is not practical.
+- Record the fail-before and pass-after evidence in the Backlog task notes and final summary.
+
+The protocol is scoped to bug fixes and does not require a failing check before feature work, refactoring, or documentation-only changes.
 
 ## Server Test Workflow
 

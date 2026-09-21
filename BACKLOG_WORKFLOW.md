@@ -56,3 +56,5 @@ Documentation-only changes are changes limited to documentation or agent instruc
 
 For documentation-only changes, unit and e2e tests are not required unless the user explicitly requests the respective test.
 Run the relevant checks for all other work and report any checks that could not be run.
+
+For bug-fix tasks, the task record must contain fail-before and pass-after evidence for the regression check in its notes or final summary; when no test layer can capture the behavior, it must document the manual reproduction and why automated coverage is not practical.
