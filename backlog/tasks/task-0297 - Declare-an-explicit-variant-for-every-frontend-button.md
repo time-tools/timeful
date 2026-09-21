@@ -4,6 +4,7 @@ title: Declare an explicit variant for every frontend button
 status: To Do
 assignee: []
 created_date: '2026-09-20 22:39'
+updated_date: '2026-09-21 20:29'
 labels:
   - frontend
   - styling
@@ -58,7 +59,17 @@ The heuristic classification must be reevaluated per button against the button's
 - [ ] #3 All required e2e tests pass. Documentation-only changes are exempt unless the user requests e2e tests
 - [ ] #4 Changed Markdown files are formatted with npm run format:markdown
 - [ ] #5 Swagger annotations changed: run `swag init` from `server/` and `npm run gen:api` from `frontend/`
-- [ ] #6 Code changed: run `graphify update .`
+- [ ] #6 Code changed: run `codebase-memory-mcp cli index_repository --repo-path .` to refresh the code knowledge graph
 - [ ] #7 `scripts/` or `prettier/` changed: run root `npm run fmt:check`
 - [ ] #8 Contract-affecting changes update their documents. This includes `docs/environments.md`; `PLUGIN_API_README.md`; and migration and rollout notes
 <!-- DOD:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: OpenCode
+created: 2026-09-21 20:29
+---
+Review TASK-0310 follow-up: replaced the inherited `graphify update .` Definition of Done item with the project default `codebase-memory-mcp cli index_repository --repo-path .` and restored the project default order for items 6-8. No other content changed.
+---
+<!-- COMMENTS:END -->

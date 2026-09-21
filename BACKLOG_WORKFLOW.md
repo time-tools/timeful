@@ -51,7 +51,7 @@ Do not move Done tasks to `backlog/completed/` as part of a pull request.
 
 ## Definition Of Done
 
-Project Definition of Done defaults apply to new tasks unless a task has an exceptional, documented override, and they enumerate the per-change hygiene checks that apply when a task changes the relevant artifacts: swagger regeneration, `graphify update .`, root `npm run fmt:check`, and contract document updates.
+Project Definition of Done defaults apply to new tasks unless a task has an exceptional, documented override, and they enumerate the per-change hygiene checks that apply when a task changes the relevant artifacts: swagger regeneration, `codebase-memory-mcp cli index_repository --repo-path .`, root `npm run fmt:check`, and contract document updates.
 Documentation-only changes are changes limited to documentation or agent instructions and that do not modify runtime code, tests, build or deployment configuration, generated artifacts, or runtime assets.
 
 For documentation-only changes, unit and e2e tests are not required unless the user explicitly requests the respective test.

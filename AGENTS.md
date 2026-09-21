@@ -144,19 +144,15 @@ Only use:
 - `get_symbol_definition_code`
 - `get_diagnostics_code`
 
-## graphify
+## codebase-memory-mcp
 
-This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
-
-When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
+This project's code knowledge graph is served by codebase-memory-mcp over MCP, and the devShell provides the `codebase-memory-mcp` binary from the pinned nixpkgs flake input.
 
 Rules:
 
-- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists.
-  Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts.
-  These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify.
-  Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
-- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
-- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- For codebase questions, use the codebase-memory-mcp MCP tools (`search_graph`, `trace_path`, `get_architecture`, `query_graph`, and the rest) before grepping or reading files.
+  They return scoped graph evidence that is much smaller than raw source browsing.
+- When the graph is missing or stale, refresh it with `codebase-memory-mcp cli index_repository --repo-path .`.
+  The project Definition of Done requires this command after code changes.
+- `.cbmignore` at the repository root keeps excluded paths, including inactive ADRs, out of the index across re-indexing.
+- If the MCP server is unavailable, confirm the session shell came from `nix develop` and that `codebase-memory-mcp --version` resolves.

@@ -1,0 +1,42 @@
+# codebase-memory-mcp indexing excludes.
+# Gitignore syntax, read only from the indexed repository root.
+# See docs/codebase-memory.md for the policy.
+
+# Agent instructions, skill definitions, and Backlog records are not indexed source.
+.agents/
+backlog/
+
+# Binary media assets.
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.svg
+
+# Reference-only and generated documents.
+maintenance_page/
+server/docs/swagger.yaml
+server/routes.txt
+server/routes/README.md
+frontend/index.html
+frontend/public/robots.txt
+frontend/README.md
+e2e/inspect/AGENTS.md
+.github/ISSUE_TEMPLATE/
+docs/requirements/migration
+
+# Deployment descriptors that duplicate runtime configuration.
+compose.development.yaml
+compose.edge.staging.yaml
+
+# Inactive ADRs are retained for decision history but excluded from the knowledge graph.
+docs/design/architecture/adr/ADR-003.md
+docs/design/architecture/adr/ADR-011.md
+docs/design/architecture/adr/ADR-012.md
+docs/design/architecture/adr/ADR-013.md
+docs/design/architecture/adr/ADR-014.md
+docs/design/architecture/adr/ADR-015.md
+docs/design/architecture/adr/ADR-016.md
+docs/design/architecture/adr/ADR-017.md
+docs/design/architecture/adr/ADR-019.md

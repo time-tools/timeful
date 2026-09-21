@@ -19,9 +19,6 @@ listmonk/
 infra/support-mail/.env
 infra/support-mail/certs/*.crt
 infra/support-mail/certs/*.key
-graphify-out/*
-!graphify-out/cache/
-graphify-out/cache/*
-!graphify-out/cache/semantic/
+.codebase-memory/
 node_modules
 *.pyc
