@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
 
 import { readFileSync } from "node:fs"
+import { defineComponent, nextTick } from "vue"
 import { mount } from "@vue/test-utils"
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 import EditingAvailabilityAs from "./EditingAvailabilityAs.vue"
 import editingAvailabilityAsSource from "./EditingAvailabilityAs.vue?raw"
 import {
@@ -22,11 +23,17 @@ describe("EditingAvailabilityAs", () => {
     "v-btn": { template: "<button><slot /></button>" },
   }
 
+  const VDialogAttrsStub = defineComponent({
+    name: "VDialog",
+    template: `<div class="dialog-root"><slot /></div>`,
+  })
+
   const mountIndicator = (
     editingAsOverrides: Partial<
       ReturnType<typeof buildEditingAvailabilityAsViewModel>
     > = {},
     propsOverride: Record<string, unknown> = {},
+    stubsOverride: Record<string, unknown> = {},
   ) =>
     mount(EditingAvailabilityAs, {
       props: {
@@ -42,6 +49,7 @@ describe("EditingAvailabilityAs", () => {
         stubs: {
           ...scheduleOverlapGlobalStubs,
           ...dialogContentStubs,
+          ...stubsOverride,
         },
       },
     })
@@ -54,6 +62,23 @@ describe("EditingAvailabilityAs", () => {
       throw new Error(`Expected dialog ${text} button to be rendered`)
     }
     return button
+  }
+
+  afterEach(() => {
+    Reflect.deleteProperty(window, "visualViewport")
+  })
+
+  const installVisualViewport = (height: number, offsetTop: number) => {
+    const visibleViewport = Object.assign(new EventTarget(), {
+      height,
+      offsetTop,
+      width: 390,
+    })
+    Object.defineProperty(window, "visualViewport", {
+      configurable: true,
+      value: visibleViewport,
+    })
+    return visibleViewport
   }
 
   it("renders the plain actor fallback when no editable guest is targeted", () => {
@@ -394,5 +419,40 @@ describe("EditingAvailabilityAs", () => {
     )
     expect(wrapper.find(".editing-availability-as__guest").exists()).toBe(false)
     expect(indicator.findAll("v-icon-stub")).toHaveLength(0)
+  })
+
+  it("sizes the dialog overlay to the visible viewport so the keyboard cannot cover the actions", async () => {
+    const visibleViewport = installVisualViewport(340, 120)
+
+    const wrapper = mountIndicator(
+      { editableGuestName: "Dana" },
+      { editGuestNameDialog: true, newGuestName: "Dee" },
+      { "v-dialog": VDialogAttrsStub },
+    )
+
+    const dialogRoot = wrapper.get(".dialog-root")
+    expect(dialogRoot.attributes("style")).toContain("top: 120px")
+    expect(dialogRoot.attributes("style")).toContain("height: 340px")
+    expect(dialogRoot.attributes("style")).toContain("bottom: auto")
+
+    visibleViewport.height = 664
+    visibleViewport.offsetTop = 0
+    visibleViewport.dispatchEvent(new Event("resize"))
+    await nextTick()
+
+    expect(dialogRoot.attributes("style")).toContain("top: 0px")
+    expect(dialogRoot.attributes("style")).toContain("height: 664px")
+  })
+
+  it("leaves the default overlay layout untouched when the visible viewport API is unavailable", () => {
+    Reflect.deleteProperty(window, "visualViewport")
+
+    const wrapper = mountIndicator(
+      { editableGuestName: "Dana" },
+      { editGuestNameDialog: true, newGuestName: "Dee" },
+      { "v-dialog": VDialogAttrsStub },
+    )
+
+    expect(wrapper.get(".dialog-root").attributes("style")).toBeUndefined()
   })
 })
