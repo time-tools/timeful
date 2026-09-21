@@ -86,6 +86,7 @@ import ScheduleOverlapTimeGrid from "./ScheduleOverlapTimeGrid.vue"
 import ToolRow from "./ToolRow.vue"
 import Tooltip from "../Tooltip.vue"
 import {
+  formatScheduledSpanTooltipContent,
   formatTooltipContent,
   getSignUpBlockStyle,
 } from "./scheduleOverlapRendering"
@@ -107,7 +108,10 @@ import { useScheduleOverlapViewModels } from "./useScheduleOverlapViewModels"
 import { useTimedGridPresentation } from "./useTimedGridPresentation"
 import { useTimedGridInteractions } from "./useTimedGridInteractions"
 import { useGuestAvailabilityActions } from "./useGuestAvailabilityActions"
-import { states } from "@/composables/schedule_overlap/types"
+import {
+  getScheduledEventFromDragRange,
+  states,
+} from "@/composables/schedule_overlap/types"
 import { calendarAutofillEnabled } from "@/utils/calendarAutofillAvailability"
 import type {
   FetchedResponse,
@@ -796,6 +800,25 @@ const timedGridInteractions = useTimedGridInteractions({
     emit("highlightAvailabilityBtn")
   },
   getTooltipContent: (row, col) => {
+    if (state.value === states.SCHEDULE_EVENT) {
+      const scheduledEvent =
+        dragging.value && dragStart.value && dragCur.value
+          ? getScheduledEventFromDragRange(dragStart.value, dragCur.value)
+          : curScheduledEvent.value
+      if (scheduledEvent) {
+        const spanContent = formatScheduledSpanTooltipContent({
+          scheduledEvent,
+          getDateFromRowCol: (spanRow, spanCol) =>
+            getDateFromRowCol(spanRow, spanCol) ??
+            getDisplayDateFromRowCol(spanRow, spanCol),
+          timeslotDuration: timeslotDuration.value,
+          curTimezone: curTimezone.value,
+          timeType: timeType.value,
+          isSpecificDates: grid.isSpecificDates.value,
+        })
+        if (spanContent) return spanContent
+      }
+    }
     const date =
       getDateFromRowCol(row, col) ?? getDisplayDateFromRowCol(row, col)
     return date

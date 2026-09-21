@@ -244,6 +244,7 @@ For guidance on authoring functional requirements, read [`functional/README.md`]
 | [FR-132](functional/fr/FR-132.md) | Cue the Add availability action on [Event Response](../terminology/glossary.md#event-response) creation pages                                                                                                                       | frontend          |
 | [FR-133](functional/fr/FR-133.md) | Place grid interaction instructions at the top of the event page                                                                                                                                                                    | frontend          |
 | [FR-134](functional/fr/FR-134.md) | Place the response selection control after the response name                                                                                                                                                                        | frontend          |
+| [FR-135](functional/fr/FR-135.md) | Show the pending [Timed Event Occurrence Span](../terminology/glossary.md#timed-event-occurrence-span) in the scheduling tooltip                                                                                                    | frontend          |
 
 ## Quality Requirements
 

@@ -12,6 +12,7 @@ import {
   buildRenderedTimeBlockFragments,
   buildTimeGridTimeslotClassStyles,
   buildOverlaidAvailability,
+  formatScheduledSpanTooltipContent,
   formatTooltipContent,
   getDayGridTimeslotClassStyle,
   getSignUpBlockStyle,
@@ -153,6 +154,94 @@ describe("scheduleOverlapRendering", () => {
     expect(
       tooltip.filter((segment) => !segment.mono).map((segment) => segment.text),
     ).toEqual([" to ", " \u00b7 ", "Sat, Jul 4, 2026"])
+  })
+
+  it("formats a scheduled span longer than one time slot", () => {
+    const slots = new Map([
+      ["0-0", zdt("2026-07-04T14:30:00Z")],
+      ["1-0", zdt("2026-07-04T15:00:00Z")],
+    ])
+
+    const tooltip = formatScheduledSpanTooltipContent({
+      scheduledEvent: { row: 0, col: 0, numRows: 2 },
+      getDateFromRowCol: (row, col) =>
+        slots.get(`${String(row)}-${String(col)}`) ?? null,
+      timeslotDuration: Temporal.Duration.from({ minutes: 30 }),
+      curTimezone: {
+        value: "UTC",
+        offset: Temporal.Duration.from({ minutes: 0 }),
+        label: "UTC",
+        gmtString: "GMT+00:00",
+      },
+      timeType: timeTypes.HOUR24,
+      isSpecificDates: true,
+    })
+
+    expect(tooltip).toBeDefined()
+    expect(joinTooltipSegments(tooltip ?? [])).toBe(
+      "14:30 to 15:30 \u00b7 Sat, Jul 4, 2026",
+    )
+    expect(
+      tooltip?.filter((segment) => segment.mono).map((segment) => segment.text),
+    ).toEqual(["14:30", "15:30"])
+  })
+
+  it("reports both dates when a scheduled span crosses midnight", () => {
+    const slots = new Map([
+      ["0-0", zdt("2026-07-04T23:30:00Z")],
+      ["1-0", zdt("2026-07-05T00:00:00Z")],
+    ])
+    const utc = {
+      value: "UTC",
+      offset: Temporal.Duration.from({ minutes: 0 }),
+      label: "UTC",
+      gmtString: "GMT+00:00",
+    }
+
+    const specificDatesTooltip = formatScheduledSpanTooltipContent({
+      scheduledEvent: { row: 0, col: 0, numRows: 2 },
+      getDateFromRowCol: (row, col) =>
+        slots.get(`${String(row)}-${String(col)}`) ?? null,
+      timeslotDuration: Temporal.Duration.from({ minutes: 30 }),
+      curTimezone: utc,
+      timeType: timeTypes.HOUR24,
+      isSpecificDates: true,
+    })
+    expect(joinTooltipSegments(specificDatesTooltip ?? [])).toBe(
+      "23:30 to 00:30 \u00b7 Sat, Jul 4, 2026 to Sun, Jul 5, 2026",
+    )
+
+    const weeklyTooltip = formatScheduledSpanTooltipContent({
+      scheduledEvent: { row: 0, col: 0, numRows: 2 },
+      getDateFromRowCol: (row, col) =>
+        slots.get(`${String(row)}-${String(col)}`) ?? null,
+      timeslotDuration: Temporal.Duration.from({ minutes: 30 }),
+      curTimezone: utc,
+      timeType: timeTypes.HOUR12,
+      isSpecificDates: false,
+    })
+    expect(joinTooltipSegments(weeklyTooltip ?? [])).toBe(
+      "11:30 PM to 12:30 AM \u00b7 Sat to Sun",
+    )
+  })
+
+  it("returns no scheduled span tooltip when a span boundary slot is missing", () => {
+    const tooltip = formatScheduledSpanTooltipContent({
+      scheduledEvent: { row: 0, col: 0, numRows: 2 },
+      getDateFromRowCol: (row) =>
+        row === 0 ? zdt("2026-07-04T14:30:00Z") : null,
+      timeslotDuration: Temporal.Duration.from({ minutes: 30 }),
+      curTimezone: {
+        value: "UTC",
+        offset: Temporal.Duration.from({ minutes: 0 }),
+        label: "UTC",
+        gmtString: "GMT+00:00",
+      },
+      timeType: timeTypes.HOUR24,
+      isSpecificDates: true,
+    })
+
+    expect(tooltip).toBeUndefined()
   })
 
   it("clips overlay fragments before visible grey rows that stay rendered", () => {
