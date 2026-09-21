@@ -12,6 +12,7 @@ import {
   buildRenderedTimeBlockFragments,
   buildTimeGridTimeslotClassStyles,
   buildOverlaidAvailability,
+  formatScheduledSpanTooltipContent,
   formatTooltipContent,
   getDayGridTimeslotClassStyle,
   getSignUpBlockStyle,
@@ -153,6 +154,94 @@ describe("scheduleOverlapRendering", () => {
     expect(
       tooltip.filter((segment) => !segment.mono).map((segment) => segment.text),
     ).toEqual([" to ", " \u00b7 ", "Sat, Jul 4, 2026"])
+  })
+
+  it("formats a scheduled span longer than one time slot", () => {
+    const slots = new Map([
+      ["0-0", zdt("2026-07-04T14:30:00Z")],
+      ["1-0", zdt("2026-07-04T15:00:00Z")],
+    ])
+
+    const tooltip = formatScheduledSpanTooltipContent({
+      scheduledEvent: { row: 0, col: 0, numRows: 2 },
+      getDateFromRowCol: (row, col) =>
+        slots.get(`${String(row)}-${String(col)}`) ?? null,
+      timeslotDuration: Temporal.Duration.from({ minutes: 30 }),
+      curTimezone: {
+        value: "UTC",
+        offset: Temporal.Duration.from({ minutes: 0 }),
+        label: "UTC",
+        gmtString: "GMT+00:00",
+      },
+      timeType: timeTypes.HOUR24,
+      isSpecificDates: true,
+    })
+
+    expect(tooltip).toBeDefined()
+    expect(joinTooltipSegments(tooltip ?? [])).toBe(
+      "14:30 to 15:30 \u00b7 Sat, Jul 4, 2026",
+    )
+    expect(
+      tooltip?.filter((segment) => segment.mono).map((segment) => segment.text),
+    ).toEqual(["14:30", "15:30"])
+  })
+
+  it("reports both dates when a scheduled span crosses midnight", () => {
+    const slots = new Map([
+      ["0-0", zdt("2026-07-04T23:30:00Z")],
+      ["1-0", zdt("2026-07-05T00:00:00Z")],
+    ])
+    const utc = {
+      value: "UTC",
+      offset: Temporal.Duration.from({ minutes: 0 }),
+      label: "UTC",
+      gmtString: "GMT+00:00",
+    }
+
+    const specificDatesTooltip = formatScheduledSpanTooltipContent({
+      scheduledEvent: { row: 0, col: 0, numRows: 2 },
+      getDateFromRowCol: (row, col) =>
+        slots.get(`${String(row)}-${String(col)}`) ?? null,
+      timeslotDuration: Temporal.Duration.from({ minutes: 30 }),
+      curTimezone: utc,
+      timeType: timeTypes.HOUR24,
+      isSpecificDates: true,
+    })
+    expect(joinTooltipSegments(specificDatesTooltip ?? [])).toBe(
+      "23:30 to 00:30 \u00b7 Sat, Jul 4, 2026 to Sun, Jul 5, 2026",
+    )
+
+    const weeklyTooltip = formatScheduledSpanTooltipContent({
+      scheduledEvent: { row: 0, col: 0, numRows: 2 },
+      getDateFromRowCol: (row, col) =>
+        slots.get(`${String(row)}-${String(col)}`) ?? null,
+      timeslotDuration: Temporal.Duration.from({ minutes: 30 }),
+      curTimezone: utc,
+      timeType: timeTypes.HOUR12,
+      isSpecificDates: false,
+    })
+    expect(joinTooltipSegments(weeklyTooltip ?? [])).toBe(
+      "11:30 PM to 12:30 AM \u00b7 Sat to Sun",
+    )
+  })
+
+  it("returns no scheduled span tooltip when a span boundary slot is missing", () => {
+    const tooltip = formatScheduledSpanTooltipContent({
+      scheduledEvent: { row: 0, col: 0, numRows: 2 },
+      getDateFromRowCol: (row) =>
+        row === 0 ? zdt("2026-07-04T14:30:00Z") : null,
+      timeslotDuration: Temporal.Duration.from({ minutes: 30 }),
+      curTimezone: {
+        value: "UTC",
+        offset: Temporal.Duration.from({ minutes: 0 }),
+        label: "UTC",
+        gmtString: "GMT+00:00",
+      },
+      timeType: timeTypes.HOUR24,
+      isSpecificDates: true,
+    })
+
+    expect(tooltip).toBeUndefined()
   })
 
   it("clips overlay fragments before visible grey rows that stay rendered", () => {
@@ -378,6 +467,7 @@ describe("scheduleOverlapRendering", () => {
         return null
       },
       state: states.HEATMAP,
+      schedulingGridPointerVisible: false,
       overlayAvailability: false,
       dragType: DRAG_TYPES.ADD,
       availabilityType: availabilityTypes.AVAILABLE,
@@ -444,6 +534,7 @@ describe("scheduleOverlapRendering", () => {
       getEnabledDateFromRowCol: (row) =>
         row === 0 ? activeSlot : row === 1 ? enabledInactiveSlot : null,
       state: states.HEATMAP,
+      schedulingGridPointerVisible: false,
       overlayAvailability: false,
       dragType: DRAG_TYPES.ADD,
       availabilityType: availabilityTypes.AVAILABLE,
@@ -503,6 +594,7 @@ describe("scheduleOverlapRendering", () => {
       firstSplitLength: 2,
       lastRow: 1,
       state: states.HEATMAP,
+      schedulingGridPointerVisible: false,
       overlayAvailability: false,
       dragType: DRAG_TYPES.ADD,
       availabilityType: availabilityTypes.AVAILABLE,
@@ -555,6 +647,7 @@ describe("scheduleOverlapRendering", () => {
       firstSplitLength: 2,
       lastRow: 1,
       state: states.HEATMAP,
+      schedulingGridPointerVisible: false,
       overlayAvailability: false,
       dragType: DRAG_TYPES.ADD,
       availabilityType: availabilityTypes.AVAILABLE,
@@ -608,6 +701,7 @@ describe("scheduleOverlapRendering", () => {
       firstSplitLength: 2,
       lastRow: 1,
       state: states.HEATMAP,
+      schedulingGridPointerVisible: false,
       overlayAvailability: false,
       dragType: DRAG_TYPES.ADD,
       availabilityType: availabilityTypes.AVAILABLE,
@@ -659,6 +753,7 @@ describe("scheduleOverlapRendering", () => {
       firstSplitLength: 36,
       lastRow: 35,
       state: states.HEATMAP,
+      schedulingGridPointerVisible: false,
       overlayAvailability: false,
       dragType: DRAG_TYPES.ADD,
       availabilityType: availabilityTypes.AVAILABLE,
@@ -710,6 +805,7 @@ describe("scheduleOverlapRendering", () => {
       firstSplitLength: 36,
       lastRow: 35,
       state: states.HEATMAP,
+      schedulingGridPointerVisible: false,
       overlayAvailability: false,
       dragType: DRAG_TYPES.ADD,
       availabilityType: availabilityTypes.AVAILABLE,
@@ -751,6 +847,7 @@ describe("scheduleOverlapRendering", () => {
       firstSplitLength: 36,
       lastRow: 35,
       state: states.HEATMAP,
+      schedulingGridPointerVisible: false,
       overlayAvailability: false,
       dragType: DRAG_TYPES.ADD,
       availabilityType: availabilityTypes.AVAILABLE,
@@ -805,6 +902,7 @@ describe("scheduleOverlapRendering", () => {
       firstSplitLength: 2,
       lastRow: 1,
       state: states.HEATMAP,
+      schedulingGridPointerVisible: false,
       overlayAvailability: false,
       dragType: DRAG_TYPES.ADD,
       availabilityType: availabilityTypes.AVAILABLE,
@@ -886,6 +984,7 @@ describe("scheduleOverlapRendering", () => {
       firstSplitLength: 1,
       lastRow: 0,
       state: states.HEATMAP,
+      schedulingGridPointerVisible: false,
       overlayAvailability: false,
       dragType: DRAG_TYPES.ADD,
       availabilityType: availabilityTypes.AVAILABLE,
@@ -945,6 +1044,7 @@ describe("scheduleOverlapRendering", () => {
       firstSplitLength: 1,
       lastRow: 0,
       state: states.HEATMAP,
+      schedulingGridPointerVisible: false,
       overlayAvailability: false,
       dragType: DRAG_TYPES.ADD,
       availabilityType: availabilityTypes.AVAILABLE,
@@ -1002,6 +1102,7 @@ describe("scheduleOverlapRendering", () => {
         firstSplitLength: 1,
         lastRow: 0,
         state: states.HEATMAP,
+        schedulingGridPointerVisible: false,
         overlayAvailability: false,
         dragType: DRAG_TYPES.ADD,
         availabilityType: availabilityTypes.AVAILABLE,
@@ -1069,6 +1170,7 @@ describe("scheduleOverlapRendering", () => {
       secondSplitTimes: [],
       getDateFromRowCol: () => slot,
       state: states.HEATMAP,
+      schedulingGridPointerVisible: false,
       overlayAvailability: false,
       dragType: DRAG_TYPES.ADD,
       availabilityType: availabilityTypes.AVAILABLE,
@@ -1129,6 +1231,7 @@ describe("scheduleOverlapRendering", () => {
       firstSplitLength: 1,
       lastRow: 0,
       state: states.SET_SPECIFIC_TIMES,
+      schedulingGridPointerVisible: false,
       overlayAvailability: false,
       dragType: DRAG_TYPES.ADD,
       availabilityType: availabilityTypes.AVAILABLE,
@@ -1188,6 +1291,7 @@ describe("scheduleOverlapRendering", () => {
       firstSplitLength: 1,
       lastRow: 0,
       state: states.SET_SPECIFIC_TIMES,
+      schedulingGridPointerVisible: false,
       overlayAvailability: false,
       dragType: DRAG_TYPES.ADD,
       availabilityType: availabilityTypes.AVAILABLE,
@@ -1235,6 +1339,7 @@ describe("scheduleOverlapRendering", () => {
       firstSplitLength: 1,
       lastRow: 0,
       state: states.HEATMAP,
+      schedulingGridPointerVisible: false,
       overlayAvailability: false,
       dragType: DRAG_TYPES.ADD,
       availabilityType: availabilityTypes.AVAILABLE,
@@ -1265,6 +1370,108 @@ describe("scheduleOverlapRendering", () => {
     expect(classStyle.style.backgroundImage).toBeUndefined()
   })
 
+  it("marks the timed-grid cursor for selected subset-availability responses", () => {
+    const slot = zdt("2026-01-01T09:00:00Z")
+
+    const classStyle = getTimeGridTimeslotClassStyle({
+      date: slot,
+      row: 0,
+      col: 0,
+      isFirstSplit: true,
+      isDisabled: false,
+      animateTimeslotAlways: false,
+      availabilityAnimEnabled: false,
+      timeslotHeight: 15,
+      timeHoursOffset: Temporal.Duration.from({ hours: 9 }),
+      splitStartHoursOffset: Temporal.Duration.from({ hours: 9 }),
+      timezoneOffset: Temporal.Duration.from({ minutes: 0 }),
+      curTimeslot: { row: 0, col: 0 },
+      editing: false,
+      isColConsecutive: () => true,
+      daysLength: 1,
+      firstSplitLength: 1,
+      lastRow: 0,
+      state: states.SUBSET_AVAILABILITY,
+      schedulingGridPointerVisible: false,
+      overlayAvailability: false,
+      dragType: DRAG_TYPES.ADD,
+      availabilityType: availabilityTypes.AVAILABLE,
+      availability: new ZdtSet(),
+      ifNeeded: new ZdtSet(),
+      tempTimes: new ZdtSet(),
+      responsesFormatted: new ZdtMap(),
+      parsedResponses: {},
+      curRespondent: "",
+      curRespondents: ["guest-1"],
+      curRespondentsSet: new Set(["guest-1"]),
+      respondents: [{ _id: "guest-1" }],
+      curRespondentsMax: 1,
+      max: 1,
+      defaultState: states.HEATMAP,
+      userHasResponded: false,
+      curGuestId: "",
+      authUserId: undefined,
+      inDragRange: () => false,
+    })
+
+    expect(classStyle.class).toContain("tw:relative")
+    expect(classStyle.class).toContain(
+      "schedule-overlap-time-grid__selected-timeslot",
+    )
+  })
+
+  it("shows the scheduling cursor only for the active hover pointer", () => {
+    const slot = zdt("2026-01-01T09:00:00Z")
+    const schedulingClassStyle = (schedulingGridPointerVisible: boolean) =>
+      getTimeGridTimeslotClassStyle({
+        date: slot,
+        row: 0,
+        col: 0,
+        isFirstSplit: true,
+        isDisabled: false,
+        animateTimeslotAlways: false,
+        availabilityAnimEnabled: false,
+        timeslotHeight: 15,
+        timeHoursOffset: Temporal.Duration.from({ hours: 9 }),
+        splitStartHoursOffset: Temporal.Duration.from({ hours: 9 }),
+        timezoneOffset: Temporal.Duration.from({ minutes: 0 }),
+        curTimeslot: { row: 0, col: 0 },
+        editing: false,
+        schedulingGridPointerVisible,
+        isColConsecutive: () => true,
+        daysLength: 1,
+        firstSplitLength: 1,
+        lastRow: 0,
+        state: states.SCHEDULE_EVENT,
+        overlayAvailability: false,
+        dragType: DRAG_TYPES.ADD,
+        availabilityType: availabilityTypes.AVAILABLE,
+        availability: new ZdtSet(),
+        ifNeeded: new ZdtSet(),
+        tempTimes: new ZdtSet(),
+        responsesFormatted: new ZdtMap(),
+        parsedResponses: {},
+        curRespondent: "",
+        curRespondents: ["guest-1"],
+        curRespondentsSet: new Set(["guest-1"]),
+        respondents: [{ _id: "guest-1" }],
+        curRespondentsMax: 1,
+        max: 1,
+        defaultState: states.HEATMAP,
+        userHasResponded: false,
+        curGuestId: "",
+        authUserId: undefined,
+        inDragRange: () => false,
+      })
+
+    expect(schedulingClassStyle(false).class).not.toContain(
+      "schedule-overlap-time-grid__selected-timeslot",
+    )
+    expect(schedulingClassStyle(true).class).toContain(
+      "schedule-overlap-time-grid__selected-timeslot",
+    )
+  })
+
   it("does not draw the selection border for disabled grey gap cells", () => {
     const classStyle = getTimeGridTimeslotClassStyle({
       date: null,
@@ -1285,6 +1492,7 @@ describe("scheduleOverlapRendering", () => {
       firstSplitLength: 1,
       lastRow: 0,
       state: states.HEATMAP,
+      schedulingGridPointerVisible: false,
       overlayAvailability: false,
       dragType: DRAG_TYPES.ADD,
       availabilityType: availabilityTypes.AVAILABLE,
@@ -1415,6 +1623,7 @@ describe("scheduleOverlapRendering", () => {
       firstSplitLength: 1,
       lastRow: 0,
       state: states.BEST_TIMES,
+      schedulingGridPointerVisible: false,
       overlayAvailability: false,
       dragType: DRAG_TYPES.ADD,
       availabilityType: availabilityTypes.AVAILABLE,
@@ -1474,6 +1683,7 @@ describe("scheduleOverlapRendering", () => {
       firstSplitLength: 1,
       lastRow: 0,
       state: states.BEST_TIMES,
+      schedulingGridPointerVisible: false,
       overlayAvailability: false,
       dragType: DRAG_TYPES.ADD,
       availabilityType: availabilityTypes.AVAILABLE,
@@ -1508,6 +1718,7 @@ describe("scheduleOverlapRendering", () => {
       secondSplitTimes: [],
       getDateFromRowCol: () => slot,
       state: states.BEST_TIMES,
+      schedulingGridPointerVisible: false,
       overlayAvailability: false,
       dragType: DRAG_TYPES.ADD,
       availabilityType: availabilityTypes.AVAILABLE,
@@ -1564,6 +1775,7 @@ describe("scheduleOverlapRendering", () => {
       firstSplitLength: 1,
       lastRow: 0,
       state: states.BEST_TIMES,
+      schedulingGridPointerVisible: false,
       overlayAvailability: false,
       dragType: DRAG_TYPES.ADD,
       availabilityType: availabilityTypes.AVAILABLE,
@@ -1613,6 +1825,7 @@ describe("scheduleOverlapRendering", () => {
       firstSplitLength: 1,
       lastRow: 0,
       state: states.BEST_TIMES,
+      schedulingGridPointerVisible: false,
       overlayAvailability: false,
       dragType: DRAG_TYPES.ADD,
       availabilityType: availabilityTypes.AVAILABLE,

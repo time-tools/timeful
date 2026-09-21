@@ -12,7 +12,7 @@ import {
   it,
   vi,
 } from "vitest"
-import { eventTypes, guestUserId } from "@/constants"
+import { eventTypes, guestUserId, timeTypes } from "@/constants"
 import { Temporal } from "temporal-polyfill"
 import EventView from "./Event.vue"
 import eventViewSource from "./Event.vue?raw"
@@ -72,6 +72,7 @@ interface EventTestState {
   isArchived?: boolean
   isSignUpForm?: boolean
   name: string
+  description?: string
   type: string
   daysOnly?: boolean
   hasResponded?: boolean
@@ -334,6 +335,13 @@ const ScheduleOverlapStub = {
       allowScheduleEvent: false,
       respondentSaveAllowed: true,
       unsavedChanges: false,
+      curTimezone: {
+        value: "UTC",
+        offset: Temporal.Duration.from({ minutes: 0 }),
+        label: "UTC",
+        gmtString: "GMT+00:00",
+      },
+      timeType: timeTypes.HOUR24,
       showBestTimes: true,
       hideIfNeeded: false,
       collapseDisabledTimes: true,
@@ -532,6 +540,19 @@ const ScheduleOverlapSchedulingDisabledStub = {
   },
 }
 
+const ScheduleOverlapPendingSelectionStub = {
+  ...ScheduleOverlapSchedulingStub,
+  data() {
+    return {
+      ...ScheduleOverlapSchedulingStub.data(),
+      pendingScheduledEvent: {
+        startDate: "2026-09-15T09:00:00Z",
+        endDate: "2026-09-15T10:00:00Z",
+      },
+    }
+  },
+}
+
 const ScheduleOverlapLegacyAndTokenGuestSelectionStub = {
   ...ScheduleOverlapStub,
   data() {
@@ -648,6 +669,65 @@ const iconTextStub = {
   template: "<i><slot /></i>",
 }
 
+function resetEventTestState() {
+  vi.clearAllMocks()
+  vi.useFakeTimers()
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) =>
+    window.setTimeout(() => {
+      callback(0)
+    }, 0),
+  )
+  authUserState.value = null
+  isPhoneState.value = false
+  curGuestIdState.value = ""
+  calendarAutofillEnabledState.value = true
+  routeState.value = { name: "event", query: {} }
+  loaderEventState.value = {
+    ...createDefaultEventState(),
+    type: eventTypes.SPECIFIC_DATES,
+  }
+}
+
+async function flushDeferredMount() {
+  await nextTick()
+  vi.runAllTimers()
+  await Promise.resolve()
+  vi.runAllTimers()
+  await nextTick()
+  await nextTick()
+}
+
+const scheduleGateStubs = {
+  ScheduleOverlap: ScheduleOverlapStub,
+  NewDialog: true,
+  GuestDialog: true,
+  SignUpForSlotDialog: true,
+  SignInNotSupportedDialog: true,
+  MarkAvailabilityDialog: true,
+  InvitationDialog: true,
+  HelpDialog: true,
+  EventDescription: true,
+  AccessDenied: true,
+  NotSignedIn: true,
+  RouterLink: true,
+  "v-chip": true,
+  "v-icon": true,
+  "v-card": true,
+  "v-card-title": true,
+  "v-card-text": true,
+  "v-card-actions": true,
+  "v-dialog": true,
+  "v-spacer": true,
+  "v-btn": buttonSemanticStub,
+}
+
+function mountScheduleGateEvent() {
+  return shallowMount(EventView, {
+    props: { eventId: "dEeaF" },
+    global: { stubs: scheduleGateStubs },
+  })
+}
+
 describe("Event primary availability button outline", () => {
   const eventViewStyleBlock =
     /<style>([\s\S]*?)<\/style>/.exec(eventViewSource)?.[1] ?? ""
@@ -741,10 +821,10 @@ describe("Event guest edit action", () => {
     expect(editEventMock).toHaveBeenCalledOnce()
   })
 
-  it("uses explicit desktop rows for metadata actions", () => {
+  it("uses an explicit desktop details column for metadata actions", () => {
     expect(eventViewSource).toContain('id="event-header-meta-row"')
     expect(eventViewSource).toContain(
-      "event-header-row tw:flex tw:flex-col tw:gap-2 tw:sm:flex-row tw:sm:items-center tw:sm:gap-4",
+      'class="tw:flex tw:flex-col tw:gap-2 tw:sm:min-h-10 tw:sm:flex-row tw:sm:items-center tw:sm:gap-4"',
     )
   })
 
@@ -1054,63 +1134,8 @@ describe("Event guest edit action", () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
-    vi.useFakeTimers()
-    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) =>
-      window.setTimeout(() => {
-        callback(0)
-      }, 0),
-    )
-    authUserState.value = null
-    isPhoneState.value = false
-    curGuestIdState.value = ""
-    calendarAutofillEnabledState.value = true
-    routeState.value = { name: "event", query: {} }
-    loaderEventState.value = {
-      ...createDefaultEventState(),
-      type: eventTypes.SPECIFIC_DATES,
-    }
+    resetEventTestState()
   })
-
-  async function flushDeferredMount() {
-    await nextTick()
-    vi.runAllTimers()
-    await Promise.resolve()
-    vi.runAllTimers()
-    await nextTick()
-    await nextTick()
-  }
-
-  const scheduleGateStubs = {
-    ScheduleOverlap: ScheduleOverlapStub,
-    NewDialog: true,
-    GuestDialog: true,
-    SignUpForSlotDialog: true,
-    SignInNotSupportedDialog: true,
-    MarkAvailabilityDialog: true,
-    InvitationDialog: true,
-    HelpDialog: true,
-    EventDescription: true,
-    AccessDenied: true,
-    NotSignedIn: true,
-    RouterLink: true,
-    "v-chip": true,
-    "v-icon": true,
-    "v-card": true,
-    "v-card-title": true,
-    "v-card-text": true,
-    "v-card-actions": true,
-    "v-dialog": true,
-    "v-spacer": true,
-    "v-btn": buttonSemanticStub,
-  }
-
-  function mountScheduleGateEvent() {
-    return shallowMount(EventView, {
-      props: { eventId: "dEeaF" },
-      global: { stubs: scheduleGateStubs },
-    })
-  }
 
   function mountAvailabilityHintEvent(
     extraStubs: Record<string, unknown> = {},
@@ -2089,7 +2114,7 @@ describe("Event guest edit action", () => {
     )
   })
 
-  it("keeps no-response desktop controls in their matching flex rows", async () => {
+  it("keeps no-response desktop controls in their matching detail and control stacks", async () => {
     loaderEventState.value = {
       ...loaderEventState.value,
       responses: {},
@@ -2138,9 +2163,14 @@ describe("Event guest edit action", () => {
     )
     expect(
       wrapper
-        .find("#event-header-meta-row #collapse-disabled-times-toggle")
+        .find("#event-header-controls-column #collapse-disabled-times-toggle")
         .exists(),
     ).toBe(true)
+    expect(
+      wrapper
+        .find("#event-header-details-column #collapse-disabled-times-toggle")
+        .exists(),
+    ).toBe(false)
     expect(
       wrapper
         .find("#event-header-actions #collapse-disabled-times-toggle")
@@ -3012,7 +3042,7 @@ describe("Event guest edit action", () => {
     const buttonRow = wrapper.get("#event-header-button-row")
     const copyLinkButton = wrapper.get("#copy-link-btn")
 
-    expect(metaRow.classes()).toContain("event-header-row")
+    expect(metaRow.classes()).toContain("tw:sm:min-h-10")
     expect(metaRow.text()).toContain("Copy link")
     expect(buttonRow.text()).toContain("Copy link")
     expect(copyLinkButton.attributes("data-variant")).toBe("outlined")
@@ -3440,7 +3470,12 @@ describe("Event guest edit action", () => {
     expect(copyLinkMock).toHaveBeenCalled()
   })
 
-  it("renders related desktop header controls in explicit detail/action rows", async () => {
+  it("renders desktop header details and controls as independent column stacks", async () => {
+    loaderEventState.value = {
+      ...loaderEventState.value,
+      description: "A saved description",
+    }
+
     const wrapper = shallowMount(EventView, {
       props: {
         eventId: "dEeaF",
@@ -3474,15 +3509,118 @@ describe("Event guest edit action", () => {
 
     await flushDeferredMount()
 
-    const rows = wrapper.findAll(".event-header-row")
+    const detailsColumn = wrapper.get("#event-header-details-column")
+    const controlsColumn = wrapper.get("#event-header-controls-column")
 
-    expect(rows).toHaveLength(3)
-    expect(rows[0].html()).toContain("desktop-primary-availability-btn")
-    expect(rows[1].html()).toContain("event-header-button-row")
-    expect(rows[1].html()).toContain("desktop-header-show-best-times")
-    expect(rows[1].html()).toContain("desktop-header-more-options")
-    expect(rows[2].html()).not.toContain("event-description-stub")
-    expect(rows[2].html()).toContain("Schedule event")
+    for (const column of [detailsColumn, controlsColumn]) {
+      expect(column.classes()).toContain("tw:contents")
+      expect(column.classes()).toContain("tw:sm:flex")
+      expect(column.classes()).toContain("tw:sm:flex-col")
+      expect(column.classes()).toContain("tw:sm:gap-3")
+    }
+
+    expect(detailsColumn.find("#event-header-title").exists()).toBe(true)
+    expect(detailsColumn.find("#event-header-meta-row").exists()).toBe(true)
+    expect(detailsColumn.find("#event-header-button-row").exists()).toBe(true)
+    expect(detailsColumn.find("#event-header-description-row").exists()).toBe(
+      true,
+    )
+    expect(detailsColumn.find("#event-description-stub").exists()).toBe(true)
+    expect(detailsColumn.find("#desktop-schedule-event-btn").exists()).toBe(
+      false,
+    )
+
+    expect(controlsColumn.find("#event-header-actions").exists()).toBe(true)
+    expect(
+      controlsColumn.find("#desktop-header-show-best-times").exists(),
+    ).toBe(true)
+    expect(controlsColumn.find("#desktop-header-more-options").exists()).toBe(
+      true,
+    )
+    expect(controlsColumn.find("#desktop-schedule-event-btn").exists()).toBe(
+      true,
+    )
+    expect(controlsColumn.find("#event-header-title").exists()).toBe(false)
+    expect(controlsColumn.find("#event-header-button-row").exists()).toBe(false)
+
+    const detailsGroups = Array.from(
+      detailsColumn.element.children,
+    ) as HTMLElement[]
+    expect(detailsGroups.map((group) => group.id)).toEqual([
+      "event-header-title",
+      "event-header-meta-row",
+      "event-header-description-row",
+    ])
+
+    const controlsGroups = Array.from(
+      controlsColumn.element.children,
+    ) as HTMLElement[]
+    expect(controlsGroups).toHaveLength(3)
+    expect(
+      controlsGroups[0].querySelector("#event-header-actions"),
+    ).not.toBeNull()
+    expect(
+      controlsGroups[1].querySelector("#desktop-header-show-best-times"),
+    ).not.toBeNull()
+    expect(
+      controlsGroups[2].querySelector("#desktop-schedule-event-btn"),
+    ).not.toBeNull()
+  })
+
+  it("keeps the phone header order with group actions above the metadata actions", async () => {
+    isPhoneState.value = true
+    routeState.value = { name: "group", query: {} }
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      type: eventTypes.GROUP,
+      description: "A saved description",
+    }
+
+    const wrapper = shallowMount(EventView, {
+      props: {
+        eventId: "dEeaF",
+      },
+      global: {
+        stubs: {
+          ScheduleOverlap: ScheduleOverlapStub,
+          NewDialog: true,
+          GuestDialog: true,
+          SignUpForSlotDialog: true,
+          SignInNotSupportedDialog: true,
+          MarkAvailabilityDialog: true,
+          InvitationDialog: true,
+          HelpDialog: true,
+          EventDescription: eventDescriptionStub,
+          AccessDenied: true,
+          NotSignedIn: true,
+          RouterLink: true,
+          "v-chip": true,
+          "v-icon": true,
+          "v-card": true,
+          "v-card-title": true,
+          "v-card-text": true,
+          "v-card-actions": true,
+          "v-dialog": true,
+          "v-spacer": true,
+          "v-btn": buttonSemanticStub,
+        },
+      },
+    })
+
+    await flushDeferredMount()
+
+    const detailsGroups = Array.from(
+      wrapper.get("#event-header-details-column").element.children,
+    ) as HTMLElement[]
+    expect(detailsGroups.map((group) => group.id)).toEqual([
+      "event-header-title",
+      "event-header-mobile-group-actions",
+      "event-header-meta-row",
+      "event-header-description-row",
+    ])
+    expect(
+      wrapper.get("#event-header-controls-column").element.children,
+    ).toHaveLength(0)
   })
 
   it("keeps copy link explicit on phones instead of switching to a share icon", async () => {
@@ -4124,6 +4262,9 @@ describe("Event guest edit action", () => {
     )
 
     expect(cancelButton?.attributes("data-variant")).toBe("outlined")
+    expect(cancelButton?.classes()).toContain("tw:text-red")
+    expect(cancelButton?.classes()).not.toContain("tw:border-blue")
+    expect(cancelButton?.classes()).not.toContain("tw:text-blue")
     expect(scheduleButton?.classes()).toContain("mobile-schedule-button")
     expect(scheduleButton?.attributes("data-variant")).toBe("flat")
     expect(scheduleButton?.classes()).toContain("tw:bg-white")
@@ -4362,7 +4503,13 @@ describe("Event guest edit action", () => {
 
     expect(clearIndex).toBe(cancelIndex + 1)
     expect(clearIndex).toBeLessThan(scheduleIndex)
+    expect(buttons[cancelIndex].classes()).toContain("tw:text-red")
+    expect(buttons[cancelIndex].classes()).not.toContain("tw:border-blue")
+    expect(buttons[cancelIndex].classes()).not.toContain("tw:text-blue")
     expect(buttons[clearIndex].classes()).toContain("tw:ml-2")
+    expect(buttons[clearIndex].classes()).toContain("tw:text-red")
+    expect(buttons[clearIndex].classes()).not.toContain("tw:border-blue")
+    expect(buttons[clearIndex].classes()).not.toContain("tw:text-blue")
     await buttons[clearIndex].trigger("click")
     expect(
       scheduleOverlapMethodMocks.clearScheduledEvent,
@@ -4867,5 +5014,125 @@ describe("Event guest edit action", () => {
       "message",
       expect.any(Function),
     )
+  })
+})
+
+describe("Event header occurrence span", () => {
+  beforeEach(() => {
+    resetEventTestState()
+  })
+
+  const scheduledSpanZdt = (iso: string) =>
+    Temporal.Instant.from(iso).toZonedDateTimeISO("UTC")
+
+  it("shows the saved Event Occurrence Span below the event title", async () => {
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      type: eventTypes.SPECIFIC_DATES,
+      daysOnly: false,
+      scheduledEvent: {
+        startDate: scheduledSpanZdt("2026-09-15T08:00:00Z"),
+        endDate: scheduledSpanZdt("2026-09-15T08:15:00Z"),
+      },
+    }
+
+    const wrapper = mountScheduleGateEvent()
+    await flushDeferredMount()
+
+    expect(wrapper.get("#event-header-scheduled-span").text()).toContain(
+      "Tue, Sep 15, 2026 \u00b7 08:00 \u2013 08:15",
+    )
+  })
+
+  it("hides the occurrence span when no Event Occurrence Span is saved", async () => {
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      type: eventTypes.SPECIFIC_DATES,
+      daysOnly: false,
+    }
+
+    const wrapper = mountScheduleGateEvent()
+    await flushDeferredMount()
+
+    expect(wrapper.find("#event-header-scheduled-span").exists()).toBe(false)
+  })
+
+  it("follows the Display Timezone and display time format for a saved span", async () => {
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      type: eventTypes.SPECIFIC_DATES,
+      daysOnly: false,
+      scheduledEvent: {
+        startDate: scheduledSpanZdt("2026-09-15T08:00:00Z"),
+        endDate: scheduledSpanZdt("2026-09-15T08:15:00Z"),
+      },
+    }
+
+    const wrapper = mountScheduleGateEvent()
+    await flushDeferredMount()
+
+    const overlapVm = wrapper.getComponent({ name: "ScheduleOverlap" })
+      .vm as unknown as {
+      curTimezone: unknown
+      timeType: string
+    }
+    overlapVm.curTimezone = {
+      value: "America/Los_Angeles",
+      offset: Temporal.Duration.from({ hours: -7 }),
+      label: "America/Los_Angeles",
+      gmtString: "GMT-7",
+    }
+    overlapVm.timeType = timeTypes.HOUR12
+    await nextTick()
+
+    expect(wrapper.get("#event-header-scheduled-span").text()).toContain(
+      "Tue, Sep 15, 2026 \u00b7 1:00 AM \u2013 1:15 AM",
+    )
+  })
+
+  it("keeps the saved occurrence span while a different pending selection is unsaved", async () => {
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      type: eventTypes.SPECIFIC_DATES,
+      daysOnly: false,
+      scheduledEvent: {
+        startDate: scheduledSpanZdt("2026-09-15T08:00:00Z"),
+        endDate: scheduledSpanZdt("2026-09-15T08:15:00Z"),
+      },
+    }
+
+    const wrapper = shallowMount(EventView, {
+      props: { eventId: "dEeaF" },
+      global: {
+        stubs: {
+          ...scheduleGateStubs,
+          ScheduleOverlap: ScheduleOverlapPendingSelectionStub,
+        },
+      },
+    })
+    await flushDeferredMount()
+
+    const spanText = wrapper.get("#event-header-scheduled-span").text()
+    expect(spanText).toContain("Tue, Sep 15, 2026 \u00b7 08:00 \u2013 08:15")
+    expect(spanText).not.toContain("09:00")
+  })
+
+  it("shows a Dates-Only Event Occurrence Span as a single date", async () => {
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      type: eventTypes.SPECIFIC_DATES,
+      daysOnly: true,
+      scheduledEvent: {
+        startDate: scheduledSpanZdt("2026-05-28T00:00:00Z"),
+        endDate: scheduledSpanZdt("2026-05-29T00:00:00Z"),
+      },
+    }
+
+    const wrapper = mountScheduleGateEvent()
+    await flushDeferredMount()
+
+    const spanText = wrapper.get("#event-header-scheduled-span").text()
+    expect(spanText).toContain("Thu, May 28, 2026")
+    expect(spanText).not.toContain("00:00")
   })
 })

@@ -8,9 +8,11 @@ import {
   buildSpecificDateSeed,
   buildUtcSpecificTimesRangeInstants,
   changeDisplayTimezone,
+  fetchEventByShortId,
   openEventPage,
   openSpecificTimesEditor,
   seedCanonicalTimedEvent,
+  sortIsoInstants,
 } from "../helpers/timed-event-helpers"
 
 test.describe.configure({ mode: "serial" })
@@ -23,7 +25,10 @@ test.describe.configure({ mode: "serial" })
 // UTC+7 the same seed converts to Jun 15 00:00 +07, so columns stayed correct
 // (jun 14, jun 15). FR-013: changing the Display Timezone updates each slot's
 // projected date and Projected Date Column, and a Time Slot renders no more
-// than once, including across midnight. FR-002: one Projected Date Column per
+// than once, including across midnight. The amended FR-013 also requires a
+// Display Timezone change to leave the Event Picked Dates, the Enabled Domain,
+// and Active Slots unchanged while sending no event write, which this test
+// asserts alongside the column labels. FR-002: one Projected Date Column per
 // distinct Civil Date in the Display Timezone.
 //
 // Column count at UTC+6 (verified against current app behavior and unit
@@ -99,6 +104,18 @@ test("event page renders unique projected civil date labels at UTC+6 and UTC+7",
     "Viewer TZ column duplication regression",
   )
   console.log(`Seeded event: /e/${shortId}`)
+
+  const putUrls: string[] = []
+  page.on("request", (pageRequest) => {
+    if (
+      pageRequest.method() === "PUT" &&
+      pageRequest.url().includes("/api/events/")
+    ) {
+      putUrls.push(pageRequest.url())
+    }
+  })
+
+  const before = await fetchEventByShortId(request, shortId)
   await openEventPage(page, shortId)
 
   await test.step("switch display timezone to UTC+6", async () => {
@@ -122,6 +139,18 @@ test("event page renders unique projected civil date labels at UTC+6 and UTC+7",
     const { dayColumns, dateLabels } = getHeaderParts(page)
     await expect(dayColumns).toHaveCount(2)
     await expect(dateLabels).toHaveText([/^jun 14$/i, /^jun 15$/i])
+  })
+
+  await test.step("leaves event data unchanged without event writes", async () => {
+    const after = await fetchEventByShortId(request, shortId)
+    expect(after.eventTimezone).toBe(before.eventTimezone)
+    expect(after.timedRecurrence?.selectedDays).toEqual(
+      before.timedRecurrence?.selectedDays,
+    )
+    expect(sortIsoInstants(after.activeSlots)).toEqual(
+      sortIsoInstants(before.activeSlots),
+    )
+    expect(putUrls).toEqual([])
   })
 })
 

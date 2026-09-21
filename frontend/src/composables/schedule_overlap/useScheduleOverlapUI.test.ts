@@ -242,11 +242,16 @@ describe("useScheduleOverlapUI hintText", () => {
   })
 
   it("points at the grid below while scheduling", () => {
-    const { ui, state } = createUi()
+    const { ui, isPhone, state } = createUi()
     state.value = states.SCHEDULE_EVENT
 
     expect(ui.hintText.value).toBe(
-      "Click and drag on the grid below to schedule a Google Calendar event during those times.",
+      "Click and drag on the grid below to schedule the event during those times.",
+    )
+
+    isPhone.value = true
+    expect(ui.hintText.value).toBe(
+      "Tap and drag on the grid below to schedule the event during those times.",
     )
   })
 
@@ -270,13 +275,31 @@ describe("useScheduleOverlapUI hintText", () => {
   })
 
   it("uses days while scheduling a dates-only event", () => {
-    const { ui, daysOnly, state } = createUi()
+    const { ui, daysOnly, isPhone, state } = createUi()
     daysOnly.value = true
     state.value = states.SCHEDULE_EVENT
 
     expect(ui.hintText.value).toBe(
-      "Click and drag on the grid below to schedule a Google Calendar event during those days.",
+      "Click and drag on the grid below to schedule the event during those days.",
     )
+
+    isPhone.value = true
+    expect(ui.hintText.value).toBe(
+      "Tap and drag on the grid below to schedule the event during those days.",
+    )
+  })
+
+  it("does not name a scheduling destination while scheduling", () => {
+    const { ui, daysOnly, state } = createUi()
+    state.value = states.SCHEDULE_EVENT
+
+    for (const destination of ["Google Calendar", "Outlook", "Timeful"]) {
+      expect(ui.hintText.value).not.toContain(destination)
+
+      daysOnly.value = true
+      expect(ui.hintText.value).not.toContain(destination)
+      daysOnly.value = false
+    }
   })
 
   it("does not produce a hint outside editing and scheduling", () => {

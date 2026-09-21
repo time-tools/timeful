@@ -145,6 +145,7 @@ interface UseScheduleOverlapViewModelsFlatOptions {
   dragStart: Ref<RowCol | null>
   curScheduledEvent: Ref<ScheduledEvent | null>
   savedScheduledEvent: ComputedRef<ScheduledEvent | null>
+  hasPendingScheduledEvent: Ref<boolean>
   scheduledEventStyle: Ref<Record<string, string>>
   scheduledEventStyles: ComputedRef<Record<string, string>[]>
   signUpBlockBeingDraggedStyle: Ref<Record<string, string>>
@@ -497,6 +498,7 @@ export function useScheduleOverlapViewModels(
     dragStart: opts.dragStart.value,
     curScheduledEvent: opts.curScheduledEvent.value,
     savedScheduledEvent: opts.savedScheduledEvent.value,
+    hasPendingScheduledEvent: opts.hasPendingScheduledEvent.value,
     scheduledEventStyle: opts.scheduledEventStyle.value,
     scheduledEventStyles: opts.scheduledEventStyles.value,
     signUpBlockBeingDraggedStyle: opts.signUpBlockBeingDraggedStyle.value,

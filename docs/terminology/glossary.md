@@ -630,10 +630,12 @@ Authoritative context: [FR-120](../requirements/functional/fr/FR-120.md).
 
 ### Grid Pointer
 
-The interactive highlight marking the grid cell currently under the pointer during [Availability Editing](#availability-editing) or scheduling.
+The interactive highlight marking the grid cell currently under the pointer.
+It renders during [Availability Editing](#availability-editing), and on the [Timed Grid](#timed-grid) during scheduling it renders only from non-pressing pointer interaction on a desktop viewport.
+During scheduling on the **Timed Grid**, a click, tap, drag, or release does not render or retain it, while the next non-pressing pointer movement renders it at the cell under the pointer.
 It is never rendered on collapsed-hours strips.
 
-Authoritative context: [FR-095](../requirements/functional/fr/FR-095.md).
+Authoritative context: [FR-095](../requirements/functional/fr/FR-095.md) and [FR-137](../requirements/functional/fr/FR-137.md).
 
 ### Padding Cell
 

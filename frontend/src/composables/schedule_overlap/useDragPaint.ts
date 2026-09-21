@@ -61,7 +61,7 @@ export interface UseDragPaintOptions {
   signUpBlocksByDay: Ref<SignUpBlockLite[][]>
   signUpBlocksToAddByDay: Ref<SignUpBlockLite[][]>
   manualAvailability: Ref<ZdtMap<ZdtSet>>
-  curScheduledEvent: Ref<ScheduledEvent | null>
+  setScheduledEventFromRowCol: (scheduledEvent: ScheduledEvent | null) => void
   maxSignUpBlockRowSize: ComputedRef<number | null>
 
   // helpers
@@ -534,7 +534,7 @@ export function useDragPaint(opts: UseDragPaintOptions) {
         }
       }
     } else if (opts.state.value === states.SCHEDULE_EVENT) {
-      opts.curScheduledEvent.value = getScheduledEventFromDragRange(ds, dc)
+      opts.setScheduledEventFromRowCol(getScheduledEventFromDragRange(ds, dc))
     } else if (opts.state.value === states.EDIT_SIGN_UP_BLOCKS) {
       const dayIndex = ds.col
       const hoursOffsetNum = ds.row / 4

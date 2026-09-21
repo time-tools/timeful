@@ -244,7 +244,7 @@
                             timedGrid.curScheduledEvent &&
                             timedGrid.curScheduledEvent.col === d) ||
                           (!timedGrid.dragStart &&
-                            !timedGrid.curScheduledEvent &&
+                            !timedGrid.hasPendingScheduledEvent &&
                             timedGrid.savedScheduledEvent?.col === d)
                         "
                       >

@@ -2,14 +2,15 @@ import type { Temporal } from "temporal-polyfill"
 import {
   availabilityTypes,
   durations,
-  timeTypes,
   type AvailabilityType,
   type TimeType,
 } from "@/constants"
 import {
   getDateInTimezone,
+  getTimeFormatOptions,
   lightOrDark,
   removeTransparencyFromHex,
+  specificDatesDateFormatOptions,
   zdtMapGet,
   zdtSetHas,
   type ZdtMap,
@@ -19,6 +20,7 @@ import type {
   ParsedResponses,
   RenderedTimeGridRow,
   ResponsesFormatted,
+  ScheduledEvent,
   ScheduleOverlapState,
   TimedCellState,
   TimeItem,
@@ -287,6 +289,7 @@ interface TimeGridTimeslotArgs extends TimeslotBaseArgs {
   timezoneOffset: Temporal.Duration
   curTimeslot: { row: number; col: number }
   editing: boolean
+  schedulingGridPointerVisible: boolean
   isColConsecutive: (col: number) => boolean
   daysLength: number
   firstSplitLength: number
@@ -318,6 +321,7 @@ export const getTimeGridTimeslotClassStyle = ({
   timezoneOffset,
   curTimeslot,
   editing,
+  schedulingGridPointerVisible,
   isColConsecutive,
   daysLength,
   respondents,
@@ -341,11 +345,17 @@ export const getTimeGridTimeslotClassStyle = ({
   const isRightDateBoundary =
     baseArgs.col === daysLength - 1 || !isColConsecutive(baseArgs.col + 1)
 
+  const gridPointerEligible =
+    state === states.SCHEDULE_EVENT
+      ? schedulingGridPointerVisible
+      : respondents.length > 0 ||
+        state === states.HEATMAP ||
+        state === states.BEST_TIMES ||
+        editing ||
+        state === states.SET_SPECIFIC_TIMES
+
   if (
-    (state === states.HEATMAP ||
-      state === states.BEST_TIMES ||
-      editing ||
-      state === states.SET_SPECIFIC_TIMES) &&
+    gridPointerEligible &&
     curTimeslot.row === baseArgs.row &&
     curTimeslot.col === baseArgs.col &&
     !isDisabled
@@ -892,6 +902,11 @@ export interface TooltipSegment {
 export const joinTooltipSegments = (segments: TooltipSegment[]): string =>
   segments.map((segment) => segment.text).join("")
 
+const getTooltipDateFormat = (
+  isSpecificDates: boolean,
+): Intl.DateTimeFormatOptions =>
+  isSpecificDates ? specificDatesDateFormatOptions : { weekday: "short" }
+
 export const formatTooltipContent = ({
   date,
   curTimezone,
@@ -907,15 +922,8 @@ export const formatTooltipContent = ({
 }): TooltipSegment[] => {
   const start = getDateInTimezone(date, curTimezone)
   const end = start.add(timeslotDuration)
-
-  const timeFormat: Intl.DateTimeFormatOptions =
-    timeType === timeTypes.HOUR12
-      ? { hour: "numeric", minute: "2-digit" }
-      : { hour: "2-digit", minute: "2-digit", hour12: false }
-
-  const dateFormat: Intl.DateTimeFormatOptions = isSpecificDates
-    ? { weekday: "short", month: "short", day: "numeric", year: "numeric" }
-    : { weekday: "short" }
+  const timeFormat = getTimeFormatOptions(timeType)
+  const dateFormat = getTooltipDateFormat(isSpecificDates)
 
   const startDateStr = start.toLocaleString("en-US", dateFormat)
   const startTimeStr = start.toLocaleString("en-US", timeFormat)
@@ -928,6 +936,56 @@ export const formatTooltipContent = ({
     { text: " \u00b7 ", mono: false },
     { text: startDateStr, mono: false },
   ]
+}
+
+export const formatScheduledSpanTooltipContent = ({
+  scheduledEvent,
+  getDateFromRowCol,
+  timeslotDuration,
+  curTimezone,
+  timeType,
+  isSpecificDates,
+}: {
+  scheduledEvent: ScheduledEvent
+  getDateFromRowCol: (row: number, col: number) => Temporal.ZonedDateTime | null
+  timeslotDuration: Temporal.Duration
+  curTimezone: Timezone
+  timeType: TimeType
+  isSpecificDates: boolean
+}): TooltipSegment[] | undefined => {
+  const firstSlot = getDateFromRowCol(scheduledEvent.row, scheduledEvent.col)
+  const lastSlot = getDateFromRowCol(
+    scheduledEvent.row + scheduledEvent.numRows - 1,
+    scheduledEvent.col,
+  )
+  if (!firstSlot || !lastSlot) return undefined
+
+  const start = getDateInTimezone(firstSlot, curTimezone)
+  const end = getDateInTimezone(lastSlot.add(timeslotDuration), curTimezone)
+  const timeFormat = getTimeFormatOptions(timeType)
+  const dateFormat = getTooltipDateFormat(isSpecificDates)
+
+  const startTimeStr = start.toLocaleString("en-US", timeFormat)
+  const endTimeStr = end.toLocaleString("en-US", timeFormat)
+  const startDateStr = start.toLocaleString("en-US", dateFormat)
+  const endDateStr = end.toLocaleString("en-US", dateFormat)
+
+  const segments: TooltipSegment[] = [
+    { text: startTimeStr, mono: true },
+    { text: " to ", mono: false },
+    { text: endTimeStr, mono: true },
+    { text: " \u00b7 ", mono: false },
+    { text: startDateStr, mono: false },
+  ]
+
+  if (endDateStr !== startDateStr) {
+    segments.push(
+      { text: " to ", mono: false },
+      { text: endDateStr, mono: false },
+    )
+  }
+
+  return segments
 }
 
 export const getTimeBlockStyle = ({

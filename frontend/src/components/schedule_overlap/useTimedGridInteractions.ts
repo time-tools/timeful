@@ -3,6 +3,7 @@ import {
   onBeforeUnmount,
   onMounted,
   ref,
+  watch,
   type ComputedRef,
   type Ref,
 } from "vue"
@@ -19,8 +20,10 @@ interface UseTimedGridInteractionsOptions {
   isPhone: ComputedRef<boolean>
   daysOnly: ComputedRef<boolean>
   interactable: ComputedRef<boolean>
+  isScheduling: ComputedRef<boolean>
   dragging: Ref<boolean>
   dragCur: Ref<RowCol | null>
+  curTimeslot: Ref<RowCol>
   timeslotSelected: Ref<boolean>
   tooltipContent: Ref<TooltipSegment[]>
   startDrag: (event: PointerEvent | MouseEvent) => void
@@ -44,12 +47,26 @@ export function useTimedGridInteractions(
   const selectedTooltipSlot = ref<RowCol | null>(null)
   const tooltipPosition = ref<TooltipPositionOverride | null>(null)
   const explicitMobileSelection = ref(false)
+  const schedulingPointerSuppressed = ref(false)
   const documentRef = opts.document ?? globalThis.document
   const visibleTooltipContent = computed(() =>
     !opts.isPhone.value || selectedTooltipSlot.value
       ? opts.tooltipContent.value
       : [],
   )
+  const schedulingGridPointerVisible = computed(
+    () =>
+      opts.isScheduling.value &&
+      !opts.daysOnly.value &&
+      opts.interactable.value &&
+      !opts.isPhone.value &&
+      !opts.dragging.value &&
+      !schedulingPointerSuppressed.value,
+  )
+
+  watch(opts.isScheduling, (isScheduling) => {
+    schedulingPointerSuppressed.value = isScheduling
+  })
 
   const setTooltipForRowCol = (row: number, col: number) => {
     const content = opts.getTooltipContent(row, col)
@@ -151,6 +168,9 @@ export function useTimedGridInteractions(
   }
 
   const startTimedGridDrag = (event: PointerEvent | MouseEvent) => {
+    if (opts.isScheduling.value && !opts.daysOnly.value) {
+      schedulingPointerSuppressed.value = true
+    }
     opts.startDrag(event)
     updateSelectedTooltipSlot(event)
     setTooltipPositionForDrag(event)
@@ -162,8 +182,35 @@ export function useTimedGridInteractions(
     }
   }
 
+  const rearmSchedulingGridPointer = (event: PointerEvent | MouseEvent) => {
+    if (
+      !opts.isScheduling.value ||
+      opts.daysOnly.value ||
+      opts.isPhone.value ||
+      !opts.interactable.value ||
+      opts.dragging.value ||
+      event.buttons !== 0
+    ) {
+      return
+    }
+
+    const slot = getTimedGridSlotFromEvent(event)
+    if (!slot) return
+    const isSelectableSlot = opts.isSelectableSlot ?? (() => true)
+    if (!isSelectableSlot(slot.row, slot.col)) return
+
+    if (
+      slot.row !== opts.curTimeslot.value.row ||
+      slot.col !== opts.curTimeslot.value.col
+    ) {
+      opts.showAvailability(slot.row, slot.col)
+    }
+    schedulingPointerSuppressed.value = false
+  }
+
   const moveTimedGridDrag = (event: PointerEvent | MouseEvent) => {
     opts.moveDrag(event)
+    rearmSchedulingGridPointer(event)
     updateSelectedTooltipSlot(event)
     setTooltipPositionForDrag(event)
     const tooltipSlot = opts.isPhone.value
@@ -175,6 +222,9 @@ export function useTimedGridInteractions(
   }
 
   const endTimedGridDrag = (event?: PointerEvent | MouseEvent) => {
+    if (opts.isScheduling.value && !opts.daysOnly.value) {
+      schedulingPointerSuppressed.value = true
+    }
     if (event) updateSelectedTooltipSlot(event)
     const tooltipSlot = opts.isPhone.value
       ? selectedTooltipSlot.value
@@ -313,6 +363,7 @@ export function useTimedGridInteractions(
 
   return {
     selectedTooltipSlot,
+    schedulingGridPointerVisible,
     tooltipPosition,
     visibleTooltipContent,
     getTimeslotVon,

@@ -181,7 +181,7 @@ export function useScheduleOverlapUI(opts: UseScheduleOverlapUIOptions) {
       return `${verb} on the grid below to add your "available" ${daysOrTimes} in green.`
     }
     if (state.value === states.SCHEDULE_EVENT) {
-      return `${verb} on the grid below to schedule a Google Calendar event during those ${daysOrTimes}.`
+      return `${verb} on the grid below to schedule the event during those ${daysOrTimes}.`
     }
     return ""
   })

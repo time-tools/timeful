@@ -5,7 +5,10 @@ import { describe, expect, it, vi } from "vitest"
 import { Temporal } from "temporal-polyfill"
 import { availabilityTypes, eventTypes, UTC } from "@/constants"
 import { ZdtMap, ZdtSet } from "@/utils"
-import { states } from "@/composables/schedule_overlap/types"
+import {
+  states,
+  type ScheduledEvent,
+} from "@/composables/schedule_overlap/types"
 import { useDragPaint } from "./useDragPaint"
 
 const zdt = (iso: string) => Temporal.Instant.from(iso).toZonedDateTimeISO(UTC)
@@ -25,7 +28,7 @@ function createScheduleEventDragPaint(activeRows = [0]) {
   const dragging = ref(false)
   const dragStart = ref<{ row: number; col: number } | null>(null)
   const dragCur = ref<{ row: number; col: number } | null>(null)
-  const curScheduledEvent = ref(null)
+  const curScheduledEvent = ref<ScheduledEvent | null>(null)
 
   return {
     dragPaint: useDragPaint({
@@ -60,7 +63,9 @@ function createScheduleEventDragPaint(activeRows = [0]) {
       signUpBlocksByDay: ref([[]]),
       signUpBlocksToAddByDay: ref([[]]),
       manualAvailability: shallowRef(new ZdtMap<ZdtSet>()),
-      curScheduledEvent,
+      setScheduledEventFromRowCol: (scheduledEvent) => {
+        curScheduledEvent.value = scheduledEvent
+      },
       maxSignUpBlockRowSize: computed(() => null),
       allowDrag: computed(() => true),
       getDateFromRowCol: (row, col) =>
@@ -128,7 +133,7 @@ function createAvailabilityDragPaint() {
       signUpBlocksByDay: ref([[]]),
       signUpBlocksToAddByDay: ref([[]]),
       manualAvailability: shallowRef(new ZdtMap<ZdtSet>()),
-      curScheduledEvent: ref(null),
+      setScheduledEventFromRowCol: vi.fn(),
       maxSignUpBlockRowSize: computed(() => null),
       allowDrag: computed(() => true),
       getDateFromRowCol: (row, col) =>
@@ -207,7 +212,7 @@ function createSpecificTimesDragPaint() {
       signUpBlocksByDay: ref([[], []]),
       signUpBlocksToAddByDay: ref([[], []]),
       manualAvailability: shallowRef(new ZdtMap<ZdtSet>()),
-      curScheduledEvent: ref(null),
+      setScheduledEventFromRowCol: vi.fn(),
       maxSignUpBlockRowSize: computed(() => null),
       allowDrag: computed(() => true),
       getDateFromRowCol: (row, col) =>

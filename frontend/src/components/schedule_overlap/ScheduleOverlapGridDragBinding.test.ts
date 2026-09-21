@@ -107,6 +107,7 @@ function createTimeGridViewModel() {
     maxDaysPerPage: 1,
     dragStart: null,
     curScheduledEvent: null,
+    hasPendingScheduledEvent: false,
     scheduledEventStyle: {},
     scheduledEventStyles: [],
     signUpBlockBeingDraggedStyle: {},

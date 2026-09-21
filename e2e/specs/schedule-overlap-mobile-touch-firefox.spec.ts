@@ -5,6 +5,7 @@ import {
   openEventPage,
   rowIndexForTime,
   seedCanonicalTimedEvent,
+  waitForScheduleOverlapMounted,
 } from "../helpers/timed-event-helpers"
 import { Temporal } from "temporal-polyfill"
 
@@ -620,4 +621,347 @@ test("phone respondent selection sits after the name and keeps the status visibl
   expect(
     Math.abs(nameAfterSelection.y - nameBeforeSelection.y),
   ).toBeLessThanOrEqual(1)
+})
+
+test("phone respondent checkbox clears its green outline after a tap unchecks it", async ({
+  page,
+  request,
+}) => {
+  const now = Temporal.Now.instant()
+  const today = now.toZonedDateTimeISO("UTC").toPlainDate().toString()
+  const slot = `${today}T09:00:00.000Z`
+  const timeIncrementMinutes = 60
+  const guestName = "Guest One"
+
+  const seed = await seedCanonicalTimedEvent(
+    request,
+    buildSpecificDateSeed({
+      name: `Phone checkbox hover ${String(now.epochMilliseconds)}`,
+      selectedDays: [today],
+      activeSlots: [slot, `${today}T10:00:00.000Z`],
+      eventTimezone: "UTC",
+      startTimeLocal: "09:00",
+      endTimeLocal: "17:00",
+      timeIncrementMinutes,
+    }),
+  )
+
+  const guestResponse = await request.post(
+    `/api/events/${seed.eventId}/response`,
+    {
+      data: {
+        guest: true,
+        createResponse: true,
+        name: guestName,
+        email: "",
+        availability: [slot],
+        ifNeeded: [],
+      },
+    },
+  )
+  expect(guestResponse.ok()).toBeTruthy()
+
+  await openEventPage(page, seed.shortId)
+
+  const firstSlotRowIndex = rowIndexForTime(9, 0, timeIncrementMinutes)
+  const selectedSlot = page.locator(
+    `#drag-section .timeslot[data-row="${String(firstSlotRowIndex)}"][data-col="0"]`,
+  )
+  await selectedSlot.scrollIntoViewIfNeeded()
+  await selectedSlot.dispatchEvent("click")
+
+  const row = page
+    .locator(".respondent-row")
+    .filter({ hasText: guestName })
+    .first()
+  const control = row.locator(".respondent-control")
+  const checkbox = row.locator(".respondent-control__checkbox")
+  const name = row.locator(".respondent-name-line")
+
+  await expect(row).toBeVisible()
+  await expect(control).toHaveAttribute("aria-pressed", "false")
+  await expect(checkbox).toHaveCSS("border-top-color", "rgb(189, 189, 189)")
+
+  await checkbox.tap()
+  await expect(control).toHaveAttribute("aria-pressed", "true")
+  await expect(checkbox.locator("svg")).toBeVisible()
+  await expect(checkbox).toHaveCSS("border-top-color", "rgb(0, 153, 76)")
+
+  await checkbox.tap()
+  await expect(control).toHaveAttribute("aria-pressed", "false")
+  await expect(checkbox.locator("svg")).toHaveCount(0)
+  await expect(checkbox).toHaveCSS("border-top-color", "rgb(189, 189, 189)")
+
+  await name.hover()
+  await expect(checkbox.locator("svg")).toHaveCount(0)
+  await expect(checkbox).toHaveCSS("border-top-color", "rgb(0, 153, 76)")
+
+  await row.locator(".respondent-edit-status").hover()
+  await expect(checkbox).toHaveCSS("border-top-color", "rgb(189, 189, 189)")
+
+  await page.mouse.move(0, 0)
+  await checkbox.tap()
+  await expect(control).toHaveAttribute("aria-pressed", "true")
+  await expect(checkbox.locator("svg")).toBeVisible()
+  await expect(checkbox).toHaveCSS("border-top-color", "rgb(0, 153, 76)")
+
+  await page.mouse.move(0, 0)
+  await expect(checkbox.locator("svg")).toBeVisible()
+  await expect(checkbox).toHaveCSS("border-top-color", "rgb(0, 153, 76)")
+})
+
+test("phone respondent selection restores the timed-grid cursor after a tap", async ({
+  page,
+  request,
+}) => {
+  const now = Temporal.Now.instant()
+  const today = now.toZonedDateTimeISO("UTC").toPlainDate().toString()
+  const slot = `${today}T09:00:00.000Z`
+  const timeIncrementMinutes = 60
+  const guestName = "Guest One"
+
+  const seed = await seedCanonicalTimedEvent(
+    request,
+    buildSpecificDateSeed({
+      name: `Mobile respondent cursor ${String(now.epochMilliseconds)}`,
+      selectedDays: [today],
+      activeSlots: [slot, `${today}T10:00:00.000Z`],
+      eventTimezone: "UTC",
+      startTimeLocal: "09:00",
+      endTimeLocal: "17:00",
+      timeIncrementMinutes,
+    }),
+  )
+
+  const guestResponse = await request.post(
+    `/api/events/${seed.eventId}/response`,
+    {
+      data: {
+        guest: true,
+        createResponse: true,
+        name: guestName,
+        email: "",
+        availability: [slot],
+        ifNeeded: [],
+      },
+    },
+  )
+  expect(guestResponse.ok()).toBeTruthy()
+
+  await openEventPage(page, seed.shortId)
+
+  const tapSlot = async (rowIndex: number) => {
+    const cell = page.locator(
+      `#drag-section .timeslot[data-row="${String(rowIndex)}"][data-col="0"]`,
+    )
+    await cell.scrollIntoViewIfNeeded()
+    await cell.evaluate((element) => {
+      element.scrollIntoView({ block: "center" })
+    })
+    const box = await cell.boundingBox()
+    expect(box).not.toBeNull()
+    if (!box) {
+      throw new Error("Expected the grid cell to have a bounding box")
+    }
+    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2)
+    return cell
+  }
+
+  // Grid rows are indexed from midnight, so the first active slot at 09:00
+  // with a 60-minute increment sits at base row index 9.
+  await tapSlot(rowIndexForTime(9, 0, timeIncrementMinutes))
+
+  const row = page
+    .locator(".respondent-row")
+    .filter({ hasText: guestName })
+    .first()
+  await expect(row).toBeVisible()
+  const control = row.locator(".respondent-control")
+  const checkbox = row.locator(".respondent-control__checkbox")
+  await checkbox.tap()
+  await expect(control).toHaveAttribute("aria-pressed", "true")
+
+  const secondSlot = await tapSlot(rowIndexForTime(10, 0, timeIncrementMinutes))
+
+  await expect(secondSlot).toHaveClass(
+    /schedule-overlap-time-grid__selected-timeslot/,
+  )
+  await expect
+    .poll(() =>
+      secondSlot.evaluate(
+        (element) => window.getComputedStyle(element, "::after").boxShadow,
+      ),
+    )
+    .not.toBe("none")
+
+  // Tapping outside the grid clears the response selection and the cursor.
+  const header = page.getByTestId("app-header")
+  const headerBox = await header.boundingBox()
+  expect(headerBox).not.toBeNull()
+  if (!headerBox) {
+    throw new Error("Expected the app header to have a bounding box")
+  }
+  await page.touchscreen.tap(
+    headerBox.x + headerBox.width / 2,
+    headerBox.y + headerBox.height / 2,
+  )
+
+  await expect(control).toHaveAttribute("aria-pressed", "false")
+  await expect(secondSlot).not.toHaveClass(
+    /schedule-overlap-time-grid__selected-timeslot/,
+  )
+})
+
+test("mobile scheduling Cancel and Clear use the desktop red destructive treatment", async ({
+  page,
+}) => {
+  const seeded = await seedCanonicalTimedEvent(
+    page.request,
+    buildSpecificDateSeed({
+      name: "Mobile scheduling destructive colors regression",
+      selectedDays: ["2026-05-28"],
+      activeSlots: [
+        "2026-05-28T00:00:00Z",
+        "2026-05-28T01:00:00Z",
+        "2026-05-28T02:00:00Z",
+      ],
+      eventTimezone: "UTC",
+      startTimeLocal: "00:00",
+      endTimeLocal: "03:00",
+      timeIncrementMinutes: 60,
+    }),
+  )
+
+  const scheduleResponse = await page.request.put(
+    `/api/events/${seeded.eventId}/schedule`,
+    {
+      data: {
+        startDate: "2026-05-28T00:00:00Z",
+        endDate: "2026-05-28T01:00:00Z",
+      },
+    },
+  )
+  expect(scheduleResponse.ok()).toBeTruthy()
+
+  await openEventPage(page, seeded.shortId)
+  await waitForScheduleOverlapMounted(page)
+  await page.getByRole("button", { name: "Reschedule", exact: true }).click()
+
+  const actionBar = page.locator(".mobile-event-action-bar")
+  const cancelButton = actionBar.getByRole("button", {
+    name: "Cancel",
+    exact: true,
+  })
+  const clearButton = actionBar.getByRole("button", {
+    name: "Clear",
+    exact: true,
+  })
+  await expect(cancelButton).toBeVisible()
+  await expect(clearButton).toBeVisible()
+
+  const destructiveRed = "rgb(219, 22, 22)"
+  await expect(cancelButton).toHaveCSS("color", destructiveRed)
+  await expect(cancelButton).toHaveCSS("border-top-color", destructiveRed)
+  await expect(clearButton).toHaveCSS("color", destructiveRed)
+  await expect(clearButton).toHaveCSS("border-top-color", destructiveRed)
+})
+
+test("phone scheduling never shows the timed-grid cursor", async ({ page }) => {
+  const now = Temporal.Now.instant()
+  const today = now.toZonedDateTimeISO("UTC").toPlainDate().toString()
+  const timeIncrementMinutes = 60
+  const slotAtHour = (hour: number) =>
+    `${today}T${String(hour).padStart(2, "0")}:00:00.000Z`
+
+  const seeded = await seedCanonicalTimedEvent(
+    page.request,
+    buildSpecificDateSeed({
+      name: `Mobile scheduling cursor ${String(now.epochMilliseconds)}`,
+      selectedDays: [today],
+      activeSlots: [
+        slotAtHour(9),
+        slotAtHour(10),
+        slotAtHour(11),
+        slotAtHour(12),
+      ],
+      eventTimezone: "UTC",
+      startTimeLocal: "09:00",
+      endTimeLocal: "17:00",
+      timeIncrementMinutes,
+    }),
+  )
+
+  const scheduleResponse = await page.request.put(
+    `/api/events/${seeded.eventId}/schedule`,
+    { data: { startDate: slotAtHour(9), endDate: slotAtHour(10) } },
+  )
+  expect(scheduleResponse.ok()).toBeTruthy()
+
+  const guestResponse = await page.request.post(
+    `/api/events/${seeded.eventId}/response`,
+    {
+      data: {
+        guest: true,
+        createResponse: true,
+        name: "Guest One",
+        email: "",
+        availability: [slotAtHour(9)],
+        ifNeeded: [],
+      },
+    },
+  )
+  expect(guestResponse.ok()).toBeTruthy()
+
+  await openEventPage(page, seeded.shortId)
+  await waitForScheduleOverlapMounted(page)
+  await page.getByRole("button", { name: "Reschedule", exact: true }).click()
+
+  const cursor = page.locator(".schedule-overlap-time-grid__selected-timeslot")
+  const cellAt = (row: number) =>
+    page.locator(
+      `#drag-section .timeslot[data-row="${String(row)}"][data-col="0"]`,
+    )
+  const scrollToCenter = async (cell: ReturnType<typeof cellAt>) => {
+    await cell.scrollIntoViewIfNeeded()
+    await cell.evaluate((element) => {
+      element.scrollIntoView({ block: "center", behavior: "instant" })
+    })
+  }
+  const centerOf = async (cell: ReturnType<typeof cellAt>) => {
+    const box = await cell.boundingBox()
+    expect(box).not.toBeNull()
+    if (!box) throw new Error("Expected the grid cell to have a bounding box")
+    return {
+      x: box.x + box.width / 2,
+      y: box.y + box.height / 2,
+    }
+  }
+
+  await test.step("a tap does not render the cursor", async () => {
+    const tappedCell = cellAt(rowIndexForTime(9, 0, timeIncrementMinutes))
+    await scrollToCenter(tappedCell)
+    const tapPoint = await centerOf(tappedCell)
+    await page.touchscreen.tap(tapPoint.x, tapPoint.y)
+
+    await expect(cursor).toHaveCount(0)
+  })
+
+  await test.step("a following drag does not render the cursor and still schedules", async () => {
+    const dragStartCell = cellAt(rowIndexForTime(10, 0, timeIncrementMinutes))
+    await scrollToCenter(dragStartCell)
+    const dragStartPoint = await centerOf(dragStartCell)
+    const dragEndPoint = await centerOf(
+      cellAt(rowIndexForTime(11, 0, timeIncrementMinutes)),
+    )
+    await page.mouse.move(dragStartPoint.x, dragStartPoint.y)
+    await page.mouse.down()
+    await page.mouse.move(dragEndPoint.x, dragEndPoint.y, { steps: 20 })
+    await page.mouse.up()
+
+    await expect(cursor).toHaveCount(0)
+    await expect(page.locator(".scheduled-event-block").first()).toBeVisible()
+    await expect(
+      page.locator(".tw\\:fixed.timeful-tooltip-layer"),
+    ).toContainText(/(10:00 to 12:00|10:00 AM to 12:00 PM)/)
+  })
 })

@@ -400,7 +400,7 @@ describe("schedule-overlap Temporal regressions", () => {
       curTimezoneValue: getFixedOffsetTimeZoneId(scheduleTimezoneOffset),
       curTimezoneOffset: scheduleTimezoneOffset,
     })
-    googleScheduling.curScheduledEvent.value = { row: 0, col: 0, numRows: 1 }
+    googleScheduling.setScheduledEventFromRowCol({ row: 0, col: 0, numRows: 1 })
     void googleScheduling.confirmScheduleEvent(true)
 
     const googleUrl = openMock.mock.calls[0]?.[0]
@@ -412,7 +412,11 @@ describe("schedule-overlap Temporal regressions", () => {
       curTimezoneValue: getFixedOffsetTimeZoneId(scheduleTimezoneOffset),
       curTimezoneOffset: scheduleTimezoneOffset,
     })
-    outlookScheduling.curScheduledEvent.value = { row: 0, col: 0, numRows: 1 }
+    outlookScheduling.setScheduledEventFromRowCol({
+      row: 0,
+      col: 0,
+      numRows: 1,
+    })
     void outlookScheduling.confirmScheduleEvent(false)
 
     const outlookUrl = openMock.mock.calls[1]?.[0]
@@ -440,7 +444,7 @@ describe("schedule-overlap Temporal regressions", () => {
       timeSeed: zdt("2026-01-05T09:00:00Z"),
       weekOffset: 1,
     })
-    scheduling.curScheduledEvent.value = { row: 0, col: 0, numRows: 1 }
+    scheduling.setScheduledEventFromRowCol({ row: 0, col: 0, numRows: 1 })
 
     void scheduling.confirmScheduleEvent(true)
 
@@ -588,7 +592,9 @@ describe("schedule-overlap Temporal regressions", () => {
       signUpBlocksByDay: ref([[]]),
       signUpBlocksToAddByDay: ref([[]]),
       manualAvailability: shallowRef(new ZdtMap<ZdtSet>()),
-      curScheduledEvent,
+      setScheduledEventFromRowCol: (scheduledEvent) => {
+        curScheduledEvent.value = scheduledEvent
+      },
       maxSignUpBlockRowSize: computed(() => null),
       allowDrag: computed(() => true),
       getDateFromRowCol: () => null,

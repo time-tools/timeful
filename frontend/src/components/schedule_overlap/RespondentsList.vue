@@ -134,6 +134,9 @@
                 :key="user._id"
                 class="respondent-row tw:group tw:relative tw:flex tw:cursor-pointer tw:items-center tw:py-1 tw:text-sm tw:leading-5"
                 :class="{
+                  'respondent-row--phone': isPhone,
+                  'respondent-row--hovered':
+                    isPhone && phoneHoveredRespondentId === user._id,
                   'respondent-row--selected': respondentSelected(
                     user._id ?? '',
                   ),
@@ -161,6 +164,9 @@
                       (e: MouseEvent) =>
                         $emit('clickRespondent', e, user._id ?? '')
                     "
+                    @pointerenter="startPhoneHover(user._id ?? '')"
+                    @pointerleave="endPhoneHover(user._id ?? '')"
+                    @pointercancel="endPhoneHover(user._id ?? '')"
                   >
                     <span
                       class="respondent-control__avatar tw:flex tw:h-5 tw:w-5 tw:shrink-0 tw:items-center tw:justify-center"
@@ -196,6 +202,9 @@
                     <div
                       class="respondent-name-line tw:mr-1 tw:min-w-0 tw:text-sm tw:leading-5 tw:transition-all"
                       :class="respondentClass(user._id ?? '')"
+                      @pointerenter="startPhoneHover(user._id ?? '')"
+                      @pointerleave="endPhoneHover(user._id ?? '')"
+                      @pointercancel="endPhoneHover(user._id ?? '')"
                     >
                       {{ formatRespondentName(user) }}
                     </div>
@@ -211,6 +220,9 @@
                           (e: MouseEvent) =>
                             $emit('clickRespondent', e, user._id ?? '')
                         "
+                        @pointerenter="startPhoneHover(user._id ?? '')"
+                        @pointerleave="endPhoneHover(user._id ?? '')"
+                        @pointercancel="endPhoneHover(user._id ?? '')"
                       >
                         <v-icon
                           v-if="respondentSelected(user._id ?? '')"
@@ -390,7 +402,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from "vue"
+import { computed, nextTick, onMounted, ref, watch } from "vue"
 import { storeToRefs } from "pinia"
 import { useMainStore } from "@/stores/main"
 import { useDisplayHelpers } from "@/utils/useDisplayHelpers"
@@ -495,6 +507,23 @@ function isEmailCopied(user: User) {
 }
 
 const { isPhone } = useDisplayHelpers()
+
+const phoneHoveredRespondentId = ref("")
+
+function startPhoneHover(userId: string) {
+  if (!isPhone.value) return
+  phoneHoveredRespondentId.value = userId
+}
+
+function endPhoneHover(userId: string) {
+  if (phoneHoveredRespondentId.value === userId) {
+    phoneHoveredRespondentId.value = ""
+  }
+}
+
+watch(isPhone, (phone) => {
+  if (!phone) phoneHoveredRespondentId.value = ""
+})
 
 const respondentsScrollView = ref<HTMLElement | null>(null)
 const hasMounted = ref(false)
@@ -664,7 +693,8 @@ async function copyEmailToClipboard(user: User) {
   opacity: 1;
 }
 
-.respondent-row:hover .respondent-control__checkbox,
+.respondent-row:not(.respondent-row--phone):hover .respondent-control__checkbox,
+.respondent-row--phone.respondent-row--hovered .respondent-control__checkbox,
 .respondent-row--selected .respondent-control__checkbox {
   border-color: var(--timeful-primary-action-bg);
 }

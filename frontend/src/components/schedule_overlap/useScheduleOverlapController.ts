@@ -51,7 +51,7 @@ export interface UseScheduleOverlapControllerOptions {
   calendarEventsByDay: ComputedRef<CalendarEventsByDay>
   bufferTime: Ref<CalendarOptions["bufferTime"]>
   workingHours: Ref<CalendarOptions["workingHours"]>
-  curScheduledEvent: Ref<ScheduledEvent | null>
+  setScheduledEventFromRowCol: (scheduledEvent: ScheduledEvent | null) => void
   delayedShowStickyRespondents: Ref<boolean>
   delayedShowStickyRespondentsTimeout: Ref<ReturnType<typeof setTimeout> | null>
   showStickyRespondents: ComputedRef<boolean>
@@ -240,7 +240,7 @@ export function useScheduleOverlapController(
     })
 
     if (prevState === states.SCHEDULE_EVENT) {
-      opts.curScheduledEvent.value = null
+      opts.setScheduledEventFromRowCol(null)
     } else if (prevState === states.EDIT_AVAILABILITY) {
       opts.unsavedChanges.value = false
     }
@@ -336,9 +336,6 @@ export function useScheduleOverlapController(
 
   onMounted(() => {
     const scheduledEventFromUrl = consumeScheduledEventFromUrl()
-    if (scheduledEventFromUrl) {
-      opts.curScheduledEvent.value = scheduledEventFromUrl
-    }
 
     opts.state.value = getInitialState({
       event: opts.event.value,
@@ -347,6 +344,12 @@ export function useScheduleOverlapController(
       scheduledEventFromUrl,
       showBestTimes: opts.showBestTimes.value,
     })
+
+    // Convert the URL coordinates after the scheduling state is active so
+    // getDateFromRowCol uses the scheduling-state grid domain.
+    if (scheduledEventFromUrl) {
+      opts.setScheduledEventFromRowCol(scheduledEventFromUrl)
+    }
 
     applyCalendarOptions({
       event: opts.event.value,

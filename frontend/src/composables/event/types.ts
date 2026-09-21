@@ -4,6 +4,7 @@ import type {
 } from "@/composables/schedule_overlap/types"
 import type { StoredGuestOwnership } from "@/composables/schedule_overlap/scheduleOverlapStorage"
 import type { Temporal } from "temporal-polyfill"
+import type { TimeType } from "@/constants"
 
 export interface ScheduleOverlapInstance {
   editing: boolean
@@ -12,6 +13,7 @@ export interface ScheduleOverlapInstance {
   respondentSaveAllowed: boolean
   unsavedChanges: boolean
   curTimezone: Timezone
+  timeType: TimeType
   selectedGuestRespondent: string | undefined
   ownedGuestResponses: StoredGuestOwnership[]
   pageHasChanged: boolean

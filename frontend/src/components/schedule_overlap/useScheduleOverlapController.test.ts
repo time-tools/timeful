@@ -66,7 +66,10 @@ const mountControllerHarness = (options: ControllerHarnessOptions = {}) => {
   const calendarEventsByDay = computed(() => [])
   const bufferTime = ref({ enabled: false, time: 15 })
   const workingHours = ref({ enabled: false, startTime: 9, endTime: 17 })
-  const curScheduledEvent = ref<ScheduledEvent | null>(null)
+  const scheduledEventCallStates: ScheduleOverlapState[] = []
+  const setScheduledEventFromRowCol = vi.fn(() => {
+    scheduledEventCallStates.push(state.value)
+  })
   const delayedShowStickyRespondents = ref(false)
   const delayedShowStickyRespondentsTimeout = ref<ReturnType<
     typeof setTimeout
@@ -122,7 +125,7 @@ const mountControllerHarness = (options: ControllerHarnessOptions = {}) => {
         calendarEventsByDay,
         bufferTime,
         workingHours,
-        curScheduledEvent,
+        setScheduledEventFromRowCol,
         delayedShowStickyRespondents,
         delayedShowStickyRespondentsTimeout,
         showStickyRespondents: computed(() => showStickyRespondents.value),
@@ -147,7 +150,8 @@ const mountControllerHarness = (options: ControllerHarnessOptions = {}) => {
         fromEditEvent,
         fromCreateSpecificTimesDraft,
         tempTimes,
-        curScheduledEvent,
+        setScheduledEventFromRowCol,
+        scheduledEventCallStates,
         curTimeslotAvailability,
         curTimeslotInactive,
         respondents,
@@ -171,7 +175,8 @@ const mountControllerHarness = (options: ControllerHarnessOptions = {}) => {
     fromEditEvent,
     fromCreateSpecificTimesDraft,
     tempTimes,
-    curScheduledEvent,
+    setScheduledEventFromRowCol,
+    scheduledEventCallStates,
     curTimeslotAvailability,
     curTimeslotInactive,
     respondents,
@@ -208,11 +213,17 @@ describe("useScheduleOverlapController", () => {
       `http://localhost:3000/?scheduled_event=${scheduledEventParam}`,
     )
 
-    const { wrapper, state, curScheduledEvent, spies } =
-      mountControllerHarness()
+    const {
+      wrapper,
+      state,
+      setScheduledEventFromRowCol,
+      scheduledEventCallStates,
+      spies,
+    } = mountControllerHarness()
 
     expect(state.value).toBe(states.SCHEDULE_EVENT)
-    expect(curScheduledEvent.value).toEqual(scheduledEvent)
+    expect(scheduledEventCallStates).toEqual([states.SCHEDULE_EVENT])
+    expect(setScheduledEventFromRowCol).toHaveBeenCalledWith(scheduledEvent)
     expect(window.location.search).toBe("")
     expect(spies.resetCurUserAvailability).toHaveBeenCalledTimes(1)
     expect(spies.fetchResponses).toHaveBeenCalledTimes(1)

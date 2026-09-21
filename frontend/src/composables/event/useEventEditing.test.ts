@@ -2,7 +2,7 @@
 
 import { computed, ref } from "vue"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { durations } from "@/constants"
+import { durations, timeTypes } from "@/constants"
 import { COPY_FEEDBACK_DURATION_MS } from "@/composables/useCopyFeedback"
 import type { Event } from "@/types"
 import type { ScheduleOverlapInstance } from "./types"
@@ -42,6 +42,7 @@ describe("useEventEditing", () => {
         label: "UTC",
         gmtString: "GMT+0",
       },
+      timeType: timeTypes.HOUR24,
       showBestTimes: false,
       hideIfNeeded: false,
       collapseDisabledTimes: true,
@@ -130,6 +131,7 @@ describe("useEventEditing", () => {
         label: "UTC",
         gmtString: "GMT+0",
       },
+      timeType: timeTypes.HOUR24,
       showBestTimes: false,
       hideIfNeeded: false,
       collapseDisabledTimes: true,

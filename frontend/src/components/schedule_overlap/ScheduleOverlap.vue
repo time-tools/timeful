@@ -86,6 +86,7 @@ import ScheduleOverlapTimeGrid from "./ScheduleOverlapTimeGrid.vue"
 import ToolRow from "./ToolRow.vue"
 import Tooltip from "../Tooltip.vue"
 import {
+  formatScheduledSpanTooltipContent,
   formatTooltipContent,
   getSignUpBlockStyle,
 } from "./scheduleOverlapRendering"
@@ -107,7 +108,10 @@ import { useScheduleOverlapViewModels } from "./useScheduleOverlapViewModels"
 import { useTimedGridPresentation } from "./useTimedGridPresentation"
 import { useTimedGridInteractions } from "./useTimedGridInteractions"
 import { useGuestAvailabilityActions } from "./useGuestAvailabilityActions"
-import { states } from "@/composables/schedule_overlap/types"
+import {
+  getScheduledEventFromDragRange,
+  states,
+} from "@/composables/schedule_overlap/types"
 import { calendarAutofillEnabled } from "@/utils/calendarAutofillAvailability"
 import type {
   FetchedResponse,
@@ -453,7 +457,7 @@ const drag = useDragPaint({
   signUpBlocksByDay: signUpForm.signUpBlocksByDay,
   signUpBlocksToAddByDay: signUpForm.signUpBlocksToAddByDay,
   manualAvailability: avail.manualAvailability,
-  curScheduledEvent: eventSched.curScheduledEvent,
+  setScheduledEventFromRowCol: eventSched.setScheduledEventFromRowCol,
   maxSignUpBlockRowSize: signUpForm.maxSignUpBlockRowSize,
   allowDrag,
   getDateFromRowCol: grid.getDateFromRowCol,
@@ -640,6 +644,7 @@ const {
   savedScheduledEvent: _savedScheduledEvent,
   allowScheduleEvent,
   scheduledEventStyle: _scheduledEventStyle,
+  setScheduledEventFromRowCol,
   signUpBlockBeingDraggedStyle: _signUpBlockBeingDraggedStyle,
   scheduleEvent,
   cancelScheduleEvent,
@@ -734,7 +739,7 @@ useScheduleOverlapController({
   calendarEventsByDay,
   bufferTime,
   workingHours,
-  curScheduledEvent,
+  setScheduledEventFromRowCol,
   delayedShowStickyRespondents,
   delayedShowStickyRespondentsTimeout,
   showStickyRespondents: ui.showStickyRespondents,
@@ -779,8 +784,10 @@ const timedGridInteractions = useTimedGridInteractions({
   isPhone,
   daysOnly,
   interactable: computed(() => props.interactable),
+  isScheduling: computed(() => state.value === states.SCHEDULE_EVENT),
   dragging,
   dragCur,
+  curTimeslot: avail.curTimeslot,
   timeslotSelected,
   tooltipContent,
   startDrag: drag.startDrag,
@@ -796,6 +803,25 @@ const timedGridInteractions = useTimedGridInteractions({
     emit("highlightAvailabilityBtn")
   },
   getTooltipContent: (row, col) => {
+    if (state.value === states.SCHEDULE_EVENT) {
+      const scheduledEvent =
+        dragging.value && dragStart.value && dragCur.value
+          ? getScheduledEventFromDragRange(dragStart.value, dragCur.value)
+          : curScheduledEvent.value
+      if (scheduledEvent) {
+        const spanContent = formatScheduledSpanTooltipContent({
+          scheduledEvent,
+          getDateFromRowCol: (spanRow, spanCol) =>
+            getDateFromRowCol(spanRow, spanCol) ??
+            getDisplayDateFromRowCol(spanRow, spanCol),
+          timeslotDuration: timeslotDuration.value,
+          curTimezone: curTimezone.value,
+          timeType: timeType.value,
+          isSpecificDates: grid.isSpecificDates.value,
+        })
+        if (spanContent) return spanContent
+      }
+    }
     const date =
       getDateFromRowCol(row, col) ?? getDisplayDateFromRowCol(row, col)
     return date
@@ -850,6 +876,8 @@ const timedGridPresentation = useTimedGridPresentation({
   dragging,
   dragStart,
   dragCur,
+  schedulingGridPointerVisible:
+    timedGridInteractions.schedulingGridPointerVisible,
   getTimeslotVon,
   grid,
   avail,
@@ -1173,6 +1201,7 @@ defineExpose({
   respondentSaveAllowed,
   unsavedChanges,
   curTimezone,
+  timeType,
   selectedGuestRespondent: _selectedGuestRespondent,
   ownedGuestResponses,
   pageHasChanged,

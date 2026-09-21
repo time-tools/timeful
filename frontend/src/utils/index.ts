@@ -65,8 +65,11 @@ export {
   getDateRangeStringForEvent,
   getDateString,
   getDaysInMonth,
+  getEventOccurrenceSpanString,
   getISODateString,
   getStartEndDateString,
+  getTimeFormatOptions,
+  specificDatesDateFormatOptions,
   timeNumToTimeString,
   timeNumToTimeText,
 } from "./dateFormatting"

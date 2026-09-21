@@ -84,6 +84,8 @@ export interface TimedGridPresentationForTest {
     endLabel?: string
     timeText?: string
     height: number
+    rowTop: number
+    baseRowIndex?: number
   }[]
   splitTimes: {
     absoluteMinutes?: number
@@ -92,6 +94,9 @@ export interface TimedGridPresentationForTest {
   }[][]
   timeAxisEndText?: string
   collapseDisabledTimes?: boolean
+  curScheduledEvent?: { row: number; col: number; numRows: number } | null
+  savedScheduledEvent?: { row: number; col: number; numRows: number } | null
+  scheduledEventStyles?: Record<string, string>[]
   actions?: { toggleCollapsedSpan?: (id: string) => void }
 }
 
