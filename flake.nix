@@ -2,7 +2,7 @@
   description = "Timeful development shell";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/c8f90650c15282fa8656a041bfbbd2403997a9a7";
+    nixpkgs.url = "github:nixos/nixpkgs/79b35bf0bda5cd110f856aa5b5b2c5ba4460dbf5";
     systems.url = "github:nix-systems/default/future-26.11";
     flake-parts = {
       url = "github:hercules-ci/flake-parts/17c9d6cdfc60c64f4ee8d306f9bc0b4ccb51481e";
@@ -17,14 +17,6 @@
 
       perSystem = { pkgs, system, ... }:
         let
-          graphify-sql = pkgs.graphify.overridePythonAttrs (old: {
-            propagatedBuildInputs = (old.propagatedBuildInputs or [ ]) ++ [
-              pkgs.python3.pkgs.tree-sitter-sql
-            ];
-          });
-          graphify-cli = pkgs.writeShellScriptBin "graphify" ''
-            exec ${graphify-sql}/bin/graphify "$@"
-          '';
           e2e = pkgs.writeShellScriptBin "e2e" ''
             set -euo pipefail
             export PATH="${pkgs.nodejs_26}/bin:$PATH"
@@ -48,8 +40,8 @@
             pkgs.python3
             pkgs.go
             pkgs.playwright-driver.browsers
-            graphify-cli
             inputs.backlog-md.packages.${system}.default
+            pkgs.codebase-memory-mcp
             pkgs.ripgrep
             pkgs.actionlint
           ];

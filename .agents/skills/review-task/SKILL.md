@@ -28,7 +28,8 @@ This is a review, not execution: do not implement the task, and do not change it
 Research before judging, and verify the task's claims rather than trusting their wording.
 
 - Check the repository state: current branch, uncommitted changes, and commits that touch the named files since the task was created or last updated.
-- If `graphify-out/graph.json` exists, run `graphify query "<task topic>"` first and use the returned subgraph as the map.
+- If the codebase-memory-mcp graph is available, query it first (for example `search_graph` or `query_graph`) and use the returned subgraph as the map.
+- If the graph is missing or stale, run `codebase-memory-mcp cli index_repository --repo-path .` first, then query it.
 - Otherwise read the referenced files, routes, components, composables, scripts, and tests directly.
 - For every concrete path, symbol, route, command, or requirement ID the task names, confirm it still exists and record any that do not.
 - When the task touches product behavior, read the relevant `docs/requirements/` records and `docs/terminology/glossary.md`, and follow the repository terminology linking rules.

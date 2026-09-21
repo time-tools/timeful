@@ -6,5 +6,10 @@
       "command": ["backlog", "mcp", "start"],
       "enabled": true,
     },
+    "codebase-memory-mcp": {
+      "type": "local",
+      "command": ["codebase-memory-mcp"],
+      "enabled": true,
+    },
   },
 }
