@@ -3,6 +3,7 @@ import { Temporal } from "temporal-polyfill"
 import {
   buildSpecificDateSeed,
   openEventPage,
+  rowIndexForTime,
   seedCanonicalTimedEvent,
 } from "../helpers/timed-event-helpers"
 
@@ -127,4 +128,71 @@ test("respondent selection reveals after the name without moving it", async ({
 
   await page.mouse.move(0, 0)
   await expect(checkbox).toBeHidden()
+})
+
+test("respondent selection restores the timed-grid cursor on hover", async ({
+  page,
+}) => {
+  const now = Temporal.Now.instant()
+  const today = now.toZonedDateTimeISO("UTC").toPlainDate().toString()
+  const timeIncrementMinutes = 60
+  const guestName = "Guest One"
+
+  const seed = await seedCanonicalTimedEvent(
+    page.request,
+    buildSpecificDateSeed({
+      name: `Respondent cursor hover ${String(now.epochMilliseconds)}`,
+      selectedDays: [today],
+      activeSlots: [`${today}T09:00:00.000Z`, `${today}T10:00:00.000Z`],
+      eventTimezone: "UTC",
+      startTimeLocal: "09:00",
+      endTimeLocal: "17:00",
+      timeIncrementMinutes,
+    }),
+  )
+
+  const guestResponse = await page.request.post(
+    `/api/events/${seed.eventId}/response`,
+    {
+      data: {
+        guest: true,
+        createResponse: true,
+        name: guestName,
+        email: "",
+        availability: [`${today}T09:00:00.000Z`],
+        ifNeeded: [],
+      },
+    },
+  )
+  expect(guestResponse.ok()).toBeTruthy()
+
+  await openEventPage(page, seed.shortId)
+
+  const row = page.locator(".respondent-row").filter({ hasText: guestName })
+  await expect(row).toHaveCount(1)
+  const control = row.locator(".respondent-control")
+  const checkbox = row.locator(".respondent-control__checkbox")
+
+  await row.hover()
+  await expect(checkbox).toBeVisible()
+  await checkbox.click()
+  await expect(control).toHaveAttribute("aria-pressed", "true")
+
+  // Grid rows are indexed from midnight, so the 10:00 slot sits at row 10.
+  const hoveredSlot = page.locator(
+    `#drag-section .timeslot[data-row="${String(rowIndexForTime(10, 0, timeIncrementMinutes))}"][data-col="0"]`,
+  )
+  await hoveredSlot.scrollIntoViewIfNeeded()
+  await hoveredSlot.hover()
+
+  await expect(hoveredSlot).toHaveClass(
+    /schedule-overlap-time-grid__selected-timeslot/,
+  )
+  await expect
+    .poll(() =>
+      hoveredSlot.evaluate(
+        (element) => window.getComputedStyle(element, "::after").boxShadow,
+      ),
+    )
+    .not.toBe("none")
 })

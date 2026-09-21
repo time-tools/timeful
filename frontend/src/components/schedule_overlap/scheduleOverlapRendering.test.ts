@@ -1265,6 +1265,55 @@ describe("scheduleOverlapRendering", () => {
     expect(classStyle.style.backgroundImage).toBeUndefined()
   })
 
+  it("marks the timed-grid cursor for selected subset-availability responses", () => {
+    const slot = zdt("2026-01-01T09:00:00Z")
+
+    const classStyle = getTimeGridTimeslotClassStyle({
+      date: slot,
+      row: 0,
+      col: 0,
+      isFirstSplit: true,
+      isDisabled: false,
+      animateTimeslotAlways: false,
+      availabilityAnimEnabled: false,
+      timeslotHeight: 15,
+      timeHoursOffset: Temporal.Duration.from({ hours: 9 }),
+      splitStartHoursOffset: Temporal.Duration.from({ hours: 9 }),
+      timezoneOffset: Temporal.Duration.from({ minutes: 0 }),
+      curTimeslot: { row: 0, col: 0 },
+      editing: false,
+      isColConsecutive: () => true,
+      daysLength: 1,
+      firstSplitLength: 1,
+      lastRow: 0,
+      state: states.SUBSET_AVAILABILITY,
+      overlayAvailability: false,
+      dragType: DRAG_TYPES.ADD,
+      availabilityType: availabilityTypes.AVAILABLE,
+      availability: new ZdtSet(),
+      ifNeeded: new ZdtSet(),
+      tempTimes: new ZdtSet(),
+      responsesFormatted: new ZdtMap(),
+      parsedResponses: {},
+      curRespondent: "",
+      curRespondents: ["guest-1"],
+      curRespondentsSet: new Set(["guest-1"]),
+      respondents: [{ _id: "guest-1" }],
+      curRespondentsMax: 1,
+      max: 1,
+      defaultState: states.HEATMAP,
+      userHasResponded: false,
+      curGuestId: "",
+      authUserId: undefined,
+      inDragRange: () => false,
+    })
+
+    expect(classStyle.class).toContain("tw:relative")
+    expect(classStyle.class).toContain(
+      "schedule-overlap-time-grid__selected-timeslot",
+    )
+  })
+
   it("does not draw the selection border for disabled grey gap cells", () => {
     const classStyle = getTimeGridTimeslotClassStyle({
       date: null,

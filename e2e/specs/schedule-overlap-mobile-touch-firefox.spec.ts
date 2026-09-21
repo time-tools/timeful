@@ -708,3 +708,105 @@ test("phone respondent checkbox clears its green outline after a tap unchecks it
   await expect(checkbox.locator("svg")).toBeVisible()
   await expect(checkbox).toHaveCSS("border-top-color", "rgb(0, 153, 76)")
 })
+
+test("phone respondent selection restores the timed-grid cursor after a tap", async ({
+  page,
+  request,
+}) => {
+  const now = Temporal.Now.instant()
+  const today = now.toZonedDateTimeISO("UTC").toPlainDate().toString()
+  const slot = `${today}T09:00:00.000Z`
+  const timeIncrementMinutes = 60
+  const guestName = "Guest One"
+
+  const seed = await seedCanonicalTimedEvent(
+    request,
+    buildSpecificDateSeed({
+      name: `Mobile respondent cursor ${String(now.epochMilliseconds)}`,
+      selectedDays: [today],
+      activeSlots: [slot, `${today}T10:00:00.000Z`],
+      eventTimezone: "UTC",
+      startTimeLocal: "09:00",
+      endTimeLocal: "17:00",
+      timeIncrementMinutes,
+    }),
+  )
+
+  const guestResponse = await request.post(
+    `/api/events/${seed.eventId}/response`,
+    {
+      data: {
+        guest: true,
+        createResponse: true,
+        name: guestName,
+        email: "",
+        availability: [slot],
+        ifNeeded: [],
+      },
+    },
+  )
+  expect(guestResponse.ok()).toBeTruthy()
+
+  await openEventPage(page, seed.shortId)
+
+  const tapSlot = async (rowIndex: number) => {
+    const cell = page.locator(
+      `#drag-section .timeslot[data-row="${String(rowIndex)}"][data-col="0"]`,
+    )
+    await cell.scrollIntoViewIfNeeded()
+    await cell.evaluate((element) => {
+      element.scrollIntoView({ block: "center" })
+    })
+    const box = await cell.boundingBox()
+    expect(box).not.toBeNull()
+    if (!box) {
+      throw new Error("Expected the grid cell to have a bounding box")
+    }
+    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2)
+    return cell
+  }
+
+  // Grid rows are indexed from midnight, so the first active slot at 09:00
+  // with a 60-minute increment sits at base row index 9.
+  await tapSlot(rowIndexForTime(9, 0, timeIncrementMinutes))
+
+  const row = page
+    .locator(".respondent-row")
+    .filter({ hasText: guestName })
+    .first()
+  await expect(row).toBeVisible()
+  const control = row.locator(".respondent-control")
+  const checkbox = row.locator(".respondent-control__checkbox")
+  await checkbox.tap()
+  await expect(control).toHaveAttribute("aria-pressed", "true")
+
+  const secondSlot = await tapSlot(rowIndexForTime(10, 0, timeIncrementMinutes))
+
+  await expect(secondSlot).toHaveClass(
+    /schedule-overlap-time-grid__selected-timeslot/,
+  )
+  await expect
+    .poll(() =>
+      secondSlot.evaluate(
+        (element) => window.getComputedStyle(element, "::after").boxShadow,
+      ),
+    )
+    .not.toBe("none")
+
+  // Tapping outside the grid clears the response selection and the cursor.
+  const header = page.getByTestId("app-header")
+  const headerBox = await header.boundingBox()
+  expect(headerBox).not.toBeNull()
+  if (!headerBox) {
+    throw new Error("Expected the app header to have a bounding box")
+  }
+  await page.touchscreen.tap(
+    headerBox.x + headerBox.width / 2,
+    headerBox.y + headerBox.height / 2,
+  )
+
+  await expect(control).toHaveAttribute("aria-pressed", "false")
+  await expect(secondSlot).not.toHaveClass(
+    /schedule-overlap-time-grid__selected-timeslot/,
+  )
+})
