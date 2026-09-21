@@ -42,11 +42,20 @@
       :model-value="editGuestNameDialog"
       width="400"
       content-class="tw:m-0"
+      :style="overlayViewportStyle"
       @update:model-value="emit('update:editGuestNameDialog', $event)"
     >
-      <v-card>
-        <v-card-title>Edit guest name</v-card-title>
-        <v-card-text>
+      <v-card class="tw:pt-4">
+        <EditorDialogHeader
+          title="Edit guest name"
+          subtitle=""
+          help-header=""
+          :dialog="true"
+          :show-help="false"
+          :hide-dialog-actions="false"
+          @close="emit('update:editGuestNameDialog', false)"
+        />
+        <v-card-text class="tw:px-4 tw:sm:px-8">
           <v-text-field
             :model-value="newGuestName"
             label="Guest name (required)"
@@ -61,14 +70,11 @@
             @keydown.enter="saveIfValid"
           ></v-text-field>
         </v-card-text>
-        <v-card-actions>
+        <v-card-actions class="tw:px-4 tw:sm:px-8">
           <v-spacer />
           <v-btn
-            variant="text"
-            @click="emit('update:editGuestNameDialog', false)"
-            >Cancel</v-btn
-          >
-          <v-btn variant="text" color="primary" @click="saveIfValid"
+            class="timeful-flat-button tw:bg-green tw:text-white"
+            @click="saveIfValid"
             >Save</v-btn
           >
         </v-card-actions>
@@ -78,12 +84,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue"
+import { computed, ref, watch, type CSSProperties } from "vue"
 import {
   GUEST_NAME_MAX_LENGTH,
   getGuestNameValidationMessage,
   validateGuestName,
 } from "@/utils/guestName"
+import { useVisualViewport } from "@/composables/useVisualViewport"
+import EditorDialogHeader from "@/components/EditorDialogHeader.vue"
 import type { ScheduleOverlapEditingAvailabilityAsViewModel } from "./scheduleOverlapViewModelContracts"
 import MdiPencil from "~icons/mdi/pencil"
 
@@ -100,6 +108,17 @@ const props = withDefaults(
 )
 
 const isChip = computed(() => props.variant === "chip")
+
+const visibleViewport = useVisualViewport()
+const overlayViewportStyle = computed<CSSProperties | undefined>(() => {
+  const viewport = visibleViewport.value
+  if (!viewport) return undefined
+  return {
+    top: `${String(viewport.top)}px`,
+    height: `${String(viewport.height)}px`,
+    bottom: "auto",
+  }
+})
 
 const emit = defineEmits<{
   openEditGuestNameDialog: []

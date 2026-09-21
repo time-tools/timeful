@@ -3,17 +3,20 @@
     :model-value="modelValue"
     width="400"
     content-class="tw:m-0"
+    :style="overlayViewportStyle"
     @update:model-value="(e) => emit('update:modelValue', e)"
   >
-    <v-card>
-      <v-card-title class="tw:flex">
-        <div>Continue as guest</div>
-        <v-spacer />
-        <v-btn icon @click="emit('update:modelValue', false)">
-          <v-icon><MdiClose /></v-icon>
-        </v-btn>
-      </v-card-title>
-      <v-card-text>
+    <v-card class="tw:pt-4">
+      <EditorDialogHeader
+        title="Continue as guest"
+        subtitle=""
+        help-header=""
+        :dialog="true"
+        :show-help="false"
+        :hide-dialog-actions="false"
+        @close="emit('update:modelValue', false)"
+      />
+      <v-card-text class="tw:px-4 tw:sm:px-8">
         <v-form
           ref="formRef"
           v-model="formValid"
@@ -64,7 +67,7 @@
               :disabled="!canSubmit"
               @click="submit"
             >
-              Continue
+              Save
             </v-btn>
           </div>
         </v-form>
@@ -74,7 +77,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue"
+import { computed, ref, watch, type CSSProperties } from "vue"
 import { validateEmail } from "@/utils"
 import type { Event } from "@/types"
 import {
@@ -82,8 +85,9 @@ import {
   getGuestNameValidationMessage,
   validateGuestName,
 } from "@/utils/guestName"
+import { useVisualViewport } from "@/composables/useVisualViewport"
+import EditorDialogHeader from "./EditorDialogHeader.vue"
 import MdiAlertCircle from "~icons/mdi/alert-circle"
-import MdiClose from "~icons/mdi/close"
 
 type Rule = (val: string) => true | string
 
@@ -150,6 +154,16 @@ const canSubmit = computed(
     normalizedName.value != null &&
     (!props.event.collectEmails || trimmedEmail.value.length > 0),
 )
+const visibleViewport = useVisualViewport()
+const overlayViewportStyle = computed<CSSProperties | undefined>(() => {
+  const viewport = visibleViewport.value
+  if (!viewport) return undefined
+  return {
+    top: `${String(viewport.top)}px`,
+    height: `${String(viewport.height)}px`,
+    bottom: "auto",
+  }
+})
 
 const initializeForm = () => {
   name.value = ""
