@@ -22,3 +22,4 @@ infra/support-mail/certs/*.key
 .codebase-memory/
 node_modules
 *.pyc
+.vscode
