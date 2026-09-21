@@ -21,16 +21,25 @@ Direct server execution and `server/.env` are unsupported.
 
 Pure unit tests can run on the host or in a container.
 
-PostgreSQL-backed route tests should use the isolated Compose test stack from the repo root:
+PostgreSQL-backed route tests use the isolated Compose test stack from the repo root.
+This is the canonical command sequence for backend tests; `docs/environments.md` documents the isolation semantics.
 
 ```sh
 cp .env.test.example .env.test
-docker compose --env-file .env.test -f compose.yaml -f compose.test.yaml up -d postgres-test
+docker volume create timeful-test-go-build-cache timeful-test-go-mod-cache
+docker compose --env-file .env.test -f compose.yaml -f compose.test.yaml up -d postgres-test postgres-test-bootstrap postgres-test-migrate
 docker compose --env-file .env.test -f compose.yaml -f compose.test.yaml run --rm server-route-test
+```
+
+Compose never creates the external Go cache volumes, and `docker volume create` is idempotent when they already exist.
+Test state is retained by default; remove it only when it is no longer needed:
+
+```sh
 docker compose --env-file .env.test -f compose.yaml -f compose.test.yaml down -v
 ```
 
 The `down -v` cleanup is scoped to the isolated `timeful-test` Compose stack and its test-only PostgreSQL volume.
+It does not remove the external Go cache volumes; `docs/environments.md` documents how to reset them.
 
 When running PostgreSQL-backed tests directly on the host, set `POSTGRES_APPLICATION_URI` to a dedicated test database first.
 The database must be `timeful-test` or start with `timeful-test-`.

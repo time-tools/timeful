@@ -34,6 +34,8 @@ Do not duplicate material already captured in a specification, plan, ADR, issue,
 
 ## Section Guidance
 
+The script's section headings are canonical; keep the list below in sync with `scripts/handoff/create-handoff.sh`.
+
 - **Session Objective**: State the original problem, intended outcome, and its current state: completed, in progress, blocked, or not started. Describe the user's goal rather than only the implementation task.
 - **Motivation And Impact**: Explain why the work is being done and the practical consequence of success or inaction. Include affected users, workflows, reliability, performance, or maintenance concerns only when established.
 - **Current State**: Describe the relevant state at handoff time, especially for partial work: implemented but unvalidated, failing test behavior, active worktree changes, deployed state, or known runtime behavior. Do not duplicate **Completed Work**.

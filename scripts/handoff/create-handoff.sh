@@ -27,6 +27,8 @@ mkdir -p "$archive_dir"
 temporary_path="$(mktemp "$archive_dir/.handoff.XXXXXX")"
 trap 'rm -f "$temporary_path"' EXIT
 
+# The section headings below are canonical for the handoff template.
+# Keep them in sync with `.agents/skills/handoff/SKILL.md` (Section Guidance).
 {
   printf '%s\n' \
     '# Session Handoff' \

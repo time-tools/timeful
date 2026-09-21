@@ -23,32 +23,21 @@ This repo contains:
 
 Before taking non-trivial implementation action requested by the user, read `BACKLOG_WORKFLOW.md` and use it to decide whether the work requires a Backlog task.
 Questions, exploration, and obvious mechanical changes do not require this review.
-
 `BACKLOG_WORKFLOW.md` is this repository's authoritative Backlog policy.
-Use Backlog MCP tools for managed task, milestone, document, and Definition of Done records.
-Do not edit their generated Markdown files directly.
 
 </CRITICAL_INSTRUCTION>
 
-## Requirements Documentation
+## Documentation
 
-- Canonical product requirements are in `docs/requirements/`.
-- Before creating, changing, or migrating a requirement, read
-  `docs/requirements/AGENTS.md` and `docs/requirements/README.md`.
-
-## Documentation Authoring
-
-- Write each Markdown sentence on one physical source line, and never split a sentence across lines.
-- Keep each Markdown table row on one physical source line, even when its cells contain multiple sentences.
-- When prose refers to a concept in `docs/terminology/glossary.md`, use the term's canonical form exactly as recorded there.
-  Read `docs/terminology/README.md` for the full canonicalization and linking rules.
+- Canonical product requirements are in `docs/requirements/`; read `docs/requirements/AGENTS.md` and `docs/requirements/README.md` before creating, changing, or migrating a requirement.
+- Markdown authoring rules, including the sentence-per-line and table-row rules, live in `docs/AGENTS.md`.
+- Controlled terminology and linking rules live in `docs/terminology/README.md`; follow them when prose refers to a glossary concept.
 
 ## Working Defaults
 
 Unless the user explicitly asks for server changes:
 
 - treat `frontend/` as the primary working directory
-- use clean layout-based fixes, not hacks
 - keep repo-tracked frontend browser checks under `e2e`
 
 ## Bug Fix Protocol
@@ -63,18 +52,6 @@ For any bug fix, regardless of layer:
 
 The protocol is scoped to bug fixes and does not require a failing check before feature work, refactoring, or documentation-only changes.
 
-## Server Test Workflow
-
-For backend work that touches PostgreSQL-backed route tests:
-
-- use the isolated test overlay in `compose.test.yaml` as the default path
-- create the external Go cache volumes first (`docker volume create timeful-test-go-build-cache timeful-test-go-mod-cache`); compose never creates external volumes, `docker volume create` is idempotent, and `docker volume rm timeful-test-go-build-cache timeful-test-go-mod-cache` resets them
-- start test PostgreSQL with `docker compose --env-file .env.test -f compose.yaml -f compose.test.yaml up -d postgres-test`
-- run the backend test suite, including the account repository packages, with `docker compose --env-file .env.test -f compose.yaml -f compose.test.yaml run --rm server-route-test`
-- retain test state by default; remove it only with `docker compose --env-file .env.test -f compose.yaml -f compose.test.yaml down -v`
-- prefer the isolated Compose stack over host PostgreSQL for repeatable local and CI-friendly runs
-- if PostgreSQL-backed tests are run directly on the host, require an explicit `POSTGRES_APPLICATION_URI`; the database must be `timeful-test` or have a `timeful-test-` prefix
-
 ## Backend Conventions
 
 - The Go module path is `timeful/server`; use that prefix for internal imports.
@@ -82,87 +59,30 @@ For backend work that touches PostgreSQL-backed route tests:
 - Put one-off PostgreSQL data migrations in dated `server/scripts/YYYYMMDD_description/` directories.
   Run them manually; do not import them into runtime code.
 - Add Swag annotations to API handlers.
-  When route annotations change, from `server/` run `go run github.com/swaggo/swag/cmd/swag@v1.16.6 init --parseDependency`, then from `frontend/` run `npm run gen:api`.
+  When route annotations change, regenerate Swagger and the generated API types with the commands in `server/routes/README.md`.
 - Do not change browser-plugin `window.postMessage` payload shapes without also updating `PLUGIN_API_README.md`.
+- Backend tests use the isolated Compose test stack; the canonical commands live in `server/README.md`, and the isolation semantics live in the test isolation section of `docs/environments.md`.
 
-## Cross-Cutting Frontend Rules
+## Frontend
 
-Follow the frontend ADRs and `./frontend/AGENTS.md` for implementation details.
-In particular:
+- Follow the frontend ADRs and `frontend/AGENTS.md`; they own the frontend architecture, styling, Vuetify migration, browser verification, and required-check rules.
 
-- keep boundary and transport types separate from internal types
-- preserve one canonical internal shape per concept
-- keep compatibility coercions and transport decoding or encoding at explicit boundaries, not inside views, composables, or submit paths
-- many Temporal regressions are runtime issues, so passing typecheck or build is not sufficient
-- keep shared timezone decoding centralized and avoid rebuilding it at call sites
-- treat Temporal values with value semantics, not identity semantics
-- keep civil-date, end-of-day, and working-hours semantics explicit at domain boundaries
+## Formatting
 
-## Required Checks
+- Code formatting uses oxfmt (configs in `.oxfmtrc.json` and `frontend/.oxfmtrc.json`); root Markdown stays formatted by the Prettier sentences-per-line pipeline and must not be formatted by oxfmt.
+- For changes to root JS files under `scripts/` or `prettier/`, run `npm run fmt:check` from the repo root.
 
-For frontend work, run:
+## Local Development
 
-- `cd frontend && npm run lint`
-- `cd frontend && npm run fmt:check`
-- `cd frontend && npm run typecheck`
-- `cd frontend && npm run build`
-- `cd frontend && npm run test:unit`
-
-For changes to root JS files under `scripts/` or `prettier/`, run `npm run fmt:check` from the repo root.
-Code formatting uses oxfmt (configs in `.oxfmtrc.json` and `frontend/.oxfmtrc.json`); root Markdown stays formatted by the Prettier sentences-per-line pipeline and must not be formatted by oxfmt.
-
-## Local Frontend Debug
-
-For local frontend debugging, keep the production-oriented `compose.yaml` and layer the repo-local override on top of it.
-
-Local frontend tooling expects these variables in the repo-root `.env.development`:
-
-- `VITE_DEV_HOST`
-- `VITE_DEV_PORT`
-- `VITE_API_PROXY_TARGET`
-
-If your local backend is on a different host or port, point `VITE_API_PROXY_TARGET` there instead.
-
-Useful local entry points:
-
-- fast UI debug: `http://127.0.0.1:4173/test`
-- real integrated flow: sign in, open `http://127.0.0.1:4173/home`, then click create event
-
-The Vite dev server proxies `/api` and `/swagger` to `VITE_API_PROXY_TARGET`, so frontend requests stay same-origin and avoid browser CORS issues.
-The canonical env-file contract lives in `docs/environments.md`.
-
-## Local Firefox E2E Verification
-
-Browser E2E always uses the isolated test stack and must never target either development database:
-
-- run Playwright from `e2e/` with `npm run test:e2e -- --project=firefox-desktop`; it starts `postgres-test` and `server-test` on `3003`, then Vite on `4174`
-- run E2E so its full output streams: never pipe a run through `tail` or `head`; when a persistent full log is needed, append `2>&1 | tee /tmp/opencode/<name>.log`
-- `TEST_DB_PERSIST` defaults to `false`, removing the test stack and database volumes; set it to `true` to retain database state after successful or failed E2E setup
-- Playwright owns the isolated test stack and Vite process; do not use an existing server for browser E2E.
-- the test stack keeps persistent Go caches in the external `timeful-test-go-build-cache` and `timeful-test-go-mod-cache` volumes, so `go run .` inside `server-test` compiles incrementally across runs; `down -v` retains them, and `docker volume rm timeful-test-go-build-cache timeful-test-go-mod-cache` resets them
+- Local frontend debugging follows `frontend/README.md`; the canonical env-file contract lives in `docs/environments.md`.
+- Browser E2E follows `e2e/AGENTS.md`; it owns project selection, commands, isolated-stack rules, and failure diagnosis.
 
 ## Rewrite Safety
 
 - when cleaning the worktree for rebases, amends, or other history rewrites, prefer explicitly moving or copying tracked and untracked files aside and restoring them afterward
 - do not use `rm` as the primary cleanup mechanism when a non-destructive move or backup approach is practical
 
-## VS Code MCP Usage
+## MCP Usage
 
-Only use:
-
-- `search_symbols_code`
-- `get_symbol_definition_code`
-- `get_diagnostics_code`
-
-## codebase-memory-mcp
-
-This project's code knowledge graph is served by codebase-memory-mcp over MCP, and the devShell provides the `codebase-memory-mcp` binary from the pinned nixpkgs flake input.
-
-Rules:
-
-- For codebase questions, use the codebase-memory-mcp MCP tools (`search_graph`, `trace_path`, `get_architecture`, `query_graph`, and the rest) before grepping or reading files.
-  They return scoped graph evidence that is much smaller than raw source browsing.
-- When the graph is missing or stale, refresh it with `codebase-memory-mcp cli index_repository --repo-path .`.
-  The project Definition of Done requires this command after code changes.
-- `.cbmignore` at the repository root keeps excluded paths, including inactive ADRs, out of the index across re-indexing.
-- If the MCP server is unavailable, confirm the session shell came from `nix develop` and that `codebase-memory-mcp --version` resolves.
+- VS Code MCP: only use `search_symbols_code`, `get_symbol_definition_code`, and `get_diagnostics_code`.
+- codebase-memory-mcp: follow `docs/codebase-memory.md` before grepping or reading files for codebase questions.

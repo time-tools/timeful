@@ -11,8 +11,7 @@ This is a review, not execution: do not implement the task, and do not change it
 
 ## Boundaries
 
-- Read `BACKLOG_WORKFLOW.md` before touching Backlog records, and use Backlog MCP tools for all reads and writes.
-- Never edit Backlog-generated Markdown files directly.
+- Read `BACKLOG_WORKFLOW.md` before touching Backlog records; it is the authoritative Backlog policy, including the required MCP usage.
 - Do not write code, tests, or documentation as part of a review.
 - Do not change the task status, priority, assignee, or milestone on your own.
 - Ask before any Backlog write, and record only what the user approves.
@@ -29,7 +28,7 @@ Research before judging, and verify the task's claims rather than trusting their
 
 - Check the repository state: current branch, uncommitted changes, and commits that touch the named files since the task was created or last updated.
 - If the codebase-memory-mcp graph is available, query it first (for example `search_graph` or `query_graph`) and use the returned subgraph as the map.
-- If the graph is missing or stale, run `codebase-memory-mcp cli index_repository --repo-path .` first, then query it.
+- If the graph is missing or stale, refresh it with the indexing command in `docs/codebase-memory.md`, then query it.
 - Otherwise read the referenced files, routes, components, composables, scripts, and tests directly.
 - For every concrete path, symbol, route, command, or requirement ID the task names, confirm it still exists and record any that do not.
 - When the task touches product behavior, read the relevant `docs/requirements/` records and `docs/terminology/glossary.md`, and follow the repository terminology linking rules.

@@ -3,10 +3,12 @@
 Rules for the self-contained browser E2E package at the repository root `e2e/`.
 Run its npm commands from the package directory.
 Specs live in `e2e/specs/`; `playwright.config.ts`, `isolated-test-stack.ts`, `config/`, `helpers/`, and `inspect/` stay at the package root.
+Firefox desktop is the canonical local verification project for the timed-event suite, and the recorded access-transfer journeys run there.
+Project selection follows each project's `testMatch`: `timed-event-*firefox.spec.ts` runs under `firefox-desktop`, the touch spec runs under `firefox-touch`, and the remaining specs run under the Chromium projects.
 
 ## Failure Diagnosis Loop
 
-- Run a failing test in isolation before changing anything: `npm run test:e2e -- --project=chromium-desktop -g "<test title>"`.
+- Run a failing test in isolation before changing anything, using the project that matches the spec: `npm run test:e2e -- --project=firefox-desktop -g "<test title>"` for a `timed-event-*firefox` spec, or `--project=chromium-desktop` for a Chromium spec.
 - For bug fixes, this isolated failing run is the regression check; record fail-before and pass-after evidence as required by the Bug Fix Protocol in `../AGENTS.md`.
 - Never pipe a run through `tail` or `head`: it hides progress until the run ends and can mask the suite's exit status.
   Run the command with full output streaming, and when a persistent log is needed, append `2>&1 | tee /tmp/opencode/<name>.log` instead of truncating.

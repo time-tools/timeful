@@ -21,7 +21,7 @@
 <!-- Merge-unit criteria, distinct from the MCP-managed task Definition of Done that governs task finalization.
      CI is the backstop for lint, formatting, typecheck, build, unit tests, Markdown, actionlint, backend tests, and all E2E projects. -->
 
-- [ ] Every task this PR marks Done is committed in this PR with its `status: Done` record in `backlog/tasks/`, and is not moved to `backlog/completed/` here.
+- [ ] The Pull Request Preparation policy in `BACKLOG_WORKFLOW.md` is satisfied.
 - [ ] CI is green.
 
 ## Validation
