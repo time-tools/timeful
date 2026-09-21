@@ -109,8 +109,7 @@ jobs:
 
           ## PR Definition of Done
 
-          - [x] This pull request marks no task Done; it only moves already-Done records to \`backlog/completed/\` as the separate periodic cleanup step.
-          - [ ] CI is green.
+          - [x] This pull request follows the Pull Request Preparation policy in \`BACKLOG_WORKFLOW.md\`; it marks no task Done and performs only the periodic cleanup step.
 
           ## Validation
 

@@ -76,13 +76,8 @@ Glossary entries briefly define terms and identify their authoritative functiona
 
 ## Browser Verification
 
-- the browser E2E suite is a self-contained package at `../e2e`, not part of the frontend package
-- keep repo-tracked Playwright specs and helpers under `../e2e`
-- use Playwright specs for assertion-based regression coverage
-- run browser E2E through `npm run test:e2e` from `../e2e`; it owns the isolated test API on `3003` and Vite on `4174`, never the development API on `3002`
-- use `npm run inspect -- --target <scenario-name>` from `../e2e` for current-app diagnostics
-- follow `../e2e/AGENTS.md` for e2e authoring and failure-diagnosis rules
-- follow `../e2e/inspect/AGENTS.md` for inspection command details
+- Follow `../e2e/AGENTS.md` for project selection, commands, isolated-stack rules, authoring, and failure diagnosis.
+- Follow `../e2e/inspect/AGENTS.md` for `npm run inspect` diagnostics.
 
 ## Required Checks
 
@@ -94,4 +89,5 @@ After meaningful frontend changes, run:
 - `npm run build`
 - `npm run test:unit`
 
-Add regression coverage when fixing a reproduced migration bug unless there is a concrete reason it cannot be covered at that layer.
+Many Temporal regressions are runtime issues, so passing typecheck or build is not sufficient.
+Add regression coverage when fixing a reproduced migration bug unless there is a concrete reason it cannot be covered at that layer, and follow the Bug Fix Protocol in `../AGENTS.md` for the observed fail-before and pass-after steps.

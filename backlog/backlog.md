@@ -104,7 +104,6 @@
   - [ ] Update all relevant docs to instruct agents about e2e
 - [ ] More options must be centered inside the button
 - [ ] Make Event Occurence Span - is it too formal? Maybe use "Scheduled event"?
-- [ ] Ask the agent to follow TDD - write tests to observe the failure or reproduct the but, then fix
 - [ ] Check e2e check behavior, not just layout
 - [ ] What happened to calendar options?
 - [ ] Manage access:

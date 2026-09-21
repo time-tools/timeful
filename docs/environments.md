@@ -465,14 +465,7 @@ PostgreSQL-backed route tests and browser E2E use the isolated Compose overlay.
 It runs `postgres-test` in the `timeful-test` project and uses a test-only volume, never a development database volume. `.env.test` supplies the complete server and PostgreSQL role configuration.
 E2E creates a fresh `timeful-test-*` PostgreSQL database for each run.
 
-Backend tests:
-
-```sh
-cp .env.test.example .env.test
-docker volume create timeful-test-go-build-cache timeful-test-go-mod-cache
-POSTGRES_TEST_DATABASE=timeful-test-postgres docker compose --env-file .env.test -f compose.yaml -f compose.test.yaml up -d postgres-test postgres-test-bootstrap postgres-test-migrate
-POSTGRES_TEST_DATABASE=timeful-test-postgres docker compose --env-file .env.test -f compose.yaml -f compose.test.yaml run --rm server-route-test
-```
+Backend tests use the isolated Compose test stack, and `server/README.md` carries the canonical command sequence.
 
 `server-route-test` runs `go test ./... -count=1`, so the route, account repository, and PostgreSQL store suites all run against the isolated stack.
 
@@ -491,7 +484,8 @@ npm run test:e2e
 
 Browser E2E creates supported events in PostgreSQL by default; no creation flag is required.
 
-Local browser runs default to two workers, while CI defaults to one; `--workers=1`, `--workers=2`, and `--workers=4` override the shared worker budget, including Firefox.
+Local browser runs default to two workers, while the Playwright config default under CI is one; the E2E workflow overrides each suite's worker count, using two for Chromium and Firefox desktop and one for Firefox touch.
+`--workers=<n>` overrides the shared worker budget, including Firefox.
 Keep concurrent tests within one Playwright invocation because separate invocations share the test-stack project and ports.
 Existing serial test groups preserve their internal ordering.
 Ordinary projects start Vite without building production assets.
@@ -508,8 +502,4 @@ Compose does not create external volumes, so the route-test snippet creates both
 Backend CI runs the same step before its `compose run` because a fresh runner has no volumes.
 Compose `down -v` does not remove them (they are external); delete them with `docker volume rm timeful-test-go-build-cache timeful-test-go-mod-cache` to force a clean compile and module re-download.
 
-Remove persistent test state explicitly:
-
-```sh
-docker compose --env-file .env.test -f compose.yaml -f compose.test.yaml down -v
-```
+Remove persistent test state explicitly with the `down -v` command from `server/README.md`.

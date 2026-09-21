@@ -152,7 +152,7 @@ Field rules:
 
 ## Terminology
 
-Candidate behavior and review-authored prose follow the controlled terminology guide in [`../terminology/README.md`](../../terminology/README.md): link the first use of an established controlled term in each normative-like prose unit.
+Candidate behavior and review-authored prose follow the controlled terminology guide in [`../terminology/README.md`](../../terminology/README.md).
 The inventory itself remains non-normative, and uncertain terms belong in Open Questions or product review rather than becoming implied definitions.
 Raw Source quotes are provenance, not authored prose, and must remain free of added glossary links.
 

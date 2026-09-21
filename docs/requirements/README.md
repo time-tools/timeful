@@ -102,7 +102,6 @@ The `status` can be one of these:
 ## Terminology
 
 Use the controlled terms and linking conventions in the [terminology guide](../terminology/README.md).
-When a requirement uses a controlled term, link its first occurrence in each paragraph, list item, and table cell to the matching [glossary](../terminology/glossary.md) entry.
 
 ## Functional Requirements
 

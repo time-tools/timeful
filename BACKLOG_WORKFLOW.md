@@ -46,8 +46,7 @@ Do not directly edit their generated Markdown files.
 
 A pull request is the merge unit, and its merge-readiness criteria live in the PR Definition of Done in `.github/pull_request_template.md`, separate from the task Definition of Done that governs task finalization.
 
-Before creating or updating a pull request body, confirm that every task the pull request closes is marked Done and committed in the pull request, with its record left in `backlog/tasks/`.
-Do not move Done tasks to `backlog/completed/` as part of a pull request.
+Before creating or updating a pull request body, confirm that every task the pull request closes is marked Done and committed in the pull request, following the Done-state and archival rules in Finalizing Tasks.
 
 ## Definition Of Done
 
@@ -56,3 +55,5 @@ Documentation-only changes are changes limited to documentation or agent instruc
 
 For documentation-only changes, unit and e2e tests are not required unless the user explicitly requests the respective test.
 Run the relevant checks for all other work and report any checks that could not be run.
+
+For bug-fix tasks, record the Bug Fix Protocol evidence from `AGENTS.md` in the task notes or final summary.

@@ -26,6 +26,11 @@ npm run dev
 
 The dev server proxies `/api` and `/swagger` to `VITE_API_PROXY_TARGET` from the repo-root `.env.development` file.
 
+Useful local entry points:
+
+- fast UI debug: `http://127.0.0.1:4173/test`
+- real integrated flow: sign in, open `http://127.0.0.1:4173/home`, then click create event
+
 For production-style local builds and preview:
 
 ```sh
@@ -38,9 +43,4 @@ See `../docs/environments.md` for the full root-env contract.
 
 ## Checks
 
-```sh
-npm run lint
-npm run typecheck
-npm run build
-npm run test:unit
-```
+[AGENTS.md](AGENTS.md#required-checks) lists the required frontend checks.
