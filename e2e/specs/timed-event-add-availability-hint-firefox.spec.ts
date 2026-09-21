@@ -138,7 +138,11 @@ test("The add availability hint clears after the viewer saves an in-app response
   )
   await page.locator(".desktop-editing-save-button").click()
   await page.getByLabel("Guest name (required)").fill("In-app Respondent")
-  await page.getByRole("button", { name: "Continue", exact: true }).click()
+  await page
+    .getByRole("dialog")
+    .filter({ hasText: "Continue as guest" })
+    .getByRole("button", { name: "Save", exact: true })
+    .click()
   expect((await saved).status()).toBe(200)
 
   await expect(page.getByTestId("add-availability-hint")).toHaveCount(0)

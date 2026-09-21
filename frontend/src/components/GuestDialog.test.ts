@@ -42,6 +42,11 @@ const VBtnStub = defineComponent({
   `,
 })
 
+const VCardStub = defineComponent({
+  name: "VCard",
+  template: "<div><slot /></div>",
+})
+
 const VTextFieldStub = defineComponent({
   name: "VTextField",
   inheritAttrs: false,
@@ -137,7 +142,9 @@ const baseEvent = {
 } as Event
 
 const getSubmitButton = (wrapper: ReturnType<typeof mount>) => {
-  const button = wrapper.findAll("button").at(1)
+  const button = wrapper
+    .findAll("button")
+    .find((node) => node.text() === "Save")
   if (button == null) {
     throw new Error("Expected submit button to exist")
   }
@@ -146,7 +153,7 @@ const getSubmitButton = (wrapper: ReturnType<typeof mount>) => {
 
 const stubGroups = mergeComponentStubs({
   "v-btn": VBtnStub,
-  "v-card": passThroughStub,
+  "v-card": VCardStub,
   "v-card-text": passThroughStub,
   "v-card-title": passThroughStub,
   "v-checkbox": VCheckboxStub,
@@ -352,7 +359,7 @@ describe("GuestDialog", () => {
       global: {
         stubs: mergeComponentStubs({
           "v-btn": VBtnStub,
-          "v-card": passThroughStub,
+          "v-card": VCardStub,
           "v-card-text": passThroughStub,
           "v-card-title": passThroughStub,
           "v-checkbox": VCheckboxStub,
@@ -391,7 +398,7 @@ describe("GuestDialog", () => {
       global: {
         stubs: mergeComponentStubs({
           "v-btn": VBtnStub,
-          "v-card": passThroughStub,
+          "v-card": VCardStub,
           "v-card-text": passThroughStub,
           "v-card-title": passThroughStub,
           "v-checkbox": VCheckboxStub,
@@ -423,7 +430,7 @@ describe("GuestDialog", () => {
       global: {
         stubs: mergeComponentStubs({
           "v-btn": VBtnStub,
-          "v-card": passThroughStub,
+          "v-card": VCardStub,
           "v-card-text": passThroughStub,
           "v-card-title": passThroughStub,
           "v-checkbox": VCheckboxStub,
@@ -456,7 +463,7 @@ describe("GuestDialog", () => {
       global: {
         stubs: mergeComponentStubs({
           "v-btn": VBtnStub,
-          "v-card": passThroughStub,
+          "v-card": VCardStub,
           "v-card-text": passThroughStub,
           "v-card-title": passThroughStub,
           "v-checkbox": VCheckboxStub,
@@ -493,7 +500,7 @@ describe("GuestDialog", () => {
       global: {
         stubs: mergeComponentStubs({
           "v-btn": VBtnStub,
-          "v-card": passThroughStub,
+          "v-card": VCardStub,
           "v-card-text": passThroughStub,
           "v-card-title": passThroughStub,
           "v-checkbox": VCheckboxStub,
@@ -516,7 +523,7 @@ describe("GuestDialog", () => {
     expect(label.classes()).not.toContain("tw:text-very-dark-gray")
   })
 
-  it("renders the Continue button flat without the elevated glow styling", () => {
+  it("renders the Save button solid green and flat without the elevated glow styling", () => {
     const appCssSource = readFileSync("src/index.css", "utf8")
 
     const wrapper = mount(GuestDialog, {
@@ -528,7 +535,7 @@ describe("GuestDialog", () => {
       global: {
         stubs: mergeComponentStubs({
           "v-btn": VBtnStub,
-          "v-card": passThroughStub,
+          "v-card": VCardStub,
           "v-card-text": passThroughStub,
           "v-card-title": passThroughStub,
           "v-checkbox": VCheckboxStub,
@@ -542,6 +549,7 @@ describe("GuestDialog", () => {
     })
 
     const submitButton = getSubmitButton(wrapper)
+    expect(submitButton.text()).toBe("Save")
     expect(submitButton.classes()).toContain("timeful-flat-button")
     expect(submitButton.classes()).not.toContain("timeful-elevated-button")
     expect(submitButton.classes()).toContain("tw:bg-green")
@@ -549,6 +557,20 @@ describe("GuestDialog", () => {
     expect(appCssSource).toMatch(
       /\.timeful-flat-button\s*\{[^}]*box-shadow: none;/,
     )
+  })
+
+  it("uses the shared editor-dialog header, the editor card top padding, and the named cross as the only dismissal", async () => {
+    const wrapper = mountDialog({ collectEmails: false })
+
+    expect(wrapper.text()).toContain("Continue as guest")
+    expect(wrapper.find(".tw\\:pt-4").exists()).toBe(true)
+    expect(
+      wrapper.findAll("button").filter((node) => node.text() === "Cancel"),
+    ).toHaveLength(0)
+
+    await wrapper.get('button[aria-label="Close"]').trigger("click")
+
+    expect(wrapper.emitted("update:modelValue")).toEqual([[false]])
   })
 
   it("sizes the dialog overlay to the visible viewport so the keyboard cannot cover the actions", async () => {

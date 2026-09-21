@@ -151,8 +151,8 @@ test("the Continue as guest dialog follows the visible viewport above the mobile
   const dialog = page.getByRole("dialog")
   const nameInput = dialog.getByLabel("Guest name (required)")
   const allowOthersCheckbox = dialog.getByRole("checkbox")
-  const continueButton = dialog.getByRole("button", {
-    name: "Continue",
+  const saveButton = dialog.getByRole("button", {
+    name: "Save",
     exact: true,
   })
   const dialogCard = page
@@ -167,10 +167,10 @@ test("the Continue as guest dialog follows the visible viewport above the mobile
   await test.step("the controls stay inside the visible viewport", async () => {
     const visibleViewport = await readVisibleViewportRect(page)
 
-    for (const control of [nameInput, allowOthersCheckbox, continueButton]) {
+    for (const control of [nameInput, allowOthersCheckbox, saveButton]) {
       await expectWithinVisibleViewport(control, visibleViewport)
     }
-    await expect(continueButton).toBeInViewport()
+    await expect(saveButton).toBeInViewport()
   })
 
   await test.step("closing the keyboard restores the normal layout", async () => {
@@ -190,7 +190,7 @@ test("the Continue as guest dialog follows the visible viewport above the mobile
     expect(
       Math.abs(cardBox.y + cardBox.height / 2 - viewportHeight / 2),
     ).toBeLessThanOrEqual(2)
-    await expect(continueButton).toBeVisible()
+    await expect(saveButton).toBeVisible()
   })
 })
 
@@ -231,8 +231,8 @@ test("the email-collecting dialog keeps its fields and action usable above the m
   const nameInput = dialog.getByLabel("Guest name (required)")
   const emailInput = dialog.getByPlaceholder("Enter your email...")
   const allowOthersCheckbox = dialog.getByRole("checkbox")
-  const continueButton = dialog.getByRole("button", {
-    name: "Continue",
+  const saveButton = dialog.getByRole("button", {
+    name: "Save",
     exact: true,
   })
   const dialogCard = page
@@ -266,15 +266,15 @@ test("the email-collecting dialog keeps its fields and action usable above the m
     })
     expect(scrolled).toBe(true)
 
-    await expectWithinVisibleViewport(continueButton, visibleViewport)
+    await expectWithinVisibleViewport(saveButton, visibleViewport)
     await expectWithinVisibleViewport(allowOthersCheckbox, visibleViewport)
   })
 
   await test.step("the focused dialog still submits the guest response", async () => {
     await nameInput.fill("Keyboard Guest")
     await emailInput.fill("keyboard@example.com")
-    await expect(continueButton).toBeEnabled()
-    await continueButton.click()
+    await expect(saveButton).toBeEnabled()
+    await saveButton.click()
 
     await expect(page.getByText("Continue as guest")).toHaveCount(0)
   })

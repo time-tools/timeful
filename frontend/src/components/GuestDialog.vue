@@ -6,15 +6,17 @@
     :style="overlayViewportStyle"
     @update:model-value="(e) => emit('update:modelValue', e)"
   >
-    <v-card>
-      <v-card-title class="tw:flex">
-        <div>Continue as guest</div>
-        <v-spacer />
-        <v-btn icon @click="emit('update:modelValue', false)">
-          <v-icon><MdiClose /></v-icon>
-        </v-btn>
-      </v-card-title>
-      <v-card-text>
+    <v-card class="tw:pt-4">
+      <EditorDialogHeader
+        title="Continue as guest"
+        subtitle=""
+        help-header=""
+        :dialog="true"
+        :show-help="false"
+        :hide-dialog-actions="false"
+        @close="emit('update:modelValue', false)"
+      />
+      <v-card-text class="tw:px-4 tw:sm:px-8">
         <v-form
           ref="formRef"
           v-model="formValid"
@@ -65,7 +67,7 @@
               :disabled="!canSubmit"
               @click="submit"
             >
-              Continue
+              Save
             </v-btn>
           </div>
         </v-form>
@@ -84,8 +86,8 @@ import {
   validateGuestName,
 } from "@/utils/guestName"
 import { useVisualViewport } from "@/composables/useVisualViewport"
+import EditorDialogHeader from "./EditorDialogHeader.vue"
 import MdiAlertCircle from "~icons/mdi/alert-circle"
-import MdiClose from "~icons/mdi/close"
 
 type Rule = (val: string) => true | string
 

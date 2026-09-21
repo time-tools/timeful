@@ -76,8 +76,8 @@ test("the Edit guest name dialog stays above the mobile keyboard", async ({
   const dialog = page.getByRole("dialog").filter({ hasText: "Edit guest name" })
   const nameInput = dialog.getByLabel("Guest name (required)")
   const saveButton = dialog.getByRole("button", { name: "Save", exact: true })
-  const cancelButton = dialog.getByRole("button", {
-    name: "Cancel",
+  const closeButton = dialog.getByRole("button", {
+    name: "Close",
     exact: true,
   })
   const dialogCard = page
@@ -92,7 +92,7 @@ test("the Edit guest name dialog stays above the mobile keyboard", async ({
   await test.step("the field and actions stay inside the visible viewport", async () => {
     const visibleViewport = await readVisibleViewportRect(page)
 
-    for (const control of [nameInput, saveButton, cancelButton]) {
+    for (const control of [nameInput, saveButton, closeButton]) {
       await expectWithinVisibleViewport(control, visibleViewport)
     }
     await expect(saveButton).toBeInViewport()

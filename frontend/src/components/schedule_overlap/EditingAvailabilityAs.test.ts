@@ -18,6 +18,7 @@ describe("EditingAvailabilityAs", () => {
   const dialogContentStubs = {
     "v-dialog": { template: "<div><slot /></div>" },
     "v-card": { template: "<div><slot /></div>" },
+    "v-card-title": { template: "<div><slot /></div>" },
     "v-card-text": { template: "<div><slot /></div>" },
     "v-card-actions": { template: "<div><slot /></div>" },
     "v-btn": { template: "<button><slot /></button>" },
@@ -105,7 +106,7 @@ describe("EditingAvailabilityAs", () => {
     expect(wrapper.emitted("openEditGuestNameDialog")).toHaveLength(1)
   })
 
-  it("relays the guest name dialog cancel action", async () => {
+  it("dismisses the guest name dialog through the named header cross", async () => {
     const wrapper = mountIndicator(
       { editableGuestName: "Dana" },
       { editGuestNameDialog: true, newGuestName: "Dee" },
@@ -113,15 +114,29 @@ describe("EditingAvailabilityAs", () => {
 
     expect(wrapper.find("v-text-field-stub").exists()).toBe(true)
 
-    const cancelButton = wrapper
-      .findAll("button")
-      .find((node) => node.text() === "Cancel")
-    if (!cancelButton) {
-      throw new Error("Expected dialog Cancel button to be rendered")
-    }
-    await cancelButton.trigger("click")
+    await wrapper.get('button[aria-label="Close"]').trigger("click")
 
     expect(wrapper.emitted("update:editGuestNameDialog")).toEqual([[false]])
+  })
+
+  it("uses the shared editor-dialog header, the editor card top padding, and a solid green Save with no Cancel", () => {
+    const wrapper = mountIndicator(
+      { editableGuestName: "Dana" },
+      { editGuestNameDialog: true, newGuestName: "Dee" },
+    )
+
+    expect(wrapper.text()).toContain("Edit guest name")
+    expect(wrapper.find(".tw\\:pt-4").exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="Close"]').exists()).toBe(true)
+
+    const saveButton = getDialogButton(wrapper, "Save")
+    expect(saveButton.classes()).toContain("timeful-flat-button")
+    expect(saveButton.classes()).toContain("tw:bg-green")
+    expect(saveButton.classes()).toContain("tw:text-white")
+
+    expect(
+      wrapper.findAll("button").filter((node) => node.text() === "Cancel"),
+    ).toHaveLength(0)
   })
 
   it("styles the guest name field like the new event name field and caps it at 100 characters", () => {
@@ -359,16 +374,9 @@ describe("EditingAvailabilityAs", () => {
     await saveButton.trigger("click")
 
     expect(wrapper.emitted("saveGuestName")).toHaveLength(1)
-
-    const cancelButton = wrapper
-      .findAll("button")
-      .find((node) => node.text() === "Cancel")
-    if (!cancelButton) {
-      throw new Error("Expected dialog Cancel button to be rendered")
-    }
-    await cancelButton.trigger("click")
-
-    expect(wrapper.emitted("update:editGuestNameDialog")).toEqual([[false]])
+    expect(
+      wrapper.findAll("button").filter((node) => node.text() === "Cancel"),
+    ).toHaveLength(0)
   })
 
   it("lets the chip drop below the label and the name break within the chip", () => {
@@ -418,7 +426,9 @@ describe("EditingAvailabilityAs", () => {
       false,
     )
     expect(wrapper.find(".editing-availability-as__guest").exists()).toBe(false)
-    expect(indicator.findAll("v-icon-stub")).toHaveLength(0)
+    expect(
+      wrapper.get(".editing-availability-as__chip-row").findAll("v-icon-stub"),
+    ).toHaveLength(0)
   })
 
   it("sizes the dialog overlay to the visible viewport so the keyboard cannot cover the actions", async () => {

@@ -313,7 +313,11 @@ test("A blind-mode non-owner creates and manages a second response without seein
       mutation.method() === "POST" &&
       mutation.url().includes(`/api/events/${eventId}/response`),
   )
-  await page.getByRole("button", { name: "Continue", exact: true }).click()
+  await page
+    .getByRole("dialog")
+    .filter({ hasText: "Continue as guest" })
+    .getByRole("button", { name: "Save", exact: true })
+    .click()
   const secondPayload = (await createdSecond).postDataJSON() as {
     createResponse?: boolean
     name?: string

@@ -45,9 +45,17 @@
       :style="overlayViewportStyle"
       @update:model-value="emit('update:editGuestNameDialog', $event)"
     >
-      <v-card>
-        <v-card-title>Edit guest name</v-card-title>
-        <v-card-text>
+      <v-card class="tw:pt-4">
+        <EditorDialogHeader
+          title="Edit guest name"
+          subtitle=""
+          help-header=""
+          :dialog="true"
+          :show-help="false"
+          :hide-dialog-actions="false"
+          @close="emit('update:editGuestNameDialog', false)"
+        />
+        <v-card-text class="tw:px-4 tw:sm:px-8">
           <v-text-field
             :model-value="newGuestName"
             label="Guest name (required)"
@@ -62,14 +70,11 @@
             @keydown.enter="saveIfValid"
           ></v-text-field>
         </v-card-text>
-        <v-card-actions>
+        <v-card-actions class="tw:px-4 tw:sm:px-8">
           <v-spacer />
           <v-btn
-            variant="text"
-            @click="emit('update:editGuestNameDialog', false)"
-            >Cancel</v-btn
-          >
-          <v-btn variant="text" color="primary" @click="saveIfValid"
+            class="timeful-flat-button tw:bg-green tw:text-white"
+            @click="saveIfValid"
             >Save</v-btn
           >
         </v-card-actions>
@@ -86,6 +91,7 @@ import {
   validateGuestName,
 } from "@/utils/guestName"
 import { useVisualViewport } from "@/composables/useVisualViewport"
+import EditorDialogHeader from "@/components/EditorDialogHeader.vue"
 import type { ScheduleOverlapEditingAvailabilityAsViewModel } from "./scheduleOverlapViewModelContracts"
 import MdiPencil from "~icons/mdi/pencil"
 
