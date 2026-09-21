@@ -5,6 +5,7 @@ import {
   openEventPage,
   rowIndexForTime,
   seedCanonicalTimedEvent,
+  waitForScheduleOverlapMounted,
 } from "../helpers/timed-event-helpers"
 import { Temporal } from "temporal-polyfill"
 
@@ -809,4 +810,58 @@ test("phone respondent selection restores the timed-grid cursor after a tap", as
   await expect(secondSlot).not.toHaveClass(
     /schedule-overlap-time-grid__selected-timeslot/,
   )
+})
+
+test("mobile scheduling Cancel and Clear use the desktop red destructive treatment", async ({
+  page,
+}) => {
+  const seeded = await seedCanonicalTimedEvent(
+    page.request,
+    buildSpecificDateSeed({
+      name: "Mobile scheduling destructive colors regression",
+      selectedDays: ["2026-05-28"],
+      activeSlots: [
+        "2026-05-28T00:00:00Z",
+        "2026-05-28T01:00:00Z",
+        "2026-05-28T02:00:00Z",
+      ],
+      eventTimezone: "UTC",
+      startTimeLocal: "00:00",
+      endTimeLocal: "03:00",
+      timeIncrementMinutes: 60,
+    }),
+  )
+
+  const scheduleResponse = await page.request.put(
+    `/api/events/${seeded.eventId}/schedule`,
+    {
+      data: {
+        startDate: "2026-05-28T00:00:00Z",
+        endDate: "2026-05-28T01:00:00Z",
+      },
+    },
+  )
+  expect(scheduleResponse.ok()).toBeTruthy()
+
+  await openEventPage(page, seeded.shortId)
+  await waitForScheduleOverlapMounted(page)
+  await page.getByRole("button", { name: "Reschedule", exact: true }).click()
+
+  const actionBar = page.locator(".mobile-event-action-bar")
+  const cancelButton = actionBar.getByRole("button", {
+    name: "Cancel",
+    exact: true,
+  })
+  const clearButton = actionBar.getByRole("button", {
+    name: "Clear",
+    exact: true,
+  })
+  await expect(cancelButton).toBeVisible()
+  await expect(clearButton).toBeVisible()
+
+  const destructiveRed = "rgb(219, 22, 22)"
+  await expect(cancelButton).toHaveCSS("color", destructiveRed)
+  await expect(cancelButton).toHaveCSS("border-top-color", destructiveRed)
+  await expect(clearButton).toHaveCSS("color", destructiveRed)
+  await expect(clearButton).toHaveCSS("border-top-color", destructiveRed)
 })

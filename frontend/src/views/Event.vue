@@ -1002,7 +1002,7 @@
           <template v-else-if="isScheduling">
             <v-btn
               variant="outlined"
-              class="tw:border-blue tw:text-blue"
+              class="tw:text-red"
               @click="cancelScheduleEvent"
             >
               Cancel
@@ -1010,7 +1010,7 @@
             <v-btn
               v-if="hasSavedTimefulSchedule"
               variant="outlined"
-              class="tw:ml-2 tw:border-blue tw:text-blue"
+              class="tw:ml-2 tw:text-red"
               @click="clearScheduledEvent"
             >
               Clear

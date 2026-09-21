@@ -4124,6 +4124,9 @@ describe("Event guest edit action", () => {
     )
 
     expect(cancelButton?.attributes("data-variant")).toBe("outlined")
+    expect(cancelButton?.classes()).toContain("tw:text-red")
+    expect(cancelButton?.classes()).not.toContain("tw:border-blue")
+    expect(cancelButton?.classes()).not.toContain("tw:text-blue")
     expect(scheduleButton?.classes()).toContain("mobile-schedule-button")
     expect(scheduleButton?.attributes("data-variant")).toBe("flat")
     expect(scheduleButton?.classes()).toContain("tw:bg-white")
@@ -4362,7 +4365,13 @@ describe("Event guest edit action", () => {
 
     expect(clearIndex).toBe(cancelIndex + 1)
     expect(clearIndex).toBeLessThan(scheduleIndex)
+    expect(buttons[cancelIndex].classes()).toContain("tw:text-red")
+    expect(buttons[cancelIndex].classes()).not.toContain("tw:border-blue")
+    expect(buttons[cancelIndex].classes()).not.toContain("tw:text-blue")
     expect(buttons[clearIndex].classes()).toContain("tw:ml-2")
+    expect(buttons[clearIndex].classes()).toContain("tw:text-red")
+    expect(buttons[clearIndex].classes()).not.toContain("tw:border-blue")
+    expect(buttons[clearIndex].classes()).not.toContain("tw:text-blue")
     await buttons[clearIndex].trigger("click")
     expect(
       scheduleOverlapMethodMocks.clearScheduledEvent,
