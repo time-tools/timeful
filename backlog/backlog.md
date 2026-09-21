@@ -96,6 +96,41 @@
   - [ ] Fresh installation
   - [ ] Updates
 - [ ] Unify handoff with task progress
+- [ ] Does Delete event actually delete event? Or, does it soft-delete?
+- [ ] "archived and read-only" -> "archived and not editable"
+- [ ] Evaluate heuristics for running only necessary e2e tests locally.
+  - [ ] How to know which e2e are most probably affected by a change?
+  - [ ] Maybe maintain a mapping: test -> frontend files?
+  - [ ] Update all relevant docs to instruct agents about e2e
+- [ ] More options must be centered inside the button
+- [ ] Make Event Occurence Span - is it too formal? Maybe use "Scheduled event"?
+- [ ] Ask the agent to follow TDD - write tests to observe the failure or reproduct the but, then fix
+- [ ] Check e2e check behavior, not just layout
+- [ ] What happened to calendar options?
+- [ ] Manage access:
+  - [ ] format title like in edit event form
+  - [ ] replace Close with a button in the top right corner
+- [x] FR for the access transfer steps
+- [ ] Auto-capitalize letters when entering access transfer code
+- [x] Don't split a single input field for code into per-digit fields
+  - This may hurt accessibility
+- [ ] guestAddedAvailability - legacy?
+- [ ] Check duplication in go tests code
+- [ ] Add back button on the Sign in page (Welcome back)
+- [ ] Use the "devices" icon for Manage access
+- [x] "Collapse disabled times" -> "Hide disabled times"
+  - Split into two rows and centered the toggle + label
+- [ ] In desktop Chrome, timeful pic in the top left corner isn't aligned by left edge with the event title
+- [ ] In mobile Chrome, when there are no responses, "Add availability" button is white, not green
+- [ ] Consider not showing always the hint on the response editing page
+- [ ] FR must be formatted - in FR-013, there are two lines of text
+- [x] ? When scheduling an event, the black slot cursor shall not be visible, only the blue span shall be visible
+      Currently, both are visible. Cursor appears on tap inside the grid. It doesn't appear on tap and drag
+
+## UX
+
+- [ ] When there are no responses, need to attract attention to "Add availability"
+  - [ ] Especially in mobile version
 
 ---
 
@@ -153,8 +188,9 @@ ADR candidates stay in their topical sections.
   - [x] [MUST P?] Show input form for editing the respondent name instead of Editing availability as
     - "Editing availability as" shouldn't be in italic
     - Given I edit availability, I should see Editing availability as - add input field to write the name above Available
-- [ ] How to show response selections so that the status is still visible for selected responses?
+- [x] How to show response selections so that the status is still visible for selected responses?
   - Maybe show the checkboxes to the left of the status?
+  - Resolved by FR-134: show the checkbox beside the status, always visible on phone and on hover or selection on desktop.
 - [x] Move the "Note: there's no time when ..." from below the grid to the Responses section
 - [x] When saving added availability, in the Continue as guest form, the Continue button shall be flat and without glow
 - [x] [MUST P0] Make Responses scrollable on desktop
@@ -436,19 +472,15 @@ ADR candidates stay in their topical sections.
   - <https://ezgif.com/webp-maker/ezgif-62a1b9a1b6704abf-split.html>
   - Hover over participants, then grid, then select best times, then create event on timeful
 
-## Graphify & repo tooling
+## Repo tooling
 
 - [ ] add instructions for the agent to write scripts for the browser and edit it instead of inline scripts?
-- [ ] Research how to update graphify semantic index when using OpenCode
 - [ ] Make the handoff skill wording prompt to create a handoff more certainly
 - [ ] Make create-handoff.sh an app in flake.nix
-- [ ] Decompose root .gitignore into per-directory gitignores (graphify, infra, etc.).
+- [ ] Decompose root .gitignore into per-directory gitignores (codebase-memory, infra, etc.).
   Instruct agents to use per-directory gitignores
 - [ ] What connects StageName, StageResult, PropertyGroupName to the rest of the system? (1,745 weakly-connected nodes — possible doc gaps)
-- [ ] graphify can't process sql files - tree_sitter_sql — pip install 'graphifyy[sql]'
 - [ ] What is the exact relationship between Sign-In Link and Platform Sign-In? (AMBIGUOUS edge)
-- [ ] [MUST P?] Set up graphify
-  - Preferably add a successfully buildable package to flake.nix' devshell
 
 ## Backend & data model
 
