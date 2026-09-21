@@ -72,6 +72,7 @@ interface EventTestState {
   isArchived?: boolean
   isSignUpForm?: boolean
   name: string
+  description?: string
   type: string
   daysOnly?: boolean
   hasResponded?: boolean
@@ -820,10 +821,10 @@ describe("Event guest edit action", () => {
     expect(editEventMock).toHaveBeenCalledOnce()
   })
 
-  it("uses explicit desktop rows for metadata actions", () => {
+  it("uses an explicit desktop details column for metadata actions", () => {
     expect(eventViewSource).toContain('id="event-header-meta-row"')
     expect(eventViewSource).toContain(
-      "event-header-row tw:flex tw:flex-col tw:gap-2 tw:sm:flex-row tw:sm:items-center tw:sm:gap-4",
+      'class="tw:flex tw:flex-col tw:gap-2 tw:sm:min-h-10 tw:sm:flex-row tw:sm:items-center tw:sm:gap-4"',
     )
   })
 
@@ -2113,7 +2114,7 @@ describe("Event guest edit action", () => {
     )
   })
 
-  it("keeps no-response desktop controls in their matching flex rows", async () => {
+  it("keeps no-response desktop controls in their matching detail and control stacks", async () => {
     loaderEventState.value = {
       ...loaderEventState.value,
       responses: {},
@@ -2162,9 +2163,14 @@ describe("Event guest edit action", () => {
     )
     expect(
       wrapper
-        .find("#event-header-meta-row #collapse-disabled-times-toggle")
+        .find("#event-header-controls-column #collapse-disabled-times-toggle")
         .exists(),
     ).toBe(true)
+    expect(
+      wrapper
+        .find("#event-header-details-column #collapse-disabled-times-toggle")
+        .exists(),
+    ).toBe(false)
     expect(
       wrapper
         .find("#event-header-actions #collapse-disabled-times-toggle")
@@ -3036,7 +3042,7 @@ describe("Event guest edit action", () => {
     const buttonRow = wrapper.get("#event-header-button-row")
     const copyLinkButton = wrapper.get("#copy-link-btn")
 
-    expect(metaRow.classes()).toContain("event-header-row")
+    expect(metaRow.classes()).toContain("tw:sm:min-h-10")
     expect(metaRow.text()).toContain("Copy link")
     expect(buttonRow.text()).toContain("Copy link")
     expect(copyLinkButton.attributes("data-variant")).toBe("outlined")
@@ -3464,7 +3470,12 @@ describe("Event guest edit action", () => {
     expect(copyLinkMock).toHaveBeenCalled()
   })
 
-  it("renders related desktop header controls in explicit detail/action rows", async () => {
+  it("renders desktop header details and controls as independent column stacks", async () => {
+    loaderEventState.value = {
+      ...loaderEventState.value,
+      description: "A saved description",
+    }
+
     const wrapper = shallowMount(EventView, {
       props: {
         eventId: "dEeaF",
@@ -3498,15 +3509,118 @@ describe("Event guest edit action", () => {
 
     await flushDeferredMount()
 
-    const rows = wrapper.findAll(".event-header-row")
+    const detailsColumn = wrapper.get("#event-header-details-column")
+    const controlsColumn = wrapper.get("#event-header-controls-column")
 
-    expect(rows).toHaveLength(3)
-    expect(rows[0].html()).toContain("desktop-primary-availability-btn")
-    expect(rows[1].html()).toContain("event-header-button-row")
-    expect(rows[1].html()).toContain("desktop-header-show-best-times")
-    expect(rows[1].html()).toContain("desktop-header-more-options")
-    expect(rows[2].html()).not.toContain("event-description-stub")
-    expect(rows[2].html()).toContain("Schedule event")
+    for (const column of [detailsColumn, controlsColumn]) {
+      expect(column.classes()).toContain("tw:contents")
+      expect(column.classes()).toContain("tw:sm:flex")
+      expect(column.classes()).toContain("tw:sm:flex-col")
+      expect(column.classes()).toContain("tw:sm:gap-3")
+    }
+
+    expect(detailsColumn.find("#event-header-title").exists()).toBe(true)
+    expect(detailsColumn.find("#event-header-meta-row").exists()).toBe(true)
+    expect(detailsColumn.find("#event-header-button-row").exists()).toBe(true)
+    expect(detailsColumn.find("#event-header-description-row").exists()).toBe(
+      true,
+    )
+    expect(detailsColumn.find("#event-description-stub").exists()).toBe(true)
+    expect(detailsColumn.find("#desktop-schedule-event-btn").exists()).toBe(
+      false,
+    )
+
+    expect(controlsColumn.find("#event-header-actions").exists()).toBe(true)
+    expect(
+      controlsColumn.find("#desktop-header-show-best-times").exists(),
+    ).toBe(true)
+    expect(controlsColumn.find("#desktop-header-more-options").exists()).toBe(
+      true,
+    )
+    expect(controlsColumn.find("#desktop-schedule-event-btn").exists()).toBe(
+      true,
+    )
+    expect(controlsColumn.find("#event-header-title").exists()).toBe(false)
+    expect(controlsColumn.find("#event-header-button-row").exists()).toBe(false)
+
+    const detailsGroups = Array.from(
+      detailsColumn.element.children,
+    ) as HTMLElement[]
+    expect(detailsGroups.map((group) => group.id)).toEqual([
+      "event-header-title",
+      "event-header-meta-row",
+      "event-header-description-row",
+    ])
+
+    const controlsGroups = Array.from(
+      controlsColumn.element.children,
+    ) as HTMLElement[]
+    expect(controlsGroups).toHaveLength(3)
+    expect(
+      controlsGroups[0].querySelector("#event-header-actions"),
+    ).not.toBeNull()
+    expect(
+      controlsGroups[1].querySelector("#desktop-header-show-best-times"),
+    ).not.toBeNull()
+    expect(
+      controlsGroups[2].querySelector("#desktop-schedule-event-btn"),
+    ).not.toBeNull()
+  })
+
+  it("keeps the phone header order with group actions above the metadata actions", async () => {
+    isPhoneState.value = true
+    routeState.value = { name: "group", query: {} }
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      type: eventTypes.GROUP,
+      description: "A saved description",
+    }
+
+    const wrapper = shallowMount(EventView, {
+      props: {
+        eventId: "dEeaF",
+      },
+      global: {
+        stubs: {
+          ScheduleOverlap: ScheduleOverlapStub,
+          NewDialog: true,
+          GuestDialog: true,
+          SignUpForSlotDialog: true,
+          SignInNotSupportedDialog: true,
+          MarkAvailabilityDialog: true,
+          InvitationDialog: true,
+          HelpDialog: true,
+          EventDescription: eventDescriptionStub,
+          AccessDenied: true,
+          NotSignedIn: true,
+          RouterLink: true,
+          "v-chip": true,
+          "v-icon": true,
+          "v-card": true,
+          "v-card-title": true,
+          "v-card-text": true,
+          "v-card-actions": true,
+          "v-dialog": true,
+          "v-spacer": true,
+          "v-btn": buttonSemanticStub,
+        },
+      },
+    })
+
+    await flushDeferredMount()
+
+    const detailsGroups = Array.from(
+      wrapper.get("#event-header-details-column").element.children,
+    ) as HTMLElement[]
+    expect(detailsGroups.map((group) => group.id)).toEqual([
+      "event-header-title",
+      "event-header-mobile-group-actions",
+      "event-header-meta-row",
+      "event-header-description-row",
+    ])
+    expect(
+      wrapper.get("#event-header-controls-column").element.children,
+    ).toHaveLength(0)
   })
 
   it("keeps copy link explicit on phones instead of switching to a share icon", async () => {

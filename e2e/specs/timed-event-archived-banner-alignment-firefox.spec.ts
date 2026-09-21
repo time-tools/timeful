@@ -82,9 +82,7 @@ test("The archived read-only banner aligns with the event title's left edge", as
 
   const banner = page.locator(".v-alert").filter({ hasText: BANNER_TEXT })
   await expect(banner).toBeVisible()
-  const title = page.locator(
-    "#event-header > .event-header-row:first-child > .tw\\:min-w-0.tw\\:flex-1 > div:first-child",
-  )
+  const title = page.locator("#event-header-title")
   await expect(title).toBeVisible()
 
   await test.step("desktop viewport", async () => {

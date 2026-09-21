@@ -248,6 +248,7 @@ For guidance on authoring functional requirements, read [`functional/README.md`]
 | [FR-136](functional/fr/FR-136.md) | Reproject the [Timed Event Occurrence Span](../terminology/glossary.md#timed-event-occurrence-span) across [Display Timezone](../terminology/glossary.md#display-timezone) changes                                                  | frontend          |
 | [FR-137](functional/fr/FR-137.md) | Limit the [Grid Pointer](../terminology/glossary.md#grid-pointer) to desktop hover while scheduling                                                                                                                                 | frontend          |
 | [FR-138](functional/fr/FR-138.md) | Render the [Event Occurrence Span](../terminology/glossary.md#event-occurrence-span) in the event header                                                                                                                            | frontend          |
+| [FR-139](functional/fr/FR-139.md) | Keep desktop event-header details and controls in independent columns                                                                                                                                                               | frontend          |
 
 ## Quality Requirements
 

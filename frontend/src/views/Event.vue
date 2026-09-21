@@ -161,17 +161,19 @@
             {{ scheduleOverlapHintText }}
           </v-alert>
           <div v-if="!isSettingSpecificTimes" class="tw:mx-4">
-            <!-- Desktop rows pair event details with their related controls. -->
+            <!-- Desktop splits event details and event controls into independent columns. -->
             <div
               id="event-header"
-              class="tw:flex tw:flex-col tw:gap-3 tw:text-black"
+              class="tw:flex tw:flex-col tw:gap-3 tw:text-black tw:sm:flex-row tw:sm:items-start tw:sm:gap-4"
             >
+              <!-- Event details and event controls form independent columns on desktop. -->
               <div
-                class="event-header-row tw:flex tw:flex-col tw:gap-3 tw:sm:flex-row tw:sm:items-start tw:sm:gap-4"
+                id="event-header-details-column"
+                class="tw:contents tw:sm:flex tw:sm:min-w-0 tw:sm:flex-1 tw:sm:flex-col tw:sm:gap-3"
               >
-                <div class="tw:min-w-0 tw:flex-1">
+                <div id="event-header-title" class="tw:min-w-0 tw:sm:min-h-10">
                   <div
-                    class="sm:mb-2 tw:flex tw:flex-wrap tw:items-center tw:gap-x-4 tw:gap-y-2"
+                    class="tw:flex tw:flex-wrap tw:items-center tw:gap-x-4 tw:gap-y-2"
                   >
                     <div class="tw:text-xl tw:sm:text-3xl tw:sm:leading-10">
                       {{ event.name }}
@@ -214,11 +216,101 @@
                   </div>
                 </div>
                 <div
+                  v-if="isPhone && isGroup"
+                  id="event-header-mobile-group-actions"
+                  class="tw:flex tw:flex-row tw:items-center tw:gap-2.5"
+                >
+                  <v-btn
+                    v-if="
+                      event.startOnMonday ? weekOffset != 1 : weekOffset != 0
+                    "
+                    :icon="isPhone"
+                    :variant="isPhone ? 'text' : undefined"
+                    class="tw:mr-1 tw:text-very-dark-gray tw:sm:mr-2.5"
+                    @click="resetWeekOffset"
+                  >
+                    <v-icon class="tw:sm:mr-2"><MdiCalendarToday /></v-icon>
+                    <span v-if="!isPhone">Today</span>
+                  </v-btn>
+                  <v-btn
+                    :icon="isPhone"
+                    :variant="isPhone ? undefined : 'outlined'"
+                    :loading="loading"
+                    class="tw:text-green"
+                    @click="refreshCalendar"
+                  >
+                    <v-icon v-if="!isPhone" class="tw:mr-1"
+                      ><MdiRefresh
+                    /></v-icon>
+                    <span v-if="!isPhone" class="tw:mr-2">Refresh</span>
+                    <v-icon v-else class="tw:text-green"><MdiRefresh /></v-icon>
+                  </v-btn>
+                </div>
+                <div
+                  id="event-header-meta-row"
+                  class="tw:flex tw:flex-col tw:gap-2 tw:sm:min-h-10 tw:sm:flex-row tw:sm:items-center tw:sm:gap-4"
+                >
+                  <div
+                    id="event-header-button-row"
+                    class="tw:flex tw:min-w-0 tw:flex-1 tw:flex-wrap tw:items-center tw:gap-2"
+                  >
+                    <template v-if="canEditMetadata">
+                      <v-btn
+                        id="edit-event-btn"
+                        variant="outlined"
+                        color="primary"
+                        class="event-metadata-action-button"
+                        :disabled="isScheduling"
+                        @click="editEvent"
+                      >
+                        <v-icon class="tw:text-green"><MdiPencil /></v-icon>
+                        <span class="tw:ml-1 tw:text-green"
+                          >Edit {{ isGroup ? "group" : "event" }}</span
+                        >
+                      </v-btn>
+                    </template>
+                    <v-btn
+                      v-if="!isGroup"
+                      id="copy-link-btn"
+                      variant="outlined"
+                      color="primary"
+                      class="event-metadata-action-button"
+                      @click="copyLink"
+                    >
+                      <v-icon class="tw:text-green">
+                        <MdiCheck v-if="linkCopied" />
+                        <MdiContentCopy v-else />
+                      </v-icon>
+                      <span class="tw:ml-1 tw:text-green">{{
+                        linkCopied ? "Copied" : "Copy link"
+                      }}</span>
+                    </v-btn>
+                    <p aria-live="polite" class="tw:sr-only">
+                      {{ linkCopyAnnouncement }}
+                    </p>
+                    <EventAccessTransfer :event="event" />
+                  </div>
+                </div>
+                <div
+                  v-if="!isEditing && event.description?.trim()"
+                  id="event-header-description-row"
+                  class="tw:min-w-0"
+                >
+                  <EventDescription
+                    :event="event"
+                    class="event-header-description"
+                  />
+                </div>
+              </div>
+              <div
+                id="event-header-controls-column"
+                class="tw:contents tw:sm:flex tw:sm:min-w-0 tw:sm:flex-col tw:sm:gap-3"
+              >
+                <div
                   v-if="
-                    isGroup ||
-                    (!isPhone &&
-                      (!isSignUp || canEditAvailability) &&
-                      !isReadOnlyEvent)
+                    !isPhone &&
+                    (isGroup ||
+                      ((!isSignUp || canEditAvailability) && !isReadOnlyEvent))
                   "
                   class="desktop-event-header-actions tw:relative tw:flex tw:min-w-0 tw:flex-col tw:gap-2"
                 >
@@ -430,52 +522,6 @@
                     </template>
                   </div>
                 </div>
-              </div>
-
-              <div
-                id="event-header-meta-row"
-                class="event-header-row tw:flex tw:flex-col tw:gap-2 tw:sm:flex-row tw:sm:items-center tw:sm:gap-4"
-              >
-                <div
-                  id="event-header-button-row"
-                  class="tw:flex tw:min-w-0 tw:flex-1 tw:flex-wrap tw:items-center tw:gap-2"
-                >
-                  <template v-if="canEditMetadata">
-                    <v-btn
-                      id="edit-event-btn"
-                      variant="outlined"
-                      color="primary"
-                      class="event-metadata-action-button"
-                      :disabled="isScheduling"
-                      @click="editEvent"
-                    >
-                      <v-icon class="tw:text-green"><MdiPencil /></v-icon>
-                      <span class="tw:ml-1 tw:text-green"
-                        >Edit {{ isGroup ? "group" : "event" }}</span
-                      >
-                    </v-btn>
-                  </template>
-                  <v-btn
-                    v-if="!isGroup"
-                    id="copy-link-btn"
-                    variant="outlined"
-                    color="primary"
-                    class="event-metadata-action-button"
-                    @click="copyLink"
-                  >
-                    <v-icon class="tw:text-green">
-                      <MdiCheck v-if="linkCopied" />
-                      <MdiContentCopy v-else />
-                    </v-icon>
-                    <span class="tw:ml-1 tw:text-green">{{
-                      linkCopied ? "Copied" : "Copy link"
-                    }}</span>
-                  </v-btn>
-                  <p aria-live="polite" class="tw:sr-only">
-                    {{ linkCopyAnnouncement }}
-                  </p>
-                  <EventAccessTransfer :event="event" />
-                </div>
                 <div
                   v-if="
                     !isPhone &&
@@ -680,21 +726,7 @@
                     </div>
                   </div>
                 </div>
-              </div>
 
-              <div
-                v-if="!isEditing || showDeleteAvailabilityAction"
-                class="event-header-row tw:flex tw:flex-col tw:gap-2 tw:sm:flex-row tw:sm:items-start tw:sm:gap-4"
-              >
-                <div
-                  v-if="!isEditing && event.description?.trim()"
-                  class="tw:min-w-0 tw:flex-1"
-                >
-                  <EventDescription
-                    :event="event"
-                    class="event-header-description"
-                  />
-                </div>
                 <div
                   v-if="
                     !isPhone &&

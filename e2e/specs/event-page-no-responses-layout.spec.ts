@@ -1,15 +1,17 @@
 import { expect, test } from "@playwright/test"
 import {
   buildSpecificDateSeed,
+  dismissConsent,
   openEventPage,
   seedCanonicalTimedEvent,
+  waitForEventShell,
   waitForScheduleOverlapMounted,
 } from "../helpers/timed-event-helpers"
 import { Temporal } from "temporal-polyfill"
 
 test.describe.configure({ mode: "serial" })
 
-test("event page without responses pairs each header row with one action column", async ({
+test("event page without responses aligns desktop header details with their control column", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -57,9 +59,7 @@ test("event page without responses pairs each header row with one action column"
     const nextPageButton = page.locator(
       ".schedule-overlap-sidebar__pager button.v-btn",
     )
-    const title = page.locator(
-      "#event-header > .event-header-row:first-child > .tw\\:min-w-0.tw\\:flex-1 > div:first-child",
-    )
+    const title = page.locator("#event-header-title")
     const editEventButton = page.locator("#edit-event-btn")
     const ownerActionRow = page.locator("#event-header-button-row")
     const [
@@ -101,7 +101,7 @@ test("event page without responses pairs each header row with one action column"
       githubLinkBox === null
     ) {
       throw new Error(
-        "Expected each header-row detail and action to have boxes",
+        "Expected each desktop header detail and control to have boxes",
       )
     }
     // An [Event Owner](../../../docs/terminology/glossary.md#event-owner)
@@ -322,4 +322,246 @@ test("timed add availability controls stay close to the Legend", async ({
   expect(
     legendBox.y - (lastEditControlBox.y + lastEditControlBox.height),
   ).toBeLessThanOrEqual(10)
+})
+
+test("desktop header details and controls stack independently", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "chromium-desktop",
+    "Desktop-only header layout geometry",
+  )
+
+  const now = Temporal.Now.instant()
+  const today = now.toZonedDateTimeISO("UTC").toPlainDate().toString()
+  const seedFor = (name: string) =>
+    seedCanonicalTimedEvent(page.request, {
+      ...buildSpecificDateSeed({
+        name,
+        selectedDays: [today],
+        activeSlots: [`${today}T09:00:00.000Z`, `${today}T10:00:00.000Z`],
+        eventTimezone: "UTC",
+        startTimeLocal: "09:00",
+        endTimeLocal: "17:00",
+        timeIncrementMinutes: 60,
+      }),
+      description: "A saved description",
+    })
+
+  const measureHeader = async () => {
+    const detailsColumn = page.locator("#event-header-details-column")
+    const controlsColumn = page.locator("#event-header-controls-column")
+    const toggle = page.locator(
+      ".desktop-event-header-options__collapse-disabled-times-switch",
+    )
+    const descriptionRow = page.locator("#event-header-description-row")
+    const scheduleButton = page.locator("#desktop-schedule-event-btn")
+    await expect(detailsColumn).toBeVisible()
+    await expect(controlsColumn).toBeVisible()
+    await expect(toggle).toBeVisible()
+    await expect(descriptionRow).toBeVisible()
+    await expect(scheduleButton).toBeVisible()
+
+    const [
+      detailsBox,
+      controlsBox,
+      titleBox,
+      metaRowBox,
+      descriptionBox,
+      toggleBox,
+      scheduleBox,
+    ] = await Promise.all([
+      detailsColumn.boundingBox(),
+      controlsColumn.boundingBox(),
+      page.locator("#event-header-title").boundingBox(),
+      page.locator("#event-header-meta-row").boundingBox(),
+      descriptionRow.boundingBox(),
+      toggle.boundingBox(),
+      scheduleButton.boundingBox(),
+    ])
+    if (
+      detailsBox === null ||
+      controlsBox === null ||
+      titleBox === null ||
+      metaRowBox === null ||
+      descriptionBox === null ||
+      toggleBox === null ||
+      scheduleBox === null
+    ) {
+      throw new Error("Expected the desktop header columns to have boxes")
+    }
+
+    return {
+      detailsBox,
+      controlsBox,
+      titleBox,
+      metaRowBox,
+      descriptionBox,
+      toggleBox,
+      scheduleBox,
+    }
+  }
+
+  type HeaderBoxes = Awaited<ReturnType<typeof measureHeader>>
+  const offsetsFor = (header: HeaderBoxes) => ({
+    title: header.titleBox.y - header.detailsBox.y,
+    meta: header.metaRowBox.y - header.detailsBox.y,
+    description: header.descriptionBox.y - header.detailsBox.y,
+    toggle: header.toggleBox.y - header.controlsBox.y,
+    schedule: header.scheduleBox.y - header.controlsBox.y,
+  })
+
+  const shortSeed = await seedFor(`Short name ${String(now.epochMilliseconds)}`)
+  await openEventPage(page, shortSeed.shortId)
+  const shortHeader = await measureHeader()
+
+  const longName =
+    (
+      "A long desktop event name that has to wrap " +
+      "onto several lines in the header "
+    ).slice(0, 80) + String(now.epochMilliseconds)
+  const longSeed = await seedFor(longName)
+  await openEventPage(page, longSeed.shortId)
+  const longHeader = await measureHeader()
+
+  await test.step("the paired groups share the same gaps", () => {
+    const offsets = offsetsFor(shortHeader)
+    expect(
+      Math.abs(shortHeader.detailsBox.y - shortHeader.controlsBox.y),
+    ).toBeLessThanOrEqual(1)
+    expect(Math.abs(offsets.title)).toBeLessThanOrEqual(1)
+    expect(Math.abs(offsets.meta - offsets.toggle)).toBeLessThanOrEqual(1)
+    expect(
+      Math.abs(offsets.description - offsets.schedule),
+    ).toBeLessThanOrEqual(1)
+  })
+
+  await test.step("a wrapped title moves only the details column", () => {
+    const shortOffsets = offsetsFor(shortHeader)
+    const longOffsets = offsetsFor(longHeader)
+    expect(longHeader.titleBox.height).toBeGreaterThan(
+      shortHeader.titleBox.height,
+    )
+    expect(longHeader.detailsBox.height).toBeGreaterThan(
+      shortHeader.detailsBox.height,
+    )
+    expect(
+      Math.abs(longHeader.controlsBox.height - shortHeader.controlsBox.height),
+    ).toBeLessThanOrEqual(1)
+    expect(longOffsets.meta).toBeGreaterThan(shortOffsets.meta)
+    expect(longOffsets.description).toBeGreaterThan(shortOffsets.description)
+    expect(
+      Math.abs(longOffsets.toggle - shortOffsets.toggle),
+    ).toBeLessThanOrEqual(1)
+    expect(
+      Math.abs(longOffsets.schedule - shortOffsets.schedule),
+    ).toBeLessThanOrEqual(1)
+  })
+
+  await test.step("a taller control group moves only the controls column", async () => {
+    await page
+      .locator("#event-header-controls-column")
+      .evaluate((controlsColumn) => {
+        const firstGroup = controlsColumn.firstElementChild
+        if (!(firstGroup instanceof HTMLElement)) {
+          throw new Error("Expected a first controls group")
+        }
+        firstGroup.style.minHeight = "160px"
+      })
+
+    const grownHeader = await measureHeader()
+    const longOffsets = offsetsFor(longHeader)
+    const grownOffsets = offsetsFor(grownHeader)
+
+    expect(
+      Math.abs(grownHeader.detailsBox.height - longHeader.detailsBox.height),
+    ).toBeLessThanOrEqual(1)
+    expect(
+      Math.abs(grownOffsets.title - longOffsets.title),
+    ).toBeLessThanOrEqual(1)
+    expect(Math.abs(grownOffsets.meta - longOffsets.meta)).toBeLessThanOrEqual(
+      1,
+    )
+    expect(
+      Math.abs(grownOffsets.description - longOffsets.description),
+    ).toBeLessThanOrEqual(1)
+    expect(grownOffsets.toggle - longOffsets.toggle).toBeGreaterThanOrEqual(100)
+    expect(grownOffsets.schedule - longOffsets.schedule).toBeGreaterThanOrEqual(
+      100,
+    )
+  })
+})
+
+test("mobile group header keeps availability actions between the title and the metadata actions", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "chromium-mobile",
+    "Mobile-only header order assertions",
+  )
+
+  const now = Temporal.Now.instant()
+  const today = now.toZonedDateTimeISO("UTC").toPlainDate().toString()
+  const seed = await seedCanonicalTimedEvent(page.request, {
+    name: `Mobile header order ${String(now.epochMilliseconds)}`,
+    type: "group",
+    description: "A saved description",
+    activeSlots: [`${today}T09:00:00.000Z`, `${today}T10:00:00.000Z`],
+    eventTimezone: "UTC",
+    slotGeneration: {
+      startTimeLocal: "09:00",
+      endTimeLocal: "17:00",
+      timeIncrementMinutes: 60,
+    },
+    timedRecurrence: {
+      kind: "weekly",
+      selectedDays: [today],
+      selectedDaysOfWeek: [Temporal.PlainDate.from(today).dayOfWeek],
+      startOnMonday: true,
+    },
+  })
+
+  await page.goto(`/g/${seed.shortId}`, { waitUntil: "domcontentloaded" })
+  await dismissConsent(page)
+  await waitForEventShell(page)
+
+  const title = page.locator("#event-header-title")
+  const groupActions = page.locator("#event-header-mobile-group-actions")
+  const metaRow = page.locator("#event-header-meta-row")
+  const descriptionRow = page.locator("#event-header-description-row")
+  await expect(title).toBeVisible()
+  await expect(groupActions).toHaveCount(1)
+  await expect(groupActions).toBeVisible()
+  await expect(metaRow).toBeVisible()
+  await expect(descriptionRow).toBeVisible()
+
+  const [titleBox, groupActionsBox, metaRowBox, descriptionBox] =
+    await Promise.all([
+      title.boundingBox(),
+      groupActions.boundingBox(),
+      metaRow.boundingBox(),
+      descriptionRow.boundingBox(),
+    ])
+  if (
+    titleBox === null ||
+    groupActionsBox === null ||
+    metaRowBox === null ||
+    descriptionBox === null
+  ) {
+    throw new Error("Expected the mobile header groups to have boxes")
+  }
+
+  expect(titleBox.y + titleBox.height).toBeLessThanOrEqual(
+    groupActionsBox.y + 1,
+  )
+  expect(groupActionsBox.y + groupActionsBox.height).toBeLessThanOrEqual(
+    metaRowBox.y + 1,
+  )
+  expect(metaRowBox.y + metaRowBox.height).toBeLessThanOrEqual(
+    descriptionBox.y + 1,
+  )
+
+  // The desktop controls column contributes no duplicate availability actions
+  // on a phone viewport.
+  await expect(page.locator("#event-header-controls-column > *")).toHaveCount(0)
 })
