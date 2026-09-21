@@ -3,6 +3,7 @@
     :model-value="modelValue"
     width="400"
     content-class="tw:m-0"
+    :style="overlayViewportStyle"
     @update:model-value="(e) => emit('update:modelValue', e)"
   >
     <v-card>
@@ -74,7 +75,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue"
+import { computed, ref, watch, type CSSProperties } from "vue"
 import { validateEmail } from "@/utils"
 import type { Event } from "@/types"
 import {
@@ -82,6 +83,7 @@ import {
   getGuestNameValidationMessage,
   validateGuestName,
 } from "@/utils/guestName"
+import { useVisualViewport } from "@/composables/useVisualViewport"
 import MdiAlertCircle from "~icons/mdi/alert-circle"
 import MdiClose from "~icons/mdi/close"
 
@@ -150,6 +152,16 @@ const canSubmit = computed(
     normalizedName.value != null &&
     (!props.event.collectEmails || trimmedEmail.value.length > 0),
 )
+const visibleViewport = useVisualViewport()
+const overlayViewportStyle = computed<CSSProperties | undefined>(() => {
+  const viewport = visibleViewport.value
+  if (!viewport) return undefined
+  return {
+    top: `${String(viewport.top)}px`,
+    height: `${String(viewport.height)}px`,
+    bottom: "auto",
+  }
+})
 
 const initializeForm = () => {
   name.value = ""

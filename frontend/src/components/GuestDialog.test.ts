@@ -2,9 +2,9 @@
 /* eslint-disable vue/one-component-per-file */
 
 import { readFileSync } from "node:fs"
-import { defineComponent, ref, type PropType } from "vue"
+import { defineComponent, nextTick, ref, type PropType } from "vue"
 import { mount } from "@vue/test-utils"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   createFormStub,
   mergeComponentStubs,
@@ -125,6 +125,11 @@ const VCheckboxStub = defineComponent({
   `,
 })
 
+const VDialogAttrsStub = defineComponent({
+  name: "VDialog",
+  template: `<div class="dialog-root"><slot /></div>`,
+})
+
 const baseEvent = {
   _id: "evt-1",
   collectEmails: true,
@@ -174,6 +179,37 @@ describe("GuestDialog", () => {
     formRefMethods.validate.mockClear()
     formRefMethods.resetValidation.mockClear()
   })
+
+  afterEach(() => {
+    Reflect.deleteProperty(window, "visualViewport")
+  })
+
+  const installVisualViewport = (height: number, offsetTop: number) => {
+    const visibleViewport = Object.assign(new EventTarget(), {
+      height,
+      offsetTop,
+      width: 390,
+    })
+    Object.defineProperty(window, "visualViewport", {
+      configurable: true,
+      value: visibleViewport,
+    })
+    return visibleViewport
+  }
+
+  const mountWithVisibleViewport = () =>
+    mount(GuestDialog, {
+      props: {
+        modelValue: true,
+        event: baseEvent,
+        respondents: [],
+      },
+      global: {
+        stubs: mergeComponentStubs(stubGroups, {
+          "v-dialog": VDialogAttrsStub,
+        }),
+      },
+    })
 
   it("uses the outlined guest-name field with the solo email field and enables submit from typed guest details", async () => {
     const wrapper = mount(GuestDialog, {
@@ -513,5 +549,32 @@ describe("GuestDialog", () => {
     expect(appCssSource).toMatch(
       /\.timeful-flat-button\s*\{[^}]*box-shadow: none;/,
     )
+  })
+
+  it("sizes the dialog overlay to the visible viewport so the keyboard cannot cover the actions", async () => {
+    const visibleViewport = installVisualViewport(340, 120)
+
+    const wrapper = mountWithVisibleViewport()
+
+    const dialogRoot = wrapper.get(".dialog-root")
+    expect(dialogRoot.attributes("style")).toContain("top: 120px")
+    expect(dialogRoot.attributes("style")).toContain("height: 340px")
+    expect(dialogRoot.attributes("style")).toContain("bottom: auto")
+
+    visibleViewport.height = 664
+    visibleViewport.offsetTop = 0
+    visibleViewport.dispatchEvent(new Event("resize"))
+    await nextTick()
+
+    expect(dialogRoot.attributes("style")).toContain("top: 0px")
+    expect(dialogRoot.attributes("style")).toContain("height: 664px")
+  })
+
+  it("leaves the default overlay layout untouched when the visible viewport API is unavailable", () => {
+    Reflect.deleteProperty(window, "visualViewport")
+
+    const wrapper = mountWithVisibleViewport()
+
+    expect(wrapper.get(".dialog-root").attributes("style")).toBeUndefined()
   })
 })
