@@ -246,6 +246,7 @@ For guidance on authoring functional requirements, read [`functional/README.md`]
 | [FR-134](functional/fr/FR-134.md) | Place the response selection control after the response name                                                                                                                                                                        | frontend          |
 | [FR-135](functional/fr/FR-135.md) | Show the pending [Timed Event Occurrence Span](../terminology/glossary.md#timed-event-occurrence-span) in the scheduling tooltip                                                                                                    | frontend          |
 | [FR-136](functional/fr/FR-136.md) | Reproject the [Timed Event Occurrence Span](../terminology/glossary.md#timed-event-occurrence-span) across [Display Timezone](../terminology/glossary.md#display-timezone) changes                                                  | frontend          |
+| [FR-137](functional/fr/FR-137.md) | Limit the [Grid Pointer](../terminology/glossary.md#grid-pointer) to desktop hover while scheduling                                                                                                                                 | frontend          |
 
 ## Quality Requirements
 

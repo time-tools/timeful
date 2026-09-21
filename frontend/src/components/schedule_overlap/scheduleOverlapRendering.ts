@@ -288,6 +288,7 @@ interface TimeGridTimeslotArgs extends TimeslotBaseArgs {
   timezoneOffset: Temporal.Duration
   curTimeslot: { row: number; col: number }
   editing: boolean
+  schedulingGridPointerVisible: boolean
   isColConsecutive: (col: number) => boolean
   daysLength: number
   firstSplitLength: number
@@ -319,6 +320,7 @@ export const getTimeGridTimeslotClassStyle = ({
   timezoneOffset,
   curTimeslot,
   editing,
+  schedulingGridPointerVisible,
   isColConsecutive,
   daysLength,
   respondents,
@@ -342,12 +344,17 @@ export const getTimeGridTimeslotClassStyle = ({
   const isRightDateBoundary =
     baseArgs.col === daysLength - 1 || !isColConsecutive(baseArgs.col + 1)
 
+  const gridPointerEligible =
+    state === states.SCHEDULE_EVENT
+      ? schedulingGridPointerVisible
+      : respondents.length > 0 ||
+        state === states.HEATMAP ||
+        state === states.BEST_TIMES ||
+        editing ||
+        state === states.SET_SPECIFIC_TIMES
+
   if (
-    (respondents.length > 0 ||
-      state === states.HEATMAP ||
-      state === states.BEST_TIMES ||
-      editing ||
-      state === states.SET_SPECIFIC_TIMES) &&
+    gridPointerEligible &&
     curTimeslot.row === baseArgs.row &&
     curTimeslot.col === baseArgs.col &&
     !isDisabled

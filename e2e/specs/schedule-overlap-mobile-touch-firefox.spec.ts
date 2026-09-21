@@ -865,3 +865,103 @@ test("mobile scheduling Cancel and Clear use the desktop red destructive treatme
   await expect(clearButton).toHaveCSS("color", destructiveRed)
   await expect(clearButton).toHaveCSS("border-top-color", destructiveRed)
 })
+
+test("phone scheduling never shows the timed-grid cursor", async ({ page }) => {
+  const now = Temporal.Now.instant()
+  const today = now.toZonedDateTimeISO("UTC").toPlainDate().toString()
+  const timeIncrementMinutes = 60
+  const slotAtHour = (hour: number) =>
+    `${today}T${String(hour).padStart(2, "0")}:00:00.000Z`
+
+  const seeded = await seedCanonicalTimedEvent(
+    page.request,
+    buildSpecificDateSeed({
+      name: `Mobile scheduling cursor ${String(now.epochMilliseconds)}`,
+      selectedDays: [today],
+      activeSlots: [
+        slotAtHour(9),
+        slotAtHour(10),
+        slotAtHour(11),
+        slotAtHour(12),
+      ],
+      eventTimezone: "UTC",
+      startTimeLocal: "09:00",
+      endTimeLocal: "17:00",
+      timeIncrementMinutes,
+    }),
+  )
+
+  const scheduleResponse = await page.request.put(
+    `/api/events/${seeded.eventId}/schedule`,
+    { data: { startDate: slotAtHour(9), endDate: slotAtHour(10) } },
+  )
+  expect(scheduleResponse.ok()).toBeTruthy()
+
+  const guestResponse = await page.request.post(
+    `/api/events/${seeded.eventId}/response`,
+    {
+      data: {
+        guest: true,
+        createResponse: true,
+        name: "Guest One",
+        email: "",
+        availability: [slotAtHour(9)],
+        ifNeeded: [],
+      },
+    },
+  )
+  expect(guestResponse.ok()).toBeTruthy()
+
+  await openEventPage(page, seeded.shortId)
+  await waitForScheduleOverlapMounted(page)
+  await page.getByRole("button", { name: "Reschedule", exact: true }).click()
+
+  const cursor = page.locator(".schedule-overlap-time-grid__selected-timeslot")
+  const cellAt = (row: number) =>
+    page.locator(
+      `#drag-section .timeslot[data-row="${String(row)}"][data-col="0"]`,
+    )
+  const scrollToCenter = async (cell: ReturnType<typeof cellAt>) => {
+    await cell.scrollIntoViewIfNeeded()
+    await cell.evaluate((element) => {
+      element.scrollIntoView({ block: "center", behavior: "instant" })
+    })
+  }
+  const centerOf = async (cell: ReturnType<typeof cellAt>) => {
+    const box = await cell.boundingBox()
+    expect(box).not.toBeNull()
+    if (!box) throw new Error("Expected the grid cell to have a bounding box")
+    return {
+      x: box.x + box.width / 2,
+      y: box.y + box.height / 2,
+    }
+  }
+
+  await test.step("a tap does not render the cursor", async () => {
+    const tappedCell = cellAt(rowIndexForTime(9, 0, timeIncrementMinutes))
+    await scrollToCenter(tappedCell)
+    const tapPoint = await centerOf(tappedCell)
+    await page.touchscreen.tap(tapPoint.x, tapPoint.y)
+
+    await expect(cursor).toHaveCount(0)
+  })
+
+  await test.step("a following drag does not render the cursor and still schedules", async () => {
+    const dragStartCell = cellAt(rowIndexForTime(10, 0, timeIncrementMinutes))
+    await scrollToCenter(dragStartCell)
+    const dragStartPoint = await centerOf(dragStartCell)
+    const dragEndPoint = await centerOf(
+      cellAt(rowIndexForTime(11, 0, timeIncrementMinutes)),
+    )
+    await page.mouse.move(dragStartPoint.x, dragStartPoint.y)
+    await page.mouse.down()
+    await page.mouse.move(dragEndPoint.x, dragEndPoint.y, { steps: 20 })
+    await page.mouse.up()
+
+    await expect(cursor).toHaveCount(0)
+    await expect(page.locator(".scheduled-event-block").first()).toBeVisible()
+    await expect(
+      page.locator(".tw\\:fixed.timeful-tooltip-layer"),
+    ).toContainText(/(10:00 to 12:00|10:00 AM to 12:00 PM)/)
+  })
+})

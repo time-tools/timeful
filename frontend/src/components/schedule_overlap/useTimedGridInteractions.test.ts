@@ -24,6 +24,8 @@ const mountInteractions = (
     deselectGridOutside?: () => void
     interactable?: boolean
     daysOnly?: boolean
+    isScheduling?: boolean
+    curTimeslot?: { row: number; col: number }
   },
 ) => {
   const isPhone = ref(phone)
@@ -31,6 +33,8 @@ const mountInteractions = (
   const dragCur = ref<{ row: number; col: number } | null>(null)
   const timeslotSelected = ref(false)
   const tooltipContent = ref<{ text: string; mono: boolean }[]>([])
+  const isScheduling = ref(options?.isScheduling ?? false)
+  const curTimeslot = ref(options?.curTimeslot ?? { row: -1, col: -1 })
   const showAvailability = vi.fn()
   const highlightAvailability = vi.fn()
   const startDrag = vi.fn(() => {
@@ -49,8 +53,10 @@ const mountInteractions = (
         isPhone: computed(() => isPhone.value),
         daysOnly: computed(() => options?.daysOnly ?? false),
         interactable: computed(() => options?.interactable ?? true),
+        isScheduling: computed(() => isScheduling.value),
         dragging,
         dragCur,
+        curTimeslot,
         timeslotSelected,
         tooltipContent,
         startDrag,
@@ -80,6 +86,8 @@ const mountInteractions = (
     dragCur,
     timeslotSelected,
     tooltipContent,
+    isScheduling,
+    curTimeslot,
     showAvailability,
     highlightAvailability,
     startDrag,
@@ -166,6 +174,171 @@ describe("useTimedGridInteractions", () => {
     interactions.getTimeslotVon(1, 0).mouseover()
     expect(interactions.selectedTooltipSlot.value).toEqual({ row: 2, col: 0 })
     expect(joinTooltipSegments(tooltipContent.value)).toBe("slot-2-0")
+  })
+
+  it("suppresses the scheduling Grid Pointer from press until the next unpressed move", () => {
+    const first = appendSlot(1, 0)
+    const second = appendSlot(2, 0)
+    const { interactions, showAvailability } = mountInteractions(false, {
+      isScheduling: true,
+      curTimeslot: { row: 1, col: 0 },
+    })
+
+    expect(interactions.schedulingGridPointerVisible.value).toBe(true)
+
+    interactions.startTimedGridDrag({
+      target: first,
+      buttons: 1,
+      pointerId: 7,
+    } as unknown as MouseEvent)
+    expect(interactions.schedulingGridPointerVisible.value).toBe(false)
+
+    interactions.endTimedGridDrag({
+      target: first,
+      buttons: 0,
+      pointerId: 7,
+    } as unknown as MouseEvent)
+    expect(interactions.schedulingGridPointerVisible.value).toBe(false)
+
+    showAvailability.mockClear()
+    interactions.moveTimedGridDrag({
+      target: second,
+      clientX: 100,
+      clientY: 110,
+      buttons: 0,
+    } as unknown as MouseEvent)
+
+    expect(showAvailability).toHaveBeenCalledWith(2, 0)
+    expect(interactions.schedulingGridPointerVisible.value).toBe(true)
+  })
+
+  it("does not re-arm the scheduling Grid Pointer on a pressed move", () => {
+    const first = appendSlot(1, 0)
+    const second = appendSlot(2, 0)
+    const { interactions, showAvailability } = mountInteractions(false, {
+      isScheduling: true,
+      curTimeslot: { row: 1, col: 0 },
+    })
+
+    interactions.startTimedGridDrag({
+      target: first,
+      buttons: 1,
+      pointerId: 7,
+    } as unknown as MouseEvent)
+    showAvailability.mockClear()
+    interactions.moveTimedGridDrag({
+      target: second,
+      clientX: 100,
+      clientY: 110,
+      buttons: 1,
+    } as unknown as MouseEvent)
+
+    expect(showAvailability).not.toHaveBeenCalled()
+    expect(interactions.schedulingGridPointerVisible.value).toBe(false)
+  })
+
+  it("never shows the scheduling Grid Pointer on a phone viewport", () => {
+    const first = appendSlot(1, 0)
+    const { interactions } = mountInteractions(true, { isScheduling: true })
+
+    interactions.startTimedGridDrag({
+      target: first,
+      buttons: 1,
+      pointerId: 3,
+    } as unknown as MouseEvent)
+    expect(interactions.schedulingGridPointerVisible.value).toBe(false)
+
+    interactions.moveTimedGridDrag({
+      target: first,
+      clientX: 100,
+      clientY: 100,
+      buttons: 0,
+    } as unknown as MouseEvent)
+    expect(interactions.schedulingGridPointerVisible.value).toBe(false)
+  })
+
+  it("never shows the scheduling Grid Pointer when the grid is not interactable", () => {
+    appendSlot(1, 0)
+    const { interactions } = mountInteractions(false, {
+      isScheduling: true,
+      curTimeslot: { row: 1, col: 0 },
+      interactable: false,
+    })
+
+    expect(interactions.schedulingGridPointerVisible.value).toBe(false)
+  })
+
+  it("keeps the parked scheduling Grid Pointer hidden until the first unpressed move after entering scheduling", async () => {
+    const first = appendSlot(1, 0)
+    const second = appendSlot(2, 0)
+    const { interactions, isScheduling, curTimeslot } = mountInteractions(
+      false,
+      {
+        curTimeslot: { row: 1, col: 0 },
+      },
+    )
+
+    isScheduling.value = true
+    await nextTick()
+
+    expect(curTimeslot.value).toEqual({ row: 1, col: 0 })
+    expect(interactions.schedulingGridPointerVisible.value).toBe(false)
+
+    interactions.moveTimedGridDrag({
+      target: first,
+      clientX: 100,
+      clientY: 90,
+      buttons: 0,
+    } as unknown as MouseEvent)
+    expect(interactions.schedulingGridPointerVisible.value).toBe(true)
+
+    isScheduling.value = false
+    await nextTick()
+    isScheduling.value = true
+    await nextTick()
+    expect(interactions.schedulingGridPointerVisible.value).toBe(false)
+
+    interactions.moveTimedGridDrag({
+      target: second,
+      clientX: 100,
+      clientY: 110,
+      buttons: 0,
+    } as unknown as MouseEvent)
+    expect(interactions.schedulingGridPointerVisible.value).toBe(true)
+  })
+
+  it("keeps the scheduling Grid Pointer hidden through a click until the next unpressed move", () => {
+    const first = appendSlot(1, 0)
+    const second = appendSlot(2, 0)
+    const { interactions, showAvailability } = mountInteractions(false, {
+      isScheduling: true,
+      curTimeslot: { row: 1, col: 0 },
+    })
+
+    interactions.startTimedGridDrag({
+      target: first,
+      buttons: 1,
+      pointerId: 7,
+    } as unknown as MouseEvent)
+    interactions.endTimedGridDrag({
+      target: first,
+      buttons: 0,
+      pointerId: 7,
+    } as unknown as MouseEvent)
+
+    showAvailability.mockClear()
+    interactions.getTimeslotVon(1, 0).click()
+
+    expect(showAvailability).toHaveBeenCalledWith(1, 0)
+    expect(interactions.schedulingGridPointerVisible.value).toBe(false)
+
+    interactions.moveTimedGridDrag({
+      target: second,
+      clientX: 100,
+      clientY: 110,
+      buttons: 0,
+    } as unknown as MouseEvent)
+    expect(interactions.schedulingGridPointerVisible.value).toBe(true)
   })
 
   it("registers and removes its outside-grid handler in capture phase", () => {

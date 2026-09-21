@@ -60,6 +60,7 @@ const mountPresentation = () => {
         dragging: ref(false),
         dragStart: ref(null),
         dragCur: ref(null),
+        schedulingGridPointerVisible: computed(() => false),
         getTimeslotVon: () => ({}),
         grid: {
           splitTimes,

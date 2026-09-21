@@ -47,6 +47,7 @@ interface UseTimedGridPresentationOptions {
   dragging: Ref<boolean>
   dragStart: Ref<RowCol | null>
   dragCur: Ref<RowCol | null>
+  schedulingGridPointerVisible: ComputedRef<boolean>
   getTimeslotVon: (row: number, col: number) => Record<string, () => void>
   grid: ReturnType<typeof useCalendarGrid>
   avail: ReturnType<typeof useAvailabilityData>
@@ -208,6 +209,7 @@ export function useTimedGridPresentation(
       timezoneOffset: opts.grid.timezoneOffset.value,
       curTimeslot: opts.avail.curTimeslot.value,
       editing: opts.ui.editing.value,
+      schedulingGridPointerVisible: opts.schedulingGridPointerVisible.value,
       isColConsecutive: opts.grid.isColConsecutive,
       daysLength: opts.grid.days.value.length,
       firstSplitLength: opts.grid.splitTimes.value[0].length,
