@@ -621,3 +621,90 @@ test("phone respondent selection sits after the name and keeps the status visibl
     Math.abs(nameAfterSelection.y - nameBeforeSelection.y),
   ).toBeLessThanOrEqual(1)
 })
+
+test("phone respondent checkbox clears its green outline after a tap unchecks it", async ({
+  page,
+  request,
+}) => {
+  const now = Temporal.Now.instant()
+  const today = now.toZonedDateTimeISO("UTC").toPlainDate().toString()
+  const slot = `${today}T09:00:00.000Z`
+  const timeIncrementMinutes = 60
+  const guestName = "Guest One"
+
+  const seed = await seedCanonicalTimedEvent(
+    request,
+    buildSpecificDateSeed({
+      name: `Phone checkbox hover ${String(now.epochMilliseconds)}`,
+      selectedDays: [today],
+      activeSlots: [slot, `${today}T10:00:00.000Z`],
+      eventTimezone: "UTC",
+      startTimeLocal: "09:00",
+      endTimeLocal: "17:00",
+      timeIncrementMinutes,
+    }),
+  )
+
+  const guestResponse = await request.post(
+    `/api/events/${seed.eventId}/response`,
+    {
+      data: {
+        guest: true,
+        createResponse: true,
+        name: guestName,
+        email: "",
+        availability: [slot],
+        ifNeeded: [],
+      },
+    },
+  )
+  expect(guestResponse.ok()).toBeTruthy()
+
+  await openEventPage(page, seed.shortId)
+
+  const firstSlotRowIndex = rowIndexForTime(9, 0, timeIncrementMinutes)
+  const selectedSlot = page.locator(
+    `#drag-section .timeslot[data-row="${String(firstSlotRowIndex)}"][data-col="0"]`,
+  )
+  await selectedSlot.scrollIntoViewIfNeeded()
+  await selectedSlot.dispatchEvent("click")
+
+  const row = page
+    .locator(".respondent-row")
+    .filter({ hasText: guestName })
+    .first()
+  const control = row.locator(".respondent-control")
+  const checkbox = row.locator(".respondent-control__checkbox")
+  const name = row.locator(".respondent-name-line")
+
+  await expect(row).toBeVisible()
+  await expect(control).toHaveAttribute("aria-pressed", "false")
+  await expect(checkbox).toHaveCSS("border-top-color", "rgb(189, 189, 189)")
+
+  await checkbox.tap()
+  await expect(control).toHaveAttribute("aria-pressed", "true")
+  await expect(checkbox.locator("svg")).toBeVisible()
+  await expect(checkbox).toHaveCSS("border-top-color", "rgb(0, 153, 76)")
+
+  await checkbox.tap()
+  await expect(control).toHaveAttribute("aria-pressed", "false")
+  await expect(checkbox.locator("svg")).toHaveCount(0)
+  await expect(checkbox).toHaveCSS("border-top-color", "rgb(189, 189, 189)")
+
+  await name.hover()
+  await expect(checkbox.locator("svg")).toHaveCount(0)
+  await expect(checkbox).toHaveCSS("border-top-color", "rgb(0, 153, 76)")
+
+  await row.locator(".respondent-edit-status").hover()
+  await expect(checkbox).toHaveCSS("border-top-color", "rgb(189, 189, 189)")
+
+  await page.mouse.move(0, 0)
+  await checkbox.tap()
+  await expect(control).toHaveAttribute("aria-pressed", "true")
+  await expect(checkbox.locator("svg")).toBeVisible()
+  await expect(checkbox).toHaveCSS("border-top-color", "rgb(0, 153, 76)")
+
+  await page.mouse.move(0, 0)
+  await expect(checkbox.locator("svg")).toBeVisible()
+  await expect(checkbox).toHaveCSS("border-top-color", "rgb(0, 153, 76)")
+})

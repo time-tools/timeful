@@ -379,7 +379,10 @@ describe("RespondentsList", () => {
 
   it("reveals the reserved checkbox on hover or selection after the name", () => {
     expect(respondentsListSource).toContain(
-      ".respondent-row:hover .respondent-control__checkbox",
+      ".respondent-row:not(.respondent-row--phone):hover .respondent-control__checkbox",
+    )
+    expect(respondentsListSource).toContain(
+      ".respondent-row--phone.respondent-row--hovered .respondent-control__checkbox",
     )
     expect(respondentsListSource).toContain(
       ".respondent-row--selected .respondent-control__checkbox",
@@ -388,6 +391,55 @@ describe("RespondentsList", () => {
       "border-color: var(--timeful-outline-neutral)",
     )
     expect(respondentsListSource).not.toContain("position: absolute")
+  })
+
+  it("tracks the phone hover state from the avatar, name, and checkbox regions", async () => {
+    const wrapper = mountRespondentsList({
+      curDate: baseDate,
+      setEntry: baseDate,
+    })
+    const row = wrapper.find(".respondent-row")
+    const checkbox = wrapper.find(".respondent-control__checkbox")
+    const name = wrapper.find(".respondent-name-line")
+    const control = wrapper.find(".respondent-control")
+
+    expect(row.classes()).toContain("respondent-row--phone")
+    expect(row.classes()).not.toContain("respondent-row--hovered")
+
+    await checkbox.trigger("pointerenter")
+    expect(row.classes()).toContain("respondent-row--hovered")
+
+    await checkbox.trigger("pointerleave")
+    expect(row.classes()).not.toContain("respondent-row--hovered")
+
+    await control.trigger("pointerenter")
+    expect(row.classes()).toContain("respondent-row--hovered")
+
+    await name.trigger("pointerenter")
+    expect(row.classes()).toContain("respondent-row--hovered")
+
+    await name.trigger("pointercancel")
+    expect(row.classes()).not.toContain("respondent-row--hovered")
+  })
+
+  it("ignores phone hover regions on desktop rows", async () => {
+    isPhoneValue.value = false
+    try {
+      const wrapper = mountRespondentsList({
+        curDate: baseDate,
+        setEntry: baseDate,
+      })
+      const row = wrapper.find(".respondent-row")
+
+      expect(row.classes()).not.toContain("respondent-row--phone")
+
+      await wrapper
+        .find(".respondent-control__checkbox")
+        .trigger("pointerenter")
+      expect(row.classes()).not.toContain("respondent-row--hovered")
+    } finally {
+      isPhoneValue.value = true
+    }
   })
 
   it("shows the profile avatar when no grid slot is in context", () => {
