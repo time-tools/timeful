@@ -204,6 +204,14 @@
                       </HelpDialog>
                     </template>
                   </div>
+                  <div
+                    v-if="scheduledOccurrenceSpanText"
+                    id="event-header-scheduled-span"
+                    class="tw:mt-1 tw:flex tw:items-center tw:gap-1 tw:text-sm tw:text-very-dark-gray"
+                  >
+                    <v-icon size="small"><MdiClockOutline /></v-icon>
+                    <span>{{ scheduledOccurrenceSpanText }}</span>
+                  </div>
                 </div>
                 <div
                   v-if="
@@ -1129,6 +1137,7 @@ import {
   validateDOWPayload,
   normalizePluginSetSlots,
   resolvePluginTimezoneValue,
+  getEventOccurrenceSpanString,
 } from "@/utils"
 import { validateEmail } from "@/utils"
 import { logEventBoot } from "@/utils/eventBootDebug"
@@ -1153,6 +1162,7 @@ import { calendarAutofillEnabled } from "@/utils/calendarAutofillAvailability"
 import MdiCalendarCheck from "~icons/mdi/calendar-check"
 import MdiCalendarToday from "~icons/mdi/calendar-today"
 import MdiCheck from "~icons/mdi/check"
+import MdiClockOutline from "~icons/mdi/clock-outline"
 import MdiContentCopy from "~icons/mdi/content-copy"
 import MdiPencil from "~icons/mdi/pencil"
 import MdiPlus from "~icons/mdi/plus"
@@ -1442,6 +1452,20 @@ const desktopScheduleEventButtonClass = computed(() =>
 const hasSavedTimefulSchedule = computed(() =>
   Boolean(loader.event.value?.scheduledEvent),
 )
+const scheduledOccurrenceSpanText = computed(() => {
+  const loadedEvent = loader.event.value
+  const span = loadedEvent?.scheduledEvent
+  const scheduleOverlapState = scheduleOverlap.value
+  if (!span?.startDate || !span.endDate || !scheduleOverlapState) return ""
+
+  return getEventOccurrenceSpanString({
+    startDate: span.startDate,
+    endDate: span.endDate,
+    timezone: scheduleOverlapState.curTimezone,
+    timeType: scheduleOverlapState.timeType,
+    daysOnly: Boolean(loadedEvent?.daysOnly),
+  })
+})
 const primaryAvailabilityButtonText = computed(() => {
   if (showDisabledEditAvailabilityPrimary.value) return "Edit availability"
   if (showGuestActionButton.value) return guestActionButtonText.value

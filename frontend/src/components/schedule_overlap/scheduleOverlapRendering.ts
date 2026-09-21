@@ -2,14 +2,15 @@ import type { Temporal } from "temporal-polyfill"
 import {
   availabilityTypes,
   durations,
-  timeTypes,
   type AvailabilityType,
   type TimeType,
 } from "@/constants"
 import {
   getDateInTimezone,
+  getTimeFormatOptions,
   lightOrDark,
   removeTransparencyFromHex,
+  specificDatesDateFormatOptions,
   zdtMapGet,
   zdtSetHas,
   type ZdtMap,
@@ -901,19 +902,10 @@ export interface TooltipSegment {
 export const joinTooltipSegments = (segments: TooltipSegment[]): string =>
   segments.map((segment) => segment.text).join("")
 
-const getTooltipTimeFormat = (
-  timeType: TimeType,
-): Intl.DateTimeFormatOptions =>
-  timeType === timeTypes.HOUR12
-    ? { hour: "numeric", minute: "2-digit" }
-    : { hour: "2-digit", minute: "2-digit", hour12: false }
-
 const getTooltipDateFormat = (
   isSpecificDates: boolean,
 ): Intl.DateTimeFormatOptions =>
-  isSpecificDates
-    ? { weekday: "short", month: "short", day: "numeric", year: "numeric" }
-    : { weekday: "short" }
+  isSpecificDates ? specificDatesDateFormatOptions : { weekday: "short" }
 
 export const formatTooltipContent = ({
   date,
@@ -930,7 +922,7 @@ export const formatTooltipContent = ({
 }): TooltipSegment[] => {
   const start = getDateInTimezone(date, curTimezone)
   const end = start.add(timeslotDuration)
-  const timeFormat = getTooltipTimeFormat(timeType)
+  const timeFormat = getTimeFormatOptions(timeType)
   const dateFormat = getTooltipDateFormat(isSpecificDates)
 
   const startDateStr = start.toLocaleString("en-US", dateFormat)
@@ -970,7 +962,7 @@ export const formatScheduledSpanTooltipContent = ({
 
   const start = getDateInTimezone(firstSlot, curTimezone)
   const end = getDateInTimezone(lastSlot.add(timeslotDuration), curTimezone)
-  const timeFormat = getTooltipTimeFormat(timeType)
+  const timeFormat = getTimeFormatOptions(timeType)
   const dateFormat = getTooltipDateFormat(isSpecificDates)
 
   const startTimeStr = start.toLocaleString("en-US", timeFormat)

@@ -1201,6 +1201,7 @@ defineExpose({
   respondentSaveAllowed,
   unsavedChanges,
   curTimezone,
+  timeType,
   selectedGuestRespondent: _selectedGuestRespondent,
   ownedGuestResponses,
   pageHasChanged,

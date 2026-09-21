@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest"
 import { Temporal } from "temporal-polyfill"
 
-import { eventTypes, UTC } from "@/constants"
+import { eventTypes, timeTypes, UTC } from "@/constants"
 import {
   getDateRangeString,
   getDateRangeStringForEvent,
   getDaysInMonth,
+  getEventOccurrenceSpanString,
   getISODateString,
   getStartEndDateString,
   timeNumToTimeString,
@@ -149,5 +150,97 @@ describe("dateFormatting", () => {
       ),
     ).toContain("Fri, May 1")
     expect(getDaysInMonth(2, 2028)).toBe(29)
+  })
+
+  const utcTimezone = {
+    value: UTC,
+    offset: Temporal.Duration.from({ minutes: 0 }),
+    label: "UTC",
+    gmtString: "GMT+00:00",
+  }
+
+  it("formats a same-date Timed Event Occurrence Span with the display time format", () => {
+    const startDate = zdt("2026-09-15T08:00:00Z")
+    const endDate = zdt("2026-09-15T08:15:00Z")
+
+    expect(
+      getEventOccurrenceSpanString({
+        startDate,
+        endDate,
+        timezone: utcTimezone,
+        timeType: timeTypes.HOUR12,
+        daysOnly: false,
+      }),
+    ).toBe("Tue, Sep 15, 2026 \u00b7 8:00 AM \u2013 8:15 AM")
+
+    expect(
+      getEventOccurrenceSpanString({
+        startDate,
+        endDate,
+        timezone: utcTimezone,
+        timeType: timeTypes.HOUR24,
+        daysOnly: false,
+      }),
+    ).toBe("Tue, Sep 15, 2026 \u00b7 08:00 \u2013 08:15")
+  })
+
+  it("reports both Civil Dates when a timed occurrence span crosses midnight", () => {
+    expect(
+      getEventOccurrenceSpanString({
+        startDate: zdt("2026-07-04T23:30:00Z"),
+        endDate: zdt("2026-07-05T00:30:00Z"),
+        timezone: utcTimezone,
+        timeType: timeTypes.HOUR12,
+        daysOnly: false,
+      }),
+    ).toBe(
+      "Sat, Jul 4, 2026 \u00b7 11:30 PM \u2013 Sun, Jul 5, 2026 \u00b7 12:30 AM",
+    )
+  })
+
+  it("formats a timed occurrence span in the Display Timezone", () => {
+    expect(
+      getEventOccurrenceSpanString({
+        startDate: zdt("2026-09-15T15:00:00Z"),
+        endDate: zdt("2026-09-15T15:30:00Z"),
+        timezone: {
+          value: "America/Los_Angeles",
+          offset: Temporal.Duration.from({ hours: -7 }),
+          label: "America/Los_Angeles",
+          gmtString: "GMT-7",
+        },
+        timeType: timeTypes.HOUR12,
+        daysOnly: false,
+      }),
+    ).toBe("Tue, Sep 15, 2026 \u00b7 8:00 AM \u2013 8:30 AM")
+  })
+
+  it("formats a timed occurrence span in a fixed-offset Display Timezone", () => {
+    expect(
+      getEventOccurrenceSpanString({
+        startDate: zdt("2026-09-15T08:00:00Z"),
+        endDate: zdt("2026-09-15T08:30:00Z"),
+        timezone: {
+          value: "",
+          offset: Temporal.Duration.from({ hours: 5, minutes: 30 }),
+          label: "GMT+5:30",
+          gmtString: "GMT+5:30",
+        },
+        timeType: timeTypes.HOUR12,
+        daysOnly: false,
+      }),
+    ).toBe("Tue, Sep 15, 2026 \u00b7 1:30 PM \u2013 2:00 PM")
+  })
+
+  it("formats a Dates-Only Event Occurrence Span as a single date without a time range", () => {
+    expect(
+      getEventOccurrenceSpanString({
+        startDate: zdt("2026-05-28T00:00:00Z"),
+        endDate: zdt("2026-05-29T00:00:00Z"),
+        timezone: utcTimezone,
+        timeType: timeTypes.HOUR12,
+        daysOnly: true,
+      }),
+    ).toBe("Thu, May 28, 2026")
   })
 })

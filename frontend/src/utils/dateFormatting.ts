@@ -1,11 +1,11 @@
-import { eventTypes } from "@/constants"
+import { eventTypes, timeTypes, type TimeType } from "@/constants"
 import type { Event } from "@/types"
 import { Temporal } from "temporal-polyfill"
 import type { Timezone } from "@/composables/schedule_overlap/types"
 import type { PlainDate, ZonedDateTime } from "./temporalPrimitives"
 import { getEventDateSeeds } from "./eventDateRules"
 import { getSpecificTimesDayStarts } from "./scheduleDateRules"
-import { toZDT } from "./timezoneDateRules"
+import { getDateInTimezone, toZDT } from "./timezoneDateRules"
 
 /** Returns a string representation of the given date, i.e. May 14th is "5/14". */
 export const getDateString = (date: ZonedDateTime, utc = false): string => {
@@ -35,6 +35,66 @@ export const getStartEndDateString = (
   })
 
   return `${startDay}, ${startMonth} ${startDayOfMonth}, ${startTime} - ${endTime}`
+}
+
+/** Returns the shared clock format options for the given display time format. */
+export const getTimeFormatOptions = (
+  timeType: TimeType,
+): Intl.DateTimeFormatOptions =>
+  timeType === timeTypes.HOUR12
+    ? { hour: "numeric", minute: "2-digit" }
+    : { hour: "2-digit", minute: "2-digit", hour12: false }
+
+/** Returns the shared full date options used for specific-date spans. */
+export const specificDatesDateFormatOptions: Intl.DateTimeFormatOptions = {
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+}
+
+/**
+ * Returns the Event Occurrence Span text for the header, i.e.
+ * "Tue, Sep 15, 2026 · 8:00 AM – 8:15 AM" or "Thu, May 28, 2026".
+ */
+export const getEventOccurrenceSpanString = ({
+  startDate,
+  endDate,
+  timezone,
+  timeType,
+  daysOnly,
+}: {
+  startDate: ZonedDateTime
+  endDate: ZonedDateTime
+  timezone: Timezone
+  timeType: TimeType
+  daysOnly: boolean
+}): string => {
+  const start = getDateInTimezone(startDate, timezone)
+  const end = getDateInTimezone(endDate, timezone)
+  const startDateText = start.toLocaleString(
+    "en-US",
+    specificDatesDateFormatOptions,
+  )
+
+  if (daysOnly) {
+    return startDateText
+  }
+
+  const timeFormat = getTimeFormatOptions(timeType)
+  const startTimeText = start.toLocaleString("en-US", timeFormat)
+  const endTimeText = end.toLocaleString("en-US", timeFormat)
+
+  if (start.toPlainDate().equals(end.toPlainDate())) {
+    return `${startDateText} \u00b7 ${startTimeText} \u2013 ${endTimeText}`
+  }
+
+  const endDateText = end.toLocaleString(
+    "en-US",
+    specificDatesDateFormatOptions,
+  )
+
+  return `${startDateText} \u00b7 ${startTimeText} \u2013 ${endDateText} \u00b7 ${endTimeText}`
 }
 
 /** Returns an ISO formatted date string. */

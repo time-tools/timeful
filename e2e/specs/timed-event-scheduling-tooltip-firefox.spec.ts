@@ -209,3 +209,91 @@ test("desktop scheduling shows the Grid Pointer only on hover", async ({
     )
   })
 })
+
+test("event header reports the saved Timed Event Occurrence Span", async ({
+  page,
+}) => {
+  const seeded = await seedCanonicalTimedEvent(
+    page.request,
+    buildSpecificDateSeed({
+      name: "Header occurrence span regression",
+      selectedDays: ["2026-05-28"],
+      activeSlots: [
+        "2026-05-28T00:00:00Z",
+        "2026-05-28T01:00:00Z",
+        "2026-05-28T02:00:00Z",
+      ],
+      eventTimezone: "UTC",
+      startTimeLocal: "00:00:00",
+      endTimeLocal: "04:00:00",
+      timeIncrementMinutes: 60,
+    }),
+  )
+
+  const scheduleResponse = await page.request.put(
+    `/api/events/${seeded.eventId}/schedule`,
+    {
+      data: {
+        startDate: "2026-05-28T00:00:00Z",
+        endDate: "2026-05-28T03:00:00Z",
+      },
+    },
+  )
+  expect(scheduleResponse.ok()).toBeTruthy()
+
+  await openEventPage(page, seeded.shortId)
+  await waitForScheduleOverlapMounted(page)
+
+  const span = page.locator("#event-header-scheduled-span")
+
+  await test.step("shows the saved span below the event title", async () => {
+    await expect(span).toBeVisible()
+    await expect(span).toContainText("Thu, May 28, 2026")
+    await expect(span).toContainText("00:00 \u2013 03:00")
+  })
+
+  await test.step("follows a Display Timezone change", async () => {
+    await changeDisplayTimezone(page, {
+      optionValue: "Asia/Dhaka",
+      optionLabelPattern: /\(GMT\+6:00\)/i,
+    })
+
+    // 00:00-03:00 UTC reprojects to 06:00-09:00 at UTC+6.
+    await expect(span).toContainText("Thu, May 28, 2026")
+    await expect(span).toContainText("06:00 \u2013 09:00")
+  })
+
+  await test.step("keeps the saved span while a different pending selection is unsaved", async () => {
+    await page.getByRole("button", { name: /^Reschedule event$/i }).click()
+
+    // 07:00-09:00 at UTC+6 differs from the saved 06:00-09:00 span.
+    await dragSelectGridRange(page, {
+      startRow: rowIndexForTime(7, 0, 60),
+      startCol: 0,
+      endRow: rowIndexForTime(8, 0, 60),
+      endCol: 0,
+    })
+
+    await expect(span).toContainText("06:00 \u2013 09:00")
+    await expect(span).not.toContainText("07:00")
+
+    await page.getByRole("button", { name: /^Clear$/i }).click()
+    await expect(span).toHaveCount(0)
+  })
+
+  await test.step("shows the span again after scheduling without a reload", async () => {
+    await page.getByRole("button", { name: /^Schedule event$/i }).click()
+    await dragSelectGridRange(page, {
+      startRow: rowIndexForTime(6, 0, 60),
+      startCol: 0,
+      endRow: rowIndexForTime(7, 0, 60),
+      endCol: 0,
+    })
+    await page.getByRole("button", { name: /^Schedule$/i }).click()
+    await page.getByText("Timeful", { exact: true }).click()
+
+    await expect(span).toBeVisible()
+    await expect(span).toContainText("Thu, May 28, 2026")
+    await expect(span).toContainText("06:00 \u2013 08:00")
+  })
+})

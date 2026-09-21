@@ -12,7 +12,7 @@ import {
   it,
   vi,
 } from "vitest"
-import { eventTypes, guestUserId } from "@/constants"
+import { eventTypes, guestUserId, timeTypes } from "@/constants"
 import { Temporal } from "temporal-polyfill"
 import EventView from "./Event.vue"
 import eventViewSource from "./Event.vue?raw"
@@ -334,6 +334,13 @@ const ScheduleOverlapStub = {
       allowScheduleEvent: false,
       respondentSaveAllowed: true,
       unsavedChanges: false,
+      curTimezone: {
+        value: "UTC",
+        offset: Temporal.Duration.from({ minutes: 0 }),
+        label: "UTC",
+        gmtString: "GMT+00:00",
+      },
+      timeType: timeTypes.HOUR24,
       showBestTimes: true,
       hideIfNeeded: false,
       collapseDisabledTimes: true,
@@ -532,6 +539,19 @@ const ScheduleOverlapSchedulingDisabledStub = {
   },
 }
 
+const ScheduleOverlapPendingSelectionStub = {
+  ...ScheduleOverlapSchedulingStub,
+  data() {
+    return {
+      ...ScheduleOverlapSchedulingStub.data(),
+      pendingScheduledEvent: {
+        startDate: "2026-09-15T09:00:00Z",
+        endDate: "2026-09-15T10:00:00Z",
+      },
+    }
+  },
+}
+
 const ScheduleOverlapLegacyAndTokenGuestSelectionStub = {
   ...ScheduleOverlapStub,
   data() {
@@ -646,6 +666,65 @@ const menuStub = {
 
 const iconTextStub = {
   template: "<i><slot /></i>",
+}
+
+function resetEventTestState() {
+  vi.clearAllMocks()
+  vi.useFakeTimers()
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) =>
+    window.setTimeout(() => {
+      callback(0)
+    }, 0),
+  )
+  authUserState.value = null
+  isPhoneState.value = false
+  curGuestIdState.value = ""
+  calendarAutofillEnabledState.value = true
+  routeState.value = { name: "event", query: {} }
+  loaderEventState.value = {
+    ...createDefaultEventState(),
+    type: eventTypes.SPECIFIC_DATES,
+  }
+}
+
+async function flushDeferredMount() {
+  await nextTick()
+  vi.runAllTimers()
+  await Promise.resolve()
+  vi.runAllTimers()
+  await nextTick()
+  await nextTick()
+}
+
+const scheduleGateStubs = {
+  ScheduleOverlap: ScheduleOverlapStub,
+  NewDialog: true,
+  GuestDialog: true,
+  SignUpForSlotDialog: true,
+  SignInNotSupportedDialog: true,
+  MarkAvailabilityDialog: true,
+  InvitationDialog: true,
+  HelpDialog: true,
+  EventDescription: true,
+  AccessDenied: true,
+  NotSignedIn: true,
+  RouterLink: true,
+  "v-chip": true,
+  "v-icon": true,
+  "v-card": true,
+  "v-card-title": true,
+  "v-card-text": true,
+  "v-card-actions": true,
+  "v-dialog": true,
+  "v-spacer": true,
+  "v-btn": buttonSemanticStub,
+}
+
+function mountScheduleGateEvent() {
+  return shallowMount(EventView, {
+    props: { eventId: "dEeaF" },
+    global: { stubs: scheduleGateStubs },
+  })
 }
 
 describe("Event primary availability button outline", () => {
@@ -1054,63 +1133,8 @@ describe("Event guest edit action", () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
-    vi.useFakeTimers()
-    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) =>
-      window.setTimeout(() => {
-        callback(0)
-      }, 0),
-    )
-    authUserState.value = null
-    isPhoneState.value = false
-    curGuestIdState.value = ""
-    calendarAutofillEnabledState.value = true
-    routeState.value = { name: "event", query: {} }
-    loaderEventState.value = {
-      ...createDefaultEventState(),
-      type: eventTypes.SPECIFIC_DATES,
-    }
+    resetEventTestState()
   })
-
-  async function flushDeferredMount() {
-    await nextTick()
-    vi.runAllTimers()
-    await Promise.resolve()
-    vi.runAllTimers()
-    await nextTick()
-    await nextTick()
-  }
-
-  const scheduleGateStubs = {
-    ScheduleOverlap: ScheduleOverlapStub,
-    NewDialog: true,
-    GuestDialog: true,
-    SignUpForSlotDialog: true,
-    SignInNotSupportedDialog: true,
-    MarkAvailabilityDialog: true,
-    InvitationDialog: true,
-    HelpDialog: true,
-    EventDescription: true,
-    AccessDenied: true,
-    NotSignedIn: true,
-    RouterLink: true,
-    "v-chip": true,
-    "v-icon": true,
-    "v-card": true,
-    "v-card-title": true,
-    "v-card-text": true,
-    "v-card-actions": true,
-    "v-dialog": true,
-    "v-spacer": true,
-    "v-btn": buttonSemanticStub,
-  }
-
-  function mountScheduleGateEvent() {
-    return shallowMount(EventView, {
-      props: { eventId: "dEeaF" },
-      global: { stubs: scheduleGateStubs },
-    })
-  }
 
   function mountAvailabilityHintEvent(
     extraStubs: Record<string, unknown> = {},
@@ -4876,5 +4900,125 @@ describe("Event guest edit action", () => {
       "message",
       expect.any(Function),
     )
+  })
+})
+
+describe("Event header occurrence span", () => {
+  beforeEach(() => {
+    resetEventTestState()
+  })
+
+  const scheduledSpanZdt = (iso: string) =>
+    Temporal.Instant.from(iso).toZonedDateTimeISO("UTC")
+
+  it("shows the saved Event Occurrence Span below the event title", async () => {
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      type: eventTypes.SPECIFIC_DATES,
+      daysOnly: false,
+      scheduledEvent: {
+        startDate: scheduledSpanZdt("2026-09-15T08:00:00Z"),
+        endDate: scheduledSpanZdt("2026-09-15T08:15:00Z"),
+      },
+    }
+
+    const wrapper = mountScheduleGateEvent()
+    await flushDeferredMount()
+
+    expect(wrapper.get("#event-header-scheduled-span").text()).toContain(
+      "Tue, Sep 15, 2026 \u00b7 08:00 \u2013 08:15",
+    )
+  })
+
+  it("hides the occurrence span when no Event Occurrence Span is saved", async () => {
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      type: eventTypes.SPECIFIC_DATES,
+      daysOnly: false,
+    }
+
+    const wrapper = mountScheduleGateEvent()
+    await flushDeferredMount()
+
+    expect(wrapper.find("#event-header-scheduled-span").exists()).toBe(false)
+  })
+
+  it("follows the Display Timezone and display time format for a saved span", async () => {
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      type: eventTypes.SPECIFIC_DATES,
+      daysOnly: false,
+      scheduledEvent: {
+        startDate: scheduledSpanZdt("2026-09-15T08:00:00Z"),
+        endDate: scheduledSpanZdt("2026-09-15T08:15:00Z"),
+      },
+    }
+
+    const wrapper = mountScheduleGateEvent()
+    await flushDeferredMount()
+
+    const overlapVm = wrapper.getComponent({ name: "ScheduleOverlap" })
+      .vm as unknown as {
+      curTimezone: unknown
+      timeType: string
+    }
+    overlapVm.curTimezone = {
+      value: "America/Los_Angeles",
+      offset: Temporal.Duration.from({ hours: -7 }),
+      label: "America/Los_Angeles",
+      gmtString: "GMT-7",
+    }
+    overlapVm.timeType = timeTypes.HOUR12
+    await nextTick()
+
+    expect(wrapper.get("#event-header-scheduled-span").text()).toContain(
+      "Tue, Sep 15, 2026 \u00b7 1:00 AM \u2013 1:15 AM",
+    )
+  })
+
+  it("keeps the saved occurrence span while a different pending selection is unsaved", async () => {
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      type: eventTypes.SPECIFIC_DATES,
+      daysOnly: false,
+      scheduledEvent: {
+        startDate: scheduledSpanZdt("2026-09-15T08:00:00Z"),
+        endDate: scheduledSpanZdt("2026-09-15T08:15:00Z"),
+      },
+    }
+
+    const wrapper = shallowMount(EventView, {
+      props: { eventId: "dEeaF" },
+      global: {
+        stubs: {
+          ...scheduleGateStubs,
+          ScheduleOverlap: ScheduleOverlapPendingSelectionStub,
+        },
+      },
+    })
+    await flushDeferredMount()
+
+    const spanText = wrapper.get("#event-header-scheduled-span").text()
+    expect(spanText).toContain("Tue, Sep 15, 2026 \u00b7 08:00 \u2013 08:15")
+    expect(spanText).not.toContain("09:00")
+  })
+
+  it("shows a Dates-Only Event Occurrence Span as a single date", async () => {
+    loaderEventState.value = {
+      ...createDefaultEventState(),
+      type: eventTypes.SPECIFIC_DATES,
+      daysOnly: true,
+      scheduledEvent: {
+        startDate: scheduledSpanZdt("2026-05-28T00:00:00Z"),
+        endDate: scheduledSpanZdt("2026-05-29T00:00:00Z"),
+      },
+    }
+
+    const wrapper = mountScheduleGateEvent()
+    await flushDeferredMount()
+
+    const spanText = wrapper.get("#event-header-scheduled-span").text()
+    expect(spanText).toContain("Thu, May 28, 2026")
+    expect(spanText).not.toContain("00:00")
   })
 })
