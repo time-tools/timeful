@@ -296,8 +296,7 @@ export function useTimedGridPresentation(
             opts.dragStart.value,
             opts.dragCur.value,
           )
-        : (opts.scheduling.curScheduledEvent.value ??
-          opts.scheduling.savedScheduledEvent.value)
+        : opts.scheduling.selectedScheduledEvent.value
     return scheduledEvent
       ? buildRenderedTimeBlockFragments({
           renderedRows: renderedRows.value,

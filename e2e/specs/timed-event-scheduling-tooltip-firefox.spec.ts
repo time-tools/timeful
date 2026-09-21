@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test"
 import {
   buildSpecificDateSeed,
+  changeDisplayTimezone,
   dragSelectGridRange,
   openEventPage,
   rowIndexForTime,
@@ -60,4 +61,45 @@ test("scheduling tooltip reports the pending Timed Event Occurrence Span", async
 
   await expect(tooltip).toBeVisible()
   await expect(tooltip).toContainText("00:00 to 03:00")
+
+  await test.step("keeps the pending Instants across a Display Timezone change", async () => {
+    await changeDisplayTimezone(page, {
+      optionValue: "Asia/Dhaka",
+      optionLabelPattern: /\(GMT\+6:00\)/i,
+    })
+
+    const reprojectedMiddleSlot = page.locator(
+      `#drag-section .timeslot[data-row="${String(rowIndexForTime(7, 0, 60))}"][data-col="0"]`,
+    )
+    const reprojectedBox = await reprojectedMiddleSlot.boundingBox()
+    expect(reprojectedBox).not.toBeNull()
+    if (!reprojectedBox) {
+      throw new Error("Expected a reprojected middle slot box")
+    }
+    await page.mouse.move(
+      reprojectedBox.x + reprojectedBox.width / 2,
+      reprojectedBox.y + reprojectedBox.height / 2,
+    )
+
+    // 00:00-03:00 UTC is preserved and reprojects to 06:00-09:00 at UTC+6.
+    await expect(tooltip).toBeVisible()
+    await expect(tooltip).toContainText("06:00 to 09:00")
+    await expect(tooltip).toContainText("Thu, May 28, 2026")
+  })
+
+  await test.step("saves the preserved Instants", async () => {
+    const scheduleRequest = page.waitForRequest(
+      (request) =>
+        request.method() === "PUT" && request.url().includes("/schedule"),
+    )
+
+    await page.getByRole("button", { name: /^Schedule$/i }).click()
+    await page.getByText("Timeful", { exact: true }).click()
+
+    const request = await scheduleRequest
+    expect(request.postDataJSON()).toEqual({
+      startDate: "2026-05-28T00:00:00Z",
+      endDate: "2026-05-28T03:00:00Z",
+    })
+  })
 })

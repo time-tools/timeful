@@ -44,7 +44,11 @@ type SchedulingTooltipVm = {
   tooltipContent: Parameters<typeof joinTooltipSegments>[0]
   scheduleEvent: () => void
   cancelScheduleEvent: () => void
-  curScheduledEvent: { row: number; col: number; numRows: number } | null
+  setScheduledEventFromRowCol: (scheduledEvent: {
+    row: number
+    col: number
+    numRows: number
+  }) => void
   dragging: boolean
   dragStart: { row: number; col: number } | null
   dragCur: { row: number; col: number } | null
@@ -65,7 +69,7 @@ describe("ScheduleOverlap scheduling tooltip", () => {
     const vm = wrapper.vm as unknown as SchedulingTooltipVm
 
     vm.scheduleEvent()
-    vm.curScheduledEvent = { row: 0, col: 0, numRows: 3 }
+    vm.setScheduledEventFromRowCol({ row: 0, col: 0, numRows: 3 })
     await nextTick()
 
     vm.getTimeslotVon(1, 0).mouseover()
@@ -107,7 +111,7 @@ describe("ScheduleOverlap scheduling tooltip", () => {
     const vm = wrapper.vm as unknown as SchedulingTooltipVm
 
     vm.scheduleEvent()
-    vm.curScheduledEvent = { row: 0, col: 0, numRows: 3 }
+    vm.setScheduledEventFromRowCol({ row: 0, col: 0, numRows: 3 })
     await nextTick()
 
     vm.getTimeslotVon(2, 0).mouseover()
@@ -123,7 +127,7 @@ describe("ScheduleOverlap scheduling tooltip", () => {
     const vm = wrapper.vm as unknown as SchedulingTooltipVm
 
     vm.scheduleEvent()
-    vm.curScheduledEvent = { row: 0, col: 0, numRows: 3 }
+    vm.setScheduledEventFromRowCol({ row: 0, col: 0, numRows: 3 })
     await nextTick()
 
     vm.cancelScheduleEvent()

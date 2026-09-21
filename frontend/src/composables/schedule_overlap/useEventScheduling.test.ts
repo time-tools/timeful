@@ -918,7 +918,7 @@ describe("useEventScheduling", () => {
       getMinMaxHoursFromTimes: vi.fn(),
       refreshEvent,
     })
-    scheduling.curScheduledEvent.value = { row: 0, col: 0, numRows: 1 }
+    scheduling.setScheduledEventFromRowCol({ row: 0, col: 0, numRows: 1 })
 
     await scheduling.confirmScheduleEvent("timeful")
 
@@ -1038,5 +1038,100 @@ describe("useEventScheduling", () => {
 
     expect(state.value).toBe(states.SCHEDULE_EVENT)
     expect(scheduling.allowScheduleEvent.value).toBe(false)
+  })
+
+  it("does not fall back to the saved span when a pending range leaves the displayed grid", async () => {
+    const state = ref(states.SCHEDULE_EVENT)
+    const hidePendingStart = ref(false)
+    const event = ref<ScheduleOverlapEvent>({
+      _id: "evt-6d",
+      shortId: "offgrid123",
+      name: "Off-grid pending selection",
+      type: eventTypes.SPECIFIC_DATES,
+      daysOnly: false,
+      scheduledEvent: {
+        startDate: zdt("2026-06-01T10:00:00Z"),
+        endDate: zdt("2026-06-01T11:00:00Z"),
+      },
+    })
+    const scheduling = useEventScheduling({
+      event,
+      weekOffset: ref(0),
+      curTimezone: ref({
+        value: UTC,
+        offset: durations.ZERO,
+        label: "UTC",
+        gmtString: "GMT",
+      }),
+      state,
+      defaultState: computed(() => states.HEATMAP),
+      splitTimes: computed(() => [
+        [
+          { hoursOffset: durations.ZERO, text: "slot" },
+          { hoursOffset: durations.ONE_HOUR, text: "slot" },
+          { hoursOffset: durations.ONE_HOUR, text: "slot" },
+        ],
+        [],
+      ]),
+      timeslotDuration: computed(() => durations.ONE_HOUR),
+      timeslotHeight: computed(() => 16),
+      timezoneOffset: computed(() => durations.ZERO),
+      isWeekly: computed(() => false),
+      isGroup: computed(() => false),
+      isSpecificTimes: computed(() => false),
+      numDisplayedDays: computed(() => 1),
+      getDateFromRowCol: (row) => {
+        if (row === 0 && hidePendingStart.value) return null
+        if (row === 0) return zdt("2026-06-01T09:00:00Z")
+        if (row === 1) return zdt("2026-06-01T10:00:00Z")
+        if (row === 2) return zdt("2026-06-01T11:00:00Z")
+        return null
+      },
+      dragging: ref(false),
+      dragStart: ref(null),
+      dragCur: ref(null),
+      tempTimes: shallowRef(new ZdtSet()),
+      respondents: computed(() => []),
+      getMinMaxHoursFromTimes: vi.fn(),
+    })
+
+    scheduling.setScheduledEventFromRowCol({ row: 0, col: 0, numRows: 1 })
+
+    expect(scheduling.hasPendingScheduledEvent.value).toBe(true)
+    expect(scheduling.curScheduledEvent.value).toEqual({
+      row: 0,
+      col: 0,
+      numRows: 1,
+    })
+    expect(scheduling.savedScheduledEvent.value).toEqual({
+      row: 1,
+      col: 0,
+      numRows: 1,
+    })
+    expect(scheduling.selectedScheduledEvent.value).toEqual({
+      row: 0,
+      col: 0,
+      numRows: 1,
+    })
+    expect(scheduling.allowScheduleEvent.value).toBe(true)
+
+    hidePendingStart.value = true
+
+    expect(scheduling.curScheduledEvent.value).toBeNull()
+    expect(scheduling.savedScheduledEvent.value).toEqual({
+      row: 1,
+      col: 0,
+      numRows: 1,
+    })
+    expect(scheduling.hasPendingScheduledEvent.value).toBe(true)
+    expect(scheduling.selectedScheduledEvent.value).toBeNull()
+    expect(scheduling.allowScheduleEvent.value).toBe(false)
+    expect(scheduling.scheduledEventStyle.value).toEqual({})
+
+    await scheduling.confirmScheduleEvent("timeful")
+    expect(saveTimefulScheduleMock).toHaveBeenCalledWith("offgrid123", {
+      startDate: zdt("2026-06-01T09:00:00Z"),
+      endDate: zdt("2026-06-01T10:00:00Z"),
+    })
   })
 })

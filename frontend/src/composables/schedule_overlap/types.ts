@@ -95,6 +95,11 @@ export interface ScheduledEvent {
   numRows: number
 }
 
+export interface ScheduledEventRange {
+  startDate: Temporal.ZonedDateTime
+  endDate: Temporal.ZonedDateTime
+}
+
 export const getScheduledEventFromDragRange = (
   dragStart: RowCol,
   dragCur: RowCol,

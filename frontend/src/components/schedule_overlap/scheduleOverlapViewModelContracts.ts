@@ -237,6 +237,7 @@ export interface ScheduleOverlapTimeGridViewModel {
   dragStart: RowCol | null
   curScheduledEvent: ScheduledEvent | null
   savedScheduledEvent?: ScheduledEvent | null
+  hasPendingScheduledEvent: boolean
   scheduledEventStyle: Record<string, string>
   scheduledEventStyles: Record<string, string>[]
   signUpBlockBeingDraggedStyle: Record<string, string>

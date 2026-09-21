@@ -29,6 +29,7 @@ import {
   type RowCol,
   type ScheduleOverlapEvent,
   type ScheduledEvent,
+  type ScheduledEventRange,
   type ScheduleOverlapState,
   type TimeItem,
   type Timezone,
@@ -86,7 +87,7 @@ export interface UseEventSchedulingOptions {
 
 export function useEventScheduling(opts: UseEventSchedulingOptions) {
   const mainStore = useMainStore()
-  const curScheduledEvent = ref<ScheduledEvent | null>(null)
+  const curScheduledRange = ref<ScheduledEventRange | null>(null)
 
   const getLocationText = (location: unknown): string => {
     if (!location || typeof location !== "object") {
@@ -104,13 +105,11 @@ export function useEventScheduling(opts: UseEventSchedulingOptions) {
       .join(", ")
   }
 
-  const savedScheduledEvent = computed<ScheduledEvent | null>(() => {
-    const saved = opts.event.value.scheduledEvent
-    if (!saved?.startDate || !saved.endDate) return null
-
-    const durationMinutes = saved.endDate
-      .since(saved.startDate)
-      .total("minutes")
+  const projectScheduledEvent = (
+    startDate: Temporal.ZonedDateTime,
+    endDate: Temporal.ZonedDateTime,
+  ): ScheduledEvent | null => {
+    const durationMinutes = endDate.since(startDate).total("minutes")
     const numRows =
       durationMinutes / opts.timeslotDuration.value.total("minutes")
     if (!Number.isInteger(numRows) || numRows <= 0) return null
@@ -120,18 +119,73 @@ export function useEventScheduling(opts: UseEventSchedulingOptions) {
     for (let col = 0; col < (opts.numDisplayedDays?.value ?? 0); col += 1) {
       for (let row = 0; row < rowCount; row += 1) {
         const date = opts.getDateFromRowCol(row, col)
-        if (date?.toInstant().equals(saved.startDate.toInstant())) {
+        if (date?.toInstant().equals(startDate.toInstant())) {
           return { col, row, numRows }
         }
       }
     }
     return null
+  }
+
+  const curScheduledEvent = computed<ScheduledEvent | null>(() => {
+    const range = curScheduledRange.value
+    if (!range) return null
+
+    return projectScheduledEvent(range.startDate, range.endDate)
   })
+
+  const savedScheduledEvent = computed<ScheduledEvent | null>(() => {
+    const saved = opts.event.value.scheduledEvent
+    if (!saved?.startDate || !saved.endDate) return null
+
+    return projectScheduledEvent(saved.startDate, saved.endDate)
+  })
+
+  const hasPendingScheduledEvent = computed(
+    () => curScheduledRange.value !== null,
+  )
+
+  // A pending selection is the user's unsaved intent: it must never be
+  // silently replaced by the saved span when its Instants leave the currently
+  // displayed grid, and the confirm buttons must match what
+  // getSelectedScheduleRange would save.
+  const selectedScheduledEvent = computed<ScheduledEvent | null>(() =>
+    hasPendingScheduledEvent.value
+      ? curScheduledEvent.value
+      : savedScheduledEvent.value,
+  )
+
+  const setScheduledEventFromRowCol = (
+    scheduledEvent: ScheduledEvent | null,
+  ) => {
+    if (!scheduledEvent) {
+      curScheduledRange.value = null
+      return
+    }
+
+    const startDate = opts.getDateFromRowCol(
+      scheduledEvent.row,
+      scheduledEvent.col,
+    )
+    const lastDate = opts.getDateFromRowCol(
+      scheduledEvent.row + scheduledEvent.numRows - 1,
+      scheduledEvent.col,
+    )
+    if (!startDate || !lastDate) {
+      curScheduledRange.value = null
+      return
+    }
+
+    curScheduledRange.value = {
+      startDate,
+      endDate: lastDate.add(opts.timeslotDuration.value),
+    }
+  }
 
   const allowScheduleEvent = computed(
     () =>
       !(opts.event.value.eventVisitorId && opts.event.value.isArchived) &&
-      Boolean(curScheduledEvent.value ?? savedScheduledEvent.value),
+      Boolean(selectedScheduledEvent.value),
   )
 
   const scheduledEventStyle = computed<Record<string, string>>(() => {
@@ -149,10 +203,8 @@ export function useEventScheduling(opts: UseEventSchedulingOptions) {
 
       top = scheduledEvent.row
       height = scheduledEvent.numRows
-    } else if (curScheduledEvent.value ?? savedScheduledEvent.value) {
-      const scheduledEvent =
-        curScheduledEvent.value ?? savedScheduledEvent.value
-      if (!scheduledEvent) return style
+    } else if (selectedScheduledEvent.value) {
+      const scheduledEvent = selectedScheduledEvent.value
       top = scheduledEvent.row
       height = scheduledEvent.numRows
     } else {
@@ -186,44 +238,63 @@ export function useEventScheduling(opts: UseEventSchedulingOptions) {
 
   const cancelScheduleEvent = () => {
     opts.state.value = opts.defaultState.value
-    curScheduledEvent.value = null
+    curScheduledRange.value = null
   }
 
-  const getSelectedScheduleRange = () => {
-    const scheduledEvent = curScheduledEvent.value ?? savedScheduledEvent.value
-    if (!scheduledEvent) return
-    const { col, row, numRows } = scheduledEvent
-    let startDate = opts.getDateFromRowCol(row, col)
-    if (!startDate) return
-    const lastSlot = opts.getDateFromRowCol(row + numRows - 1, col)
-    if (!lastSlot) return
-    let endDate = lastSlot.add(opts.timeslotDuration.value)
+  const anchorRangeToEventDates = (
+    startDate: Temporal.ZonedDateTime,
+    endDate: Temporal.ZonedDateTime,
+  ) => {
+    if (!(opts.isWeekly.value || opts.isGroup.value)) {
+      return { startDate, endDate }
+    }
 
-    if (opts.isWeekly.value || opts.isGroup.value) {
-      const eventDates = getEventDateSeeds(opts.event.value)
-      const renderedWeekStart = getRenderedWeekStart(
-        opts.weekOffset.value,
-        opts.event.value.startOnMonday,
-      )
-      startDate = dateToDowDate(
+    const eventDates = getEventDateSeeds(opts.event.value)
+    const renderedWeekStart = getRenderedWeekStart(
+      opts.weekOffset.value,
+      opts.event.value.startOnMonday,
+    )
+    return {
+      startDate: dateToDowDate(
         eventDates,
         startDate,
         opts.weekOffset.value,
         true,
         opts.event.value.startOnMonday,
         renderedWeekStart,
-      )
-      endDate = dateToDowDate(
+      ),
+      endDate: dateToDowDate(
         eventDates,
         endDate,
         opts.weekOffset.value,
         true,
         opts.event.value.startOnMonday,
         renderedWeekStart,
+      ),
+    }
+  }
+
+  const getSelectedScheduleRange = () => {
+    const pendingRange = curScheduledRange.value
+    if (pendingRange) {
+      return anchorRangeToEventDates(
+        pendingRange.startDate,
+        pendingRange.endDate,
       )
     }
 
-    return { startDate, endDate }
+    const scheduledEvent = savedScheduledEvent.value
+    if (!scheduledEvent) return
+    const { col, row, numRows } = scheduledEvent
+    const startDate = opts.getDateFromRowCol(row, col)
+    if (!startDate) return
+    const lastSlot = opts.getDateFromRowCol(row + numRows - 1, col)
+    if (!lastSlot) return
+
+    return anchorRangeToEventDates(
+      startDate,
+      lastSlot.add(opts.timeslotDuration.value),
+    )
   }
 
   const confirmScheduleEvent = async (
@@ -249,7 +320,7 @@ export function useEventScheduling(opts: UseEventSchedulingOptions) {
         await saveTimefulSchedule(eventId, { startDate, endDate })
         await opts.refreshEvent?.()
         opts.state.value = opts.defaultState.value
-        curScheduledEvent.value = null
+        curScheduledRange.value = null
       } catch (err: unknown) {
         mainStore.showError(typeof err === "string" ? err : String(err))
       }
@@ -301,7 +372,7 @@ export function useEventScheduling(opts: UseEventSchedulingOptions) {
     try {
       await clearTimefulSchedule(eventId)
       await opts.refreshEvent?.()
-      curScheduledEvent.value = null
+      curScheduledRange.value = null
       opts.state.value = opts.defaultState.value
     } catch (err: unknown) {
       mainStore.showError(typeof err === "string" ? err : String(err))
@@ -380,8 +451,11 @@ export function useEventScheduling(opts: UseEventSchedulingOptions) {
   return {
     curScheduledEvent,
     savedScheduledEvent,
+    hasPendingScheduledEvent,
+    selectedScheduledEvent,
     allowScheduleEvent,
     scheduledEventStyle,
+    setScheduledEventFromRowCol,
     signUpBlockBeingDraggedStyle,
     scheduleEvent,
     cancelScheduleEvent,
