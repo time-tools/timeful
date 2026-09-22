@@ -205,12 +205,17 @@ export function useScheduleOverlapUI(opts: UseScheduleOverlapUIOptions) {
   }
 
   const clickRespondent = (e: Event, id: string) => {
-    state.value = states.SUBSET_AVAILABILITY
+    const isScheduling = state.value === states.SCHEDULE_EVENT
+    if (!isScheduling) {
+      state.value = states.SUBSET_AVAILABILITY
+    }
     curRespondent.value = ""
 
     if (curRespondentsSet.value.has(id)) {
       curRespondents.value = curRespondents.value.filter((r) => r !== id)
-      if (curRespondents.value.length === 0) state.value = defaultState.value
+      if (curRespondents.value.length === 0 && !isScheduling) {
+        state.value = defaultState.value
+      }
     } else {
       curRespondents.value.push(id)
     }
@@ -241,10 +246,14 @@ export function useScheduleOverlapUI(opts: UseScheduleOverlapUIOptions) {
       target?.closest(".schedule-overlap-mobile-overlay"),
     )
     const clickedInsideDragSection = Boolean(target?.closest("#drag-section"))
+    const clickedInsideScheduleControl = Boolean(
+      target?.closest(".schedule-event-control"),
+    )
     if (
       clickedInsideOptions ||
       clickedInsideMobileOverlay ||
       clickedInsideDragSection ||
+      clickedInsideScheduleControl ||
       target?.classList.contains("timeslot")
     ) {
       return
@@ -258,6 +267,20 @@ export function useScheduleOverlapUI(opts: UseScheduleOverlapUIOptions) {
       state.value = defaultState.value
     }
     curRespondents.value = []
+    opts.timeslotSelected.value = false
+    resetCurTimeslot(true)
+  }
+
+  const exitScheduling = (outcome: "commit" | "abort") => {
+    if (outcome === "abort") {
+      state.value =
+        curRespondents.value.length > 0
+          ? states.SUBSET_AVAILABILITY
+          : defaultState.value
+    } else {
+      state.value = defaultState.value
+      curRespondents.value = []
+    }
     opts.timeslotSelected.value = false
     resetCurTimeslot(true)
   }
@@ -416,6 +439,7 @@ export function useScheduleOverlapUI(opts: UseScheduleOverlapUIOptions) {
     clickRespondent,
     deselectRespondents,
     deselectRespondentsSelection,
+    exitScheduling,
     resetCurTimeslot,
     isGuest,
     checkElementsVisible,

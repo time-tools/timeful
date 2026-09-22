@@ -81,6 +81,9 @@ export interface UseEventSchedulingOptions {
   tempTimes: Ref<ZdtSet>
   respondents: ComputedRef<{ email?: string; firstName?: string }[]>
 
+  // scheduling exit
+  onSchedulingExit?: (outcome: "commit" | "abort") => void
+
   // refresh
   refreshEvent?: () => Promise<void> | void
 }
@@ -236,9 +239,18 @@ export function useEventScheduling(opts: UseEventSchedulingOptions) {
     posthog.capture("schedule_event_button_clicked")
   }
 
-  const cancelScheduleEvent = () => {
+  const exitScheduling = (outcome: "commit" | "abort") => {
+    if (opts.onSchedulingExit) {
+      opts.onSchedulingExit(outcome)
+      return
+    }
+
     opts.state.value = opts.defaultState.value
+  }
+
+  const cancelScheduleEvent = () => {
     curScheduledRange.value = null
+    exitScheduling("abort")
   }
 
   const anchorRangeToEventDates = (
@@ -319,7 +331,7 @@ export function useEventScheduling(opts: UseEventSchedulingOptions) {
       try {
         await saveTimefulSchedule(eventId, { startDate, endDate })
         await opts.refreshEvent?.()
-        opts.state.value = opts.defaultState.value
+        exitScheduling("commit")
         curScheduledRange.value = null
       } catch (err: unknown) {
         mainStore.showError(typeof err === "string" ? err : String(err))
@@ -364,7 +376,7 @@ export function useEventScheduling(opts: UseEventSchedulingOptions) {
     }
 
     window.open(url, "_blank")
-    opts.state.value = opts.defaultState.value
+    exitScheduling("commit")
   }
 
   const clearScheduledEvent = async () => {
@@ -373,7 +385,7 @@ export function useEventScheduling(opts: UseEventSchedulingOptions) {
       await clearTimefulSchedule(eventId)
       await opts.refreshEvent?.()
       curScheduledRange.value = null
-      opts.state.value = opts.defaultState.value
+      exitScheduling("commit")
     } catch (err: unknown) {
       mainStore.showError(typeof err === "string" ? err : String(err))
     }

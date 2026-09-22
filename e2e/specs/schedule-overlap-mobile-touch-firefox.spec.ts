@@ -965,3 +965,110 @@ test("phone scheduling never shows the timed-grid cursor", async ({ page }) => {
     ).toContainText(/(10:00 to 12:00|10:00 AM to 12:00 PM)/)
   })
 })
+
+test("phone scheduling keeps selected responses and their filtered grid through cancel", async ({
+  page,
+}) => {
+  const now = Temporal.Now.instant()
+  const today = now.toZonedDateTimeISO("UTC").toPlainDate().toString()
+  const timeIncrementMinutes = 60
+  const slotAtHour = (hour: number) =>
+    `${today}T${String(hour).padStart(2, "0")}:00:00.000Z`
+
+  const seeded = await seedCanonicalTimedEvent(
+    page.request,
+    buildSpecificDateSeed({
+      name: `Mobile scheduling response selection ${String(now.epochMilliseconds)}`,
+      selectedDays: [today],
+      activeSlots: [
+        slotAtHour(9),
+        slotAtHour(10),
+        slotAtHour(11),
+        slotAtHour(12),
+      ],
+      eventTimezone: "UTC",
+      startTimeLocal: "09:00",
+      endTimeLocal: "17:00",
+      timeIncrementMinutes,
+    }),
+  )
+
+  for (const response of [
+    { name: "Guest One", availability: [slotAtHour(9)] },
+    { name: "Guest Two", availability: [slotAtHour(10)] },
+  ]) {
+    const created = await page.request.post(
+      `/api/events/${seeded.eventId}/response`,
+      {
+        data: {
+          guest: true,
+          createResponse: true,
+          name: response.name,
+          email: "",
+          availability: response.availability,
+          ifNeeded: [],
+        },
+      },
+    )
+    expect(created.ok()).toBeTruthy()
+  }
+
+  await openEventPage(page, seeded.shortId)
+  await waitForScheduleOverlapMounted(page)
+
+  const unavailable = await page.evaluate(() => {
+    const probe = document.createElement("div")
+    probe.style.backgroundColor = "var(--timeful-unavailable-bg-time-grid)"
+    document.body.appendChild(probe)
+    const value = getComputedStyle(probe).backgroundColor
+    probe.remove()
+    return value
+  })
+  const guestTwoSlot = page.locator(
+    `#drag-section .timeslot[data-row="${String(rowIndexForTime(10, 0, timeIncrementMinutes))}"][data-col="0"]`,
+  )
+
+  // Tapping a slot reveals the mobile Responses overlay.
+  const tappedSlot = page.locator(
+    `#drag-section .timeslot[data-row="${String(rowIndexForTime(9, 0, timeIncrementMinutes))}"][data-col="0"]`,
+  )
+  await tappedSlot.scrollIntoViewIfNeeded()
+  await tappedSlot.dispatchEvent("click")
+
+  const overlay = page.locator(".schedule-overlap-mobile-overlay")
+  const row = overlay.locator(".respondent-row").filter({ hasText: "Guest One" })
+  const control = row.locator(".respondent-control")
+  const checkbox = row.locator(".respondent-control__checkbox")
+  await expect(overlay.getByText("Responses", { exact: true })).toBeVisible()
+
+  const actionBar = page.locator(".mobile-event-action-bar")
+
+  await test.step("selecting a response filters the grid", async () => {
+    await checkbox.tap()
+
+    await expect(control).toHaveAttribute("aria-pressed", "true")
+    await expect(guestTwoSlot).toHaveCSS("background-color", unavailable)
+  })
+
+  await test.step("entering scheduling preserves the selection", async () => {
+    await actionBar
+      .getByRole("button", { name: "Schedule", exact: true })
+      .click()
+
+    await expect(
+      actionBar.getByRole("button", { name: "Cancel", exact: true }),
+    ).toBeVisible()
+    await expect(control).toHaveAttribute("aria-pressed", "true")
+    await expect(guestTwoSlot).toHaveCSS("background-color", unavailable)
+  })
+
+  await test.step("cancelling scheduling keeps the filtered subset", async () => {
+    await actionBar.getByRole("button", { name: "Cancel", exact: true }).click()
+
+    await expect(
+      actionBar.getByRole("button", { name: "Schedule", exact: true }),
+    ).toBeVisible()
+    await expect(control).toHaveAttribute("aria-pressed", "true")
+    await expect(guestTwoSlot).toHaveCSS("background-color", unavailable)
+  })
+})

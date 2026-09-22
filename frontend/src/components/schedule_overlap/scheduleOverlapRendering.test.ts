@@ -14,6 +14,7 @@ import {
   buildOverlaidAvailability,
   formatScheduledSpanTooltipContent,
   formatTooltipContent,
+  getBaseTimeslotClassStyle,
   getDayGridTimeslotClassStyle,
   getSignUpBlockStyle,
   getTimeGridTimeslotClassStyle,
@@ -1856,5 +1857,99 @@ describe("scheduleOverlapRendering", () => {
     expect(classStyle.style.borderBottomColor).toBe(
       "var(--timeful-grid-line-color)",
     )
+  })
+
+  it("filters scheduling cells by the selected responses", () => {
+    const slot = zdt("2026-01-01T09:00:00Z")
+    const otherGuestOnly = new ZdtMap<Set<string>>()
+    otherGuestOnly.set(slot, new Set(["guest-2"]))
+
+    const build = ({
+      responsesFormatted,
+      curRespondents,
+      curRespondentsSet,
+      curRespondentsMax,
+    }: {
+      responsesFormatted: ZdtMap<Set<string>>
+      curRespondents: string[]
+      curRespondentsSet: Set<string>
+      curRespondentsMax: number
+    }) =>
+      getBaseTimeslotClassStyle({
+        date: slot,
+        row: 0,
+        col: 0,
+        state: states.SCHEDULE_EVENT,
+        overlayAvailability: false,
+        dragType: DRAG_TYPES.ADD,
+        availabilityType: availabilityTypes.AVAILABLE,
+        availability: new ZdtSet(),
+        ifNeeded: new ZdtSet(),
+        tempTimes: new ZdtSet(),
+        responsesFormatted,
+        parsedResponses: {
+          "guest-1": {
+            user: { _id: "guest-1" },
+            availability: new ZdtSet([slot]),
+            ifNeeded: new ZdtSet(),
+            enabledCalendars: undefined,
+            calendarOptions: undefined,
+            guest: true,
+            guestId: "guest-1",
+            guestEditPolicy: "protected",
+            guestOwnershipMode: "token",
+          },
+          "guest-2": {
+            user: { _id: "guest-2" },
+            availability: new ZdtSet([slot]),
+            ifNeeded: new ZdtSet(),
+            enabledCalendars: undefined,
+            calendarOptions: undefined,
+            guest: true,
+            guestId: "guest-2",
+            guestEditPolicy: "protected",
+            guestOwnershipMode: "token",
+          },
+        },
+        curRespondent: "",
+        curRespondents,
+        curRespondentsSet,
+        respondents: [{ _id: "guest-1" }, { _id: "guest-2" }],
+        curRespondentsMax,
+        max: 2,
+        defaultState: states.HEATMAP,
+        userHasResponded: false,
+        curGuestId: "",
+        authUserId: undefined,
+        inDragRange: () => false,
+      })
+
+    const unfiltered = build({
+      responsesFormatted: otherGuestOnly,
+      curRespondents: [],
+      curRespondentsSet: new Set<string>(),
+      curRespondentsMax: 0,
+    })
+    expect(unfiltered.style.backgroundColor).not.toBe(
+      "var(--timeful-unavailable-bg)",
+    )
+
+    const excluded = build({
+      responsesFormatted: otherGuestOnly,
+      curRespondents: ["guest-1"],
+      curRespondentsSet: new Set(["guest-1"]),
+      curRespondentsMax: 1,
+    })
+    expect(excluded.style.backgroundColor).toBe("var(--timeful-unavailable-bg)")
+
+    const included = new ZdtMap<Set<string>>()
+    included.set(slot, new Set(["guest-1"]))
+    const selectedOnly = build({
+      responsesFormatted: included,
+      curRespondents: ["guest-1"],
+      curRespondentsSet: new Set(["guest-1"]),
+      curRespondentsMax: 1,
+    })
+    expect(selectedOnly.style.backgroundColor).toBe("#00994C88")
   })
 })

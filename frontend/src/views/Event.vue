@@ -759,7 +759,7 @@
                   <v-btn
                     id="desktop-schedule-event-btn"
                     variant="outlined"
-                    class="desktop-event-header-control tw:text-blue"
+                    class="desktop-event-header-control schedule-event-control tw:text-blue"
                     :class="desktopScheduleEventButtonClass"
                     @click="scheduleEvent"
                   >
@@ -783,7 +783,7 @@
                 >
                   <v-btn
                     variant="outlined"
-                    class="desktop-event-header-control tw:flex-1 tw:text-red"
+                    class="desktop-event-header-control schedule-event-control tw:flex-1 tw:text-red"
                     @click="cancelScheduleEvent"
                   >
                     Cancel
@@ -791,7 +791,7 @@
                   <v-btn
                     v-if="hasSavedTimefulSchedule"
                     variant="outlined"
-                    class="desktop-event-header-control tw:flex-1 tw:text-red"
+                    class="desktop-event-header-control schedule-event-control tw:flex-1 tw:text-red"
                     @click="clearScheduledEvent"
                   >
                     Clear
@@ -800,7 +800,7 @@
                     <template #activator="{ props: activatorProps }">
                       <v-btn
                         :disabled="!allowScheduleEvent"
-                        class="desktop-event-header-control tw:flex-1 tw:bg-blue tw:text-white"
+                        class="desktop-event-header-control schedule-event-control tw:flex-1 tw:bg-blue tw:text-white"
                         flat
                         v-bind="activatorProps"
                       >
@@ -809,7 +809,7 @@
                     </template>
                     <v-list density="compact">
                       <v-list-item
-                        class="schedule-event-menu__item"
+                        class="schedule-event-menu__item schedule-event-control"
                         @click="confirmScheduleEvent('timeful')"
                       >
                         <div class="schedule-event-menu__content">
@@ -823,7 +823,7 @@
                         </div>
                       </v-list-item>
                       <v-list-item
-                        class="schedule-event-menu__item"
+                        class="schedule-event-menu__item schedule-event-control"
                         @click="confirmScheduleEvent('google')"
                       >
                         <div class="schedule-event-menu__content">
@@ -837,7 +837,7 @@
                         </div>
                       </v-list-item>
                       <v-list-item
-                        class="schedule-event-menu__item"
+                        class="schedule-event-menu__item schedule-event-control"
                         @click="confirmScheduleEvent('outlook')"
                       >
                         <div class="schedule-event-menu__content">
@@ -961,7 +961,7 @@
             >
               <v-btn
                 variant="outlined"
-                class="tw:border-blue tw:px-2 tw:text-[13px] tw:text-blue tw:max-sm:px-1 tw:max-sm:text-xs"
+                class="schedule-event-control tw:border-blue tw:px-2 tw:text-[13px] tw:text-blue tw:max-sm:px-1 tw:max-sm:text-xs"
                 @click="scheduleEvent"
               >
                 <v-icon><MdiCalendarCheck /></v-icon>
@@ -1042,7 +1042,7 @@
           <template v-else-if="isScheduling">
             <v-btn
               variant="outlined"
-              class="tw:text-red"
+              class="schedule-event-control tw:text-red"
               @click="cancelScheduleEvent"
             >
               Cancel
@@ -1050,7 +1050,7 @@
             <v-btn
               v-if="hasSavedTimefulSchedule"
               variant="outlined"
-              class="tw:ml-2 tw:text-red"
+              class="schedule-event-control tw:ml-2 tw:text-red"
               @click="clearScheduledEvent"
             >
               Clear
@@ -1061,7 +1061,7 @@
                 <v-btn
                   :disabled="!allowScheduleEvent"
                   variant="flat"
-                  class="mobile-schedule-button tw:border"
+                  class="mobile-schedule-button schedule-event-control tw:border"
                   :class="
                     allowScheduleEvent
                       ? 'tw:border-light-blue tw:bg-white tw:text-blue'
@@ -1075,7 +1075,7 @@
               </template>
               <v-list density="compact">
                 <v-list-item
-                  class="schedule-event-menu__item"
+                  class="schedule-event-menu__item schedule-event-control"
                   @click="confirmScheduleEvent('timeful')"
                 >
                   <div class="schedule-event-menu__content">
@@ -1089,7 +1089,7 @@
                   </div>
                 </v-list-item>
                 <v-list-item
-                  class="schedule-event-menu__item"
+                  class="schedule-event-menu__item schedule-event-control"
                   @click="confirmScheduleEvent('google')"
                 >
                   <div class="schedule-event-menu__content">
@@ -1103,7 +1103,7 @@
                   </div>
                 </v-list-item>
                 <v-list-item
-                  class="schedule-event-menu__item"
+                  class="schedule-event-menu__item schedule-event-control"
                   @click="confirmScheduleEvent('outlook')"
                 >
                   <div class="schedule-event-menu__content">

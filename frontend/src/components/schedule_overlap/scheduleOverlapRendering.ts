@@ -117,6 +117,10 @@ export const getBaseTimeslotClassStyle = ({
   const s: Record<string, string> = {}
   if (!date) return { class: c, style: s }
 
+  const isSubsetView =
+    state === states.SUBSET_AVAILABILITY ||
+    (state === states.SCHEDULE_EVENT && curRespondents.length > 0)
+
   const timeslotRespondents =
     zdtMapGet(responsesFormatted, date) ?? new Set<string>()
 
@@ -127,7 +131,12 @@ export const getBaseTimeslotClassStyle = ({
   }) => {
     let numRespondents = 0
     let maxVal = 0
-    if (
+    if (isSubsetView) {
+      numRespondents = [...timeslotRespondents].filter((r) =>
+        curRespondentsSet.has(r),
+      ).length
+      maxVal = curRespondentsMax
+    } else if (
       state === states.BEST_TIMES ||
       state === states.HEATMAP ||
       state === states.SCHEDULE_EVENT ||
@@ -135,11 +144,6 @@ export const getBaseTimeslotClassStyle = ({
     ) {
       numRespondents = timeslotRespondents.size
       maxVal = max
-    } else if (state === states.SUBSET_AVAILABILITY) {
-      numRespondents = [...timeslotRespondents].filter((r) =>
-        curRespondentsSet.has(r),
-      ).length
-      maxVal = curRespondentsMax
     } else if (overlayAvailability) {
       if (
         (userHasResponded || curGuestId.length > 0) &&
@@ -153,10 +157,9 @@ export const getBaseTimeslotClassStyle = ({
       }
     }
 
-    const totalRespondents =
-      state === states.SUBSET_AVAILABILITY
-        ? curRespondents.length
-        : respondents.length
+    const totalRespondents = isSubsetView
+      ? curRespondents.length
+      : respondents.length
 
     if (defaultState === states.BEST_TIMES) {
       if (maxVal > 0 && numRespondents === maxVal) {
@@ -176,10 +179,9 @@ export const getBaseTimeslotClassStyle = ({
 
     if (numRespondents > 0) {
       if (totalRespondents === 1) {
-        const respondentId =
-          state === states.SUBSET_AVAILABILITY
-            ? curRespondents[0]
-            : respondents[0]?._id
+        const respondentId = isSubsetView
+          ? curRespondents[0]
+          : respondents[0]?._id
         if (
           respondentId &&
           parsedResponses[respondentId].ifNeeded &&
