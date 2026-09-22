@@ -1,4 +1,5 @@
 import { computed, ref, shallowRef } from "vue"
+import type { Ref } from "vue"
 import { describe, expect, it, vi, beforeEach } from "vitest"
 import { Temporal } from "temporal-polyfill"
 import type * as UtilsModule from "@/utils"
@@ -6,7 +7,11 @@ import type * as UtilsModule from "@/utils"
 import { durations, eventTypes, UTC } from "@/constants"
 import { ZdtSet } from "@/utils"
 import { applySpecificTimesEditDraft } from "@/composables/event/specificTimesEditDraft"
-import { states, type ScheduleOverlapEvent } from "./types"
+import {
+  states,
+  type ScheduleOverlapEvent,
+  type ScheduleOverlapState,
+} from "./types"
 import { useEventScheduling } from "./useEventScheduling"
 
 const {
@@ -1133,5 +1138,122 @@ describe("useEventScheduling", () => {
       startDate: zdt("2026-06-01T09:00:00Z"),
       endDate: zdt("2026-06-01T10:00:00Z"),
     })
+  })
+
+  const buildSchedulingForExit = ({
+    state,
+    onSchedulingExit,
+  }: {
+    state: Ref<ScheduleOverlapState>
+    onSchedulingExit?: (outcome: "commit" | "abort") => void
+  }) => {
+    const event = ref<ScheduleOverlapEvent>({
+      _id: "evt-exit",
+      shortId: "exit123",
+      name: "Scheduling exit",
+      type: eventTypes.SPECIFIC_DATES,
+      daysOnly: false,
+    })
+    const scheduling = useEventScheduling({
+      event,
+      weekOffset: ref(0),
+      curTimezone: ref({
+        value: UTC,
+        offset: durations.ZERO,
+        label: "UTC",
+        gmtString: "GMT",
+      }),
+      state,
+      defaultState: computed(() => states.HEATMAP),
+      splitTimes: computed(() => [
+        [{ hoursOffset: durations.ZERO, text: "slot" }],
+        [],
+      ]),
+      timeslotDuration: computed(() => durations.ONE_HOUR),
+      timeslotHeight: computed(() => 16),
+      timezoneOffset: computed(() => durations.ZERO),
+      isWeekly: computed(() => false),
+      isGroup: computed(() => false),
+      isSpecificTimes: computed(() => false),
+      getDateFromRowCol: (row) =>
+        row === 0 ? zdt("2026-06-01T09:00:00Z") : null,
+      dragging: ref(false),
+      dragStart: ref(null),
+      dragCur: ref(null),
+      tempTimes: shallowRef(new ZdtSet()),
+      respondents: computed(() => []),
+      getMinMaxHoursFromTimes: vi.fn(),
+      onSchedulingExit,
+    })
+
+    return { scheduling }
+  }
+
+  it("reports an abort and preserves the state under handler ownership when scheduling is cancelled", () => {
+    const state = ref(states.SCHEDULE_EVENT)
+    const onSchedulingExit = vi.fn()
+    const { scheduling } = buildSchedulingForExit({ state, onSchedulingExit })
+
+    scheduling.setScheduledEventFromRowCol({ row: 0, col: 0, numRows: 1 })
+    expect(scheduling.hasPendingScheduledEvent.value).toBe(true)
+
+    scheduling.cancelScheduleEvent()
+
+    expect(onSchedulingExit).toHaveBeenCalledWith("abort")
+    expect(scheduling.hasPendingScheduledEvent.value).toBe(false)
+    expect(state.value).toBe(states.SCHEDULE_EVENT)
+  })
+
+  it("falls back to the default state when no scheduling-exit handler is provided", () => {
+    const state = ref(states.SCHEDULE_EVENT)
+    const { scheduling } = buildSchedulingForExit({ state })
+
+    scheduling.cancelScheduleEvent()
+
+    expect(state.value).toBe(states.HEATMAP)
+  })
+
+  it("reports a commit after a successful Timeful schedule confirmation", async () => {
+    const state = ref(states.SCHEDULE_EVENT)
+    const onSchedulingExit = vi.fn()
+    const { scheduling } = buildSchedulingForExit({ state, onSchedulingExit })
+
+    scheduling.setScheduledEventFromRowCol({ row: 0, col: 0, numRows: 1 })
+    await scheduling.confirmScheduleEvent("timeful")
+
+    expect(saveTimefulScheduleMock).toHaveBeenCalledOnce()
+    expect(onSchedulingExit).toHaveBeenCalledWith("commit")
+  })
+
+  it.each(["google", "outlook"] as const)(
+    "reports a commit after a %s Calendar hand-off",
+    async (destination) => {
+      const state = ref(states.SCHEDULE_EVENT)
+      const onSchedulingExit = vi.fn()
+      const { scheduling } = buildSchedulingForExit({ state, onSchedulingExit })
+      const openSpy = vi.fn()
+      vi.stubGlobal("window", { open: openSpy })
+
+      try {
+        scheduling.setScheduledEventFromRowCol({ row: 0, col: 0, numRows: 1 })
+        await scheduling.confirmScheduleEvent(destination)
+
+        expect(openSpy).toHaveBeenCalledOnce()
+        expect(onSchedulingExit).toHaveBeenCalledWith("commit")
+      } finally {
+        vi.unstubAllGlobals()
+      }
+    },
+  )
+
+  it("reports a commit after clearing the saved schedule", async () => {
+    const state = ref(states.SCHEDULE_EVENT)
+    const onSchedulingExit = vi.fn()
+    const { scheduling } = buildSchedulingForExit({ state, onSchedulingExit })
+
+    await scheduling.clearScheduledEvent()
+
+    expect(clearTimefulScheduleMock).toHaveBeenCalledOnce()
+    expect(onSchedulingExit).toHaveBeenCalledWith("commit")
   })
 })

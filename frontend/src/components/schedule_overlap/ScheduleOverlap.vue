@@ -272,6 +272,12 @@ const state = ref<ScheduleOverlapState>(states.BEST_TIMES)
 const defaultState = computed<ScheduleOverlapState>(() =>
   showBestTimes.value ? states.BEST_TIMES : states.HEATMAP,
 )
+// `ui` is created after `eventSched` (drag depends on the scheduling range
+// helpers), so the scheduling-exit handler is late-bound to `ui.exitScheduling`;
+// the placeholder only covers calls made before `ui` exists.
+let schedulingExitHandler: (outcome: "commit" | "abort") => void = () => {
+  state.value = defaultState.value
+}
 const availabilityType = ref<AvailabilityType>(availabilityTypes.AVAILABLE)
 const allowDrag = computed(
   () =>
@@ -421,6 +427,9 @@ const eventSched = useEventScheduling({
   dragCur,
   tempTimes: avail.tempTimes,
   respondents: avail.respondents,
+  onSchedulingExit: (outcome) => {
+    schedulingExitHandler(outcome)
+  },
   refreshEvent: props.refreshEventFn,
 })
 
@@ -510,6 +519,8 @@ const ui = useScheduleOverlapUI({
   optionsSectionRef,
   respondentsListRef,
 })
+
+schedulingExitHandler = ui.exitScheduling
 
 // ── Destructure composable returns for template access ─────────────────
 const {

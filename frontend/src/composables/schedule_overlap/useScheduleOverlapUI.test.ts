@@ -209,6 +209,96 @@ describe("useScheduleOverlapUI deselectRespondents", () => {
   })
 })
 
+describe("useScheduleOverlapUI scheduling selection", () => {
+  it("keeps scheduling mode while toggling Event Responses", () => {
+    const { ui, state } = createUi()
+    state.value = states.SCHEDULE_EVENT
+
+    ui.clickRespondent(new MouseEvent("click"), "user-1")
+    expect(state.value).toBe(states.SCHEDULE_EVENT)
+    expect(ui.curRespondents.value).toEqual(["user-1"])
+
+    ui.clickRespondent(new MouseEvent("click"), "user-2")
+    expect(state.value).toBe(states.SCHEDULE_EVENT)
+    expect(ui.curRespondents.value).toEqual(["user-1", "user-2"])
+
+    ui.clickRespondent(new MouseEvent("click"), "user-1")
+    expect(state.value).toBe(states.SCHEDULE_EVENT)
+    expect(ui.curRespondents.value).toEqual(["user-2"])
+
+    ui.clickRespondent(new MouseEvent("click"), "user-2")
+    expect(state.value).toBe(states.SCHEDULE_EVENT)
+    expect(ui.curRespondents.value).toEqual([])
+  })
+
+  it("keeps the existing subset behavior outside scheduling", () => {
+    const { ui, state } = createUi()
+    state.value = states.HEATMAP
+
+    ui.clickRespondent(new MouseEvent("click"), "user-1")
+    expect(state.value).toBe(states.SUBSET_AVAILABILITY)
+
+    ui.clickRespondent(new MouseEvent("click"), "user-1")
+    expect(state.value).toBe(states.HEATMAP)
+  })
+
+  it("aborts scheduling with the selection preserved", () => {
+    const { ui, state, curTimeslot } = createUi()
+    state.value = states.SCHEDULE_EVENT
+    ui.curRespondents.value = ["user-1"]
+
+    ui.exitScheduling("abort")
+
+    expect(state.value).toBe(states.SUBSET_AVAILABILITY)
+    expect(ui.curRespondents.value).toEqual(["user-1"])
+    expect(curTimeslot.value).toEqual({ row: -1, col: -1 })
+  })
+
+  it("aborts scheduling to the default state without a selection", () => {
+    const { ui, state } = createUi()
+    state.value = states.SCHEDULE_EVENT
+
+    ui.exitScheduling("abort")
+
+    expect(state.value).toBe(states.HEATMAP)
+    expect(ui.curRespondents.value).toEqual([])
+  })
+
+  it("commits scheduling by clearing the selection", () => {
+    const { ui, state } = createUi()
+    state.value = states.SCHEDULE_EVENT
+    ui.curRespondents.value = ["user-1", "user-2"]
+
+    ui.exitScheduling("commit")
+
+    expect(state.value).toBe(states.HEATMAP)
+    expect(ui.curRespondents.value).toEqual([])
+  })
+
+  it("treats schedule controls as selection-preserving clicks", () => {
+    const { ui, curTimeslot, endDrag } = createUi()
+    const control = document.createElement("button")
+    control.className = "schedule-event-control"
+    const inner = document.createElement("span")
+    control.appendChild(inner)
+    document.body.appendChild(control)
+    ui.curRespondents.value = ["user-1"]
+
+    const event = new MouseEvent("click", { bubbles: true })
+    Object.defineProperty(event, "target", {
+      configurable: true,
+      value: inner,
+    })
+    ui.deselectRespondents(event)
+
+    expect(ui.curRespondents.value).toEqual(["user-1"])
+    expect(curTimeslot.value).toEqual({ row: 2, col: 3 })
+    expect(endDrag).not.toHaveBeenCalled()
+
+    control.remove()
+  })
+})
+
 describe("useScheduleOverlapUI hintText", () => {
   it("points at the grid below and adapts the verb to the viewport", () => {
     const { ui, isPhone } = createUi()
