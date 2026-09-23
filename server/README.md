@@ -19,9 +19,20 @@ Direct server execution and `server/.env` are unsupported.
 
 ## Transpiled GALA sources
 
-`eventid/eventid.go` is generated from `eventid/eventid.gala`, and `observability/redact.go` from `observability/redact.gala`.
-The generated files are committed because the Go build never invokes GALA.
-See `GALA.md` for the regeneration commands, the constraints that keep the generated Go dependency-free, and the findings from the transpilation spike.
+Generated Go files are committed because the Go build never invokes GALA.
+Each one has a `.gala` source beside it, and some packages also have a handwritten sibling for members GALA cannot express.
+
+| Generated file            | GALA source                 | Regeneration command                                                      |
+| ------------------------- | --------------------------- | ------------------------------------------------------------------------- |
+| `eventid/eventid.go`      | `eventid/eventid.gala`      | `cd server/eventid && gala transpile -i eventid.gala -o eventid.go`       |
+| `observability/redact.go` | `observability/redact.gala` | `cd server/observability && gala transpile -i redact.gala -o redact.go`   |
+| `logger/logger.go`        | `logger/logger.gala`        | `cd server/logger && gala transpile -i logger.gala -o logger.go`          |
+| `appenv/appenv.go`        | `appenv/appenv.gala`        | `cd server/appenv && gala transpile -i appenv.gala -o appenv.go`          |
+| `utils/array_utils.go`    | `utils/array_utils.gala`    | `cd server/utils && gala transpile -i array_utils.gala -o array_utils.go` |
+
+Handwritten siblings beside generated files are `appenv/appenv_port.go` (`ResolvePort`) and `utils/array_utils_extra.go` (`ArrayToSet`, `ElementWithIndex`, `FindAddedRemovedKept`).
+They are not generated and have no regeneration command.
+See `GALA.md` for the two output styles, the vendored runtime under `third_party/gala/`, and the findings from the transpilation spikes.
 
 ## Tests
 
