@@ -1,0 +1,3 @@
+KIND=pass
+RUN=yes
+NOTE=a type-pattern match lowers to std.As[T] and replaces a Go type assertion with comma-ok

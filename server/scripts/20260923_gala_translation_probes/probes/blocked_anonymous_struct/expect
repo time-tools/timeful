@@ -1,0 +1,3 @@
+KIND=transpile_fail
+ERR=extraneous input 'struct' expecting
+NOTE=anonymous struct types do not parse; declare a named struct, which changes the Go API shape

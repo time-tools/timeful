@@ -1,0 +1,4 @@
+KIND=transpile_fail
+CODE=GALA-E0035
+ERR=bare Go builtin "recover(...)"
+NOTE=recover() is rejected; Try captures panics as values, but there is no in-place resume for panic-recovery middleware

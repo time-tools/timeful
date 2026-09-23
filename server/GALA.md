@@ -105,6 +105,7 @@ Use the runtime-enabled style when the file benefits from GALA-native features a
   A declaration like `func f() (string, error)` is a parse error, and GALA returns tuples instead.
   This blocks drop-in rewrites of Go helpers such as `appenv.ResolvePort`, `utils.CORSOrigins`, and `utils.GetListmonkOtpFromAddress`.
   The workaround is the split: keep multi-value members in a handwritten sibling and transpile the rest, which `appenv` and `utils` now do.
+  This is boundary gap `GAP-2` in the translation roster.
 - Receiving a multi-value Go call with `:=`.
   `var a, b = f()` and the plain reassignment `a, b = f()` work, but `:=` is an internal transpiler panic, so every twin converts the original `x, y := call()` to `var`:
 
@@ -136,9 +137,11 @@ Use the runtime-enabled style when the file benefits from GALA-native features a
   ```
 
   `models/datetime.go`, `models/uuid.go`, and `models/set.go` are blocked by this rule and stay handwritten.
+  This is language gap `GAP-4`; PR #529 fixes conversions only, not methods.
 
 - Backtick struct tags.
-  Every tagged field is a parse error, so the wire shape cannot be reproduced and `models/location.go` is blocked:
+  Every tagged field is a parse error, so the wire shape cannot be reproduced and `models/location.go` is blocked.
+  This is language gap `GAP-1` in the translation roster, and PR #529 explicitly leaves it unchanged:
 
   ```text
   error: extraneous input '`json:"country_code"`' expecting {'}', 'val', 'var', IDENTIFIER}
@@ -185,6 +188,8 @@ Use the runtime-enabled style when the file benefits from GALA-native features a
     |
   ```
 
+  This is boundary gap `GAP-5` in the translation roster.
+
 - Fixed-size arrays.
   There is no `[N]T` grammar, so `models/uuid.go`'s `[16]byte` cannot be expressed:
 
@@ -196,6 +201,8 @@ Use the runtime-enabled style when the file benefits from GALA-native features a
     |                 ^
     |
   ```
+
+  This is language gap `GAP-8` in the translation roster.
 
 - `switch` statements.
   No `switch` parses, single-case or multi-case, which blocks `models/uuid.go`, `observability/record.go`, `services/calendar/types.go`, and `routes/respondent_identity.go`; a plain `switch` fails at the first case label:
@@ -245,9 +252,11 @@ Use the runtime-enabled style when the file benefits from GALA-native features a
     --> probe_c.gala:4:13
     |
   4 | 	s, ok := v.(string)
-    | 	           ^
-    |
+     | 	           ^
+     |
   ```
+
+  A type-pattern `match` (`case s: string`) lowers to `std.As[T]` and replaces the comma-ok form, so this row is an analog rather than a gap (`pass_type_match`).
 
 - Slice expressions.
   `args[1:]` does not parse; `discord_bot/init.gala` uses `go_interop.SliceFrom(args, 1)`:
@@ -398,17 +407,16 @@ The runtime is vendored at `server/third_party/gala/` as one flattened Go module
 
 ## When to revisit
 
-Adoption beyond mostly interop-shaped leaf packages is still blocked by upstream gaps, in rough priority order:
+Adoption beyond mostly interop-shaped leaf packages is still limited by the upstream gaps the roster classifies; in rough priority order:
 
-- Go-style multi-value return signatures, or an interop escape hatch for them, plus a fix for the `:=` receive panic.
+- `GAP-2`: Go-style multi-value return signatures, or an interop escape hatch for them, plus a fix for the `:=` receive panic.
   This is the top ask; it alone would unblock `appenv.ResolvePort`, `routes/respondent_identity.go`, every marshaler in `models`, and most of `postgres`.
-- A working `switch` statement or an automatic lowering to `match`, which blocks `models/uuid.go`, `observability/record.go`, and every provider dispatch.
-- A `defer` replacement that keeps the close-on-return guarantee without restructuring the function, which blocks most of `postgres`, `main.go`, `observability`, and the calendar and contact services.
-- Preservation of struct tags, so JSON-shaped structs like `models/location.go` and `errs/errors.go` can be rewritten.
-- Defined types for non-struct types, or an explicit newtype declaration, so named scalars with methods (`DateTime`, `UUID`) can move.
-- `const`, `interface{}`, fixed-size arrays, type assertions, slice expressions, map literals, and `len`, all currently parse errors.
+- `GAP-1`: preservation of struct tags, so JSON-shaped structs like `models/location.go` and `errs/errors.go` can be rewritten.
+- `GAP-4`: defined types for non-struct types, or an explicit newtype declaration, so named scalars with methods (`DateTime`, `UUID`) can move.
+- `GAP-3`, `GAP-5`, `GAP-6`, `GAP-7`, `GAP-8`, `GAP-9`, and `GAP-10`: anonymous and empty struct types, channel types at the boundary, embedded fields, fixed-size arrays, `select`, and in-place `recover`.
+- Beyond the gaps, a `switch` lowering to `match` and a `defer` replacement that accepts `(T, error)` acquires would remove the manual rewrites for provider dispatch and most of `postgres`.
 - Documentation comments in generated Go, which stay in handwritten `doc.go` files.
 
 Until then, use GALA where the exported Go API stays Go-shaped, the file needs no struct tags, named scalar receivers, multi-value returns, `switch`, or `defer`, and either the runtime-free style applies or the runtime-enabled shape is acceptable at the boundary.
 
-The per-construct roster with the inventory counts, the GALA 0.81.0 versus PR #529 status matrix, and the scripted probe corpus is in [`../docs/gala-translation.md`](../docs/gala-translation.md).
+The per-construct roster with the inventory counts, the GALA 0.81.0 versus PR #529 status matrix, the classified genuine gaps, and the scripted probe corpus is in [`../docs/gala-translation.md`](../docs/gala-translation.md).
