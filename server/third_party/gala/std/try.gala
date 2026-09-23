@@ -1,0 +1,207 @@
+package std
+
+import . "martianoff/gala/go_builtins"
+
+// Try represents a computation that may either result in a value of type T (Success)
+// or a failure with an error (Failure). It provides a functional approach to error
+// handling, similar to Scala's Try monad.
+//
+// Every instance of Try is either:
+// - Success[T]: contains a successful value of type T
+// - Failure[T]: contains an error
+sealed type Try[T any] {
+    case Success(Value T)
+    case Failure(Err error)
+}
+
+// IsSuccess returns true if this is a Success, false otherwise.
+func (t Try[T]) IsSuccess() bool = t.isSuccess()
+
+// IsFailure returns true if this is a Failure, false otherwise.
+func (t Try[T]) IsFailure() bool = t.isFailure()
+
+// Apply executes f and catches any panic, converting it to a Failure.
+// This is the safe way to create a Try from a potentially panicking operation.
+// Usage: Try[int](() => riskyDivide(10, 0))
+func (t Try[T]) Apply(f func() T) Try[T] = tryRecover[T](f)
+
+// Get returns the value if this is a Success, otherwise panics.
+// On Failure it panics with the original error value (not a string), so a
+// surrounding recover (e.g. a Future's panic capture) can recover the typed
+// error unchanged rather than a wrapped message.
+func (t Try[T]) Get() T {
+    if t.isFailure() {
+        Panic(t.Err)
+    }
+    return t.Value
+}
+
+// GetError returns the error if this is a Failure, otherwise panics.
+func (t Try[T]) GetError() error {
+    if t.isSuccess() {
+        Panic("Try.GetError on Success")
+    }
+    return t.Err
+}
+
+// GetOrElse returns the value if this is a Success, otherwise returns defaultValue.
+func (t Try[T]) GetOrElse(defaultValue T) T {
+    if t.isSuccess() {
+        return t.Value
+    }
+    return defaultValue
+}
+
+// OrElse returns this Try if it is a Success, otherwise returns alternative.
+func (t Try[T]) OrElse(alternative Try[T]) Try[T] {
+    if t.isSuccess() {
+        return t
+    }
+    return alternative
+}
+
+// OnSuccess executes a callback with the value if this is a Success,
+// returns the original Try unchanged (for chaining).
+func (t Try[T]) OnSuccess(f func(T)) Try[T] {
+    if t.isSuccess() {
+        f(t.Value)
+    }
+    return t
+}
+
+// OnFailure executes a callback with the error if this is a Failure,
+// returns the original Try unchanged (for chaining).
+func (t Try[T]) OnFailure(f func(error)) Try[T] {
+    if t.isFailure() {
+        f(t.Err)
+    }
+    return t
+}
+
+// ForEach applies the given procedure f to the value if this is a Success.
+func (t Try[T]) ForEach(f func(T)) {
+    if t.isSuccess() {
+        f(t.Value)
+    }
+}
+
+// Map applies the function f to the value if this is a Success.
+// Returns a new Try containing the result. If f panics, the result is a Failure.
+func (t Try[T]) Map[U any](f func(T) U) Try[U] {
+    if t.isFailure() {
+        return Failure[U](t.Err)
+    }
+    return Success[U](f(t.Value))
+}
+
+// FlatMap applies the function f to the value if this is a Success.
+// Returns the Try returned by f. If this is a Failure, returns the Failure.
+func (t Try[T]) FlatMap[U any](f func(T) Try[U]) Try[U] {
+    if t.isFailure() {
+        return Failure[U](t.Err)
+    }
+    return f(t.Value)
+}
+
+// Filter returns this Try if this is a Success and the predicate p returns true.
+// Returns a Failure with NoSuchElementError if predicate returns false.
+func (t Try[T]) Filter(p func(T) bool) Try[T] {
+    if t.isFailure() {
+        return t
+    }
+    if p(t.Value) {
+        return t
+    }
+    return Failure[T](NoSuchElementError(Message = "Predicate does not hold"))
+}
+
+// Recover applies the recovery function pf to the error if this is a Failure.
+// Returns a Success with the recovered value. If pf panics, the result is still a Failure.
+func (t Try[T]) Recover(pf func(error) T) Try[T] {
+    if t.isSuccess() {
+        return t
+    }
+    return Success[T](pf(t.Err))
+}
+
+// RecoverWith applies the recovery function pf to the error if this is a Failure.
+// Returns the Try returned by pf. If this is a Success, returns this Try.
+func (t Try[T]) RecoverWith(pf func(error) Try[T]) Try[T] {
+    if t.isSuccess() {
+        return t
+    }
+    return pf(t.Err)
+}
+
+// Transform applies s if this is a Success, f if this is a Failure.
+// Both functions return a new Try.
+func (t Try[T]) Transform[U any](s func(T) Try[U], f func(error) Try[U]) Try[U] {
+    if t.isSuccess() {
+        return s(t.Value)
+    }
+    return f(t.Err)
+}
+
+// Fold applies fa if this is a Failure, fs if this is a Success.
+func (t Try[T]) Fold[U any](fa func(error) U, fs func(T) U) U {
+    if t.isSuccess() {
+        return fs(t.Value)
+    }
+    return fa(t.Err)
+}
+
+// ToOption returns Some(value) if this is a Success, None if this is a Failure.
+func (t Try[T]) ToOption() Option[T] {
+    if t.isSuccess() {
+        return Some[T](t.Value)
+    }
+    return None[T]()
+}
+
+// ToEither returns Right(value) if this is a Success, Left(error) if this is a Failure.
+func (t Try[T]) ToEither() Either[error, T] {
+    if t.isSuccess() {
+        return Right[error, T](t.Value)
+    }
+    return Left[error, T](t.Err)
+}
+
+// FromOption creates a Try from an Option.
+// Returns Success if the Option is Some, Failure with NoSuchElementError if None.
+func FromOption[T any](o Option[T]) Try[T] = o match {
+    case Some(v) => Success[T](v)
+    case None() => Failure[T](NoSuchElementError(Message = "Option is None"))
+}
+
+// FromEitherError creates a Try from an Either[error, T].
+// Returns Success if Right, Failure if Left.
+func FromEitherError[T any](e Either[error, T]) Try[T] = e match {
+    case Right(v) => Success[T](v)
+    case Left(err) => Failure[T](err)
+}
+
+// TryApply executes f and catches any panic, converting it to a Failure.
+// Returns Success[T] with the result if f completes normally.
+// Returns Failure[T] with the panic value as error if f panics.
+func TryApply[T any](f func() T) Try[T] = tryRecover[T](f)
+
+// Void represents the absence of a meaningful value, similar to Scala's Void.
+// Used as the type parameter for Try[Void] when converting Go error returns.
+type Void struct {}
+
+// FromError converts a Go error return into a Try[Void].
+// Returns Success[Void] if err is nil, Failure[Void] otherwise.
+//
+// For Go functions returning (T, error), use Try(() => goCall()) instead.
+//
+// Usage:
+//   FromError(conn.Close())                        // Try[Void]
+//   FromError(sb.ListenAndServe(addr))              // Try[Void]
+//   FromError(sb.ListenAndServe(addr)).OnFailure((err) => Println(s"error: $err"))
+func FromError(err error) Try[Void] {
+    if err != nil {
+        return Failure[Void](err)
+    }
+    return Success[Void](Void())
+}
+
