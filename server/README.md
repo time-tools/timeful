@@ -17,6 +17,12 @@ docker compose --env-file .env.development -f compose.yaml -f compose.developmen
 See `docs/environments.md` for the complete configuration contract.
 Direct server execution and `server/.env` are unsupported.
 
+## Transpiled GALA sources
+
+`eventid/eventid.go` is generated from `eventid/eventid.gala`, and `observability/redact.go` from `observability/redact.gala`.
+The generated files are committed because the Go build never invokes GALA.
+See `GALA.md` for the regeneration commands, the constraints that keep the generated Go dependency-free, and the findings from the transpilation spike.
+
 ## Tests
 
 Pure unit tests can run on the host or in a container.
