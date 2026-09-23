@@ -1,0 +1,3 @@
+KIND=pass
+RUN=yes
+NOTE=methods on a GALA struct are direct form, and a `var` field stays a plain Go field: the runner-written check.go fixture constructs the struct and calls the method from Go

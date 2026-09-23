@@ -1,0 +1,3 @@
+KIND=pass
+RUN=yes
+NOTE=PR #529 delta: 0.81.0 assigns the post statement to the init slot, so it runs once before the loop (`for i++; i < 3;`); this break-bounded loop prints 1 and flips to 0 after #529

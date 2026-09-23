@@ -1,0 +1,3 @@
+KIND=pass
+RUN=yes
+NOTE=go_builtins.Panic is the sanctioned replacement for bare panic in statement position; the tail-position spelling does not compile in 0.81.0 (blocked_panic_tail_position)

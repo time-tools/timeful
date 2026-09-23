@@ -84,6 +84,18 @@ func init() {
 }
 GO
         ;;
+    pass_struct_methods)
+        cat >"probes/$1/check.go" <<'GO'
+package main
+
+import "fmt"
+
+func init() {
+	c := Counter{N: 1}
+	fmt.Println(c.Next())
+}
+GO
+        ;;
     contested_size_field_go_sibling)
         cat >"probes/$1/types.go" <<'GO'
 package main

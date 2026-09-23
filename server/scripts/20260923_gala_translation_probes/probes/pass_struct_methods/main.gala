@@ -1,0 +1,10 @@
+package main
+
+struct Counter(var N int)
+
+func (c Counter) Next() int = c.N + 1
+
+func main() {
+	val c = Counter(N = 41)
+	Println(c.Next())
+}

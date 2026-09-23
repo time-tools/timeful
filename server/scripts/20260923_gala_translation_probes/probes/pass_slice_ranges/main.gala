@@ -1,0 +1,13 @@
+package main
+
+import . "martianoff/gala/go_interop"
+
+func main() {
+	var xs = SliceOf("a", "b", "c", "d")
+	Println(Slice(xs, 1, 3).Size())
+	Println(SliceFrom(xs, 3).Size())
+	Println(SliceTo(xs, 2).Size())
+	Println(SliceTake(xs, 2).Size())
+	Println(SliceDrop(xs, 3).Size())
+	Println(SliceCopy(xs).Size())
+}

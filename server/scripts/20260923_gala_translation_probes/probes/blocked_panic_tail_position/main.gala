@@ -1,0 +1,10 @@
+package main
+
+import . "martianoff/gala/go_builtins"
+
+func fail() int = Panic("boom")
+
+func main() {
+	Println("before")
+	Println(fail())
+}

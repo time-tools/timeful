@@ -1,0 +1,3 @@
+KIND=pass
+RUN=yes
+NOTE=package-level `var` is the const replacement; `val` is only for GALA-internal bindings because it wraps the value in std.Immutable

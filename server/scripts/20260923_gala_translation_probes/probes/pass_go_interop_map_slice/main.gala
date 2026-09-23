@@ -6,6 +6,7 @@ func main() {
 	var handlers = MapEmpty[string, int]()
 	handlers = MapPut(handlers, "a", 1)
 	handlers = MapPut(handlers, "b", 2)
+	handlers = MapDelete(handlers, "b")
 	Println(MapLen(handlers))
 
 	var args = SliceFrom(SliceOf("x", "y", "z"), 1)
