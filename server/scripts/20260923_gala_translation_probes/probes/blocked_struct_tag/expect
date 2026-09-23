@@ -1,0 +1,3 @@
+KIND=transpile_fail
+ERR=extraneous input '`json:"name"`' expecting
+NOTE=backtick struct tags do not parse; tagged structs stay handwritten until upstream preserves tags

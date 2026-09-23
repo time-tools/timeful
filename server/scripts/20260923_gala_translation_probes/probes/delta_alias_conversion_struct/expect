@@ -1,0 +1,3 @@
+KIND=pass
+RUN=yes
+NOTE=PR #529 delta: Coord(1, 2) for `type Coord Point` emits Coord{} in 0.81.0 and silently returns zero values; this expectation pins the buggy 0.81.0 behavior and flips to 1/2 once a release carries PR #529

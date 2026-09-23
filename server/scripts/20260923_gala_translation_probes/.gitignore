@@ -1,0 +1,11 @@
+# Runner-generated Go files and fixtures (see run.sh materialize_fixtures).
+main.gen.go
+probes/*/helper.go
+probes/*/check.go
+probes/*/types.go
+fixtures/collide/response.go
+
+# Transpiler cache, runner logs, and built probe binaries.
+.gala/
+.logs/
+*.bin

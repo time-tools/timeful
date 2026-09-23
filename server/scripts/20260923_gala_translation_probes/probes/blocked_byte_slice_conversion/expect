@@ -1,0 +1,3 @@
+KIND=transpile_fail
+CODE=GALA-E0040
+NOTE=[]byte(x) is a Go slice type in an expression; use go_interop.ToBytes or string

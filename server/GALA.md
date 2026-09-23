@@ -410,3 +410,5 @@ Adoption beyond mostly interop-shaped leaf packages is still blocked by upstream
 - Documentation comments in generated Go, which stay in handwritten `doc.go` files.
 
 Until then, use GALA where the exported Go API stays Go-shaped, the file needs no struct tags, named scalar receivers, multi-value returns, `switch`, or `defer`, and either the runtime-free style applies or the runtime-enabled shape is acceptable at the boundary.
+
+The per-construct roster with the inventory counts, the GALA 0.81.0 versus PR #529 status matrix, and the scripted probe corpus is in [`../docs/gala-translation.md`](../docs/gala-translation.md).

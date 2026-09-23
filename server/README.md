@@ -41,6 +41,7 @@ Each one has a `.gala` source beside it, and some packages also have a handwritt
 Handwritten siblings beside generated files are `appenv/appenv_port.go` (`ResolvePort`), `utils/array_utils_extra.go` (`ArrayToSet`, `ElementWithIndex`, `FindAddedRemovedKept`), `services/providerconfig/doc.go` (package comment), and `slackbot/commands/utils.go` (the `newResponse` constructor).
 They are not generated and have no regeneration command.
 See `GALA.md` for the two output styles, the vendored runtime under `third_party/gala/`, and the findings from the transpilation spikes.
+The per-construct Go-to-GALA roster, its inventory counts, and the scripted probe corpus are in [`../docs/gala-translation.md`](../docs/gala-translation.md).
 
 ## Tests
 

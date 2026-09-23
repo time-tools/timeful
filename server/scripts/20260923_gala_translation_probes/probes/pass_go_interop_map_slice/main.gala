@@ -1,0 +1,19 @@
+package main
+
+import . "martianoff/gala/go_interop"
+
+func main() {
+	var handlers = MapEmpty[string, int]()
+	handlers = MapPut(handlers, "a", 1)
+	handlers = MapPut(handlers, "b", 2)
+	Println(MapLen(handlers))
+
+	var args = SliceFrom(SliceOf("x", "y", "z"), 1)
+	args = SliceAppend(args, "w")
+	Println(args.Size())
+	Println(args[0])
+
+	var b = ToBytes("hi")
+	Println(b.Size())
+	Println(ToString(b))
+}

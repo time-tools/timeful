@@ -1,0 +1,3 @@
+KIND=transpile_fail
+CODE=GALA-E0007
+NOTE=slice literals are not a first-class construct; use go_interop.SliceOf/SliceEmpty or a GALA collection

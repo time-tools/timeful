@@ -1,0 +1,3 @@
+KIND=transpile_fail
+CODE=GALA-E0017
+NOTE=PR #529 delta: `a, b := f()` aborts the 0.81.0 transpiler with an internal panic; the fix lowers it like `var a, b = f()`

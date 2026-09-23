@@ -1,0 +1,3 @@
+KIND=build_fail
+ERR=mismatched types std.Immutable[error] and untyped nil
+NOTE=PR #529 delta: `if err := f(); err != nil` wraps the binding in std.Immutable in 0.81.0 and does not compile; post-#529 it is rejected as GALA-E0047

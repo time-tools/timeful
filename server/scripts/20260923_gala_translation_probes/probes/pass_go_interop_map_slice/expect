@@ -1,0 +1,3 @@
+KIND=pass
+RUN=yes
+NOTE=MapEmpty/MapPut/MapLen, SliceOf/SliceFrom/SliceAppend, and ToBytes/ToString replace map literals, make, slicing, append, and []byte(x)

@@ -1,0 +1,3 @@
+KIND=build_fail
+ERR=invalid composite literal type Millis
+NOTE=PR #529 delta: Millis(v) for `type Millis int64` emits Millis{} in 0.81.0 and drops the argument; the fix emits the Go conversion

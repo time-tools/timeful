@@ -1,0 +1,3 @@
+KIND=transpile_fail
+ERR=no viable alternative at input '{case0:'
+NOTE=switch does not parse in 0.81.0, single-case or multi-case; use match or an if/else chain

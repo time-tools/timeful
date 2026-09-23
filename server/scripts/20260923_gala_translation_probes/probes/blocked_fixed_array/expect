@@ -1,0 +1,3 @@
+KIND=transpile_fail
+ERR=mismatched input '[' expecting {'=', '{'}
+NOTE=fixed-size arrays have no grammar; models/uuid.go keeps [16]byte handwritten

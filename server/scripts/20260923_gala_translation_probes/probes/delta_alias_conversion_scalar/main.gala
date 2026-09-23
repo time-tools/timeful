@@ -1,0 +1,9 @@
+package main
+
+type Millis int64
+
+func double(v Millis) int64 = int64(v) * 2
+
+func main() {
+	Println(double(Millis(21)))
+}

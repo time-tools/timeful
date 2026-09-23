@@ -1,0 +1,12 @@
+package main
+
+import "strconv"
+
+func main() {
+	n, err := strconv.Atoi("42")
+	if err != nil {
+		Println("error")
+		return
+	}
+	Println(n)
+}

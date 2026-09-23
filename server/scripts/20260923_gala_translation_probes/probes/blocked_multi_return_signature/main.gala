@@ -1,0 +1,11 @@
+package main
+
+import "strconv"
+
+func parse(text string) (int, error) {
+	return strconv.Atoi(text)
+}
+
+func main() {
+	Println(parse)
+}

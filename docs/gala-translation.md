@@ -1,0 +1,280 @@
+# Go to GALA translation roster
+
+This page answers "given this Go construct in `server/`, what is the GALA rule, and can I use it?" for the constructs this project actually uses.
+It is the durable reference built by TASK-0322 from the spike record in [`../server/GALA.md`](../server/GALA.md), the runtime vendored under `server/third_party/gala/`, and the upstream sources listed at the end.
+The generation and verification procedure for the committed twins lives in [`../server/README.md`](../server/README.md).
+The vendored runtime and the probe harness are pinned to GALA 0.81.0.
+The PR [#529](https://github.com/martianoff/gala/pull/529) fixes are a second status column, not an installed version.
+
+## Sources and scope
+
+- The roster is derived from an AST inventory of every `.go` file under `server/` except `third_party/`; the method and counts are in [Inventory](#inventory).
+- Every construct family in that inventory has an entry in [Construct roster](#construct-roster) with a minimal Go repro, the GALA rewrite or the documented blocker, both version statuses, an upstream reference, at least one `file:line` use, and a verdict.
+- The scripted corpus in `server/scripts/20260923_gala_translation_probes/` keeps the blocked and contested verdicts honest; see [Probe corpus](#probe-corpus).
+- Upstream references: [`GALA.MD`](https://github.com/martianoff/gala/blob/master/docs/GALA.MD), [`GALA_BEST_PRACTICES.MD`](https://github.com/martianoff/gala/blob/master/docs/GALA_BEST_PRACTICES.MD), [`website/llms.txt`](https://github.com/martianoff/gala/blob/master/website/llms.txt), the [`gala-lint` skill](https://github.com/martianoff/gala/blob/master/ide/claude-code/skills/gala-lint/SKILL.md), and the `gala explain GALA-Exxxx` pages.
+- The stale `website/features/go-interop.md` is deliberately not a source: it claims bare `len`/`make`/`cap` work, which `GALA.MD` §11 and the probes contradict.
+
+## Decision ladder
+
+Choose the first rung that fits.
+
+1. **Rewrite runtime-free.**
+   Use this for a leaf file whose exported Go API must stay exactly Go-shaped.
+   Bind raw Go values with `var`, import Go packages directly, avoid `val`/`Option`/`Try`/collections, and use `.ByteSize()`/`.Size()` plus the `go_interop` helpers in place of `len`, `make`, `append`, and `[]byte`.
+   The committed `eventid`, `observability/redact`, `logger`, `request_utils`, `services`, `guest_response_ownership`, `providerconfig`, and the generated half of `utils` twins show the style.
+2. **Rewrite runtime-enabled, or split with a handwritten sibling.**
+   Use runtime-enabled output when the file benefits from `val`, `Option`/`Try`/`Either`, sealed types, or immutable collections, and its Go callers tolerate the emitted shapes.
+   Split when only some members are inexpressible (multi-value returns, `defer`-heavy cleanup, tags): keep those members in a handwritten `.go` sibling and transpile the rest, as `appenv/appenv_port.go`, `utils/array_utils_extra.go`, and `slackbot/commands/utils.go` do.
+3. **Keep handwritten.**
+   Use this for any file whose shape is blocked (struct tags, `interface{}`, fixed-size arrays, named scalar receivers, anonymous structs, embedded fields, type assertions, slice expressions, map literals, inline function literals in composite literals, `const`, `switch`, `defer`-dependent control flow) or whose Go callers cannot tolerate the GALA shapes.
+   `models/{datetime,uuid,set,location,event}.go`, `errs/errors.go`, `middleware/auth.go`, `postgres/`, and `main.go` stay here today.
+
+Two shape rules apply on every rung:
+
+- An exported package-level `val` emits `var X = std.NewImmutable(...)`, so Go callers must call `.Get()`; keep `var` for anything that crosses into Go.
+- A GALA struct declaration is not a drop-in twin: the transpiler synthesizes exported `Copy`, `Equal`, `Unapply`, and `Is<Type>` members and wraps fields in `std.Immutable[T]` unless they are declared `var`.
+
+## Version matrix
+
+GALA 0.81.0 is the vendored runtime and the compiler the harness pins.
+The right-hand column describes a release that carries PR #529; only the probe corpus can verify it until such a release is installed.
+
+| Behavior                                                                   | GALA 0.81.0 (vendored)                                                                   | Release carrying PR #529                           | Probe                           | Server constructs affected                       |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------- | ------------------------------- | ------------------------------------------------ |
+| Multi-value `:=` receive, `a, b := f()`                                    | GALA-E0017 internal transpiler panic                                                     | Lowers like `var a, b = f()`                       | `delta_multi_value_define`      | `multi-value-define` (1252)                      |
+| Alias conversion for a scalar, `type Millis int64` then `Millis(v)`        | Emits `Millis{}` and drops the argument; does not compile                                | Emits the Go conversion                            | `delta_alias_conversion_scalar` | `defined-non-struct-types` (18)                  |
+| Alias conversion for a struct alias, `type Coord Point` then `Coord(1, 2)` | Emits `Coord{}` and silently returns zero values                                         | Follows the alias chain to the original field list | `delta_alias_conversion_struct` | `defined-non-struct-types` (18)                  |
+| Trailing `if (c) { a } else { b }` as a block value                        | Emits bare expression statements; `go build` fails with `missing return`                 | Promotes each branch to a return                   | `delta_trailing_if_expression`  | none in the committed twins                      |
+| `if init; cond`                                                            | Binds `std.Immutable[error]`; `go build` fails with a type mismatch                      | Rejected as GALA-E0047 with a `Try` hint           | `delta_if_initializer`          | `if-initializers` (991)                          |
+| `for ; cond; post` with the init omitted                                   | Assigns the statements by list position, running the post statement once before the loop | Decides the slot from the `;` separators           | not probed                      | `for-loops-with-omitted-init` (0; not used here) |
+| Alias to an instantiated generic struct                                    | Instantiates the alias name itself and emits Go that does not compile                    | Resolves the alias chain                           | not probed                      | none                                             |
+
+Unchanged by PR #529 and still blocked after it: `type X Y` stays a Go alias (so methods on named scalars stay illegal), and `defer`, `switch`, struct tags, `interface{}`, fixed-size arrays, type assertions, slice expressions, and map literals remain blocked.
+The probe corpus pins each of those.
+
+## Inventory
+
+The counts below come from a throwaway Go AST pass over `server/` excluding `third_party/`, run outside the repository with `go/parser` and `go/ast` in pre-order.
+Each parsed file is classified as handwritten or generated (a `DO NOT EDIT` marker in its comments) and as test or non-test.
+Generated files split further into GALA twins (13) and the swag-generated `docs/docs.go` (1).
+Occurrences are counted per construct instance, and the representative is the first hit in a handwritten non-test file, falling back to the first hit in any class.
+A construct family recorded at zero occurrences has no roster entry; those families are `cap-calls`, `new-calls`, `array-literals`, `dot-imports`, `go-embed-directives`, `for-loops-with-omitted-init`, `goto`, `fallthrough`, `labeled-statements`, and `iota`.
+The inventory covers 166 Go files: 79 handwritten non-test, 73 handwritten test, 13 GALA-generated, and 1 swag-generated.
+
+| Construct family                      | Hand non-test | Hand test | GALA-generated | Swag-generated | Total | Representative                            |
+| ------------------------------------- | ------------- | --------- | -------------- | -------------- | ----- | ----------------------------------------- |
+| `multi-return-signature`              | 156           | 25        | 0              | 0              | 181   | `accounts/accounts.go:30`                 |
+| `blank-parameters`                    | 2             | 3         | 1              | 0              | 6     | `observability/metrics.go:72`             |
+| `variadic-parameters`                 | 6             | 6         | 0              | 0              | 12    | `postgres/accounts.go:52`                 |
+| `generic-declarations`                | 5             | 1         | 1              | 0              | 7     | `models/set.go:3`                         |
+| `function-literals`                   | 60            | 229       | 0              | 0              | 289   | `accounts/calendar.go:123`                |
+| `func-literals-in-composite-literals` | 3             | 14        | 0              | 0              | 17    | `accounts/delete.go:21`                   |
+| `methods`                             | 174           | 20        | 0              | 0              | 194   | `accounts/delete.go:33`                   |
+| `methods-on-defined-non-struct`       | 10            | 4         | 0              | 0              | 14    | `models/datetime.go:14`                   |
+| `function-types`                      | 30            | 10        | 1              | 0              | 41    | `accounts/delete.go:15`                   |
+| `multi-value-define`                  | 500           | 752       | 0              | 0              | 1252  | `accounts/accounts.go:31`                 |
+| `multi-value-var`                     | 10            | 27        | 13             | 0              | 50    | `main.go:101`                             |
+| `multi-value-assign`                  | 72            | 38        | 1              | 0              | 111   | `discord_bot/commands/active_users.go:41` |
+| `const-declarations`                  | 55            | 9         | 0              | 1              | 65    | `errs/errors.go:8`                        |
+| `package-level-vars`                  | 24            | 3         | 28             | 1              | 56    | `accounts/accounts.go:18`                 |
+| `struct-declarations`                 | 99            | 15        | 0              | 0              | 114   | `accounts/accounts.go:21`                 |
+| `interface-declarations`              | 2             | 0         | 0              | 0              | 2     | `postgres/repository.go:20`               |
+| `defined-non-struct-types`            | 13            | 5         | 0              | 0              | 18    | `models/calendar.go:4`                    |
+| `type-aliases`                        | 1             | 0         | 1              | 0              | 2     | `routes/group.go:329`                     |
+| `defer`                               | 45            | 33        | 0              | 0              | 78    | `main.go:66`                              |
+| `go-statements`                       | 9             | 4         | 0              | 0              | 13    | `main.go:211`                             |
+| `switch-statements`                   | 18            | 5         | 0              | 0              | 23    | `models/uuid.go:88`                       |
+| `select-statements`                   | 2             | 5         | 0              | 0              | 7     | `main.go:215`                             |
+| `if-initializers`                     | 277           | 714       | 0              | 0              | 991   | `accounts/accounts.go:94`                 |
+| `range-loops`                         | 129           | 156       | 5              | 0              | 290   | `accounts/calendar.go:49`                 |
+| `len-calls`                           | 161           | 206       | 1              | 0              | 368   | `accounts/calendar.go:48`                 |
+| `make-calls`                          | 113           | 27        | 0              | 0              | 140   | `accounts/calendar.go:48`                 |
+| `append-calls`                        | 115           | 21        | 0              | 0              | 136   | `accounts/calendar.go:157`                |
+| `delete-calls`                        | 6             | 1         | 0              | 0              | 7     | `routes/event_routes.go:459`              |
+| `close-calls`                         | 0             | 3         | 0              | 0              | 3     | `accounts/accounts_test.go:153`           |
+| `panic-calls`                         | 13            | 1         | 0              | 0              | 14    | `models/uuid.go:112`                      |
+| `recover-calls`                       | 4             | 0         | 0              | 0              | 4     | `routes/group.go:751`                     |
+| `copy-calls`                          | 0             | 3         | 0              | 0              | 3     | `observability/test_helpers_test.go:39`   |
+| `type-assertions`                     | 21            | 15        | 0              | 0              | 36    | `middleware/auth.go:17`                   |
+| `slice-expressions`                   | 40            | 25        | 0              | 0              | 65    | `discord_bot/commands/index.go:49`        |
+| `map-literals`                        | 42            | 235       | 0              | 0              | 277   | `discord_bot/commands/active_users.go:96` |
+| `slice-literals`                      | 49            | 345       | 0              | 1              | 395   | `discord_bot/commands/active_users.go:64` |
+| `fixed-size-array-types`              | 8             | 0         | 0              | 0              | 8     | `models/uuid.go:110`                      |
+| `byte-slice-conversions`              | 19            | 33        | 0              | 0              | 52    | `main.go:167`                             |
+| `composite-literals`                  | 504           | 1013      | 3              | 2              | 1522  | `accounts/accounts.go:71`                 |
+| `struct-tags`                         | 348           | 39        | 0              | 0              | 387   | `errs/errors.go:29`                       |
+| `interface{} type`                    | 5             | 0         | 0              | 0              | 5     | `errs/errors.go:33`                       |
+| `anonymous-struct-types`              | 74            | 56        | 0              | 0              | 130   | `models/event.go:133`                     |
+| `channel-types`                       | 8             | 12        | 0              | 0              | 20    | `main.go:210`                             |
+| `map-types`                           | 118           | 329       | 1              | 0              | 448   | `accounts/calendar.go:22`                 |
+| `embedded-struct-fields`              | 10            | 1         | 0              | 0              | 11    | `models/event.go:133`                     |
+| `init-functions`                      | 1             | 0         | 0              | 1              | 2     | `main.go:47`                              |
+| `main-functions`                      | 3             | 0         | 0              | 0              | 3     | `main.go:58`                              |
+| `blank-imports`                       | 1             | 0         | 0              | 0              | 1     | `main.go:34`                              |
+| `named-imports`                       | 24            | 32        | 2              | 0              | 58    | `accounts/accounts.go:13`                 |
+
+## Construct roster
+
+The status columns use `0.81.0` for the vendored compiler and `#529` for a release carrying PR #529.
+`Same` means PR #529 does not change the verdict.
+Occurrence counts are totals across all classes; the location is the inventory representative.
+
+### Functions and signatures
+
+| Construct                             | Minimal Go                                       | GALA rule                                                                                     | 0.81.0      | #529 | Reference                                                   | Used at                           | Verdict                                      |
+| ------------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------- | ----------- | ---- | ----------------------------------------------------------- | --------------------------------- | -------------------------------------------- |
+| `multi-return-signature`              | `func f() (T, error)`                            | Not in the grammar; return `Tuple[T, error]`, or keep the member in a handwritten sibling     | Parse error | Same | `GALA.MD` §9 (Multiple Return Values)                       | `accounts/accounts.go:30` (181)   | Split with a handwritten sibling             |
+| `blank-parameters`                    | `func f(_ T)`                                    | Works; the twins use `_ string`                                                               | Works       | Same | `GALA.MD` §3                                                | `observability/metrics.go:72` (6) | Direct form                                  |
+| `variadic-parameters`                 | `func f(xs ...T)`                                | Works; construct call-site slices with `SliceOf`                                              | Works       | Same | `GALA.MD` §3 (Variadic Functions)                           | `postgres/accounts.go:52` (12)    | Direct form                                  |
+| `generic-declarations`                | `type Set[T comparable] ...`, `func Find[T any]` | Works; type arguments are comma-separated, `MapEmpty[string, int]()`                          | Works       | Same | `GALA.MD` §8                                                | `models/set.go:3` (7)             | Direct form when the underlying shape parses |
+| `function-literals`                   | `func(x int) int { return x }`                   | GALA lambdas `(x) => ...`; expression bodies take no `return`                                 | Works       | Same | `GALA.MD` §7 (Lambda Expressions)                           | `accounts/calendar.go:123` (289)  | Direct form                                  |
+| `func-literals-in-composite-literals` | `Command{Execute: func() string { return "x" }}` | Parse error; declare a named unexported function and reference it                             | Parse error | Same | `GALA.MD` §4 (Struct Construction); §7 (Lambda Expressions) | `accounts/delete.go:21` (17)      | Workaround: named function                   |
+| `methods`                             | `func (r Recv) M()`, `func (r *Recv) M()`        | Works; GALA structs additionally grow `Copy`, `Equal`, `Unapply`, and an `Instance` interface | Works       | Same | `GALA.MD` §3 (Methods)                                      | `accounts/delete.go:33` (194)     | Direct form with an API-shape caveat         |
+| `methods-on-defined-non-struct`       | `func (d DateTime) IsZero() bool`                | Illegal: `type X Y` emits a Go alias, so the receiver is non-local                            | Build fails | Same | `GALA.MD` §4 (Type Aliases); PR #529                        | `models/datetime.go:14` (14)      | Keep handwritten                             |
+| `function-types`                      | `Execute func(args []string)`                    | Works as a field or parameter type; reference a named function for composite literals         | Works       | Same | `GALA.MD` §3 (Function Type Parameters)                     | `accounts/delete.go:15` (41)      | Direct form                                  |
+
+### Declarations and types
+
+| Construct                  | Minimal Go                    | GALA rule                                                                             | 0.81.0      | #529                                     | Reference                      | Used at                                         | Verdict                                                                              |
+| -------------------------- | ----------------------------- | ------------------------------------------------------------------------------------- | ----------- | ---------------------------------------- | ------------------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `multi-value-define`       | `n, err := f()`               | Panics; write `var n, err = f()` instead                                              | GALA-E0017  | Fixed to lower like the `var` form       | PR #529; `GALA-E0017`          | `accounts/accounts.go:31` (1252)                | Workaround (`var`) until #529 ships                                                  |
+| `multi-value-var`          | `var n, err = f()`            | Works, including blank receives such as `var body, _ = json.Marshal(v)`               | Works       | Same                                     | `GALA.MD` §9 (Go interop note) | `main.go:101` (50)                              | Direct form                                                                          |
+| `multi-value-assign`       | `n, err = f()`                | Works on already-declared names                                                       | Works       | Same                                     | `GALA.MD` §9                   | `discord_bot/commands/active_users.go:41` (111) | Direct form                                                                          |
+| `const-declarations`       | `const Answer = 42`           | Parse error; use a package-level `var`, or `val` (which wraps in `std.Immutable`)     | Parse error | Same                                     | `server/GALA.md`; `llms.txt`   | `errs/errors.go:8` (65)                         | Workaround (`var`) when constness is not part of the API, otherwise keep handwritten |
+| `package-level-vars`       | `var StdOut *log.Logger`      | `var` emits a plain Go var; `val` wraps in `std.Immutable[T]`                         | Works       | Same                                     | `GALA.MD` §2                   | `accounts/accounts.go:18` (56)                  | Direct form with `var`                                                               |
+| `struct-declarations`      | `type Person struct { ... }`  | Works, but synthesizes `Copy`/`Equal`/`Unapply`/`Instance` and wraps non-`var` fields | Works       | Same                                     | `GALA.MD` §4 (Structs)         | `accounts/accounts.go:21` (114)                 | Direct form only when the grown API is acceptable                                    |
+| `interface-declarations`   | `type Repo interface { ... }` | Works, including generic interfaces                                                   | Works       | Same                                     | `GALA.MD` §5                   | `postgres/repository.go:20` (2)                 | Direct form                                                                          |
+| `defined-non-struct-types` | `type CalendarType string`    | Emits `type X = Y`; conversions are broken and methods are illegal                    | Build fails | Conversions fixed; methods still illegal | `GALA.MD` §4; PR #529          | `models/calendar.go:4` (18)                     | Keep handwritten                                                                     |
+| `type-aliases`             | `type X = Y`                  | Works; it is also the emitted form of `type X Y`                                      | Works       | Same                                     | `GALA.MD` §4 (Type Aliases)    | `routes/group.go:329` (2)                       | Direct form                                                                          |
+
+### Statements and control flow
+
+| Construct           | Minimal Go                         | GALA rule                                                                                                          | 0.81.0             | #529       | Reference                              | Used at                         | Verdict                                                                       |
+| ------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------ | ---------- | -------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------- |
+| `defer`             | `defer f.Close()`                  | GALA-E0036; rewrite with `use x = acquire` for a single-value acquire, or `resource.Using`/`Bracket`               | E0036; `use` works | Same       | `GALA.MD` §11 (`use`)                  | `main.go:66` (78)               | Workaround where the acquire is single-valued, otherwise keep handwritten     |
+| `go-statements`     | `go f()`                           | GALA-E0036; use `go_interop.Spawn(() => ...)`                                                                      | E0036              | Same       | `GALA.MD` §11; `llms.txt`              | `main.go:211` (13)              | Workaround                                                                    |
+| `switch-statements` | `switch x { case 0: ... }`         | Parse error, single-case or multi-case; use `match` or an `if`/`else` chain                                        | Parse error        | Same       | `server/GALA.md`; `GALA.MD` §6 (match) | `models/uuid.go:88` (23)        | Workaround where the cases map cleanly to `match`, otherwise keep handwritten |
+| `select-statements` | `select { case err := <-ch: ... }` | The repo's uses pair `select` with `chan` and `make`, both of which are blocked                                    | Parse error        | Same       | `GALA.MD` §11                          | `main.go:215` (7)               | Keep handwritten                                                              |
+| `if-initializers`   | `if err := f(); err != nil`        | Binds `std.Immutable[error]` in 0.81.0; write `var err = f()` or use `Try`. Post-#529 it is rejected as GALA-E0047 | Build fails        | GALA-E0047 | `GALA.MD` §11; PR #529                 | `accounts/accounts.go:94` (991) | Workaround (`var`/`Try`) today, rejected explicitly after #529                |
+| `range-loops`       | `for i, v := range xs`             | Works; `.Size()` replaces `len`                                                                                    | Works              | Same       | `GALA.MD` §6 (For Statement)           | `accounts/calendar.go:49` (290) | Direct form                                                                   |
+
+### Builtins and expressions
+
+| Construct                | Minimal Go                                | GALA rule                                                                                                    | 0.81.0                  | #529 | Reference                                                  | Used at                                                 | Verdict                                                                            |
+| ------------------------ | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ----------------------- | ---- | ---------------------------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `len-calls`              | `len(s)`                                  | GALA-E0035; `.Size()` counts characters, `.ByteSize()` raw bytes                                             | E0035                   | Same | `GALA.MD` §11; `llms.txt`                                  | `accounts/calendar.go:48` (368)                         | Workaround                                                                         |
+| `make-calls`             | `make([]T, n)`, `make(map[K]V)`           | Parse error; `go_interop.SliceWithSize`/`SliceWithCapacity`/`MapEmpty`                                       | Parse error             | Same | `GALA.MD` §11                                              | `accounts/calendar.go:48` (140)                         | Workaround                                                                         |
+| `append-calls`           | `append(xs, v)`                           | GALA-E0035; `go_interop.SliceAppend`/`SliceAppendAll` or a GALA collection                                   | E0035                   | Same | `GALA.MD` §11                                              | `accounts/calendar.go:157` (136)                        | Workaround                                                                         |
+| `delete-calls`           | `delete(m, k)`                            | GALA-E0035; `go_interop.MapDelete` or `HashMap.Remove`                                                       | E0035                   | Same | `GALA.MD` §11                                              | `routes/event_routes.go:459` (7)                        | Workaround                                                                         |
+| `close-calls`            | `close(ch)`                               | GALA-E0035; `go_interop.CloseChan`/`CloseSignal`                                                             | E0035                   | Same | `GALA.MD` §11                                              | `accounts/accounts_test.go:153` (3, tests only)         | Keep handwritten                                                                   |
+| `panic-calls`            | `panic(v)`                                | GALA-E0035; `go_builtins.Panic`, or prefer `Option`/`Try`/`Either`                                           | E0035                   | Same | `GALA.MD` §11                                              | `models/uuid.go:112` (14)                               | Workaround where the call survives, otherwise keep handwritten                     |
+| `recover-calls`          | `recover()`                               | GALA-E0035; `Try` captures panics                                                                            | E0035                   | Same | `GALA.MD` §11                                              | `routes/group.go:751` (4)                               | Keep handwritten                                                                   |
+| `copy-calls`             | `copy(dst, src)`                          | GALA-E0035; `go_interop.SliceCopy`                                                                           | E0035                   | Same | `GALA.MD` §11                                              | `observability/test_helpers_test.go:39` (3, tests only) | Keep handwritten                                                                   |
+| `type-assertions`        | `s, ok := v.(string)`                     | Parse error; match on the type or use a typed accessor                                                       | Parse error             | Same | `GALA.MD` §6 (Type-Based Pattern Matching)                 | `middleware/auth.go:17` (36)                            | Keep handwritten                                                                   |
+| `slice-expressions`      | `args[1:]`                                | Parse error; `go_interop.SliceFrom`/`SliceTake`/`SliceDrop`                                                  | Parse error             | Same | `GALA.MD` §11                                              | `discord_bot/commands/index.go:49` (65)                 | Workaround where a helper call replaces the expression, otherwise keep handwritten |
+| `map-literals`           | `map[string]T{...}`                       | GALA-E0008; `go_interop.MapEmpty`/`MapPut` or a `HashMap`                                                    | E0008                   | Same | `GALA.MD` §9 (Maps)                                        | `discord_bot/commands/active_users.go:96` (277)         | Workaround                                                                         |
+| `slice-literals`         | `[]T{...}`                                | GALA-E0007; `go_interop.SliceOf`/`SliceEmpty` or an `Array`                                                  | E0007                   | Same | `GALA.MD` §9 (Slices)                                      | `discord_bot/commands/active_users.go:64` (395)         | Workaround                                                                         |
+| `fixed-size-array-types` | `[16]byte`                                | Parse error; keep handwritten                                                                                | Parse error             | Same | `#528` (Go syntax GALA does not have); PR #529             | `models/uuid.go:110` (8)                                | Keep handwritten                                                                   |
+| `byte-slice-conversions` | `[]byte(s)`                               | GALA-E0040; `go_interop.ToBytes`, `string(bytes)` works directly                                             | E0040                   | Same | `GALA.MD` §10 (Type Conversions)                           | `main.go:167` (52)                                      | Workaround                                                                         |
+| `composite-literals`     | `Command{Name: "x"}`                      | Works with Go-style named fields or GALA positional construction; inline function literals are the exception | Works                   | Same | `GALA.MD` §4 (Struct Construction)                         | `accounts/accounts.go:71` (1522; 884 keyed)             | Direct form                                                                        |
+| `struct-tags`            | ``Name string `json:"name"` ``            | Parse error; tagged structs stay handwritten                                                                 | Parse error             | Same | PR #529 (explicitly not changed)                           | `errs/errors.go:29` (387)                               | Keep handwritten                                                                   |
+| `interface{} type`       | `Details interface{}`                     | Parse error; `any` works as an equivalent type                                                               | Parse error             | Same | PR #529                                                    | `errs/errors.go:33` (5)                                 | Keep handwritten, or use `any` in new GALA-first files                             |
+| `anonymous-struct-types` | `struct { A string }`                     | Parse error; declare a named struct instead                                                                  | Parse error             | Same | `#528` (`struct{}`); `GALA.MD` §4                          | `models/event.go:133` (130)                             | Keep handwritten                                                                   |
+| `channel-types`          | `chan int`                                | Parse error; channel work stays handwritten or moves to `go_interop`/`concurrent`                            | Parse error             | Same | `GALA.MD` §11                                              | `main.go:210` (20)                                      | Keep handwritten                                                                   |
+| `map-types`              | `map[K]V`                                 | Allowed where a type is expected (fields, parameters, aliases); literals and `make` are blocked              | Works in type positions | Same | `GALA.MD` §9 (Where Go slice and map types may be written) | `accounts/calendar.go:22` (448)                         | Direct form in signatures; workaround for literal construction                     |
+| `embedded-struct-fields` | `type Event struct { Base; Name string }` | Parse error, including the bare and `embed` spellings; keep handwritten                                      | Parse error             | Same | `GALA.MD` §4 (Structs)                                     | `models/event.go:133` (11)                              | Keep handwritten                                                                   |
+
+### Packages and files
+
+| Construct        | Minimal Go                          | GALA rule                           | 0.81.0 | #529 | Reference                               | Used at                        | Verdict     |
+| ---------------- | ----------------------------------- | ----------------------------------- | ------ | ---- | --------------------------------------- | ------------------------------ | ----------- |
+| `init-functions` | `func init() { ... }`               | Works; emitted as a plain Go `init` | Works  | Same | `GALA.MD` §13 (GALA Packages)           | `main.go:47` (2)               | Direct form |
+| `main-functions` | `func main()`                       | Works; required for programs        | Works  | Same | `GALA.MD` §1                            | `main.go:58` (3)               | Direct form |
+| `blank-imports`  | `_ "pkg"`                           | Works                               | Works  | Same | `GALA.MD` §13 (Import Syntax)           | `main.go:34` (1)               | Direct form |
+| `named-imports`  | `pgstore "timeful/server/postgres"` | Works                               | Works  | Same | `GALA.MD` §13 (Aliases and Dot Imports) | `accounts/accounts.go:13` (58) | Direct form |
+
+## Workarounds and contested verdicts
+
+These are the entries the probe corpus pins with scripted expectations.
+
+### Multi-value bindings
+
+The mechanical rewrite is `x, y := f()` to `var x, y = f()`; plain reassignment and blank receives already work.
+`delta_multi_value_define` pins the 0.81.0 panic, and `pass_multi_value_bindings` pins the working forms.
+
+### `.Size()` versus `.ByteSize()` and field access
+
+`.Size()` means characters, Go `len` means bytes, so a direct rewrite of a byte-counting `len` needs `.ByteSize()`.
+Both lower to runtime-free Go: `.Size()` emits `utf8.RuneCountInString`, and `.ByteSize()` emits Go `len`.
+The contested part is field access: `.Size()` lowers on a field whose type the transpiler knows from a GALA declaration (`pass_size_field_gala_struct`), but with the struct declared in a handwritten Go sibling it emits `c.Usage.Size()` and `go build` fails (`contested_size_field_go_sibling`), which is why the twins compare strings with `!= ""`.
+PR #529 notes this did not reproduce standalone, and the probe agrees; it is specific to the mixed `.gala` plus handwritten `.go` package.
+
+### The response name collision
+
+When a `.gala` file names a local type that an imported package also exports, the transpiler can resolve the bare name to the imported package, which `server/GALA.md` records for `Response`.
+The repo workaround is a handwritten constructor (`newResponse` in `slackbot/commands/utils.go`) so the `.gala` file never names the type; `pass_name_collision_workaround` pins it.
+`contested_bare_response_name` shows the bare `Response` literal resolving locally in an isolated corpus package, matching the PR #529 note that the collision did not reproduce standalone.
+
+### Exported `val` unwrapping
+
+`val ExportedAnswer = 99` emits `var ExportedAnswer = std.NewImmutable(99)`.
+`pass_exported_val` has the runner write a Go `check.go` fixture that calls `.Get()`, so the probe proves both the emitted shape and the Go-side unwrap.
+Keep `var` for values that cross the boundary.
+
+### Resource cleanup without `defer`
+
+`use x = acquire` is supported by 0.81.0 and lowers to `x := acquire` plus `defer x.Close()`.
+It only accepts a single-value acquire, so `(T, error)` call sites must handle the error first and then `use` the value, as `pass_use_resource` does.
+`resource.Using`/`Bracket`/`WithLock` remain the combinators for more complex lifetimes.
+
+### `go_interop` replacements
+
+`MapEmpty`/`MapPut`/`MapLen`, `SliceOf`/`SliceFrom`/`SliceAppend`, and `ToBytes`/`ToString` replace map literals, `make`, slicing, `append`, and `[]byte(x)` in runtime-enabled files.
+`pass_go_interop_map_slice` pins all of them, including the comma-separated type arguments (`MapEmpty[string, int]()`).
+
+## Probe corpus
+
+The corpus lives at `server/scripts/20260923_gala_translation_probes/`.
+It is a nested Go module whose `go.mod` replaces `martianoff/gala` with `../../third_party/gala`, so it compiles against exactly the vendored runtime.
+Run it from the repository root:
+
+```sh
+server/scripts/20260923_gala_translation_probes/run.sh
+```
+
+The runner refuses to run unless `gala version` reports 0.81.0, because the expectations pin that compiler; `GALA_PROBES_ALLOW_ANY_VERSION=1` overrides the check.
+It also requires a `go1.26` toolchain series, because the `build_fail` expectations embed Go compiler diagnostics; `GALA_PROBES_ALLOW_ANY_GO=1` overrides that check.
+Each `probes/<name>/` directory holds a `main.gala` and an `expect` file.
+`KIND=pass` must transpile, build, and, when `RUN=yes`, match `expected.out`; `KIND=transpile_fail` must fail with the `CODE` or `ERR` substring; `KIND=build_fail` must transpile and then fail `go build` on `ERR`.
+Generated Go files (`main.gen.go`), runner-written Go fixtures (`probes/*/helper.go`, `probes/*/check.go`, `probes/*/types.go`, and `fixtures/collide/response.go`), logs, and binaries are gitignored by explicit path, so a future handwritten Go fixture is not silently ignored, and only `.gala` sources, `expect` files, `expected.out` files, `go.mod`, `.gitignore`, and `run.sh` are committed.
+Go fixtures that exist only to reproduce a mixed-package case are written by the runner, not committed.
+
+| Probe group      | Probes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Pins                                                            |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Pass workarounds | `pass_any_type`, `pass_multi_value_bindings`, `pass_go_interop_map_slice`, `pass_size_vs_bytesize`, `pass_use_resource`, `pass_exported_val`, `pass_name_collision_workaround`, `pass_size_field_gala_struct`                                                                                                                                                                                                                                                                                                                 | The runtime-free and interop workarounds this roster recommends |
+| Contested        | `contested_bare_response_name`, `contested_size_field_go_sibling`                                                                                                                                                                                                                                                                                                                                                                                                                                                             | The two findings PR #529 could not reproduce standalone         |
+| PR #529 deltas   | `delta_multi_value_define`, `delta_alias_conversion_scalar`, `delta_alias_conversion_struct`, `delta_trailing_if_expression`, `delta_if_initializer`                                                                                                                                                                                                                                                                                                                                                                          | Current 0.81.0 behavior and the flip after #529                 |
+| Blocked          | `blocked_append`, `blocked_byte_slice_conversion`, `blocked_channel_type`, `blocked_const`, `blocked_defer`, `blocked_defined_type_receiver`, `blocked_fixed_array`, `blocked_func_literal_in_composite`, `blocked_go_statement`, `blocked_interface_empty`, `blocked_len`, `blocked_make`, `blocked_map_literal`, `blocked_multi_return_signature`, `blocked_panic`, `blocked_slice_expression`, `blocked_slice_literal`, `blocked_struct_tag`, `blocked_struct_type_expression`, `blocked_switch`, `blocked_type_assertion` | The documented `GALA-E*` codes and parse diagnostics            |
+
+## Upstream gaps, prioritized
+
+This table is local and stays in this repository; no upstream issue or PR is produced by it.
+
+| Priority                         | Gap                                                                                                       | Server constructs blocked                                                                                                                                                   | Workaround today                                 |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| 1                                | Go multi-value return signatures, or an interop escape hatch for them                                     | `multi-return-signature` (181) and every helper that exposes `(T, error)`                                                                                                   | Split the member into a handwritten sibling      |
+| 2                                | A `switch` lowering to `match`                                                                            | `switch-statements` (23)                                                                                                                                                    | `match` or `if`/`else`, or keep handwritten      |
+| 3                                | A `defer` replacement that accepts `(T, error)` acquires and keeps close-on-return for existing resources | `defer` (78)                                                                                                                                                                | `use` after handling the error, `resource.Using` |
+| 4                                | Struct tag preservation                                                                                   | `struct-tags` (387)                                                                                                                                                         | Keep the tagged struct handwritten               |
+| 5                                | Defined types for non-struct types, or an explicit newtype declaration                                    | `defined-non-struct-types` (18), `methods-on-defined-non-struct` (14)                                                                                                       | Keep handwritten                                 |
+| 6                                | `const`, `interface{}`, fixed-size arrays, type assertions, slice expressions, map literals, `make`       | `const-declarations` (65), `interface{} type` (5), `fixed-size-array-types` (8), `type-assertions` (36), `slice-expressions` (65), `map-literals` (277), `make-calls` (140) | `var`, `any`, `go_interop` helpers               |
+| 7                                | Documentation comments in generated Go                                                                    | package and declaration comments in every twin                                                                                                                              | Handwritten `doc.go` where the comment matters   |
+| Fixed in #529, pending a release | Multi-value `:=`, alias conversions, trailing `if` expressions                                            | `multi-value-define` (1252), `defined-non-struct-types` conversions                                                                                                         | `var` bindings; avoid alias conversions          |
+
+## When to revisit
+
+Bump the CLI and the vendored runtime when a release carries PR #529, then run the corpus with `GALA_PROBES_ALLOW_ANY_VERSION=1` and update the version matrix from the failures: `delta_multi_value_define`, `delta_alias_conversion_scalar`, and `delta_trailing_if_expression` should start passing, and `delta_if_initializer` should fail at transpile time with GALA-E0047.
+`delta_alias_conversion_struct` should change output from `0 0` to `1 2`.
+Regenerate the committed twins with the new version only after reviewing the diff, and re-run the server tests.
+A Go toolchain bump can change the `go build` diagnostics the `build_fail` probes assert; update those expectations and `EXPECTED_GO_SERIES` in `run.sh` together.
+Keep this page, [`../server/GALA.md`](../server/GALA.md), and the probe corpus in sync: a verdict change in one is a probe and roster update in all three.

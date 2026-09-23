@@ -1,0 +1,9 @@
+package main
+
+type Payload struct {
+	Details interface{}
+}
+
+func main() {
+	Println("x")
+}

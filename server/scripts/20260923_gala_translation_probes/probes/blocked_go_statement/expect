@@ -1,0 +1,3 @@
+KIND=transpile_fail
+CODE=GALA-E0036
+NOTE=bare `go` is not on the GALA surface; go_interop.Spawn(() => ...) starts a goroutine
