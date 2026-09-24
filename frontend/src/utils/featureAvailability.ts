@@ -10,6 +10,10 @@ export interface CalendarAutofillAvailabilityEnvironment {
   VITE_ENABLE_CALENDAR_AUTOFILL?: string
 }
 
+export interface CookieConsentAvailabilityEnvironment {
+  VITE_ENABLE_COOKIE_CONSENT?: string
+}
+
 export interface LandingSignInAvailabilityEnvironment
   extends SignInAvailabilityEnvironment, LandingAvailabilityEnvironment {}
 
@@ -21,6 +25,10 @@ function isEnabled(rawValue: string | undefined): boolean {
   }
 
   return value !== "false"
+}
+
+function isExplicitlyEnabled(rawValue: string | undefined): boolean {
+  return rawValue?.trim().toLowerCase() === "true"
 }
 
 export function isSignInEnabled(
@@ -39,6 +47,12 @@ export function isCalendarAutofillEnabled(
   env: CalendarAutofillAvailabilityEnvironment = {},
 ): boolean {
   return isEnabled(env.VITE_ENABLE_CALENDAR_AUTOFILL)
+}
+
+export function isCookieConsentEnabled(
+  env: CookieConsentAvailabilityEnvironment = {},
+): boolean {
+  return isExplicitlyEnabled(env.VITE_ENABLE_COOKIE_CONSENT)
 }
 
 export function isLandingSignInEnabled(

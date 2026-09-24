@@ -1,5 +1,8 @@
 import type { Page } from "@playwright/test"
 
+import { resolveCookieConsentEnabled } from "../../../config/tooling"
+import { settlePage } from "../../../helpers/settle.js"
+import { getInspectionToolingMode } from "../config.js"
 import { runWithPhaseTimeout } from "../page.js"
 import type { AppLabel } from "../types.js"
 
@@ -73,20 +76,65 @@ export async function openNewEventDialog(page: Page) {
   await page.waitForSelector('input[placeholder="Name your event ..."]')
 }
 
-export async function dismissConsentIfPresent(page: Page, timeoutMs = 3_000) {
-  const agreeButton = page.getByRole("button", { name: /^agree$/i })
+function getConsentActions(page: Page) {
+  return [
+    {
+      label: "agree",
+      locator: page.getByRole("button", { name: /^agree$/i }),
+    },
+    {
+      label: "accept all",
+      locator: page.getByRole("button", { name: /^accept all$/i }),
+    },
+  ]
+}
 
-  try {
-    await agreeButton.waitFor({ state: "visible", timeout: timeoutMs })
-    await agreeButton.click({ force: true })
-    await page.waitForTimeout(500)
-  } catch {
-    // Ignore pages that never render the consent dialog.
+async function waitForConsentAction(
+  page: Page,
+  timeoutMs: number,
+): Promise<boolean> {
+  return await Promise.race(
+    getConsentActions(page).map(({ locator }) =>
+      locator
+        .waitFor({ state: "visible", timeout: timeoutMs })
+        .then(() => true)
+        .catch(() => false),
+    ),
+  )
+}
+
+export async function dismissConsentIfPresent(page: Page, timeoutMs = 3_000) {
+  if (!resolveCookieConsentEnabled(getInspectionToolingMode())) {
+    return
   }
 
-  await page.evaluate(() => {
-    document.getElementById("qc-cmp2-container")?.remove()
-  })
+  const consentActions = getConsentActions(page)
+
+  try {
+    const actionAppeared = await waitForConsentAction(page, timeoutMs)
+    if (!actionAppeared) {
+      return
+    }
+
+    for (const { label, locator } of consentActions) {
+      const count = await locator.count()
+      if (count > 1) {
+        throw new Error(
+          `Expected at most one ${label} consent action, found ${count}`,
+        )
+      }
+      if (count === 0 || !(await locator.isVisible())) {
+        continue
+      }
+
+      await locator.click({ force: true })
+      await settlePage(page, 500)
+    }
+  } finally {
+    await page.evaluate(() => {
+      document.getElementById("qc-cmp2-container")?.remove()
+    })
+  }
 }
 
 export const SHARED_EVENT_GUEST_NAME = "sdjkf"

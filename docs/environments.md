@@ -70,6 +70,11 @@ Isolated browser E2E network variables:
 - `E2E_API_PORT`
 - `E2E_API_INTERNAL_PORT`
 
+Inspection tooling variables:
+
+- `FRONTEND_TOOLING_MODE` — Selects the root environment used by inspection consent helpers.
+  Defaults to `development`; accepted values are `development`, `test`, `staging`, and `production`.
+
 Frontend build-time variables:
 
 - `VITE_APP_ENV`
@@ -78,6 +83,7 @@ Frontend build-time variables:
 - `VITE_ENABLE_SIGN_IN`
 - `VITE_ENABLE_RICH_LANDING`
 - `VITE_ENABLE_CALENDAR_AUTOFILL`
+- `VITE_ENABLE_COOKIE_CONSENT`
 - `VITE_FEEDBACK_URL`
 - `VITE_SUPPORT_EMAIL`
 - `VITE_GITHUB_REPO_URL`
@@ -110,6 +116,11 @@ Compose-to-frontend build arg mappings:
   Set to `false` to start
   `Add availability` and `Edit availability` in manual mode without the availability-source choice dialog, to skip every automatic calendar fill, and to hide the `Calendar options` control during availability editing.
   Calendar account connections, calendar event overlays, and the landing-page calendar demonstration stay available.
+- **`VITE_ENABLE_COOKIE_CONSENT`** — Controls whether the app shell mounts the cookie-consent banner.
+  Defaults to `false` when unset or blank in direct frontend builds.
+  Docker Compose requires this variable to be declared with a nonblank value.
+  Set to `true` to show the banner to visitors who have not saved consent; any other value keeps it hidden.
+  Cookie preferences and the cookie-settings route remain available independently of this flag.
 - **`VITE_FEEDBACK_URL`** — Controls where frontend “Give feedback” links point.
   Defaults to `https://github.com/deemp/timeful/issues` when unset or blank.
 - **`VITE_SUPPORT_EMAIL`** — Controls the support email address shown in the frontend.

@@ -1,4 +1,31 @@
 export const DEFAULT_FRONTEND_URL = "http://127.0.0.1:4173"
+export const DEFAULT_INSPECTION_TOOLING_MODE = "development" as const
+
+export type InspectionToolingMode =
+  | "development"
+  | "test"
+  | "staging"
+  | "production"
+
+export function getInspectionToolingMode(
+  env: NodeJS.ProcessEnv = process.env,
+): InspectionToolingMode {
+  const mode = env.FRONTEND_TOOLING_MODE?.trim().toLowerCase()
+  const normalizedMode = mode || DEFAULT_INSPECTION_TOOLING_MODE
+
+  switch (normalizedMode) {
+    case "development":
+    case "test":
+    case "staging":
+    case "production":
+      return normalizedMode
+    default:
+      throw new Error(
+        `Unsupported FRONTEND_TOOLING_MODE=${JSON.stringify(normalizedMode)}. Expected development, test, staging, or production.`,
+      )
+  }
+}
+
 export const VIEWPORT = { width: 1440, height: 1400 } as const
 
 export const PROPERTY_GROUPS = {

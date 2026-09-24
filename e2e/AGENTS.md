@@ -50,6 +50,9 @@ Project selection follows each project's `testMatch`: `timed-event-*firefox.spec
 - The isolated stack includes a test-only `calendar-mock` provider that `server-test` reaches through `TEST_`-prefixed endpoint overrides set only in `compose.test.yaml`.
   Calendar journeys must never make live provider calls, and these overrides must never be enabled in production or staging.
   See [test-only calendar provider overrides](../docs/environments.md#test-only-calendar-provider-overrides).
+- Consent-dismissal helpers resolve `VITE_ENABLE_COOKIE_CONSENT` from the active root environment and skip consent probing when it is disabled.
+  Set it to `true` when a browser check needs to exercise the enabled banner path.
+  Inspection commands default to the development environment; set `FRONTEND_TOOLING_MODE` when inspecting a frontend built from another root environment.
 - See `../frontend/AGENTS.md` for required frontend checks and `./inspect/AGENTS.md` for `npm run inspect` diagnostics.
 
 ### Fast local runs

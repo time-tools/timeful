@@ -20,6 +20,7 @@ const {
   getEventsMock,
   setFeatureFlagsLoadedMock,
   isPhoneValue,
+  cookieConsentEnabledState,
 } = vi.hoisted(() => ({
   signInGoogleMock: vi.fn(),
   signInOutlookMock: vi.fn(),
@@ -37,6 +38,7 @@ const {
   getEventsMock: vi.fn(),
   setFeatureFlagsLoadedMock: vi.fn(),
   isPhoneValue: { value: false },
+  cookieConsentEnabledState: { value: false },
 }))
 
 vi.mock("@/utils", async () => {
@@ -51,6 +53,12 @@ vi.mock("@/utils", async () => {
     signInOutlook: signInOutlookMock,
   }
 })
+
+vi.mock("@/utils/cookieConsentAvailability", () => ({
+  get cookieConsentEnabled() {
+    return cookieConsentEnabledState.value
+  },
+}))
 
 vi.mock("vue-router", () => ({
   useRoute: () => routeState,
@@ -119,6 +127,31 @@ const SignInDialogStub = {
 }
 
 describe("App auth restore state", () => {
+  it("mounts cookie consent only when explicitly enabled", () => {
+    const mountApp = () =>
+      shallowMount(App, {
+        global: {
+          mocks: { $route: routeState },
+          stubs: {
+            CookieConsent: {
+              name: "CookieConsent",
+              template: '<div data-testid="cookie-consent" />',
+            },
+          },
+        },
+      })
+
+    cookieConsentEnabledState.value = false
+    expect(mountApp().findComponent({ name: "CookieConsent" }).exists()).toBe(
+      false,
+    )
+
+    cookieConsentEnabledState.value = true
+    expect(mountApp().findComponent({ name: "CookieConsent" }).exists()).toBe(
+      true,
+    )
+  })
+
   it("keeps the fixed app header aligned to the event-page content width", () => {
     expect(appSource).toContain(
       'class="tw:relative tw:m-auto tw:flex tw:h-full tw:max-w-5xl tw:items-center tw:justify-center tw:px-4"',
@@ -240,6 +273,7 @@ describe("App auth restore state", () => {
     routeState.query = {}
     routeState.fullPath = "/s/signup-1"
     isPhoneValue.value = false
+    cookieConsentEnabledState.value = false
   })
 
   it("serializes signUpId when OAuth starts from a sign-up route", async () => {

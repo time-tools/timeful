@@ -16,6 +16,9 @@ The default frontend URL is `http://127.0.0.1:4173`.
 Override it with `FRONTEND_URL`.
 Event scenarios accept `COMPARATOR_EVENT_PATH` and `COMPARATOR_EVENT_WAIT_UNTIL` until their next configuration cleanup.
 
+Set `FRONTEND_TOOLING_MODE` to `development`, `test`, `staging`, or `production` when inspecting a frontend built from a non-development root environment.
+The default is `development`.
+
 ## Verification
 
 - Start the backend before inspecting event routes.

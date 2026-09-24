@@ -5,6 +5,7 @@ import {
   type Page,
 } from "@playwright/test"
 import { Temporal } from "temporal-polyfill"
+import { resolveCookieConsentEnabled } from "../config/tooling"
 import { settlePage } from "./settle"
 
 export interface CanonicalTimedSeedInput {
@@ -300,6 +301,10 @@ async function ensureSpecificTimesEditorMode(
 }
 
 export async function dismissConsent(page: Page): Promise<void> {
+  if (!resolveCookieConsentEnabled()) {
+    return
+  }
+
   const consentAction = page.getByRole("button", {
     name: /^(agree|accept all)$/i,
   })
