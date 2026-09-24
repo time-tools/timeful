@@ -148,7 +148,9 @@ for (const mode of ["guest", "owner", "signed-in"] as const) {
         exact: true,
       })
       .click()
-    await page
+    const manageAccessDialog = page.getByRole("dialog")
+    await expect(manageAccessDialog).toBeVisible()
+    await manageAccessDialog
       .getByRole("button", { name: "Create new transfer link", exact: true })
       .click()
     await expect(page.getByTestId("manage-access-step-1")).toContainText(
@@ -160,8 +162,6 @@ for (const mode of ["guest", "owner", "signed-in"] as const) {
     const linkField = page.getByLabel("Transfer link", { exact: true })
     await expect(linkField).toHaveValue(/\/transfer\//)
     const link = await linkField.inputValue()
-    // Page startup is independent; opening both actors together avoids paying
-    // Firefox's recorded-page startup latency twice on the critical path.
     const [targetPage, otherPage, guestAccountEmail] = await Promise.all([
       target.newPage(),
       stranger.newPage(),
@@ -199,9 +199,7 @@ for (const mode of ["guest", "owner", "signed-in"] as const) {
       await expect(
         page.getByText(/Could not approve the transfer. Check the code/),
       ).toBeVisible()
-      await page
-        .getByLabel("Matching code from other browser")
-        .fill(targetCode)
+      await page.getByLabel("Matching code from other browser").fill(targetCode)
       await page.getByRole("button", { name: "Approve matching code" }).click()
       await expect(page.getByRole("status")).toContainText(
         "Approved — finish in the other browser.",
@@ -633,9 +631,7 @@ for (const state of ["cancelled", "expired"] as const) {
     const targetPage = await target.newPage()
     const link = `/transfer/${created.eventId}/${transfer.id}`
     await targetPage.goto(link, { waitUntil: "domcontentloaded" })
-    await expect(targetPage.getByTestId("matching-code")).toHaveText(
-      /^\d{6}$/,
-    )
+    await expect(targetPage.getByTestId("matching-code")).toHaveText(/^\d{6}$/)
     if (state === "cancelled") {
       expect(
         (

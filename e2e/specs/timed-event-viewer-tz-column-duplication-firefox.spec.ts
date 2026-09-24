@@ -15,8 +15,6 @@ import {
   sortIsoInstants,
 } from "../helpers/timed-event-helpers"
 
-test.describe.configure({ mode: "serial" })
-
 // Historical bug (repro-viewer-tz-column-duplication.ts): with eventTimezone
 // Asia/Bangkok and slots spanning midnight, switching the Display Timezone to
 // UTC+6 collapsed the Jun 15 column into a duplicated Jun 14 column, because

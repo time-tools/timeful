@@ -9,8 +9,6 @@ import {
 } from "../helpers/timed-event-helpers"
 import { Temporal } from "temporal-polyfill"
 
-test.describe.configure({ mode: "serial" })
-
 test("event page without responses aligns desktop header details with their control column", async ({
   page,
 }, testInfo) => {

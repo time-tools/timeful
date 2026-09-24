@@ -13,8 +13,6 @@ const MOBILE_BANNER_TEXT =
 const MOBILE_EDITING_HINT_TEXT =
   'Tap and drag on the grid below to add your "available" times in green.'
 
-test.describe.configure({ mode: "serial" })
-
 async function expectNoBottomBarOptionsButton(page: Page) {
   const cancelButton = page.locator(".mobile-editing-cancel-button")
   await expect(cancelButton).toBeVisible()

@@ -8,8 +8,6 @@ import {
 import { measureVisualGap } from "../helpers/visual-gap-helpers"
 import { Temporal } from "temporal-polyfill"
 
-test.describe.configure({ mode: "serial" })
-
 test("dates-only event Edit event opens the dates-only editor", async ({
   page,
 }) => {

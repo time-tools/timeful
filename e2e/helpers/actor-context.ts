@@ -10,8 +10,9 @@ export const test = base.extend<{ actorContext: ActorContext }>({
       mode !== "off" && (mode !== "on-first-retry" || testInfo.retry === 1)
     const contexts: BrowserContext[] = []
     const videos: { name: string; video: Video }[] = []
+    let nextActorNumber = 1
     await use(async (name) => {
-      const actor = `${contexts.length + 1}-${name}`
+      const actor = `${nextActorNumber++}-${name}`
       const context = await browser.newContext({
         ...(record
           ? {
@@ -39,16 +40,21 @@ export const test = base.extend<{ actorContext: ActorContext }>({
       mode === "on" ||
       mode === "on-first-retry" ||
       testInfo.status !== testInfo.expectedStatus
-    for (const { name, video: recording } of videos) {
-      if (retain) {
-        const path = testInfo.outputPath(`video-${name}.webm`)
-        await recording.saveAs(path)
-        await testInfo.attach(`video-${name}`, {
-          path,
-          contentType: "video/webm",
-        })
-      }
-      await recording.delete()
-    }
+    await Promise.all(
+      videos.map(async ({ name, video: recording }) => {
+        try {
+          if (retain) {
+            const path = testInfo.outputPath(`video-${name}.webm`)
+            await recording.saveAs(path)
+            await testInfo.attach(`video-${name}`, {
+              path,
+              contentType: "video/webm",
+            })
+          }
+        } finally {
+          await recording.delete()
+        }
+      }),
+    )
   },
 })
