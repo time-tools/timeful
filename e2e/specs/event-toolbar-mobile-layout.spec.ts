@@ -6,8 +6,6 @@ import {
 } from "../helpers/timed-event-helpers"
 import { Temporal } from "temporal-polyfill"
 
-test.describe.configure({ mode: "serial" })
-
 test("mobile timed toolbar groups row 1 left and stacks the action rows", async ({
   page,
 }, testInfo) => {

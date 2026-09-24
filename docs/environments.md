@@ -70,6 +70,11 @@ Isolated browser E2E network variables:
 - `E2E_API_PORT`
 - `E2E_API_INTERNAL_PORT`
 
+Inspection tooling variables:
+
+- `FRONTEND_TOOLING_MODE` — Selects the root environment used by inspection consent helpers.
+  Defaults to `development`; accepted values are `development`, `test`, `staging`, and `production`.
+
 Frontend build-time variables:
 
 - `VITE_APP_ENV`
@@ -78,6 +83,7 @@ Frontend build-time variables:
 - `VITE_ENABLE_SIGN_IN`
 - `VITE_ENABLE_RICH_LANDING`
 - `VITE_ENABLE_CALENDAR_AUTOFILL`
+- `VITE_ENABLE_COOKIE_CONSENT`
 - `VITE_FEEDBACK_URL`
 - `VITE_SUPPORT_EMAIL`
 - `VITE_GITHUB_REPO_URL`
@@ -110,6 +116,11 @@ Compose-to-frontend build arg mappings:
   Set to `false` to start
   `Add availability` and `Edit availability` in manual mode without the availability-source choice dialog, to skip every automatic calendar fill, and to hide the `Calendar options` control during availability editing.
   Calendar account connections, calendar event overlays, and the landing-page calendar demonstration stay available.
+- **`VITE_ENABLE_COOKIE_CONSENT`** — Controls whether the app shell mounts the cookie-consent banner.
+  Defaults to `false` when unset or blank in direct frontend builds.
+  Docker Compose requires this variable to be declared with a nonblank value.
+  Set to `true` to show the banner to visitors who have not saved consent; any other value keeps it hidden.
+  Cookie preferences and the cookie-settings route remain available independently of this flag.
 - **`VITE_FEEDBACK_URL`** — Controls where frontend “Give feedback” links point.
   Defaults to `https://github.com/deemp/timeful/issues` when unset or blank.
 - **`VITE_SUPPORT_EMAIL`** — Controls the support email address shown in the frontend.
@@ -492,6 +503,9 @@ Ordinary projects start Vite without building production assets.
 The `chromium-production-desktop` and `chromium-production-mobile` projects depend on a shared fresh production build, and unfiltered `npm run test:e2e` includes them automatically.
 Set `E2E_FRONTEND=bundled` to have the webServer build a fresh test-mode frontend and serve it from a Playwright-owned preview instead of the dev server's unbundled modules; this is an opt-in speedup for the heavier recorded journeys.
 See [fast local runs](../e2e/AGENTS.md#fast-local-runs) for focused commands, the bundled mode, and the production-asset verification workflow.
+The TASK-0328.01 access-transfer benchmark uses Firefox desktop, two workers, the default dev-server frontend, the default recording policy, and a unique `E2E_ARTIFACTS_RUN_ID`; its repeated optimized runs measured 1.2–1.3m against a 1.1m baseline, so no access-transfer speedup is claimed.
+The pre-setup access-transfer overlap from TASK-0328 was reverted after that comparison, while the independently measured serial-removal improvements remain covered by the E2E task record.
+The intermittent default dev-server Vite startup failure is tracked separately by [TASK-0328.02](../backlog/tasks/task-0328.02%20-%20Stabilize-dev-server-Vite-startup-for-browser-E2E.md) and is not evidence that the default path passed.
 
 `TEST_DB_PERSIST` defaults to `false`, removing the test stack and its database volume after E2E for repeatable runs.
 Set it to `true` to stop only the test server and retain the database state after successful or failed E2E setup for inspection.

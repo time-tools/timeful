@@ -2,8 +2,6 @@ import { expect, test, type Page } from "@playwright/test"
 import { dismissConsent, getEditorCard } from "../helpers/timed-event-helpers"
 import { settlePage } from "../helpers/settle"
 
-test.describe.configure({ mode: "serial" })
-
 interface ChipMetrics {
   width: number
   text: string

@@ -14,10 +14,16 @@ const composeArguments = [
   "compose.test.yaml",
 ]
 
+let isolatedDatabaseName: string | undefined
+
 // Resolves the Playwright-owned PostgreSQL database from the application URI
 // the isolated server-test container actually connected to, so inspections can
 // never read a development database.
 function isolatedDatabase(): string {
+  if (isolatedDatabaseName) {
+    return isolatedDatabaseName
+  }
+
   const uri = execFileSync(
     "docker",
     [
@@ -36,6 +42,7 @@ function isolatedDatabase(): string {
       "Database inspection requires Playwright's isolated test database",
     )
   }
+  isolatedDatabaseName = database
   return database
 }
 

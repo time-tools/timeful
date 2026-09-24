@@ -8,6 +8,7 @@ export * from "./appEnv"
 export * from "./landingAvailability"
 export * from "./signInAvailability"
 export * from "./calendarAutofillAvailability"
+export * from "./cookieConsentAvailability"
 export * from "./eventIdentity"
 export {
   getEventDateSeeds,

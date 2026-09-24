@@ -20,8 +20,6 @@ import {
   sortIsoInstants,
 } from "../helpers/timed-event-helpers"
 
-test.describe.configure({ mode: "serial" })
-
 test("mobile compatibility mouse press shows the selected-slot tooltip", async ({
   page,
 }) => {

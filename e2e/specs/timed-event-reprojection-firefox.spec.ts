@@ -27,8 +27,6 @@ import {
 } from "../helpers/timed-event-helpers"
 import { Temporal } from "temporal-polyfill"
 
-test.describe.configure({ mode: "serial" })
-
 test("reprojects a canonical timed event with the same slot window after reload", async ({
   page,
   request,

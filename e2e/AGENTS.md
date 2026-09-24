@@ -50,6 +50,9 @@ Project selection follows each project's `testMatch`: `timed-event-*firefox.spec
 - The isolated stack includes a test-only `calendar-mock` provider that `server-test` reaches through `TEST_`-prefixed endpoint overrides set only in `compose.test.yaml`.
   Calendar journeys must never make live provider calls, and these overrides must never be enabled in production or staging.
   See [test-only calendar provider overrides](../docs/environments.md#test-only-calendar-provider-overrides).
+- Consent-dismissal helpers resolve `VITE_ENABLE_COOKIE_CONSENT` from the active root environment and skip consent probing when it is disabled.
+  Set it to `true` when a browser check needs to exercise the enabled banner path.
+  Inspection commands default to the development environment; set `FRONTEND_TOOLING_MODE` when inspecting a frontend built from another root environment.
 - See `../frontend/AGENTS.md` for required frontend checks and `./inspect/AGENTS.md` for `npm run inspect` diagnostics.
 
 ### Fast local runs
@@ -57,6 +60,7 @@ Project selection follows each project's `testMatch`: `timed-event-*firefox.spec
 - Local runs default to two workers.
   Use `--workers=4` to try more concurrency or `--workers=1` for sequential diagnosis; Firefox has no additional project-level cap.
   Existing serial test groups still run their own tests in order.
+  Independent multi-test timed-event and event-layout groups now use the configured worker count instead of forcing one worker; use `--workers=1` only for diagnosis or constrained machines.
 - E2E CI runs the Chromium, Firefox desktop, and Firefox touch suites as three parallel matrix jobs, each on its own runner with its own isolated test stack.
   Chromium and Firefox desktop run at two workers; Firefox touch stays at one worker because it matches a single serial spec file.
   The Firefox desktop job sets `E2E_FRONTEND=bundled` so the recorded access-transfer journeys stay within budget at two workers, while the other suites keep the default dev-server frontend.
@@ -72,7 +76,15 @@ Project selection follows each project's `testMatch`: `timed-event-*firefox.spec
   The stack prints setup and teardown durations so infrastructure overhead can be distinguished from test execution.
 - The Firefox desktop plus touch benchmark passed at one and two workers, reducing wall time from 337s to 239s at two workers; four workers caused timeouts and was rejected.
 - Access-transfer coverage is heavier: each recorded transfer journey opens and records up to three isolated pages and runs with an explicit 40-second per-test budget, while the cancel and expired-link checks keep Playwright's 30-second default.
+- TASK-0191.01 owns the recorded bundled-frontend mode, target/stranger page startup overlap, and actor-video lifecycle.
+- TASK-0327 owns Compose health polling and fresh isolated-stack startup latency; it does not measure browser test execution.
+- TASK-0328.01 owns the delayed-consent and short-ID compatibility checks and the access-transfer benchmark record; it does not replace the work owned by TASK-0191.01 or TASK-0327.
+- The same-scope access-transfer comparison uses `E2E_ARTIFACTS_RUN_ID=<run-id> npm run test:e2e -- --project=firefox-desktop --workers=2 specs/timed-event-access-transfer-firefox.spec.ts` with the default dev-server frontend, default recording policy, and a unique artifact directory.
+- The recorded TASK-0328 baseline was 1.1m; post-change full runs measured 1.3m and 1.2m, so the pre-setup context/page/API overlap did not demonstrate a speedup and was reverted.
+- A failed same-scope repeat timed out the guest journey at 45.9s, while that journey passed in isolation in 17.8s; the failed run is not counted as benchmark evidence and remains scoped as host or Vite variance.
 - Set `E2E_FRONTEND=bundled` to make the webServer build a fresh test-mode frontend and serve it from a Playwright-owned preview on the isolated host, port, and proxy, with assets under the invocation artifact directory.
   Bundled mode is opt-in and does not replace the production-asset projects; the dev server remains the default.
-  On the benchmark machine, all eight access-transfer tests pass at the default two workers with `E2E_FRONTEND=bundled E2E_VIDEO=on`, and the first four pass repeatedly.
+  On the benchmark machine, all eight access-transfer tests pass at the default two workers with `E2E_FRONTEND=bundled E2E_VIDEO=on`, and the first four pass repeatedly under the TASK-0191.01 record.
+- Use `E2E_VIDEO=on npm run test:e2e -- --project=firefox-desktop --workers=2 specs/timed-event-access-transfer-firefox.spec.ts` to verify retained source, target, and stranger recordings after actor cleanup.
+- The default dev-server Vite startup failure is tracked separately by [TASK-0328.02](../backlog/tasks/task-0328.02%20-%20Stabilize-dev-server-Vite-startup-for-browser-E2E.md) and must not be counted as a default-mode pass here.
 - Use `npm run test:e2e -- --project=firefox-desktop --workers=1 specs/timed-event-access-transfer-firefox.spec.ts` as the sequential fallback when bundled mode is unavailable.

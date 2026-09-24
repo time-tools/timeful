@@ -22,6 +22,7 @@
       :folder-id="newDialogOptions.folderId"
     />
     <UpvoteRedditSnackbar v-if="upvoteSnackbarRequested" />
+    <CookieConsent v-if="cookieConsentEnabled" />
     <div
       v-if="showHeader"
       data-testid="app-header"
@@ -179,7 +180,9 @@ import { useDisplayHelpers } from "@/utils/useDisplayHelpers"
 import type { User } from "@/types"
 import { fetchAuthUserProfile } from "@/utils/services/UserService"
 import { signInEnabled } from "@/utils/signInAvailability"
+import { cookieConsentEnabled } from "@/utils/cookieConsentAvailability"
 import AutoSnackbar from "@/components/AutoSnackbar.vue"
+import CookieConsent from "@/components/CookieConsent.vue"
 import AuthUserMenu from "@/components/AuthUserMenu.vue"
 import Logo from "@/components/Logo.vue"
 import MdiGithub from "~icons/mdi/github"

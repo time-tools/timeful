@@ -135,6 +135,17 @@ function isFrontendFlagEnabled(rawValue: string | undefined): boolean {
   return value !== "false"
 }
 
+function isCookieConsentEnabled(rawValue: string | undefined): boolean {
+  return rawValue?.trim().toLowerCase() === "true"
+}
+
+export function resolveCookieConsentEnabled(
+  mode: ToolingMode = getActiveToolingMode(),
+): boolean {
+  const { env } = loadRootEnv(mode)
+  return isCookieConsentEnabled(env.VITE_ENABLE_COOKIE_CONSENT)
+}
+
 export function resolveLandingSignInEnabled(mode: ToolingMode): boolean {
   const { env } = loadRootEnv(mode)
   return (

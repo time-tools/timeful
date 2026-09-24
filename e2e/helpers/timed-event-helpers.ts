@@ -5,6 +5,7 @@ import {
   type Page,
 } from "@playwright/test"
 import { Temporal } from "temporal-polyfill"
+import { resolveCookieConsentEnabled } from "../config/tooling"
 import { settlePage } from "./settle"
 
 export interface CanonicalTimedSeedInput {
@@ -300,14 +301,22 @@ async function ensureSpecificTimesEditorMode(
 }
 
 export async function dismissConsent(page: Page): Promise<void> {
-  const agree = page.getByRole("button", { name: /^agree$/i })
+  if (!resolveCookieConsentEnabled()) {
+    return
+  }
 
-  try {
-    await agree.waitFor({ state: "visible", timeout: 1500 })
-    await agree.click({ force: true })
+  const consentAction = page.getByRole("button", {
+    name: /^(agree|accept all)$/i,
+  })
+  const actionAppeared = await consentAction
+    .waitFor({ state: "visible", timeout: 1500 })
+    .then(() => true)
+    .catch(() => false)
+
+  if (actionAppeared || (await consentAction.count()) > 0) {
+    await expect(consentAction).toHaveCount(1)
+    await consentAction.click({ force: true })
     await settlePage(page, 200)
-  } catch {
-    // Ignore pages without the consent dialog.
   }
 
   await page.evaluate(() => {
@@ -364,10 +373,13 @@ export async function seedCanonicalTimedEvent(
     eventId,
     "Seed event response missing eventId",
   )
-  const idsResponse = await request.get(`/api/events/${resolvedEventId}/ids`)
-  expect(idsResponse.ok()).toBeTruthy()
-  const ids = (await idsResponse.json()) as { shortId?: string }
-  const shortId = ids.shortId ?? body.shortId
+  let shortId = body.shortId
+  if (!shortId) {
+    const idsResponse = await request.get(`/api/events/${resolvedEventId}/ids`)
+    expect(idsResponse.ok()).toBeTruthy()
+    const ids = (await idsResponse.json()) as { shortId?: string }
+    shortId = ids.shortId
+  }
   expect(shortId).toBeTruthy()
 
   return {

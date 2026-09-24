@@ -249,6 +249,7 @@ For guidance on authoring functional requirements, read [`functional/README.md`]
 | [FR-138](functional/fr/FR-138.md) | Render the [Event Occurrence Span](../terminology/glossary.md#event-occurrence-span) in the event header                                                                                                                            | frontend          |
 | [FR-139](functional/fr/FR-139.md) | Keep desktop event-header details and controls in independent columns                                                                                                                                                               | frontend          |
 | [FR-140](functional/fr/FR-140.md) | Select [Event Responses](../terminology/glossary.md#event-response) while scheduling a [Timed Event](../terminology/glossary.md#timed-event)                                                                                        | frontend          |
+| [FR-141](functional/fr/FR-141.md) | Gate the cookie consent banner with a build-time flag                                                                                                                                                                               | frontend          |
 
 ## Quality Requirements
 

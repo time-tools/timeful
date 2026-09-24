@@ -14,8 +14,6 @@ import {
   sortIsoInstants,
 } from "../helpers/timed-event-helpers"
 
-test.describe.configure({ mode: "serial" })
-
 test("round-trips weekly canonical timed fields through the edit flow", async ({
   page,
   request,

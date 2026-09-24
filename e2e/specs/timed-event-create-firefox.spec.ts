@@ -16,8 +16,6 @@ import {
 } from "../helpers/timed-event-helpers"
 import { Temporal } from "temporal-polyfill"
 
-test.describe.configure({ mode: "serial" })
-
 function expectedCreatedDomain(
   created: CreateSpecificTimesEventResult,
 ): string[] {
