@@ -5,9 +5,19 @@
 //
 //	go run ./inventory            # print the computed inventory table
 //	go run ./inventory -check     # compare against the roster's Inventory section
+//	go run ./inventory -preflight accounts/accounts.go
+//	                              # roster triage for one Go file
 //
 // The walk covers the server Go module and skips nested modules, so third_party/
 // and this probe corpus are out of scope.
+//
+// -preflight reports every construct family in one file with its occurrence
+// count, a file:line representative, and the roster's gap class, verdict, and
+// decision-ladder rung, then one advisory file-level verdict. Its exit statuses
+// are 0 for a reported verdict, 2 for a file it cannot read or parse, 3 for a
+// missing or restructured roster, and 4 for a file with no recognized construct
+// family; a file the roster judges untranslatable still exits 0, because the
+// verdict is advisory and gates nothing. -check keeps its own 0, 1, and 2.
 package main
 
 import (
@@ -32,6 +42,15 @@ const (
 	galaGen
 	swagGen
 	numClasses
+)
+
+// Process exit codes. -check keeps returning 1 for drift and 2 for an
+// unreadable roster page; the preflight statuses are its own.
+const (
+	exitVerdict   = 0 // the file-level verdict is advisory
+	exitBadFile   = 2 // the Go file, or the flag combination, cannot be honored
+	exitBadRoster = 3 // the roster page is missing or no longer shaped as expected
+	exitNoFamily  = 4 // the file has no recognized construct family
 )
 
 var classNames = [numClasses]string{"hand-nontest", "hand-test", "gala-generated", "swag-generated"}
@@ -148,11 +167,26 @@ type parsedFile struct {
 	rel  string
 }
 
+// fileKey identifies a declared type by directory and name, which is the scope
+// the walk uses to tell a method on a defined non-struct type from a method on
+// a struct.
+type fileKey struct{ dir, name string }
+
 func main() {
 	server := flag.String("server", "../..", "server module root to walk")
 	doc := flag.String("doc", "../../../docs/gala-translation.md", "roster page with the Inventory section")
 	check := flag.Bool("check", false, "compare the computed inventory against the roster and exit non-zero on drift")
+	file := flag.String("preflight", "", "report the roster's gap class, verdict, and decision-ladder rung for one Go file")
 	flag.Parse()
+
+	if *check && *file != "" {
+		fmt.Fprintln(os.Stderr, "-check and -preflight are mutually exclusive")
+		flag.Usage()
+		os.Exit(exitBadFile)
+	}
+	if *file != "" {
+		os.Exit(preflight(*file, *doc))
+	}
 
 	clCount, fileCount, stats := compute(*server)
 
@@ -187,8 +221,7 @@ func compute(server string) ([numClasses]int, int, map[string]*stat) {
 	})
 	sort.Strings(paths)
 
-	type key struct{ dir, name string }
-	definedNonStruct := map[key]bool{}
+	definedNonStruct := map[fileKey]bool{}
 	var files []parsedFile
 	for _, path := range paths {
 		f, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
@@ -199,254 +232,18 @@ func compute(server string) ([numClasses]int, int, map[string]*stat) {
 		rel, _ := filepath.Rel(server, path)
 		p := parsedFile{path: path, f: f, cl: classify(f, rel), rel: rel}
 		files = append(files, p)
-		for _, d := range f.Decls {
-			gd, ok := d.(*ast.GenDecl)
-			if !ok || gd.Tok != token.TYPE {
-				continue
-			}
-			for _, sp := range gd.Specs {
-				ts := sp.(*ast.TypeSpec)
-				switch ts.Type.(type) {
-				case *ast.StructType, *ast.InterfaceType:
-				default:
-					if !ts.Assign.IsValid() {
-						definedNonStruct[key{filepath.Dir(p.path), ts.Name.Name}] = true
-					}
-				}
-			}
-		}
+		addDefinedNonStruct(fset, path, f, definedNonStruct)
 	}
 
+	in := &inspector{fset: fset, dns: definedNonStruct}
 	for _, p := range files {
-		file := p.rel
-		cl := p.cl
-		var stack []ast.Node
-		ast.Inspect(p.f, func(n ast.Node) bool {
-			if n == nil {
-				stack = stack[:len(stack)-1]
-				return true
-			}
-			stack = append(stack, n)
-			line := fset.Position(n.Pos()).Line
-			h := func(id string) {
-				if famSet[id] {
-					hit(id, cl, file, line)
-				}
-			}
-			ancestor := func(level int) ast.Node {
-				i := len(stack) - 1 - level
-				if i < 0 {
-					return nil
-				}
-				return stack[i]
-			}
-			parent := ancestor(1)
-			switch v := n.(type) {
-			case *ast.FuncDecl:
-				if v.Recv == nil {
-					if v.Name.Name == "init" {
-						h("init-functions")
-					}
-					if v.Name.Name == "main" {
-						h("main-functions")
-					}
-				}
-				if v.Recv != nil && len(v.Recv.List) > 0 {
-					h("methods")
-					t := v.Recv.List[0].Type
-					if se, ok := t.(*ast.StarExpr); ok {
-						t = se.X
-					}
-					if id, ok := t.(*ast.Ident); ok && definedNonStruct[key{filepath.Dir(p.path), id.Name}] {
-						h("methods-on-defined-non-struct")
-					}
-				}
-				if v.Type.TypeParams != nil {
-					h("generic-declarations")
-				}
-				if resultCount(v.Type) > 1 {
-					h("multi-return-signature")
-				}
-				countParams(v.Type, h)
-			case *ast.FuncLit:
-				h("function-literals")
-				if insideCompositeLiteral(stack) {
-					h("func-literals-in-composite-literals")
-				}
-				if resultCount(v.Type) > 1 {
-					h("multi-return-signature")
-				}
-				countParams(v.Type, h)
-			case *ast.TypeSpec:
-				if v.TypeParams != nil {
-					h("generic-declarations")
-				}
-				switch v.Type.(type) {
-				case *ast.StructType:
-					h("struct-declarations")
-				case *ast.InterfaceType:
-					h("interface-declarations")
-				default:
-					if v.Assign.IsValid() {
-						h("type-aliases")
-					} else {
-						h("defined-non-struct-types")
-					}
-				}
-			case *ast.AssignStmt:
-				if len(v.Lhs) > 1 {
-					if v.Tok == token.DEFINE {
-						h("multi-value-define")
-					} else {
-						h("multi-value-assign")
-					}
-				}
-			case *ast.GenDecl:
-				switch v.Tok {
-				case token.VAR:
-					if _, ok := parent.(*ast.File); ok {
-						h("package-level-vars")
-					}
-				case token.CONST:
-					h("const-declarations")
-				}
-			case *ast.ValueSpec:
-				if len(v.Names) > 1 {
-					if gd, ok := parent.(*ast.GenDecl); ok && gd.Tok == token.VAR {
-						h("multi-value-var")
-					}
-				}
-			case *ast.DeferStmt:
-				h("defer")
-			case *ast.GoStmt:
-				h("go-statements")
-			case *ast.SwitchStmt:
-				h("switch-statements")
-			case *ast.TypeSwitchStmt:
-				h("switch-statements")
-			case *ast.SelectStmt:
-				h("select-statements")
-			case *ast.BranchStmt:
-				if v.Tok == token.GOTO {
-					h("goto")
-				}
-				if v.Tok == token.FALLTHROUGH {
-					h("fallthrough")
-				}
-			case *ast.IfStmt:
-				if v.Init != nil {
-					h("if-initializers")
-				}
-			case *ast.RangeStmt:
-				h("range-loops")
-			case *ast.ForStmt:
-				if v.Init == nil && v.Post != nil && v.Cond != nil {
-					h("for-loops-with-omitted-init")
-				}
-			case *ast.LabeledStmt:
-				h("labeled-statements")
-			case *ast.CallExpr:
-				if id, ok := v.Fun.(*ast.Ident); ok {
-					switch id.Name {
-					case "len":
-						h("len-calls")
-					case "cap":
-						h("cap-calls")
-					case "make":
-						h("make-calls")
-					case "new":
-						h("new-calls")
-					case "append":
-						h("append-calls")
-					case "delete":
-						h("delete-calls")
-					case "close":
-						h("close-calls")
-					case "panic":
-						h("panic-calls")
-					case "recover":
-						h("recover-calls")
-					case "copy":
-						h("copy-calls")
-					}
-				}
-				if at, ok := v.Fun.(*ast.ArrayType); ok && at.Len == nil {
-					if id, ok := at.Elt.(*ast.Ident); ok && id.Name == "byte" {
-						h("byte-slice-conversions")
-					}
-				}
-			case *ast.TypeAssertExpr:
-				h("type-assertions")
-			case *ast.SliceExpr:
-				h("slice-expressions")
-			case *ast.CompositeLit:
-				if _, ok := v.Type.(*ast.MapType); ok {
-					h("map-literals")
-				}
-				if at, ok := v.Type.(*ast.ArrayType); ok {
-					if at.Len == nil {
-						h("slice-literals")
-					} else {
-						h("fixed-size-array-literals")
-					}
-				}
-				h("composite-literals")
-			case *ast.ArrayType:
-				if v.Len != nil {
-					h("fixed-size-array-types")
-				}
-			case *ast.StructType:
-				if _, ok := parent.(*ast.TypeSpec); !ok {
-					h("anonymous-struct-types")
-					if v.Fields == nil || len(v.Fields.List) == 0 {
-						h("empty-struct-type")
-					}
-				}
-				if v.Fields != nil {
-					for _, fl := range v.Fields.List {
-						if fl.Tag != nil {
-							h("struct-tags")
-						}
-						if len(fl.Names) == 0 {
-							h("embedded-struct-fields")
-						}
-					}
-				}
-			case *ast.InterfaceType:
-				if v.Methods == nil || len(v.Methods.List) == 0 {
-					h("interface{} type")
-				}
-			case *ast.ChanType:
-				h("channel-types")
-			case *ast.MapType:
-				h("map-types")
-			case *ast.FuncType:
-				if _, ok := parent.(*ast.FuncDecl); !ok {
-					if _, ok := parent.(*ast.FuncLit); !ok {
-						h("function-types")
-					}
-				}
-			case *ast.ImportSpec:
-				if v.Name != nil {
-					switch v.Name.Name {
-					case "_":
-						h("blank-imports")
-					case ".":
-						h("dot-imports")
-					default:
-						h("named-imports")
-					}
-				}
-			}
-			return true
-		})
-		for _, cg := range p.f.Comments {
-			for _, c := range cg.List {
-				if strings.HasPrefix(c.Text, "//go:embed") {
-					hit("go-embed-directives", cl, file, fset.Position(c.Pos()).Line)
-				}
+		cl, file := p.cl, p.rel
+		in.hit = func(family string, line int) {
+			if famSet[family] {
+				hit(family, cl, file, line)
 			}
 		}
+		in.file(p)
 	}
 
 	clCount := [numClasses]int{}
@@ -454,6 +251,398 @@ func compute(server string) ([numClasses]int, int, map[string]*stat) {
 		clCount[p.cl]++
 	}
 	return clCount, len(files), stats
+}
+
+// addDefinedNonStruct records the defined non-struct types a file declares, so
+// that a later method declaration can be classified by the same scope the walk
+// uses.
+func addDefinedNonStruct(fset *token.FileSet, path string, f *ast.File, out map[fileKey]bool) {
+	for _, d := range f.Decls {
+		gd, ok := d.(*ast.GenDecl)
+		if !ok || gd.Tok != token.TYPE {
+			continue
+		}
+		for _, sp := range gd.Specs {
+			ts := sp.(*ast.TypeSpec)
+			switch ts.Type.(type) {
+			case *ast.StructType, *ast.InterfaceType:
+			default:
+				if !ts.Assign.IsValid() {
+					out[fileKey{filepath.Dir(path), ts.Name.Name}] = true
+				}
+			}
+		}
+	}
+}
+
+// inspector walks one parsed file and reports every construct family in it. The
+// caller supplies the hit callback, so the whole-module walk and the
+// single-file preflight share one detection pass.
+type inspector struct {
+	fset *token.FileSet
+	dns  map[fileKey]bool
+	hit  func(family string, line int)
+}
+
+func (in *inspector) file(p parsedFile) {
+	var stack []ast.Node
+	ast.Inspect(p.f, func(n ast.Node) bool {
+		if n == nil {
+			stack = stack[:len(stack)-1]
+			return true
+		}
+		stack = append(stack, n)
+		line := in.fset.Position(n.Pos()).Line
+		h := func(id string) {
+			in.hit(id, line)
+		}
+		ancestor := func(level int) ast.Node {
+			i := len(stack) - 1 - level
+			if i < 0 {
+				return nil
+			}
+			return stack[i]
+		}
+		parent := ancestor(1)
+		switch v := n.(type) {
+		case *ast.FuncDecl:
+			if v.Recv == nil {
+				if v.Name.Name == "init" {
+					h("init-functions")
+				}
+				if v.Name.Name == "main" {
+					h("main-functions")
+				}
+			}
+			if v.Recv != nil && len(v.Recv.List) > 0 {
+				h("methods")
+				t := v.Recv.List[0].Type
+				if se, ok := t.(*ast.StarExpr); ok {
+					t = se.X
+				}
+				if id, ok := t.(*ast.Ident); ok && in.dns[fileKey{filepath.Dir(p.path), id.Name}] {
+					h("methods-on-defined-non-struct")
+				}
+			}
+			if v.Type.TypeParams != nil {
+				h("generic-declarations")
+			}
+			if resultCount(v.Type) > 1 {
+				h("multi-return-signature")
+			}
+			countParams(v.Type, h)
+		case *ast.FuncLit:
+			h("function-literals")
+			if insideCompositeLiteral(stack) {
+				h("func-literals-in-composite-literals")
+			}
+			if resultCount(v.Type) > 1 {
+				h("multi-return-signature")
+			}
+			countParams(v.Type, h)
+		case *ast.TypeSpec:
+			if v.TypeParams != nil {
+				h("generic-declarations")
+			}
+			switch v.Type.(type) {
+			case *ast.StructType:
+				h("struct-declarations")
+			case *ast.InterfaceType:
+				h("interface-declarations")
+			default:
+				if v.Assign.IsValid() {
+					h("type-aliases")
+				} else {
+					h("defined-non-struct-types")
+				}
+			}
+		case *ast.AssignStmt:
+			if len(v.Lhs) > 1 {
+				if v.Tok == token.DEFINE {
+					h("multi-value-define")
+				} else {
+					h("multi-value-assign")
+				}
+			}
+		case *ast.GenDecl:
+			switch v.Tok {
+			case token.VAR:
+				if _, ok := parent.(*ast.File); ok {
+					h("package-level-vars")
+				}
+			case token.CONST:
+				h("const-declarations")
+			}
+		case *ast.ValueSpec:
+			if len(v.Names) > 1 {
+				if gd, ok := parent.(*ast.GenDecl); ok && gd.Tok == token.VAR {
+					h("multi-value-var")
+				}
+			}
+		case *ast.DeferStmt:
+			h("defer")
+		case *ast.GoStmt:
+			h("go-statements")
+		case *ast.SwitchStmt:
+			h("switch-statements")
+		case *ast.TypeSwitchStmt:
+			h("switch-statements")
+		case *ast.SelectStmt:
+			h("select-statements")
+		case *ast.BranchStmt:
+			if v.Tok == token.GOTO {
+				h("goto")
+			}
+			if v.Tok == token.FALLTHROUGH {
+				h("fallthrough")
+			}
+		case *ast.IfStmt:
+			if v.Init != nil {
+				h("if-initializers")
+			}
+		case *ast.RangeStmt:
+			h("range-loops")
+		case *ast.ForStmt:
+			if v.Init == nil && v.Post != nil && v.Cond != nil {
+				h("for-loops-with-omitted-init")
+			}
+		case *ast.LabeledStmt:
+			h("labeled-statements")
+		case *ast.CallExpr:
+			if id, ok := v.Fun.(*ast.Ident); ok {
+				switch id.Name {
+				case "len":
+					h("len-calls")
+				case "cap":
+					h("cap-calls")
+				case "make":
+					h("make-calls")
+				case "new":
+					h("new-calls")
+				case "append":
+					h("append-calls")
+				case "delete":
+					h("delete-calls")
+				case "close":
+					h("close-calls")
+				case "panic":
+					h("panic-calls")
+				case "recover":
+					h("recover-calls")
+				case "copy":
+					h("copy-calls")
+				}
+			}
+			if at, ok := v.Fun.(*ast.ArrayType); ok && at.Len == nil {
+				if id, ok := at.Elt.(*ast.Ident); ok && id.Name == "byte" {
+					h("byte-slice-conversions")
+				}
+			}
+		case *ast.TypeAssertExpr:
+			h("type-assertions")
+		case *ast.SliceExpr:
+			h("slice-expressions")
+		case *ast.CompositeLit:
+			if _, ok := v.Type.(*ast.MapType); ok {
+				h("map-literals")
+			}
+			if at, ok := v.Type.(*ast.ArrayType); ok {
+				if at.Len == nil {
+					h("slice-literals")
+				} else {
+					h("fixed-size-array-literals")
+				}
+			}
+			h("composite-literals")
+		case *ast.ArrayType:
+			if v.Len != nil {
+				h("fixed-size-array-types")
+			}
+		case *ast.StructType:
+			if _, ok := parent.(*ast.TypeSpec); !ok {
+				h("anonymous-struct-types")
+				if v.Fields == nil || len(v.Fields.List) == 0 {
+					h("empty-struct-type")
+				}
+			}
+			if v.Fields != nil {
+				for _, fl := range v.Fields.List {
+					if fl.Tag != nil {
+						h("struct-tags")
+					}
+					if len(fl.Names) == 0 {
+						h("embedded-struct-fields")
+					}
+				}
+			}
+		case *ast.InterfaceType:
+			if v.Methods == nil || len(v.Methods.List) == 0 {
+				h("interface{} type")
+			}
+		case *ast.ChanType:
+			h("channel-types")
+		case *ast.MapType:
+			h("map-types")
+		case *ast.FuncType:
+			if _, ok := parent.(*ast.FuncDecl); !ok {
+				if _, ok := parent.(*ast.FuncLit); !ok {
+					h("function-types")
+				}
+			}
+		case *ast.ImportSpec:
+			if v.Name != nil {
+				switch v.Name.Name {
+				case "_":
+					h("blank-imports")
+				case ".":
+					h("dot-imports")
+				default:
+					h("named-imports")
+				}
+			}
+		}
+		return true
+	})
+	for _, cg := range p.f.Comments {
+		for _, c := range cg.List {
+			if strings.HasPrefix(c.Text, "//go:embed") {
+				in.hit("go-embed-directives", in.fset.Position(c.Pos()).Line)
+			}
+		}
+	}
+}
+
+// preflight reports the construct families in one Go file, the roster's reading
+// of each, and one advisory file-level verdict derived from the roster's
+// decision ladder. It returns a process exit code.
+func preflight(path, docPath string) int {
+	rost, err := loadRoster(docPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "preflight: %v\n", err)
+		return exitBadRoster
+	}
+	fset := token.NewFileSet()
+	f, err := parseOne(fset, path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "preflight: %v\n", err)
+		return exitBadFile
+	}
+
+	// A method on a defined non-struct type is only recognizable against the
+	// type declarations of its own directory, so the single-file mode reads the
+	// sibling files for the same set the whole-module walk builds.
+	dns := map[fileKey]bool{}
+	for _, sibling := range dirSiblings(path) {
+		sf, err := parseOne(fset, sibling)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "preflight: %v; methods on its types may be misclassified\n", err)
+			continue
+		}
+		addDefinedNonStruct(fset, sibling, sf, dns)
+	}
+	addDefinedNonStruct(fset, path, f, dns)
+
+	counts := map[string]int{}
+	reps := map[string]string{}
+	in := &inspector{fset: fset, dns: dns}
+	in.hit = func(family string, line int) {
+		if !famSet[family] {
+			return
+		}
+		counts[family]++
+		if reps[family] == "" {
+			reps[family] = fmt.Sprintf("%s:%d", path, line)
+		}
+	}
+	in.file(parsedFile{path: path, f: f, rel: path})
+	if len(counts) == 0 {
+		fmt.Printf("preflight: %s has no recognized construct family\n", path)
+		return exitNoFamily
+	}
+
+	var reports []familyReport
+	for _, family := range fams {
+		count, ok := counts[family]
+		if !ok {
+			continue
+		}
+		reports = append(reports, summarize(family, count, reps[family], rost))
+	}
+
+	rung, driving := fileVerdict(reports)
+	printPreflight(path, rost, reports, rung, driving)
+	return exitVerdict
+}
+
+func parseOne(fset *token.FileSet, path string) (*ast.File, error) {
+	src, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %v", path, err)
+	}
+	f, err := parser.ParseFile(fset, path, src, parser.ParseComments)
+	if err != nil {
+		return nil, fmt.Errorf("parse %s: %v", path, err)
+	}
+	return f, nil
+}
+
+// dirSiblings returns the other Go files in the same directory as path.
+func dirSiblings(path string) []string {
+	dir := filepath.Dir(path)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "preflight: read %s: %v\n", dir, err)
+		return nil
+	}
+	var out []string
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".go") {
+			continue
+		}
+		sibling := filepath.Join(dir, e.Name())
+		if sibling != path {
+			out = append(out, sibling)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func printPreflight(path string, rost roster, reports []familyReport, rung int, driving []string) {
+	fmt.Printf("preflight: %s\n", path)
+	fmt.Printf("roster: %d construct families\n\n", len(rost.rows))
+	fmt.Println("decision ladder:")
+	for i, label := range rost.ladder.labels {
+		fmt.Printf("  %d %s\n", i+1, label)
+	}
+	fmt.Println()
+	fmt.Println("| Construct family | Count | Representative | Gap class | Rung | Verdict |")
+	fmt.Println("| --- | --- | --- | --- | --- | --- |")
+	for _, r := range reports {
+		if r.rung == 0 {
+			fmt.Printf("| `%s` | %d | `%s` | not classified | — | not classified in the roster |\n", r.family, r.count, r.rep)
+			continue
+		}
+		fmt.Printf("| `%s` | %d | `%s` | %s | %d | %s |\n", r.family, r.count, r.rep, r.row.gapClass, r.rung, r.row.verdict)
+	}
+	fmt.Println()
+	switch {
+	case rung == 0:
+		fmt.Printf("file-level verdict: undecided; the roster classifies none of the %d construct families in this file\n", len(reports))
+	case len(driving) == len(reports):
+		fmt.Printf("file-level verdict: rung %d, %q; every construct family in this file rewrites\n", rung, rost.ladder.label(rung))
+	default:
+		fmt.Printf("file-level verdict: rung %d, %q\n", rung, rost.ladder.label(rung))
+		fmt.Printf("driving families: %s\n", codeList(driving))
+	}
+}
+
+func codeList(names []string) string {
+	out := make([]string, len(names))
+	for i, n := range names {
+		out[i] = "`" + n + "`"
+	}
+	return strings.Join(out, ", ")
 }
 
 func printInventory(fileCount int, clCount [numClasses]int, stats map[string]*stat) {
@@ -629,14 +818,8 @@ func parseInventoryTable(text string) (map[string]docRow, error) {
 }
 
 func splitRow(line string) []string {
-	parts := strings.Split(line, "|")
-	if len(parts) >= 2 {
-		parts = parts[1 : len(parts)-1]
-	}
-	for i := range parts {
-		parts[i] = strings.TrimSpace(parts[i])
-	}
-	return parts
+	row, _ := tableCells(line)
+	return row
 }
 
 func classify(f *ast.File, rel string) class {

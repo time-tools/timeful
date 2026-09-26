@@ -9,6 +9,12 @@
 #   3. every genuine-gap row names a failing, non-contested probe
 #   4. every language/boundary roster row has a gap row and vice versa
 #   5. every GAP-n referenced from server/GALA.md exists here and vice versa
+#   6. the mechanical rewrite catalog and the no-rewrite index agree with the
+#      roster's gap classes, in both directions
+#
+# Checks 4 and 6 read the construct roster section of the page, so a table
+# elsewhere on the page that repeats the same column names cannot influence
+# either of them.
 #
 # The corpus runner (run.sh) pins the toolchains; this script only checks the
 # artifacts against each other.
@@ -32,6 +38,29 @@ ok() { printf 'ok   %s\n' "$1"; }
 expect_value() {
     sed -n "s/^$2=//p" "$1" | head -n 1
 }
+
+# section_of prints the body of the level-two Markdown section titled $2 in $1,
+# up to the next level-two heading, skipping fenced code blocks. A table in
+# another section is therefore not part of what a caller reads.
+section_of() {
+    awk -v want="$2" '
+        /^```/ { fenced = !fenced }
+        !fenced && /^## [^#]/ {
+            name = $0
+            sub(/^## /, "", name)
+            sub(/[ \t]+#*$/, "", name)
+            if (inside) exit
+            inside = (name == want)
+            next
+        }
+        inside { print }
+    ' "$1"
+}
+
+gap_rows=""
+roster_slice=""
+catalog_rows=""
+trap 'rm -f "$gap_rows" "$roster_slice" "$catalog_rows"' EXIT
 
 if [[ ! -f "$DOC" ]]; then
     printf 'missing %s\n' "$DOC" >&2
@@ -99,7 +128,6 @@ fi
 # --- 3. gap rows name failing, non-contested probes ------------------------
 
 gap_rows="$(mktemp)"
-trap 'rm -f "$gap_rows"' EXIT
 awk -F'|' '
 function trim(s) { gsub(/^[ \t]+/, "", s); gsub(/[ \t]+$/, "", s); return s }
 /^\| GAP-/ {
@@ -166,17 +194,35 @@ fi
 
 # --- 4. class-to-gap consistency -------------------------------------------
 
+# The construct roster is the authoritative slice of the page: the replacement
+# summary and the inventory table repeat its column names, so only this section
+# may decide what a family is classified as.
+roster_slice="$(mktemp)"
+section_of "$DOC" "Construct roster" >"$roster_slice"
+
 before_classes=$failures
 declare -A family_class=()
-while IFS=$'\t' read -r fam cls; do
-    [[ -n "$fam" ]] && family_class["$fam"]="$cls"
+declare -A roster_probe=()
+while IFS=$'\t' read -r fam cls probes; do
+    [[ -n "$fam" ]] || continue
+    family_class["$fam"]="$cls"
+    roster_probe["$fam"]="$probes"
 done < <(awk -F'|' '
 function trim(s) { gsub(/^[ \t]+/, "", s); gsub(/[ \t]+$/, "", s); return s }
+function links(cell,   out, parts, n, i) {
+    n = split(cell, parts, "/probes/")
+    for (i = 2; i <= n; i++) {
+        sub(/\/.*$/, "", parts[i])
+        out = out (out == "" ? "" : ",") parts[i]
+    }
+    return out
+}
 /^\| Construct/ && /Gap class/ {
     for (i = 2; i < NF; i++) {
         h = trim($i)
         if (h == "Gap class") gc = i
         if (h == "Construct") fc = i
+        if (h == "Probe") pc = i
     }
     in_table = 1
     next
@@ -184,11 +230,10 @@ function trim(s) { gsub(/^[ \t]+/, "", s); gsub(/[ \t]+$/, "", s); return s }
 in_table && /^\|/ {
     if ($0 ~ /^\| *-+/) next
     fam = trim($fc); gsub(/`/, "", fam)
-    cls = trim($gc)
-    if (fam != "") print fam "\t" cls
+    if (fam != "") print fam "\t" trim($(gc)) "\t" links($(pc))
     next
 }
-{ in_table = 0 }' "$DOC")
+{ in_table = 0 }' "$roster_slice")
 
 if [[ "${#family_class[@]}" -eq 0 ]]; then
     fail "no Gap class column found in $DOC"
@@ -232,6 +277,150 @@ while IFS= read -r referenced; do
 done < <(grep -o 'GAP-[0-9]*' "$SERVER_GALA" | sort -u)
 if [[ $failures -eq $before ]]; then
     ok "$gap_count GAP IDs cross-referenced with server/GALA.md"
+fi
+
+# --- 6. mechanical rewrite catalog ------------------------------------------
+
+# The catalog is derived from the roster's gap classes, so it is gated against
+# the same slice check 4 read: a row may not name a family the roster does not
+# classify as substituted, a substitutable family may not be left without a
+# row, every named probe must exist and must be one the roster records for a
+# family the row covers, and the no-rewrite index must list exactly the
+# families that have no substitute.
+
+before_catalog=$failures
+catalog_rows="$(mktemp)"
+section_of "$DOC" "Mechanical rewrites" | awk -F'|' '
+function trim(s) { gsub(/^[ \t]+/, "", s); gsub(/[ \t]+$/, "", s); return s }
+function names(cell,   out, parts, n, i, t) {
+    n = split(cell, parts, "`")
+    for (i = 2; i <= n; i += 2) {
+        t = parts[i]
+        gsub(/^[ \t]+/, "", t); gsub(/[ \t]+$/, "", t)
+        if (t != "") out = out (out == "" ? "" : ",") t
+    }
+    return out
+}
+function links(cell,   out, parts, n, i) {
+    n = split(cell, parts, "/probes/")
+    for (i = 2; i <= n; i++) {
+        sub(/\/.*$/, "", parts[i])
+        out = out (out == "" ? "" : ",") parts[i]
+    }
+    return out
+}
+/^\| Go spelling/ {
+    for (i = 2; i < NF; i++) {
+        h = trim($i)
+        if (h == "Construct families") fc = i
+        if (h == "Probe") pc = i
+    }
+    kind = "rule"
+    in_table = 1
+    next
+}
+/^\| Gap class/ && /no mechanical rewrite/ {
+    for (i = 2; i < NF; i++) {
+        h = trim($i)
+        if (h == "Gap class") gc = i
+        if (h == "Construct families with no mechanical rewrite") fc = i
+    }
+    kind = "index"
+    in_table = 1
+    next
+}
+in_table && /^\|/ {
+    if ($0 ~ /^\| *-+/) next
+    if (kind == "rule") {
+        print "rule\x1f" names($(fc)) "\x1f" links($(pc))
+    } else {
+        cls = trim($(gc)); gsub(/`/, "", cls)
+        print "index\x1f" names($(fc)) "\x1f" cls
+    }
+    next
+}
+{ in_table = 0 }' >"$catalog_rows"
+
+declare -A catalog_family=()
+declare -A indexed_family=()
+rule_rows=0
+index_rows=0
+# The second field is always the construct families; the third is the probe
+# list for a rule row and the gap class for an index row.
+while IFS=$'\x1f' read -r kind named extra; do
+    case "$kind" in
+    rule)
+        rule_rows=$((rule_rows + 1))
+        IFS=',' read -r -a fams <<<"$named"
+        IFS=',' read -r -a probes <<<"$extra"
+        for fam in "${fams[@]}"; do
+            [[ -n "$fam" ]] || continue
+            catalog_family["$fam"]=1
+            case "${family_class[$fam]:-}" in
+            analog | workaround) ;;
+            "") fail "catalog row $rule_rows: $fam is not a construct family in the roster" ;;
+            *) fail "catalog row $rule_rows: $fam is classified '${family_class[$fam]}', which has no substitute" ;;
+            esac
+        done
+        for probe in "${probes[@]}"; do
+            [[ -n "$probe" ]] || continue
+            if [[ ! -d "probes/$probe" ]]; then
+                fail "catalog row $rule_rows: probe $probe does not exist"
+                continue
+            fi
+            pinned=0
+            for fam in "${fams[@]}"; do
+                [[ -n "$fam" ]] || continue
+                if [[ ",${roster_probe[$fam]:-}," == *",$probe,"* ]]; then
+                    pinned=1
+                fi
+            done
+            if [[ $pinned -eq 0 ]]; then
+                fail "catalog row $rule_rows: probe $probe is not recorded in the roster for ${fams[*]}"
+            fi
+        done
+        ;;
+    index)
+        index_rows=$((index_rows + 1))
+        IFS=',' read -r -a fams <<<"$named"
+        for fam in "${fams[@]}"; do
+            [[ -n "$fam" ]] || continue
+            indexed_family["$fam"]="$extra"
+            case "${family_class[$fam]:-}" in
+            "$extra") ;;
+            "") fail "no-rewrite index row $index_rows: $fam is not a construct family in the roster" ;;
+            *) fail "no-rewrite index row $index_rows: $fam is classified '${family_class[$fam]}', not '$extra'" ;;
+            esac
+            if [[ -n "${catalog_family[$fam]:-}" ]]; then
+                fail "no-rewrite index row $index_rows: $fam also has a mechanical rewrite row"
+            fi
+        done
+        ;;
+    esac
+done <"$catalog_rows"
+
+if [[ $rule_rows -eq 0 ]]; then
+    fail "no mechanical rewrite rows found in the Mechanical rewrites section of $DOC"
+fi
+if [[ $index_rows -eq 0 ]]; then
+    fail "no no-rewrite index rows found in the Mechanical rewrites section of $DOC"
+fi
+for fam in "${!family_class[@]}"; do
+    case "${family_class[$fam]}" in
+    analog | workaround)
+        if [[ -z "${catalog_family[$fam]:-}" ]]; then
+            fail "$fam has a substitute but no mechanical rewrite row"
+        fi
+        ;;
+    *)
+        if [[ -z "${indexed_family[$fam]:-}" ]]; then
+            fail "$fam has no mechanical rewrite and is not listed in the no-rewrite index"
+        fi
+        ;;
+    esac
+done
+if [[ $failures -eq $before_catalog ]]; then
+    ok "$rule_rows mechanical rewrite rows and $index_rows no-rewrite index rows agree with the roster"
 fi
 
 # --- report -----------------------------------------------------------------
