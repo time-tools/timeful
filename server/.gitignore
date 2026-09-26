@@ -4,3 +4,4 @@ tmp
 !.vscode/tasks.json
 .gocache
 .go-cache
+.gala/

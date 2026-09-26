@@ -1,0 +1,3 @@
+KIND=pass
+RUN=yes
+NOTE=an exported package-level val is emitted as `var X = std.NewImmutable(...)`; a Go caller must call .Get() (see the runner-written check.go fixture)

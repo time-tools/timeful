@@ -1,0 +1,62 @@
+package appenv
+
+import (
+	"os"
+	"strings"
+)
+
+type Environment string
+
+var Development Environment = "development"
+var Test Environment = "test"
+var Staging Environment = "staging"
+var Production Environment = "production"
+
+func Parse(value string) Environment {
+	var normalized = strings.ToLower(strings.TrimSpace(value))
+	if normalized == string(Development) {
+		return Development
+	}
+	if normalized == string(Test) {
+		return Test
+	}
+	if normalized == string(Staging) {
+		return Staging
+	}
+	if normalized == string(Production) {
+		return Production
+	}
+	return Development
+}
+
+func Current() Environment {
+	return Parse(os.Getenv("APP_ENV"))
+}
+
+func IsProductionLike(env Environment) bool {
+	return env == Staging || env == Production
+}
+
+func ShouldUseReleaseMode(ginMode string, env Environment) bool {
+	var normalized = strings.ToLower(strings.TrimSpace(ginMode))
+	if normalized == "debug" || normalized == string(Development) {
+		return false
+	}
+	if normalized == "release" || normalized == string(Production) {
+		return true
+	}
+	return IsProductionLike(env)
+}
+
+func Port(env Environment) string {
+	if env == Test {
+		return "3003"
+	}
+	if env == Staging {
+		return "3004"
+	}
+	if env == Production {
+		return "3005"
+	}
+	return "3002"
+}

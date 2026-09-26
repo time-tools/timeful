@@ -1,0 +1,23 @@
+package main
+
+import "strconv"
+
+func main() {
+	var n, err = strconv.Atoi("42")
+	if err != nil {
+		Println("error")
+		return
+	}
+	Println(n)
+
+	var m int
+	m, err = strconv.Atoi("7")
+	if err != nil {
+		Println("error")
+		return
+	}
+	Println(m)
+
+	var ninth, _ = strconv.Atoi("9")
+	Println(ninth)
+}

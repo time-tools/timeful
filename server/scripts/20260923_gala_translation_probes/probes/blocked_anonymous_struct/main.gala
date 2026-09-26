@@ -1,0 +1,9 @@
+package main
+
+var v = struct {
+	A string
+}{A: "x"}
+
+func main() {
+	Println(v.A)
+}

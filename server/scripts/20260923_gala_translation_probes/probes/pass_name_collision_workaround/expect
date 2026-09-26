@@ -1,0 +1,3 @@
+KIND=pass
+RUN=yes
+NOTE=the repo workaround: a handwritten Go constructor (newResponse) returns the package-local type, so the .gala file never names the type colliding with an imported package's export

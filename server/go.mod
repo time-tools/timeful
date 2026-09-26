@@ -25,6 +25,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.11.0
 	google.golang.org/api v0.264.0
 	google.golang.org/protobuf v1.36.12
+	martianoff/gala v0.0.0
 )
 
 require (
@@ -107,3 +108,5 @@ require (
 	google.golang.org/grpc v1.83.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace martianoff/gala => ./third_party/gala

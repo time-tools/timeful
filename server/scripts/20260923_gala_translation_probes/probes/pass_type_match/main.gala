@@ -1,0 +1,11 @@
+package main
+
+func describe(v any) string = v match {
+	case s: string => s
+	case _ => "other"
+}
+
+func main() {
+	Println(describe("x"))
+	Println(describe(1))
+}

@@ -1,0 +1,10 @@
+package main
+
+import "strconv"
+
+func main() {
+	val ok = Try(strconv.Atoi("42"))
+	Println(ok.GetOrElse(0))
+	val bad = Try(strconv.Atoi("x"))
+	Println(bad.GetOrElse(0))
+}

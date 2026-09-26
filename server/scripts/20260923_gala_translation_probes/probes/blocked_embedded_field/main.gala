@@ -1,0 +1,10 @@
+package main
+
+struct Base(val ID int)
+
+struct Event(Base, Name string)
+
+func main() {
+	val e = Event(Base = Base(ID = 1), Name = "x")
+	Println(e.Name)
+}

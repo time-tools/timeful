@@ -1,0 +1,11 @@
+package main
+
+struct Point(var X int, var Y int)
+
+type Coord Point
+
+func main() {
+	val c = Coord(1, 2)
+	Println(c.X)
+	Println(c.Y)
+}

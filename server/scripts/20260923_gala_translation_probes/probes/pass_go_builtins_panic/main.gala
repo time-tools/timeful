@@ -1,0 +1,14 @@
+package main
+
+import . "martianoff/gala/go_builtins"
+
+func check(x int) int {
+	if (x <= 0) {
+		Panic("non-positive")
+	}
+	return x
+}
+
+func main() {
+	Println(check(1))
+}

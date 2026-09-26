@@ -1,0 +1,46 @@
+package providerconfig
+
+import (
+	"os"
+	"strings"
+)
+
+var TestGoogleOAuthTokenEndpoint = "TEST_GOOGLE_OAUTH_TOKEN_ENDPOINT"
+var TestGoogleCalendarAPIBaseURL = "TEST_GOOGLE_CALENDAR_API_BASE_URL"
+var TestMicrosoftOAuthTokenEndpoint = "TEST_MICROSOFT_OAUTH_TOKEN_ENDPOINT"
+var TestMicrosoftGraphAPIBaseURL = "TEST_MICROSOFT_GRAPH_API_BASE_URL"
+
+var realGoogleOAuthTokenEndpoint = "https://oauth2.googleapis.com/token"
+var realGoogleCalendarAPIBaseURL = "https://www.googleapis.com/calendar/v3"
+var realMicrosoftOAuthTokenEndpoint = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+var realMicrosoftGraphAPIBaseURL = "https://graph.microsoft.com/v1.0"
+
+func overrideOrDefault(envName string, fallback string) string {
+	var value = strings.TrimSpace(os.Getenv(envName))
+	if value != "" {
+		return value
+	}
+	return fallback
+}
+
+func GoogleOAuthTokenEndpoint() string {
+	return overrideOrDefault(TestGoogleOAuthTokenEndpoint, realGoogleOAuthTokenEndpoint)
+}
+
+func GoogleCalendarAPIBaseURL() string {
+	return strings.TrimRight(
+		overrideOrDefault(TestGoogleCalendarAPIBaseURL, realGoogleCalendarAPIBaseURL),
+		"/",
+	)
+}
+
+func MicrosoftOAuthTokenEndpoint() string {
+	return overrideOrDefault(TestMicrosoftOAuthTokenEndpoint, realMicrosoftOAuthTokenEndpoint)
+}
+
+func MicrosoftGraphAPIBaseURL() string {
+	return strings.TrimRight(
+		overrideOrDefault(TestMicrosoftGraphAPIBaseURL, realMicrosoftGraphAPIBaseURL),
+		"/",
+	)
+}

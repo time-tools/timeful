@@ -1,0 +1,3 @@
+KIND=transpile_fail
+ERR=mismatched input 'const' expecting
+NOTE=const does not parse; use a package-level var or a val (which wraps in std.Immutable)

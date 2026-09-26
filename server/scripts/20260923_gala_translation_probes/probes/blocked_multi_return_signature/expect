@@ -1,0 +1,3 @@
+KIND=transpile_fail
+ERR=mismatched input '(' expecting {'=', '{'}
+NOTE=Go multi-value return signatures do not parse; split the member into a handwritten sibling or return a Tuple

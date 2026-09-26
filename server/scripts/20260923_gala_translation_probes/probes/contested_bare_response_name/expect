@@ -1,0 +1,3 @@
+KIND=pass
+RUN=yes
+NOTE=contested: this isolated layout resolves the bare Response locally, so the postgres.Response collision recorded in server/GALA.md did not reproduce standalone, matching the PR #529 note

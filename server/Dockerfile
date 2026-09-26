@@ -19,6 +19,9 @@ RUN apk add --no-cache postgresql18-client
 FROM testbase AS testdeps
 
 COPY go.mod go.sum ./
+# The local replace needs the vendored module's go.mod present so
+# `go mod download` can resolve it; the module has no external dependencies.
+COPY third_party/gala/go.mod third_party/gala/
 RUN go mod download
 
 # Build stage

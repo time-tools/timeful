@@ -1,0 +1,9 @@
+package main
+
+struct Cmd(Usage string)
+
+func usageLen(c Cmd) int = c.Usage.Size()
+
+func main() {
+	Println(usageLen(Cmd(Usage = "héllo")))
+}

@@ -1,0 +1,3 @@
+KIND=pass
+RUN=yes
+NOTE=resource.Using/Bracket release a named resource on every exit path, the defer replacement when the acquire already happened; explicit type arguments are required (Using[*os.File, string]) because inference binds the body parameter to any

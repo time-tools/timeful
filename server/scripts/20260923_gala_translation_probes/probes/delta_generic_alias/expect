@@ -1,0 +1,3 @@
+KIND=pass
+RUN=yes
+NOTE=PR #529 delta: 0.81.0 emits IntPair{} for the alias conversion and silently returns zero values; the fix resolves the alias chain and passes the arguments, so this flips to 1

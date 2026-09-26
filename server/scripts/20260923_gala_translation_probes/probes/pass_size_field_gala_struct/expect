@@ -1,0 +1,3 @@
+KIND=pass
+RUN=yes
+NOTE=.Size() lowers on a field whose type the transpiler knows from a GALA declaration

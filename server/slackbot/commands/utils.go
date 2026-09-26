@@ -30,6 +30,13 @@ var CommandMap = map[string]Command{
 	numUsers.Name:    numUsers,
 }
 
+// newResponse exists for num_users.gala: the transpiler resolves a bare
+// Response literal to postgres.Response, so the GALA source calls this helper
+// instead of naming the local type.
+func newResponse(responseType string, text string) *Response {
+	return &Response{ResponseType: responseType, Text: text}
+}
+
 func SendRawMessage(message *Response, webhookUrl string) {
 	bodyBytes, _ := json.Marshal(message)
 	bodyBuffer := bytes.NewBuffer(bodyBytes)

@@ -1,0 +1,3 @@
+KIND=build_fail
+ERR=missing return
+NOTE=PR #529 delta: a trailing if expression used as a block value emits bare expression statements in 0.81.0; the fix promotes each branch to a return

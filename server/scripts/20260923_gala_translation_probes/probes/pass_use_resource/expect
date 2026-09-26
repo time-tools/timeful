@@ -1,0 +1,3 @@
+KIND=pass
+RUN=yes
+NOTE=`use x = acquire` is the defer replacement for a single-value acquire; it lowers to `x := acquire` plus `defer x.Close()`
