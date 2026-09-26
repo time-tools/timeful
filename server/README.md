@@ -42,6 +42,7 @@ Handwritten siblings beside generated files are `appenv/appenv_port.go` (`Resolv
 They are not generated and have no regeneration command.
 See `GALA.md` for the two output styles, the vendored runtime under `third_party/gala/`, and the findings from the transpilation spikes.
 The per-construct Go-to-GALA roster, its inventory counts, and the scripted probe corpus are in [`../docs/gala-translation.md`](../docs/gala-translation.md).
+The ordered procedure for turning one more Go file into a twin is in [`../docs/gala-rewrite-playbook.md`](../docs/gala-rewrite-playbook.md).
 
 ## Tests
 
