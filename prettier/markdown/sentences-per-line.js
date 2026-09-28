@@ -1,5 +1,7 @@
 import * as base from 'prettier-plugin-sentences-per-line'
 
+// The two passes below are additive to upstream, which already leaves table
+// rows alone, so they have to skip tables themselves.
 const tableNodeTypes = new Set(['table', 'tableRow', 'tableCell'])
 const gapNodeTypes = new Set(['paragraph', 'heading'])
 const breakNodeType = 'break'
@@ -10,7 +12,10 @@ const whitespacePattern = /\s/
 const closingPairsPattern = /[)"'”’\]]+$/
 const trailingWhitespacePattern = /\s+$/
 const digitPeriodPattern = /\d\.$/
-const finalWordPeriodPattern = /([A-Za-z]+)\.$/
+// Deliberately identical to digitPeriodPattern but with the opposite meaning:
+// digitPeriodPattern suppresses a break, this one requires one. Keep them
+// separate so that narrowing either does not silently change the other.
+const numericSentenceEndPattern = /\d\.$/
 const upstreamIgnoredWords = [
   'eg.',
   'e.g.',
@@ -20,25 +25,6 @@ const upstreamIgnoredWords = [
   'i.e.',
   'vs.',
 ]
-const knownAbbreviations = new Set([
-  'mr',
-  'mrs',
-  'ms',
-  'dr',
-  'prof',
-  'sr',
-  'jr',
-  'st',
-  'mt',
-  'vs',
-  'etc',
-  'cf',
-  'al',
-  'approx',
-  'fig',
-  'inc',
-  'ltd',
-])
 
 let sentenceSegmenter
 
@@ -50,21 +36,6 @@ function getSentenceSegmenter() {
         : null
   }
   return sentenceSegmenter
-}
-
-function restoreTableWhitespace(node, insideTable = false) {
-  const nestedInTable = insideTable || tableNodeTypes.has(node.type)
-  if (!Array.isArray(node.children)) return
-
-  for (let index = 0; index < node.children.length; index += 1) {
-    const child = node.children[index]
-    if (nestedInTable && child.type === 'sentenceBreak') {
-      // The upstream plugin removed this whitespace when it inserted the break.
-      node.children[index] = { type: 'whitespace', value: ' ' }
-      continue
-    }
-    restoreTableWhitespace(child, nestedInTable)
-  }
 }
 
 function hasPosition(node) {
@@ -122,15 +93,9 @@ function collectBlankRanges(node, ranges) {
 function endsWithSuppressedTail(tail, customAbbreviations) {
   if (digitPeriodPattern.test(tail)) return true
   const lowered = tail.toLowerCase()
-  if (
-    [...upstreamIgnoredWords, ...customAbbreviations].some((word) =>
-      lowered.endsWith(word.toLowerCase()),
-    )
-  ) {
-    return true
-  }
-  const match = tail.match(finalWordPeriodPattern)
-  return Boolean(match && knownAbbreviations.has(match[1].toLowerCase()))
+  return [...upstreamIgnoredWords, ...customAbbreviations].some((word) =>
+    lowered.endsWith(word.toLowerCase()),
+  )
 }
 
 function trimBoundaryWhitespace(previous, next) {
@@ -260,6 +225,34 @@ function insertParagraphGapBreaks(node, options) {
   }
 }
 
+function splitNumericSentenceEnds(node) {
+  if (tableNodeTypes.has(node.type)) return
+  if (node.type === 'sentence') splitNumericSentenceEndsInSentence(node)
+  for (const child of node.children ?? []) splitNumericSentenceEnds(child)
+}
+
+function splitNumericSentenceEndsInSentence(sentence) {
+  const children = sentence.children
+  if (!Array.isArray(children)) return
+
+  for (let index = children.length - 2; index >= 1; index -= 1) {
+    const child = children[index]
+    // Upstream skips any word node matching /^\s*\d+\./ to avoid breaking list
+    // markers, but a list marker is structural and never reaches this stream, so
+    // the same test also swallows every genuine sentence that ends in a number,
+    // such as "Week 1.". Split those here instead.
+    if (child.type !== 'word' || !numericSentenceEndPattern.test(child.value))
+      continue
+    const whitespace = children[index + 1]
+    if (whitespace?.type !== 'whitespace') continue
+    const next = children[index + 2]
+    if (next?.type !== 'word' || !nextLetterPattern.test(next.value)) continue
+
+    children.splice(index + 1, 1)
+    children.splice(index + 1, 0, { type: 'sentenceBreak' })
+  }
+}
+
 function insertGapSentenceBreaks(node, options) {
   if (tableNodeTypes.has(node.type)) return
   if (gapNodeTypes.has(node.type)) insertParagraphGapBreaks(node, options)
@@ -275,7 +268,7 @@ export const printers = {
     async preprocess(ast, options) {
       const processed = await base.printers.mdast.preprocess(ast, options)
       insertGapSentenceBreaks(processed, options)
-      restoreTableWhitespace(processed)
+      splitNumericSentenceEnds(processed)
       return processed
     },
   },

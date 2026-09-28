@@ -21,7 +21,7 @@
     "jiti": "^2.7.0",
     "oxfmt": "^0.68.0",
     "prettier": "^3.9.8",
-    "prettier-plugin-sentences-per-line": "^0.2.4",
+    "prettier-plugin-sentences-per-line": "^0.2.5",
     "vitest": "^5.0.1"
   }
 }
