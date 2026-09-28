@@ -19,18 +19,18 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@playwright/test": "1.63.0",
-    "@types/node": "^26.6.1",
-    "eslint": "^10.5.0",
+    "@types/node": "^26.6.2",
+    "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-oxlint": "^1.83.0",
     "jiti": "^2.7.0",
     "oxfmt": "^0.67.0",
     "oxlint": "^1.83.0",
-    "oxlint-tsgolint": "^7.0.2001",
+    "oxlint-tsgolint": "^7.0.2003",
     "temporal-polyfill": "^1.0.5",
-    "tsx": "^4.20.6",
+    "tsx": "^4.23.15",
     "typescript": "npm:typescript-native-bridge@^6.0.3-bridge.12.tsgo.7.0.2",
-    "typescript-eslint": "^8.70.0",
+    "typescript-eslint": "^8.70.1",
     "vite": "^8.3.0"
   },
   "engines": {
