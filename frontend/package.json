@@ -28,7 +28,7 @@
     "github-buttons": "^2.33.1",
     "is-ua-webview": "^1.1.2",
     "pinia": "^3.0.4",
-    "posthog-js": "^1.430.2",
+    "posthog-js": "^1.434.14",
     "temporal-polyfill": "^1.0.4",
     "ua-parser-js": "^2.0.10",
     "vue": "^3.5.43",
