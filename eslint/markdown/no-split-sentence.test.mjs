@@ -225,6 +225,26 @@ describe('no-split-sentence', () => {
     expect(result.output).toBe('**Available** and **If needed** count equally here.\n')
   })
 
+  it('does not report a completed sentence that closes with emphasis markers', () => {
+    const code = [
+      'Before you look at any product, write one sentence: **whose problem are we solving, and what are they trying to do?**',
+      'Not "what are we building" — that comes later, and it is constrained by this sentence.',
+      '',
+      'The **strong** answer follows.',
+      'The *emphasised* answer follows.',
+      'The _underlined_ answer follows.',
+      '',
+    ].join('\n')
+
+    expect(verify(code)).toHaveLength(0)
+  })
+
+  it('does not report a completed sentence that closes with a bracket or a quote', () => {
+    const code = 'The team agreed on (three options.)\nand ranked them all by cost.\n'
+
+    expect(verify(code)).toHaveLength(0)
+  })
+
   it('reports but never fixes boundaries involving pipe table fragments', () => {
     const code = 'Anonymous initiation requires proof of authority. |\n| Response measure | tests apply.\n'
 
