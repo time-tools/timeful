@@ -25,7 +25,7 @@
     "@fontsource/dm-sans": "^5.3.0",
     "@unhead/vue": "^3.4.0",
     "color": "^5.0.3",
-    "github-buttons": "^2.33.0",
+    "github-buttons": "^2.33.1",
     "is-ua-webview": "^1.1.2",
     "pinia": "^3.0.4",
     "posthog-js": "^1.430.2",
