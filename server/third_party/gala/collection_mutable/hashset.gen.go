@@ -416,7 +416,7 @@ func (s *HashSet[T]) Intersect(other *HashSet[T]) *HashSet[T] {
 		})
 	}
 //line collection_mutable/hashset.gala:269
-	return HashSet_FoldLeft[*HashSet[T]](other, EmptyHashSet[T](), func(acc *HashSet[T], elem T) *HashSet[T] {
+	return HashSet_FoldLeft[*HashSet[T], T](other, EmptyHashSet[T](), func(acc *HashSet[T], elem T) *HashSet[T] {
 //line collection_mutable/hashset.gala:270
 		if s.Contains(elem) {
 //line collection_mutable/hashset.gala:271
@@ -454,7 +454,7 @@ func (s *HashSet[T]) SymmetricDiff(other *HashSet[T]) *HashSet[T] {
 		return acc
 	}))
 //line collection_mutable/hashset.gala:295
-	return HashSet_FoldLeft[*HashSet[T]](other, fromS.Get(), func(acc *HashSet[T], elem T) *HashSet[T] {
+	return HashSet_FoldLeft[*HashSet[T], T](other, fromS.Get(), func(acc *HashSet[T], elem T) *HashSet[T] {
 //line collection_mutable/hashset.gala:296
 		if !s.Contains(elem) {
 //line collection_mutable/hashset.gala:297
@@ -493,7 +493,7 @@ func (s *HashSet[T]) Disjoint(other *HashSet[T]) bool {
 		})
 	}
 //line collection_mutable/hashset.gala:319
-	return HashSet_FoldLeft[bool](other, true, func(acc bool, elem T) bool {
+	return HashSet_FoldLeft[bool, T](other, true, func(acc bool, elem T) bool {
 		return acc && !s.Contains(elem)
 	})
 }

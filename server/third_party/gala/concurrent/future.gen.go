@@ -540,15 +540,15 @@ func Future_derive[U any, T any](f Future[T], handle func(Promise[U], Try[T])) F
 
 //line concurrent/future.gala:356
 func Future_Map[U any, T any](f Future[T], fn func(T) U) Future[U] {
-	return Future_derive[U](f, func(p Promise[U], r Try[T]) {
+	return Future_derive[U, T](f, func(p Promise[U], r Try[T]) {
 //line concurrent/future.gala:357
-		p.Complete(Try_Map[U](r, fn))
+		p.Complete(Try_Map[U, T](r, fn))
 	})
 }
 
 //line concurrent/future.gala:362
 func Future_FlatMap[U any, T any](f Future[T], fn func(T) Future[U]) Future[U] {
-	return Future_derive[U](f, func(p Promise[U], r Try[T]) {
+	return Future_derive[U, T](f, func(p Promise[U], r Try[T]) {
 //line concurrent/future.gala:364
 		func(obj Try[T]) {
 			{
@@ -593,7 +593,7 @@ func Future_FlatMap[U any, T any](f Future[T], fn func(T) Future[U]) Future[U] {
 
 //line concurrent/future.gala:376
 func (f Future[T]) Filter(predicate func(T) bool) Future[T] {
-	return Future_derive[T](f, func(p Promise[T], r Try[T]) {
+	return Future_derive[T, T](f, func(p Promise[T], r Try[T]) {
 //line concurrent/future.gala:377
 		p.Complete(r.Filter(predicate))
 	})
@@ -601,7 +601,7 @@ func (f Future[T]) Filter(predicate func(T) bool) Future[T] {
 
 //line concurrent/future.gala:383
 func (f Future[T]) Recover(pf func(error) T) Future[T] {
-	return Future_derive[T](f, func(p Promise[T], r Try[T]) {
+	return Future_derive[T, T](f, func(p Promise[T], r Try[T]) {
 //line concurrent/future.gala:384
 		p.Complete(r.Recover(pf))
 	})
@@ -609,7 +609,7 @@ func (f Future[T]) Recover(pf func(error) T) Future[T] {
 
 //line concurrent/future.gala:389
 func (f Future[T]) RecoverWith(pf func(error) Future[T]) Future[T] {
-	return Future_derive[T](f, func(p Promise[T], r Try[T]) {
+	return Future_derive[T, T](f, func(p Promise[T], r Try[T]) {
 //line concurrent/future.gala:391
 		func(obj Try[T]) {
 			{
@@ -654,7 +654,7 @@ func (f Future[T]) RecoverWith(pf func(error) Future[T]) Future[T] {
 
 //line concurrent/future.gala:401
 func Future_Transform[U any, T any](f Future[T], s func(T) Try[U], fn func(error) Try[U]) Future[U] {
-	return Future_derive[U](f, func(p Promise[U], r Try[T]) {
+	return Future_derive[U, T](f, func(p Promise[U], r Try[T]) {
 //line concurrent/future.gala:403
 		func(obj Try[T]) {
 			{
@@ -696,7 +696,7 @@ func Future_Transform[U any, T any](f Future[T], s func(T) Try[U], fn func(error
 
 //line concurrent/future.gala:411
 func Future_TransformWith[U any, T any](f Future[T], s func(T) Future[U], fn func(error) Future[U]) Future[U] {
-	return Future_derive[U](f, func(p Promise[U], r Try[T]) {
+	return Future_derive[U, T](f, func(p Promise[U], r Try[T]) {
 //line concurrent/future.gala:413
 		func(obj Try[T]) {
 			{
@@ -745,9 +745,9 @@ func Future_TransformWith[U any, T any](f Future[T], s func(T) Future[U], fn fun
 //line concurrent/future.gala:427
 func Future_Zip[U any, T any](f Future[T], other Future[U]) Future[Tuple[T, U]] {
 //line concurrent/future.gala:428
-	return Future_FlatMap[Tuple[T, U]](f, func(t T) Future[Tuple[T, U]] {
+	return Future_FlatMap[Tuple[T, U], T](f, func(t T) Future[Tuple[T, U]] {
 //line concurrent/future.gala:429
-		return Future_Map[Tuple[T, U]](other, func(u U) Tuple[T, U] {
+		return Future_Map[Tuple[T, U], U](other, func(u U) Tuple[T, U] {
 			return Tuple[T, U]{V1: NewImmutable(t), V2: NewImmutable(u)}
 		})
 	})
@@ -756,9 +756,9 @@ func Future_Zip[U any, T any](f Future[T], other Future[U]) Future[Tuple[T, U]] 
 //line concurrent/future.gala:435
 func Future_ZipWith[U any, V any, T any](f Future[T], other Future[U], fn func(T, U) V) Future[V] {
 //line concurrent/future.gala:436
-	return Future_FlatMap[V](f, func(t T) Future[V] {
+	return Future_FlatMap[V, T](f, func(t T) Future[V] {
 //line concurrent/future.gala:437
-		return Future_Map[V](other, func(u U) V {
+		return Future_Map[V, U](other, func(u U) V {
 			return fn(t, u)
 		})
 	})
@@ -771,9 +771,9 @@ func Future_Zip2[U any, T any](f Future[T], other Future[U]) Future[Tuple[T, U]]
 
 //line concurrent/future.gala:448
 func Future_Zip3[U any, V any, T any](f Future[T], fu Future[U], fv Future[V]) Future[Tuple3[T, U, V]] {
-	return Future_FlatMap[Tuple3[T, U, V]](f, func(t T) Future[Tuple3[T, U, V]] {
-		return Future_FlatMap[Tuple3[T, U, V]](fu, func(u U) Future[Tuple3[T, U, V]] {
-			return Future_Map[Tuple3[T, U, V]](fv, func(v V) Tuple3[T, U, V] {
+	return Future_FlatMap[Tuple3[T, U, V], T](f, func(t T) Future[Tuple3[T, U, V]] {
+		return Future_FlatMap[Tuple3[T, U, V], U](fu, func(u U) Future[Tuple3[T, U, V]] {
+			return Future_Map[Tuple3[T, U, V], V](fv, func(v V) Tuple3[T, U, V] {
 				return Tuple3[T, U, V]{V1: NewImmutable(t), V2: NewImmutable(u), V3: NewImmutable(v)}
 			})
 		})
@@ -782,10 +782,10 @@ func Future_Zip3[U any, V any, T any](f Future[T], fu Future[U], fv Future[V]) F
 
 //line concurrent/future.gala:453
 func Future_Zip4[U any, V any, W any, T any](f Future[T], fu Future[U], fv Future[V], fw Future[W]) Future[Tuple4[T, U, V, W]] {
-	return Future_FlatMap[Tuple4[T, U, V, W]](f, func(t T) Future[Tuple4[T, U, V, W]] {
-		return Future_FlatMap[Tuple4[T, U, V, W]](fu, func(u U) Future[Tuple4[T, U, V, W]] {
-			return Future_FlatMap[Tuple4[T, U, V, W]](fv, func(v V) Future[Tuple4[T, U, V, W]] {
-				return Future_Map[Tuple4[T, U, V, W]](fw, func(w W) Tuple4[T, U, V, W] {
+	return Future_FlatMap[Tuple4[T, U, V, W], T](f, func(t T) Future[Tuple4[T, U, V, W]] {
+		return Future_FlatMap[Tuple4[T, U, V, W], U](fu, func(u U) Future[Tuple4[T, U, V, W]] {
+			return Future_FlatMap[Tuple4[T, U, V, W], V](fv, func(v V) Future[Tuple4[T, U, V, W]] {
+				return Future_Map[Tuple4[T, U, V, W], W](fw, func(w W) Tuple4[T, U, V, W] {
 					return Tuple4[T, U, V, W]{V1: NewImmutable(t), V2: NewImmutable(u), V3: NewImmutable(v), V4: NewImmutable(w)}
 				})
 			})
@@ -795,11 +795,11 @@ func Future_Zip4[U any, V any, W any, T any](f Future[T], fu Future[U], fv Futur
 
 //line concurrent/future.gala:459
 func Future_Zip5[U any, V any, W any, X any, T any](f Future[T], fu Future[U], fv Future[V], fw Future[W], fx Future[X]) Future[Tuple5[T, U, V, W, X]] {
-	return Future_FlatMap[Tuple5[T, U, V, W, X]](f, func(t T) Future[Tuple5[T, U, V, W, X]] {
-		return Future_FlatMap[Tuple5[T, U, V, W, X]](fu, func(u U) Future[Tuple5[T, U, V, W, X]] {
-			return Future_FlatMap[Tuple5[T, U, V, W, X]](fv, func(v V) Future[Tuple5[T, U, V, W, X]] {
-				return Future_FlatMap[Tuple5[T, U, V, W, X]](fw, func(w W) Future[Tuple5[T, U, V, W, X]] {
-					return Future_Map[Tuple5[T, U, V, W, X]](fx, func(x X) Tuple5[T, U, V, W, X] {
+	return Future_FlatMap[Tuple5[T, U, V, W, X], T](f, func(t T) Future[Tuple5[T, U, V, W, X]] {
+		return Future_FlatMap[Tuple5[T, U, V, W, X], U](fu, func(u U) Future[Tuple5[T, U, V, W, X]] {
+			return Future_FlatMap[Tuple5[T, U, V, W, X], V](fv, func(v V) Future[Tuple5[T, U, V, W, X]] {
+				return Future_FlatMap[Tuple5[T, U, V, W, X], W](fw, func(w W) Future[Tuple5[T, U, V, W, X]] {
+					return Future_Map[Tuple5[T, U, V, W, X], X](fx, func(x X) Tuple5[T, U, V, W, X] {
 						return Tuple5[T, U, V, W, X]{V1: NewImmutable(t), V2: NewImmutable(u), V3: NewImmutable(v), V4: NewImmutable(w), V5: NewImmutable(x)}
 					})
 				})
@@ -810,12 +810,12 @@ func Future_Zip5[U any, V any, W any, X any, T any](f Future[T], fu Future[U], f
 
 //line concurrent/future.gala:466
 func Future_Zip6[U any, V any, W any, X any, Y any, T any](f Future[T], fu Future[U], fv Future[V], fw Future[W], fx Future[X], fy Future[Y]) Future[Tuple6[T, U, V, W, X, Y]] {
-	return Future_FlatMap[Tuple6[T, U, V, W, X, Y]](f, func(t T) Future[Tuple6[T, U, V, W, X, Y]] {
-		return Future_FlatMap[Tuple6[T, U, V, W, X, Y]](fu, func(u U) Future[Tuple6[T, U, V, W, X, Y]] {
-			return Future_FlatMap[Tuple6[T, U, V, W, X, Y]](fv, func(v V) Future[Tuple6[T, U, V, W, X, Y]] {
-				return Future_FlatMap[Tuple6[T, U, V, W, X, Y]](fw, func(w W) Future[Tuple6[T, U, V, W, X, Y]] {
-					return Future_FlatMap[Tuple6[T, U, V, W, X, Y]](fx, func(x X) Future[Tuple6[T, U, V, W, X, Y]] {
-						return Future_Map[Tuple6[T, U, V, W, X, Y]](fy, func(y Y) Tuple6[T, U, V, W, X, Y] {
+	return Future_FlatMap[Tuple6[T, U, V, W, X, Y], T](f, func(t T) Future[Tuple6[T, U, V, W, X, Y]] {
+		return Future_FlatMap[Tuple6[T, U, V, W, X, Y], U](fu, func(u U) Future[Tuple6[T, U, V, W, X, Y]] {
+			return Future_FlatMap[Tuple6[T, U, V, W, X, Y], V](fv, func(v V) Future[Tuple6[T, U, V, W, X, Y]] {
+				return Future_FlatMap[Tuple6[T, U, V, W, X, Y], W](fw, func(w W) Future[Tuple6[T, U, V, W, X, Y]] {
+					return Future_FlatMap[Tuple6[T, U, V, W, X, Y], X](fx, func(x X) Future[Tuple6[T, U, V, W, X, Y]] {
+						return Future_Map[Tuple6[T, U, V, W, X, Y], Y](fy, func(y Y) Tuple6[T, U, V, W, X, Y] {
 							return Tuple6[T, U, V, W, X, Y]{V1: NewImmutable(t), V2: NewImmutable(u), V3: NewImmutable(v), V4: NewImmutable(w), V5: NewImmutable(x), V6: NewImmutable(y)}
 						})
 					})
@@ -827,13 +827,13 @@ func Future_Zip6[U any, V any, W any, X any, Y any, T any](f Future[T], fu Futur
 
 //line concurrent/future.gala:474
 func Future_Zip7[U any, V any, W any, X any, Y any, Z any, T any](f Future[T], fu Future[U], fv Future[V], fw Future[W], fx Future[X], fy Future[Y], fz Future[Z]) Future[Tuple7[T, U, V, W, X, Y, Z]] {
-	return Future_FlatMap[Tuple7[T, U, V, W, X, Y, Z]](f, func(t T) Future[Tuple7[T, U, V, W, X, Y, Z]] {
-		return Future_FlatMap[Tuple7[T, U, V, W, X, Y, Z]](fu, func(u U) Future[Tuple7[T, U, V, W, X, Y, Z]] {
-			return Future_FlatMap[Tuple7[T, U, V, W, X, Y, Z]](fv, func(v V) Future[Tuple7[T, U, V, W, X, Y, Z]] {
-				return Future_FlatMap[Tuple7[T, U, V, W, X, Y, Z]](fw, func(w W) Future[Tuple7[T, U, V, W, X, Y, Z]] {
-					return Future_FlatMap[Tuple7[T, U, V, W, X, Y, Z]](fx, func(x X) Future[Tuple7[T, U, V, W, X, Y, Z]] {
-						return Future_FlatMap[Tuple7[T, U, V, W, X, Y, Z]](fy, func(y Y) Future[Tuple7[T, U, V, W, X, Y, Z]] {
-							return Future_Map[Tuple7[T, U, V, W, X, Y, Z]](fz, func(z Z) Tuple7[T, U, V, W, X, Y, Z] {
+	return Future_FlatMap[Tuple7[T, U, V, W, X, Y, Z], T](f, func(t T) Future[Tuple7[T, U, V, W, X, Y, Z]] {
+		return Future_FlatMap[Tuple7[T, U, V, W, X, Y, Z], U](fu, func(u U) Future[Tuple7[T, U, V, W, X, Y, Z]] {
+			return Future_FlatMap[Tuple7[T, U, V, W, X, Y, Z], V](fv, func(v V) Future[Tuple7[T, U, V, W, X, Y, Z]] {
+				return Future_FlatMap[Tuple7[T, U, V, W, X, Y, Z], W](fw, func(w W) Future[Tuple7[T, U, V, W, X, Y, Z]] {
+					return Future_FlatMap[Tuple7[T, U, V, W, X, Y, Z], X](fx, func(x X) Future[Tuple7[T, U, V, W, X, Y, Z]] {
+						return Future_FlatMap[Tuple7[T, U, V, W, X, Y, Z], Y](fy, func(y Y) Future[Tuple7[T, U, V, W, X, Y, Z]] {
+							return Future_Map[Tuple7[T, U, V, W, X, Y, Z], Z](fz, func(z Z) Tuple7[T, U, V, W, X, Y, Z] {
 								return Tuple7[T, U, V, W, X, Y, Z]{V1: NewImmutable(t), V2: NewImmutable(u), V3: NewImmutable(v), V4: NewImmutable(w), V5: NewImmutable(x), V6: NewImmutable(y), V7: NewImmutable(z)}
 							})
 						})
@@ -846,14 +846,14 @@ func Future_Zip7[U any, V any, W any, X any, Y any, Z any, T any](f Future[T], f
 
 //line concurrent/future.gala:483
 func Future_Zip8[U any, V any, W any, X any, Y any, Z any, P any, T any](f Future[T], fu Future[U], fv Future[V], fw Future[W], fx Future[X], fy Future[Y], fz Future[Z], fp Future[P]) Future[Tuple8[T, U, V, W, X, Y, Z, P]] {
-	return Future_FlatMap[Tuple8[T, U, V, W, X, Y, Z, P]](f, func(t T) Future[Tuple8[T, U, V, W, X, Y, Z, P]] {
-		return Future_FlatMap[Tuple8[T, U, V, W, X, Y, Z, P]](fu, func(u U) Future[Tuple8[T, U, V, W, X, Y, Z, P]] {
-			return Future_FlatMap[Tuple8[T, U, V, W, X, Y, Z, P]](fv, func(v V) Future[Tuple8[T, U, V, W, X, Y, Z, P]] {
-				return Future_FlatMap[Tuple8[T, U, V, W, X, Y, Z, P]](fw, func(w W) Future[Tuple8[T, U, V, W, X, Y, Z, P]] {
-					return Future_FlatMap[Tuple8[T, U, V, W, X, Y, Z, P]](fx, func(x X) Future[Tuple8[T, U, V, W, X, Y, Z, P]] {
-						return Future_FlatMap[Tuple8[T, U, V, W, X, Y, Z, P]](fy, func(y Y) Future[Tuple8[T, U, V, W, X, Y, Z, P]] {
-							return Future_FlatMap[Tuple8[T, U, V, W, X, Y, Z, P]](fz, func(z Z) Future[Tuple8[T, U, V, W, X, Y, Z, P]] {
-								return Future_Map[Tuple8[T, U, V, W, X, Y, Z, P]](fp, func(p P) Tuple8[T, U, V, W, X, Y, Z, P] {
+	return Future_FlatMap[Tuple8[T, U, V, W, X, Y, Z, P], T](f, func(t T) Future[Tuple8[T, U, V, W, X, Y, Z, P]] {
+		return Future_FlatMap[Tuple8[T, U, V, W, X, Y, Z, P], U](fu, func(u U) Future[Tuple8[T, U, V, W, X, Y, Z, P]] {
+			return Future_FlatMap[Tuple8[T, U, V, W, X, Y, Z, P], V](fv, func(v V) Future[Tuple8[T, U, V, W, X, Y, Z, P]] {
+				return Future_FlatMap[Tuple8[T, U, V, W, X, Y, Z, P], W](fw, func(w W) Future[Tuple8[T, U, V, W, X, Y, Z, P]] {
+					return Future_FlatMap[Tuple8[T, U, V, W, X, Y, Z, P], X](fx, func(x X) Future[Tuple8[T, U, V, W, X, Y, Z, P]] {
+						return Future_FlatMap[Tuple8[T, U, V, W, X, Y, Z, P], Y](fy, func(y Y) Future[Tuple8[T, U, V, W, X, Y, Z, P]] {
+							return Future_FlatMap[Tuple8[T, U, V, W, X, Y, Z, P], Z](fz, func(z Z) Future[Tuple8[T, U, V, W, X, Y, Z, P]] {
+								return Future_Map[Tuple8[T, U, V, W, X, Y, Z, P], P](fp, func(p P) Tuple8[T, U, V, W, X, Y, Z, P] {
 									return Tuple8[T, U, V, W, X, Y, Z, P]{V1: NewImmutable(t), V2: NewImmutable(u), V3: NewImmutable(v), V4: NewImmutable(w), V5: NewImmutable(x), V6: NewImmutable(y), V7: NewImmutable(z), V8: NewImmutable(p)}
 								})
 							})
@@ -867,15 +867,15 @@ func Future_Zip8[U any, V any, W any, X any, Y any, Z any, P any, T any](f Futur
 
 //line concurrent/future.gala:493
 func Future_Zip9[U any, V any, W any, X any, Y any, Z any, P any, Q any, T any](f Future[T], fu Future[U], fv Future[V], fw Future[W], fx Future[X], fy Future[Y], fz Future[Z], fp Future[P], fq Future[Q]) Future[Tuple9[T, U, V, W, X, Y, Z, P, Q]] {
-	return Future_FlatMap[Tuple9[T, U, V, W, X, Y, Z, P, Q]](f, func(t T) Future[Tuple9[T, U, V, W, X, Y, Z, P, Q]] {
-		return Future_FlatMap[Tuple9[T, U, V, W, X, Y, Z, P, Q]](fu, func(u U) Future[Tuple9[T, U, V, W, X, Y, Z, P, Q]] {
-			return Future_FlatMap[Tuple9[T, U, V, W, X, Y, Z, P, Q]](fv, func(v V) Future[Tuple9[T, U, V, W, X, Y, Z, P, Q]] {
-				return Future_FlatMap[Tuple9[T, U, V, W, X, Y, Z, P, Q]](fw, func(w W) Future[Tuple9[T, U, V, W, X, Y, Z, P, Q]] {
-					return Future_FlatMap[Tuple9[T, U, V, W, X, Y, Z, P, Q]](fx, func(x X) Future[Tuple9[T, U, V, W, X, Y, Z, P, Q]] {
-						return Future_FlatMap[Tuple9[T, U, V, W, X, Y, Z, P, Q]](fy, func(y Y) Future[Tuple9[T, U, V, W, X, Y, Z, P, Q]] {
-							return Future_FlatMap[Tuple9[T, U, V, W, X, Y, Z, P, Q]](fz, func(z Z) Future[Tuple9[T, U, V, W, X, Y, Z, P, Q]] {
-								return Future_FlatMap[Tuple9[T, U, V, W, X, Y, Z, P, Q]](fp, func(p P) Future[Tuple9[T, U, V, W, X, Y, Z, P, Q]] {
-									return Future_Map[Tuple9[T, U, V, W, X, Y, Z, P, Q]](fq, func(q Q) Tuple9[T, U, V, W, X, Y, Z, P, Q] {
+	return Future_FlatMap[Tuple9[T, U, V, W, X, Y, Z, P, Q], T](f, func(t T) Future[Tuple9[T, U, V, W, X, Y, Z, P, Q]] {
+		return Future_FlatMap[Tuple9[T, U, V, W, X, Y, Z, P, Q], U](fu, func(u U) Future[Tuple9[T, U, V, W, X, Y, Z, P, Q]] {
+			return Future_FlatMap[Tuple9[T, U, V, W, X, Y, Z, P, Q], V](fv, func(v V) Future[Tuple9[T, U, V, W, X, Y, Z, P, Q]] {
+				return Future_FlatMap[Tuple9[T, U, V, W, X, Y, Z, P, Q], W](fw, func(w W) Future[Tuple9[T, U, V, W, X, Y, Z, P, Q]] {
+					return Future_FlatMap[Tuple9[T, U, V, W, X, Y, Z, P, Q], X](fx, func(x X) Future[Tuple9[T, U, V, W, X, Y, Z, P, Q]] {
+						return Future_FlatMap[Tuple9[T, U, V, W, X, Y, Z, P, Q], Y](fy, func(y Y) Future[Tuple9[T, U, V, W, X, Y, Z, P, Q]] {
+							return Future_FlatMap[Tuple9[T, U, V, W, X, Y, Z, P, Q], Z](fz, func(z Z) Future[Tuple9[T, U, V, W, X, Y, Z, P, Q]] {
+								return Future_FlatMap[Tuple9[T, U, V, W, X, Y, Z, P, Q], P](fp, func(p P) Future[Tuple9[T, U, V, W, X, Y, Z, P, Q]] {
+									return Future_Map[Tuple9[T, U, V, W, X, Y, Z, P, Q], Q](fq, func(q Q) Tuple9[T, U, V, W, X, Y, Z, P, Q] {
 										return Tuple9[T, U, V, W, X, Y, Z, P, Q]{V1: NewImmutable(t), V2: NewImmutable(u), V3: NewImmutable(v), V4: NewImmutable(w), V5: NewImmutable(x), V6: NewImmutable(y), V7: NewImmutable(z), V8: NewImmutable(p), V9: NewImmutable(q)}
 									})
 								})
@@ -890,16 +890,16 @@ func Future_Zip9[U any, V any, W any, X any, Y any, Z any, P any, Q any, T any](
 
 //line concurrent/future.gala:504
 func Future_Zip10[U any, V any, W any, X any, Y any, Z any, P any, Q any, R any, T any](f Future[T], fu Future[U], fv Future[V], fw Future[W], fx Future[X], fy Future[Y], fz Future[Z], fp Future[P], fq Future[Q], fr Future[R]) Future[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]] {
-	return Future_FlatMap[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]](f, func(t T) Future[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]] {
-		return Future_FlatMap[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]](fu, func(u U) Future[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]] {
-			return Future_FlatMap[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]](fv, func(v V) Future[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]] {
-				return Future_FlatMap[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]](fw, func(w W) Future[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]] {
-					return Future_FlatMap[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]](fx, func(x X) Future[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]] {
-						return Future_FlatMap[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]](fy, func(y Y) Future[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]] {
-							return Future_FlatMap[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]](fz, func(z Z) Future[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]] {
-								return Future_FlatMap[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]](fp, func(p P) Future[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]] {
-									return Future_FlatMap[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]](fq, func(q Q) Future[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]] {
-										return Future_Map[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]](fr, func(r R) Tuple10[T, U, V, W, X, Y, Z, P, Q, R] {
+	return Future_FlatMap[Tuple10[T, U, V, W, X, Y, Z, P, Q, R], T](f, func(t T) Future[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]] {
+		return Future_FlatMap[Tuple10[T, U, V, W, X, Y, Z, P, Q, R], U](fu, func(u U) Future[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]] {
+			return Future_FlatMap[Tuple10[T, U, V, W, X, Y, Z, P, Q, R], V](fv, func(v V) Future[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]] {
+				return Future_FlatMap[Tuple10[T, U, V, W, X, Y, Z, P, Q, R], W](fw, func(w W) Future[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]] {
+					return Future_FlatMap[Tuple10[T, U, V, W, X, Y, Z, P, Q, R], X](fx, func(x X) Future[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]] {
+						return Future_FlatMap[Tuple10[T, U, V, W, X, Y, Z, P, Q, R], Y](fy, func(y Y) Future[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]] {
+							return Future_FlatMap[Tuple10[T, U, V, W, X, Y, Z, P, Q, R], Z](fz, func(z Z) Future[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]] {
+								return Future_FlatMap[Tuple10[T, U, V, W, X, Y, Z, P, Q, R], P](fp, func(p P) Future[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]] {
+									return Future_FlatMap[Tuple10[T, U, V, W, X, Y, Z, P, Q, R], Q](fq, func(q Q) Future[Tuple10[T, U, V, W, X, Y, Z, P, Q, R]] {
+										return Future_Map[Tuple10[T, U, V, W, X, Y, Z, P, Q, R], R](fr, func(r R) Tuple10[T, U, V, W, X, Y, Z, P, Q, R] {
 											return Tuple10[T, U, V, W, X, Y, Z, P, Q, R]{V1: NewImmutable(t), V2: NewImmutable(u), V3: NewImmutable(v), V4: NewImmutable(w), V5: NewImmutable(x), V6: NewImmutable(y), V7: NewImmutable(z), V8: NewImmutable(p), V9: NewImmutable(q), V10: NewImmutable(r)}
 										})
 									})
@@ -923,7 +923,7 @@ func (f Future[T]) Fallback(that Future[T]) Future[T] {
 
 //line concurrent/future.gala:525
 func (f Future[T]) AndThen(callback func(Try[T])) Future[T] {
-	return Future_derive[T](f, func(p Promise[T], r Try[T]) {
+	return Future_derive[T, T](f, func(p Promise[T], r Try[T]) {
 //line concurrent/future.gala:527
 		callback(r)
 //line concurrent/future.gala:528
@@ -1080,7 +1080,7 @@ func Race[T any](futures Array[Future[T]]) Future[T] {
 //line concurrent/future.gala:635
 func Traverse[T any, U any](items Array[T], fn func(T) Future[U]) Future[Array[U]] {
 //line concurrent/future.gala:636
-	var futures = NewImmutable(Array_Map[Future[U]](items, func(item T) Future[U] {
+	var futures = NewImmutable(Array_Map[Future[U], T](items, func(item T) Future[U] {
 		return fn(item)
 	}))
 //line concurrent/future.gala:637
@@ -1092,7 +1092,7 @@ func Fold[T any, U any](futures Array[Future[T]], zero U, op func(U, T) U) Futur
 //line concurrent/future.gala:642
 	return Future_Map[U, Array[T]](Sequence[T](futures), func(results Array[T]) U {
 //line concurrent/future.gala:643
-		return Array_FoldLeft[U](results, zero, op)
+		return Array_FoldLeft[U, T](results, zero, op)
 	})
 }
 
@@ -1111,7 +1111,7 @@ func ReduceLeft[T any](futures Array[Future[T]], op func(T, T) T) Future[T] {
 //line concurrent/future.gala:656
 	return Future_Map[T, Array[T]](Sequence[T](futures), func(results Array[T]) T {
 //line concurrent/future.gala:657
-		return Array_FoldLeft[T](results.Tail(), results.Head(), op)
+		return Array_FoldLeft[T, T](results.Tail(), results.Head(), op)
 	})
 }
 

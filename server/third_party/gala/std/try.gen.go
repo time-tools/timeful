@@ -350,13 +350,123 @@ func (s Void) Unapply(v any) bool {
 	return false
 }
 
-//line std/try.gala:201
-func FromError(err error) Try[Void] {
-//line std/try.gala:202
-	if err != nil {
 //line std/try.gala:203
+func FromError(err error) Try[Void] {
+//line std/try.gala:204
+	if err != nil {
+//line std/try.gala:205
 		return Failure[Void]{}.Apply(err)
 	}
-//line std/try.gala:205
+//line std/try.gala:207
 	return Success[Void]{}.Apply(Void{})
+}
+
+//line std/try.gala:217
+func GoTry[T any](value T, err error) Try[T] {
+//line std/try.gala:218
+	if err != nil {
+//line std/try.gala:219
+		return Failure[T]{}.Apply(err)
+	}
+//line std/try.gala:221
+	return Success[T]{}.Apply(value)
+}
+
+//line std/try.gala:227
+func GoTry2[A any, B any](a A, b B, err error) Try[Tuple[A, B]] {
+//line std/try.gala:228
+	if err != nil {
+//line std/try.gala:229
+		return Failure[Tuple[A, B]]{}.Apply(err)
+	}
+//line std/try.gala:231
+	return Success[Tuple[A, B]]{}.Apply(Tuple[A, B]{V1: NewImmutable(a), V2: NewImmutable(b)})
+}
+
+//line std/try.gala:237
+func GoTry3[A any, B any, C any](a A, b B, c C, err error) Try[Tuple3[A, B, C]] {
+//line std/try.gala:238
+	if err != nil {
+//line std/try.gala:239
+		return Failure[Tuple3[A, B, C]]{}.Apply(err)
+	}
+//line std/try.gala:241
+	return Success[Tuple3[A, B, C]]{}.Apply(Tuple3[A, B, C]{V1: NewImmutable(a), V2: NewImmutable(b), V3: NewImmutable(c)})
+}
+
+//line std/try.gala:247
+func GoTry4[A any, B any, C any, D any](a A, b B, c C, d D, err error) Try[Tuple4[A, B, C, D]] {
+//line std/try.gala:248
+	if err != nil {
+//line std/try.gala:249
+		return Failure[Tuple4[A, B, C, D]]{}.Apply(err)
+	}
+//line std/try.gala:251
+	return Success[Tuple4[A, B, C, D]]{}.Apply(Tuple4[A, B, C, D]{V1: NewImmutable(a), V2: NewImmutable(b), V3: NewImmutable(c), V4: NewImmutable(d)})
+}
+
+//line std/try.gala:257
+func GoTry5[A any, B any, C any, D any, E any](a A, b B, c C, d D, e E, err error) Try[Tuple5[A, B, C, D, E]] {
+//line std/try.gala:258
+	if err != nil {
+//line std/try.gala:259
+		return Failure[Tuple5[A, B, C, D, E]]{}.Apply(err)
+	}
+//line std/try.gala:261
+	return Success[Tuple5[A, B, C, D, E]]{}.Apply(Tuple5[A, B, C, D, E]{V1: NewImmutable(a), V2: NewImmutable(b), V3: NewImmutable(c), V4: NewImmutable(d), V5: NewImmutable(e)})
+}
+
+//line std/try.gala:267
+func GoTry6[A any, B any, C any, D any, E any, F any](a A, b B, c C, d D, e E, f F, err error) Try[Tuple6[A, B, C, D, E, F]] {
+//line std/try.gala:268
+	if err != nil {
+//line std/try.gala:269
+		return Failure[Tuple6[A, B, C, D, E, F]]{}.Apply(err)
+	}
+//line std/try.gala:271
+	return Success[Tuple6[A, B, C, D, E, F]]{}.Apply(Tuple6[A, B, C, D, E, F]{V1: NewImmutable(a), V2: NewImmutable(b), V3: NewImmutable(c), V4: NewImmutable(d), V5: NewImmutable(e), V6: NewImmutable(f)})
+}
+
+//line std/try.gala:277
+func GoTry7[A any, B any, C any, D any, E any, F any, G any](a A, b B, c C, d D, e E, f F, g G, err error) Try[Tuple7[A, B, C, D, E, F, G]] {
+//line std/try.gala:278
+	if err != nil {
+//line std/try.gala:279
+		return Failure[Tuple7[A, B, C, D, E, F, G]]{}.Apply(err)
+	}
+//line std/try.gala:281
+	return Success[Tuple7[A, B, C, D, E, F, G]]{}.Apply(Tuple7[A, B, C, D, E, F, G]{V1: NewImmutable(a), V2: NewImmutable(b), V3: NewImmutable(c), V4: NewImmutable(d), V5: NewImmutable(e), V6: NewImmutable(f), V7: NewImmutable(g)})
+}
+
+//line std/try.gala:287
+func GoTry8[A any, B any, C any, D any, E any, F any, G any, H any](a A, b B, c C, d D, e E, f F, g G, h H, err error) Try[Tuple8[A, B, C, D, E, F, G, H]] {
+//line std/try.gala:288
+	if err != nil {
+//line std/try.gala:289
+		return Failure[Tuple8[A, B, C, D, E, F, G, H]]{}.Apply(err)
+	}
+//line std/try.gala:291
+	return Success[Tuple8[A, B, C, D, E, F, G, H]]{}.Apply(Tuple8[A, B, C, D, E, F, G, H]{V1: NewImmutable(a), V2: NewImmutable(b), V3: NewImmutable(c), V4: NewImmutable(d), V5: NewImmutable(e), V6: NewImmutable(f), V7: NewImmutable(g), V8: NewImmutable(h)})
+}
+
+//line std/try.gala:297
+func GoTry9[A any, B any, C any, D any, E any, F any, G any, H any, I any](a A, b B, c C, d D, e E, f F, g G, h H, i I, err error) Try[Tuple9[A, B, C, D, E, F, G, H, I]] {
+//line std/try.gala:298
+	if err != nil {
+//line std/try.gala:299
+		return Failure[Tuple9[A, B, C, D, E, F, G, H, I]]{}.Apply(err)
+	}
+//line std/try.gala:301
+	return Success[Tuple9[A, B, C, D, E, F, G, H, I]]{}.Apply(Tuple9[A, B, C, D, E, F, G, H, I]{V1: NewImmutable(a), V2: NewImmutable(b), V3: NewImmutable(c), V4: NewImmutable(d), V5: NewImmutable(e), V6: NewImmutable(f), V7: NewImmutable(g), V8: NewImmutable(h), V9: NewImmutable(i)})
+}
+
+//line std/try.gala:307
+func GoTry10[A any, B any, C any, D any, E any, F any, G any, H any, I any, J any](a A, b B, c C, d D, e E, f F, g G, h H, i I, j J, err error) Try[Tuple10[A, B, C, D, E, F, G, H, I, J]] {
+//line std/try.gala:308
+	if err != nil {
+//line std/try.gala:309
+		return Failure[Tuple10[A, B, C, D, E, F, G, H, I, J]]{}.Apply(err)
+	}
+//line std/try.gala:311
+	return Success[Tuple10[A, B, C, D, E, F, G, H, I, J]]{}.Apply(Tuple10[A, B, C, D, E, F, G, H, I, J]{V1: NewImmutable(a), V2: NewImmutable(b), V3: NewImmutable(c), V4: NewImmutable(d), V5: NewImmutable(e), V6: NewImmutable(f), V7: NewImmutable(g), V8: NewImmutable(h), V9: NewImmutable(i), V10: NewImmutable(j)})
 }

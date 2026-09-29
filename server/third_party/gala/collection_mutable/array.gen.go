@@ -6,10 +6,9 @@ import "fmt"
 import (
 	"martianoff/gala/go_interop"
 	. "martianoff/gala/std"
-	"sort"
 )
 
-//line collection_mutable/array.gala:26
+//line collection_mutable/array.gala:25
 type Array[T any] struct {
 	elements []T
 }
@@ -29,936 +28,960 @@ func (_ Array[T]) IsArray() bool {
 	return true
 }
 
-//line collection_mutable/array.gala:31
+//line collection_mutable/array.gala:30
 func EmptyArray[T any]() *Array[T] {
-//line collection_mutable/array.gala:32
+//line collection_mutable/array.gala:31
 	var elems []T
-//line collection_mutable/array.gala:33
+//line collection_mutable/array.gala:32
 	return &Array[T]{elements: elems}
 }
 
-//line collection_mutable/array.gala:38
+//line collection_mutable/array.gala:37
 func ArrayOf[T any](elements ...T) *Array[T] {
+//line collection_mutable/array.gala:38
+	var elems = go_interop.SliceWithCapacity[T](len(elements))
 //line collection_mutable/array.gala:39
-	var elems = go_interop.SliceWithCapacity[T](len(elements))
+	for i := 0; i < len(elements); i++ {
 //line collection_mutable/array.gala:40
-	for i := 0; i < len(elements); i++ {
-//line collection_mutable/array.gala:41
 		elems = go_interop.SliceAppend(elems, elements[i])
 	}
-//line collection_mutable/array.gala:43
+//line collection_mutable/array.gala:42
 	return &Array[T]{elements: elems}
 }
 
-//line collection_mutable/array.gala:48
+//line collection_mutable/array.gala:47
 func ArrayFromSlice[T any](elements []T) *Array[T] {
-//line collection_mutable/array.gala:49
+//line collection_mutable/array.gala:48
 	var elems = go_interop.SliceWithCapacity[T](len(elements))
-//line collection_mutable/array.gala:50
+//line collection_mutable/array.gala:49
 	for i := 0; i < len(elements); i++ {
-//line collection_mutable/array.gala:51
+//line collection_mutable/array.gala:50
 		elems = go_interop.SliceAppend(elems, elements[i])
 	}
-//line collection_mutable/array.gala:53
+//line collection_mutable/array.gala:52
 	return &Array[T]{elements: elems}
 }
 
-//line collection_mutable/array.gala:58
+//line collection_mutable/array.gala:57
 func ArrayWithCapacity[T any](capacity int) *Array[T] {
-//line collection_mutable/array.gala:59
+//line collection_mutable/array.gala:58
 	var elems = go_interop.SliceWithCapacity[T](capacity)
-//line collection_mutable/array.gala:60
+//line collection_mutable/array.gala:59
 	return &Array[T]{elements: elems}
 }
 
-//line collection_mutable/array.gala:66
+//line collection_mutable/array.gala:65
 func ArrayTabulate[T any](n int, f func(int) T) *Array[T] {
-//line collection_mutable/array.gala:67
+//line collection_mutable/array.gala:66
 	var elems = go_interop.SliceWithCapacity[T](n)
-//line collection_mutable/array.gala:68
+//line collection_mutable/array.gala:67
 	for i := 0; i < n; i++ {
-//line collection_mutable/array.gala:69
+//line collection_mutable/array.gala:68
 		elems = go_interop.SliceAppend(elems, f(i))
 	}
-//line collection_mutable/array.gala:71
+//line collection_mutable/array.gala:70
 	return &Array[T]{elements: elems}
 }
 
-//line collection_mutable/array.gala:76
+//line collection_mutable/array.gala:75
 func ArrayFill[T any](n int, value T) *Array[T] {
-//line collection_mutable/array.gala:77
+//line collection_mutable/array.gala:76
 	var elems = go_interop.SliceWithCapacity[T](n)
-//line collection_mutable/array.gala:78
+//line collection_mutable/array.gala:77
 	for i := 0; i < n; i++ {
-//line collection_mutable/array.gala:79
+//line collection_mutable/array.gala:78
 		elems = go_interop.SliceAppend(elems, value)
 	}
-//line collection_mutable/array.gala:81
+//line collection_mutable/array.gala:80
 	return &Array[T]{elements: elems}
 }
 
-//line collection_mutable/array.gala:87
+//line collection_mutable/array.gala:86
 func (a *Array[T]) IsEmpty() bool {
 	return len(a.elements) == 0
 }
 
-//line collection_mutable/array.gala:90
+//line collection_mutable/array.gala:89
 func (a *Array[T]) NonEmpty() bool {
 	return len(a.elements) > 0
 }
 
-//line collection_mutable/array.gala:93
+//line collection_mutable/array.gala:92
 func (a *Array[T]) Length() int {
 	return len(a.elements)
 }
 
-//line collection_mutable/array.gala:96
+//line collection_mutable/array.gala:95
 func (a *Array[T]) Size() int {
 	return len(a.elements)
 }
 
-//line collection_mutable/array.gala:99
+//line collection_mutable/array.gala:98
 func (a *Array[T]) Capacity() int {
 	return go_interop.SliceCap(a.elements)
 }
 
-//line collection_mutable/array.gala:105
+//line collection_mutable/array.gala:104
 func (a *Array[T]) Get(index int) T {
-//line collection_mutable/array.gala:106
+//line collection_mutable/array.gala:105
 	if (index < 0) || (index >= len(a.elements)) {
-//line collection_mutable/array.gala:107
+//line collection_mutable/array.gala:106
 		panic(fmt.Sprintf("Array.Get: index %d out of bounds [0, %d)", index, len(a.elements)))
 	}
-//line collection_mutable/array.gala:109
+//line collection_mutable/array.gala:108
 	return a.elements[index]
 }
 
-//line collection_mutable/array.gala:113
+//line collection_mutable/array.gala:112
 func (a *Array[T]) GetOption(index int) Option[T] {
-//line collection_mutable/array.gala:114
+//line collection_mutable/array.gala:113
 	if (index < 0) || (index >= len(a.elements)) {
-//line collection_mutable/array.gala:115
+//line collection_mutable/array.gala:114
 		return None[T]{}.Apply()
 	}
-//line collection_mutable/array.gala:117
+//line collection_mutable/array.gala:116
 	return Some[T]{}.Apply(a.elements[index])
 }
 
-//line collection_mutable/array.gala:122
+//line collection_mutable/array.gala:121
 func (a *Array[T]) Head() T {
-//line collection_mutable/array.gala:123
+//line collection_mutable/array.gala:122
 	if len(a.elements) == 0 {
-//line collection_mutable/array.gala:124
+//line collection_mutable/array.gala:123
 		panic("Array.Head on empty array")
 	}
-//line collection_mutable/array.gala:126
+//line collection_mutable/array.gala:125
 	return a.elements[0]
 }
 
-//line collection_mutable/array.gala:130
+//line collection_mutable/array.gala:129
 func (a *Array[T]) HeadOption() Option[T] {
-//line collection_mutable/array.gala:131
+//line collection_mutable/array.gala:130
 	if len(a.elements) == 0 {
-//line collection_mutable/array.gala:132
+//line collection_mutable/array.gala:131
 		return None[T]{}.Apply()
 	}
-//line collection_mutable/array.gala:134
+//line collection_mutable/array.gala:133
 	return Some[T]{}.Apply(a.elements[0])
 }
 
-//line collection_mutable/array.gala:139
+//line collection_mutable/array.gala:138
 func (a *Array[T]) Last() T {
-//line collection_mutable/array.gala:140
+//line collection_mutable/array.gala:139
 	if len(a.elements) == 0 {
-//line collection_mutable/array.gala:141
+//line collection_mutable/array.gala:140
 		panic("Array.Last on empty array")
 	}
-//line collection_mutable/array.gala:143
+//line collection_mutable/array.gala:142
 	return a.elements[len(a.elements)-1]
 }
 
-//line collection_mutable/array.gala:147
+//line collection_mutable/array.gala:146
 func (a *Array[T]) LastOption() Option[T] {
-//line collection_mutable/array.gala:148
+//line collection_mutable/array.gala:147
 	if len(a.elements) == 0 {
-//line collection_mutable/array.gala:149
+//line collection_mutable/array.gala:148
 		return None[T]{}.Apply()
 	}
-//line collection_mutable/array.gala:151
+//line collection_mutable/array.gala:150
 	return Some[T]{}.Apply(a.elements[len(a.elements)-1])
 }
 
-//line collection_mutable/array.gala:158
+//line collection_mutable/array.gala:157
 func (a *Array[T]) Set(index int, value T) {
-//line collection_mutable/array.gala:159
+//line collection_mutable/array.gala:158
 	if (index < 0) || (index >= len(a.elements)) {
-//line collection_mutable/array.gala:160
+//line collection_mutable/array.gala:159
 		panic(fmt.Sprintf("Array.Set: index %d out of bounds [0, %d)", index, len(a.elements)))
 	}
-//line collection_mutable/array.gala:162
+//line collection_mutable/array.gala:161
 	a.elements[index] = value
 }
 
-//line collection_mutable/array.gala:166
+//line collection_mutable/array.gala:165
 func (a *Array[T]) Append(value T) {
-//line collection_mutable/array.gala:167
+//line collection_mutable/array.gala:166
 	a.elements = go_interop.SliceAppend(a.elements, value)
 }
 
-//line collection_mutable/array.gala:171
+//line collection_mutable/array.gala:170
 func (a *Array[T]) AppendAll(values []T) {
-//line collection_mutable/array.gala:172
+//line collection_mutable/array.gala:171
 	a.elements = go_interop.SliceAppendAll(a.elements, values)
 }
 
-//line collection_mutable/array.gala:176
+//line collection_mutable/array.gala:175
 func (a *Array[T]) AppendFrom(other *Array[T]) {
-//line collection_mutable/array.gala:177
+//line collection_mutable/array.gala:176
 	a.elements = go_interop.SliceAppendAll(a.elements, other.elements)
 }
 
-//line collection_mutable/array.gala:182
+//line collection_mutable/array.gala:181
 func (a *Array[T]) Prepend(value T) {
-//line collection_mutable/array.gala:183
+//line collection_mutable/array.gala:182
 	a.elements = go_interop.SlicePrepend(a.elements, value)
 }
 
-//line collection_mutable/array.gala:188
+//line collection_mutable/array.gala:187
 func (a *Array[T]) PrependAll(values []T) {
-//line collection_mutable/array.gala:189
+//line collection_mutable/array.gala:188
 	a.elements = go_interop.SlicePrependAll(a.elements, values)
 }
 
-//line collection_mutable/array.gala:194
+//line collection_mutable/array.gala:193
 func (a *Array[T]) Insert(index int, value T) {
-//line collection_mutable/array.gala:195
+//line collection_mutable/array.gala:194
 	if (index < 0) || (index > len(a.elements)) {
-//line collection_mutable/array.gala:196
+//line collection_mutable/array.gala:195
 		panic(fmt.Sprintf("Array.Insert: index %d out of bounds [0, %d]", index, len(a.elements)))
 	}
-//line collection_mutable/array.gala:198
+//line collection_mutable/array.gala:197
 	a.elements = go_interop.SliceInsert(a.elements, index, value)
 }
 
-//line collection_mutable/array.gala:203
+//line collection_mutable/array.gala:202
 func (a *Array[T]) RemoveAt(index int) {
-//line collection_mutable/array.gala:204
+//line collection_mutable/array.gala:203
 	if (index < 0) || (index >= len(a.elements)) {
-//line collection_mutable/array.gala:205
+//line collection_mutable/array.gala:204
 		panic(fmt.Sprintf("Array.RemoveAt: index %d out of bounds [0, %d)", index, len(a.elements)))
 	}
-//line collection_mutable/array.gala:207
+//line collection_mutable/array.gala:206
 	a.elements = go_interop.SliceRemoveAt(a.elements, index)
 }
 
-//line collection_mutable/array.gala:213
+//line collection_mutable/array.gala:212
 func (a *Array[T]) RemoveFirst() T {
-//line collection_mutable/array.gala:214
+//line collection_mutable/array.gala:213
 	if len(a.elements) == 0 {
-//line collection_mutable/array.gala:215
+//line collection_mutable/array.gala:214
 		panic("Array.RemoveFirst on empty array")
 	}
-//line collection_mutable/array.gala:217
+//line collection_mutable/array.gala:216
 	var removed = a.elements[0]
-//line collection_mutable/array.gala:218
+//line collection_mutable/array.gala:217
 	a.elements = go_interop.SliceDrop(a.elements, 1)
-//line collection_mutable/array.gala:219
+//line collection_mutable/array.gala:218
 	return removed
 }
 
-//line collection_mutable/array.gala:225
+//line collection_mutable/array.gala:224
 func (a *Array[T]) RemoveLast() T {
-//line collection_mutable/array.gala:226
+//line collection_mutable/array.gala:225
 	if len(a.elements) == 0 {
-//line collection_mutable/array.gala:227
+//line collection_mutable/array.gala:226
 		panic("Array.RemoveLast on empty array")
 	}
-//line collection_mutable/array.gala:229
+//line collection_mutable/array.gala:228
 	var lastIdx = len(a.elements) - 1
-//line collection_mutable/array.gala:230
+//line collection_mutable/array.gala:229
 	var removed = a.elements[lastIdx]
-//line collection_mutable/array.gala:231
+//line collection_mutable/array.gala:230
 	a.elements = go_interop.SliceTake(a.elements, lastIdx)
-//line collection_mutable/array.gala:232
+//line collection_mutable/array.gala:231
 	return removed
 }
 
-//line collection_mutable/array.gala:236
+//line collection_mutable/array.gala:235
 func (a *Array[T]) Clear() {
-//line collection_mutable/array.gala:237
+//line collection_mutable/array.gala:236
 	var empty []T
-//line collection_mutable/array.gala:238
+//line collection_mutable/array.gala:237
 	a.elements = empty
 }
 
-//line collection_mutable/array.gala:243
+//line collection_mutable/array.gala:242
 func (a *Array[T]) EnsureCapacity(minCapacity int) {
 }
 
-//line collection_mutable/array.gala:247
+//line collection_mutable/array.gala:246
 func (a *Array[T]) Reverse() {
-//line collection_mutable/array.gala:248
+//line collection_mutable/array.gala:247
 	var n = len(a.elements)
-//line collection_mutable/array.gala:249
+//line collection_mutable/array.gala:248
 	for i := 0; i < n/2; i++ {
-//line collection_mutable/array.gala:250
+//line collection_mutable/array.gala:249
 		var temp = a.elements[i]
-//line collection_mutable/array.gala:251
+//line collection_mutable/array.gala:250
 		a.elements[i] = a.elements[n-1-i]
-//line collection_mutable/array.gala:252
+//line collection_mutable/array.gala:251
 		a.elements[n-1-i] = temp
 	}
 }
 
-//line collection_mutable/array.gala:259
+//line collection_mutable/array.gala:258
 func (a *Array[T]) Contains(elem T) bool {
-//line collection_mutable/array.gala:260
+//line collection_mutable/array.gala:259
 	for i := 0; i < len(a.elements); i++ {
-//line collection_mutable/array.gala:261
+//line collection_mutable/array.gala:260
 		if Equal(a.elements[i], elem) {
-//line collection_mutable/array.gala:262
+//line collection_mutable/array.gala:261
 			return true
 		}
 	}
-//line collection_mutable/array.gala:265
+//line collection_mutable/array.gala:264
 	return false
 }
 
-//line collection_mutable/array.gala:269
+//line collection_mutable/array.gala:268
 func (a *Array[T]) IndexOf(elem T) int {
-//line collection_mutable/array.gala:270
+//line collection_mutable/array.gala:269
 	for i := 0; i < len(a.elements); i++ {
+//line collection_mutable/array.gala:270
+		if Equal(a.elements[i], elem) {
 //line collection_mutable/array.gala:271
-		if Equal(a.elements[i], elem) {
-//line collection_mutable/array.gala:272
 			return i
 		}
 	}
-//line collection_mutable/array.gala:275
+//line collection_mutable/array.gala:274
 	return -1
 }
 
-//line collection_mutable/array.gala:279
+//line collection_mutable/array.gala:278
 func (a *Array[T]) LastIndexOf(elem T) int {
-//line collection_mutable/array.gala:280
+//line collection_mutable/array.gala:279
 	for i := len(a.elements) - 1; i >= 0; i-- {
-//line collection_mutable/array.gala:281
+//line collection_mutable/array.gala:280
 		if Equal(a.elements[i], elem) {
-//line collection_mutable/array.gala:282
+//line collection_mutable/array.gala:281
 			return i
 		}
 	}
-//line collection_mutable/array.gala:285
+//line collection_mutable/array.gala:284
 	return -1
 }
 
-//line collection_mutable/array.gala:291
+//line collection_mutable/array.gala:290
 func (a *Array[T]) Take(n int) *Array[T] {
+//line collection_mutable/array.gala:291
+	if n <= 0 {
 //line collection_mutable/array.gala:292
-	if n <= 0 {
-//line collection_mutable/array.gala:293
 		return EmptyArray[T]()
 	}
+//line collection_mutable/array.gala:294
+	if n >= len(a.elements) {
 //line collection_mutable/array.gala:295
-	if n >= len(a.elements) {
-//line collection_mutable/array.gala:296
 		return a.Clone()
 	}
-//line collection_mutable/array.gala:298
+//line collection_mutable/array.gala:297
 	var elems = go_interop.SliceWithCapacity[T](n)
-//line collection_mutable/array.gala:299
+//line collection_mutable/array.gala:298
 	for i := 0; i < n; i++ {
-//line collection_mutable/array.gala:300
+//line collection_mutable/array.gala:299
 		elems = go_interop.SliceAppend(elems, a.elements[i])
 	}
-//line collection_mutable/array.gala:302
+//line collection_mutable/array.gala:301
 	return &Array[T]{elements: elems}
 }
 
-//line collection_mutable/array.gala:306
+//line collection_mutable/array.gala:305
 func (a *Array[T]) Drop(n int) *Array[T] {
-//line collection_mutable/array.gala:307
+//line collection_mutable/array.gala:306
 	if n <= 0 {
-//line collection_mutable/array.gala:308
+//line collection_mutable/array.gala:307
 		return a.Clone()
 	}
-//line collection_mutable/array.gala:310
+//line collection_mutable/array.gala:309
 	if n >= len(a.elements) {
-//line collection_mutable/array.gala:311
+//line collection_mutable/array.gala:310
 		return EmptyArray[T]()
 	}
-//line collection_mutable/array.gala:313
+//line collection_mutable/array.gala:312
 	var size = len(a.elements) - n
-//line collection_mutable/array.gala:314
+//line collection_mutable/array.gala:313
 	var elems = go_interop.SliceWithCapacity[T](size)
-//line collection_mutable/array.gala:315
+//line collection_mutable/array.gala:314
 	for i := n; i < len(a.elements); i++ {
-//line collection_mutable/array.gala:316
+//line collection_mutable/array.gala:315
 		elems = go_interop.SliceAppend(elems, a.elements[i])
 	}
-//line collection_mutable/array.gala:318
+//line collection_mutable/array.gala:317
 	return &Array[T]{elements: elems}
 }
 
-//line collection_mutable/array.gala:322
+//line collection_mutable/array.gala:321
 func (a *Array[T]) Slice(start int, end int) *Array[T] {
-//line collection_mutable/array.gala:323
+//line collection_mutable/array.gala:322
 	if start < 0 {
-//line collection_mutable/array.gala:324
+//line collection_mutable/array.gala:323
 		start = 0
 	}
-//line collection_mutable/array.gala:326
+//line collection_mutable/array.gala:325
 	if end > len(a.elements) {
-//line collection_mutable/array.gala:327
+//line collection_mutable/array.gala:326
 		end = len(a.elements)
 	}
-//line collection_mutable/array.gala:329
+//line collection_mutable/array.gala:328
 	if start >= end {
-//line collection_mutable/array.gala:330
+//line collection_mutable/array.gala:329
 		return EmptyArray[T]()
 	}
-//line collection_mutable/array.gala:332
+//line collection_mutable/array.gala:331
 	var size = end - start
-//line collection_mutable/array.gala:333
+//line collection_mutable/array.gala:332
 	var elems = go_interop.SliceWithCapacity[T](size)
-//line collection_mutable/array.gala:334
+//line collection_mutable/array.gala:333
 	for i := start; i < end; i++ {
-//line collection_mutable/array.gala:335
+//line collection_mutable/array.gala:334
 		elems = go_interop.SliceAppend(elems, a.elements[i])
 	}
-//line collection_mutable/array.gala:337
+//line collection_mutable/array.gala:336
 	return &Array[T]{elements: elems}
 }
 
-//line collection_mutable/array.gala:341
+//line collection_mutable/array.gala:340
 func (a *Array[T]) Clone() *Array[T] {
-//line collection_mutable/array.gala:342
+//line collection_mutable/array.gala:341
 	var elems = go_interop.SliceWithCapacity[T](len(a.elements))
-//line collection_mutable/array.gala:343
+//line collection_mutable/array.gala:342
 	for i := 0; i < len(a.elements); i++ {
-//line collection_mutable/array.gala:344
+//line collection_mutable/array.gala:343
 		elems = go_interop.SliceAppend(elems, a.elements[i])
 	}
-//line collection_mutable/array.gala:346
+//line collection_mutable/array.gala:345
 	return &Array[T]{elements: elems}
 }
 
-//line collection_mutable/array.gala:350
+//line collection_mutable/array.gala:349
 func (a *Array[T]) Tail() *Array[T] {
-//line collection_mutable/array.gala:351
+//line collection_mutable/array.gala:350
 	if len(a.elements) == 0 {
-//line collection_mutable/array.gala:352
+//line collection_mutable/array.gala:351
 		panic("Array.Tail on empty array")
 	}
-//line collection_mutable/array.gala:354
+//line collection_mutable/array.gala:353
 	return a.Drop(1)
 }
 
-//line collection_mutable/array.gala:358
+//line collection_mutable/array.gala:357
 func (a *Array[T]) Init() *Array[T] {
-//line collection_mutable/array.gala:359
+//line collection_mutable/array.gala:358
 	if len(a.elements) == 0 {
-//line collection_mutable/array.gala:360
+//line collection_mutable/array.gala:359
 		panic("Array.Init on empty array")
 	}
-//line collection_mutable/array.gala:362
+//line collection_mutable/array.gala:361
 	return a.Take(len(a.elements) - 1)
 }
 
-//line collection_mutable/array.gala:366
+//line collection_mutable/array.gala:365
 func (a *Array[T]) Reversed() *Array[T] {
-//line collection_mutable/array.gala:367
+//line collection_mutable/array.gala:366
 	var result = a.Clone()
-//line collection_mutable/array.gala:368
+//line collection_mutable/array.gala:367
 	result.Reverse()
-//line collection_mutable/array.gala:369
+//line collection_mutable/array.gala:368
 	return result
 }
 
-//line collection_mutable/array.gala:375
+//line collection_mutable/array.gala:374
 func Array_Map[U any, T any](a *Array[T], f func(T) U) *Array[U] {
-//line collection_mutable/array.gala:376
+//line collection_mutable/array.gala:375
 	var elems = go_interop.SliceWithCapacity[U](len(a.elements))
-//line collection_mutable/array.gala:377
+//line collection_mutable/array.gala:376
 	for i := 0; i < len(a.elements); i++ {
-//line collection_mutable/array.gala:378
+//line collection_mutable/array.gala:377
 		elems = go_interop.SliceAppend(elems, f(a.elements[i]))
 	}
-//line collection_mutable/array.gala:380
+//line collection_mutable/array.gala:379
 	return &Array[U]{elements: elems}
 }
 
-//line collection_mutable/array.gala:384
+//line collection_mutable/array.gala:383
 func Array_FlatMap[U any, T any](a *Array[T], f func(T) *Array[U]) *Array[U] {
-//line collection_mutable/array.gala:385
+//line collection_mutable/array.gala:384
 	var result = EmptyArray[U]()
-//line collection_mutable/array.gala:386
+//line collection_mutable/array.gala:385
 	for i := 0; i < len(a.elements); i++ {
-//line collection_mutable/array.gala:387
+//line collection_mutable/array.gala:386
 		var inner = f(a.elements[i])
-//line collection_mutable/array.gala:388
+//line collection_mutable/array.gala:387
 		result.AppendFrom(inner)
 	}
-//line collection_mutable/array.gala:390
+//line collection_mutable/array.gala:389
 	return result
 }
 
-//line collection_mutable/array.gala:394
+//line collection_mutable/array.gala:393
 func Array_Collect[U any, T any](a *Array[T], pf func(T) Option[U]) *Array[U] {
-//line collection_mutable/array.gala:395
+//line collection_mutable/array.gala:394
 	var result = EmptyArray[U]()
-//line collection_mutable/array.gala:396
+//line collection_mutable/array.gala:395
 	for i := 0; i < len(a.elements); i++ {
-//line collection_mutable/array.gala:397
+//line collection_mutable/array.gala:396
 		var opt = NewImmutable(pf(a.elements[i]))
-//line collection_mutable/array.gala:398
+//line collection_mutable/array.gala:397
 		if opt.Get().IsDefined() {
-//line collection_mutable/array.gala:399
+//line collection_mutable/array.gala:398
 			result.Append(opt.Get().Get())
 		}
 	}
-//line collection_mutable/array.gala:402
+//line collection_mutable/array.gala:401
 	return result
 }
 
-//line collection_mutable/array.gala:406
+//line collection_mutable/array.gala:405
 func (a *Array[T]) Filter(p func(T) bool) *Array[T] {
-//line collection_mutable/array.gala:407
+//line collection_mutable/array.gala:406
 	var result = EmptyArray[T]()
-//line collection_mutable/array.gala:408
+//line collection_mutable/array.gala:407
 	for i := 0; i < len(a.elements); i++ {
-//line collection_mutable/array.gala:409
+//line collection_mutable/array.gala:408
 		if p(a.elements[i]) {
-//line collection_mutable/array.gala:410
+//line collection_mutable/array.gala:409
 			result.Append(a.elements[i])
 		}
 	}
-//line collection_mutable/array.gala:413
+//line collection_mutable/array.gala:412
 	return result
 }
 
-//line collection_mutable/array.gala:417
+//line collection_mutable/array.gala:416
 func (a *Array[T]) FilterNot(p func(T) bool) *Array[T] {
 	return a.Filter(func(elem T) bool {
 		return !p(elem)
 	})
 }
 
-//line collection_mutable/array.gala:420
+//line collection_mutable/array.gala:419
 func (a *Array[T]) Partition(p func(T) bool) Tuple[*Array[T], *Array[T]] {
-//line collection_mutable/array.gala:421
+//line collection_mutable/array.gala:420
 	var left = NewImmutable(a.Filter(p))
-//line collection_mutable/array.gala:422
+//line collection_mutable/array.gala:421
 	var right = NewImmutable(a.FilterNot(p))
-//line collection_mutable/array.gala:423
+//line collection_mutable/array.gala:422
 	return Tuple[*Array[T], *Array[T]]{V1: NewImmutable(left.Get()), V2: NewImmutable(right.Get())}
 }
 
-//line collection_mutable/array.gala:427
+//line collection_mutable/array.gala:426
 func (a *Array[T]) TakeWhile(p func(T) bool) *Array[T] {
-//line collection_mutable/array.gala:428
+//line collection_mutable/array.gala:427
 	var result = EmptyArray[T]()
-//line collection_mutable/array.gala:429
+//line collection_mutable/array.gala:428
 	for i := 0; i < len(a.elements); i++ {
-//line collection_mutable/array.gala:430
+//line collection_mutable/array.gala:429
 		if !p(a.elements[i]) {
-//line collection_mutable/array.gala:431
+//line collection_mutable/array.gala:430
 			return result
 		}
-//line collection_mutable/array.gala:433
+//line collection_mutable/array.gala:432
 		result.Append(a.elements[i])
 	}
-//line collection_mutable/array.gala:435
+//line collection_mutable/array.gala:434
 	return result
 }
 
-//line collection_mutable/array.gala:439
+//line collection_mutable/array.gala:438
 func (a *Array[T]) DropWhile(p func(T) bool) *Array[T] {
-//line collection_mutable/array.gala:440
+//line collection_mutable/array.gala:439
 	var start = 0
-//line collection_mutable/array.gala:441
+//line collection_mutable/array.gala:440
 	for start < len(a.elements) && p(a.elements[start]) {
-//line collection_mutable/array.gala:442
+//line collection_mutable/array.gala:441
 		start++
 	}
-//line collection_mutable/array.gala:444
+//line collection_mutable/array.gala:443
 	return a.Drop(start)
 }
 
-//line collection_mutable/array.gala:450
+//line collection_mutable/array.gala:449
 func Array_FoldLeft[U any, T any](a *Array[T], initial U, f func(U, T) U) U {
-//line collection_mutable/array.gala:451
+//line collection_mutable/array.gala:450
 	var acc = initial
-//line collection_mutable/array.gala:452
+//line collection_mutable/array.gala:451
 	for i := 0; i < len(a.elements); i++ {
-//line collection_mutable/array.gala:453
+//line collection_mutable/array.gala:452
 		acc = f(acc, a.elements[i])
 	}
-//line collection_mutable/array.gala:455
+//line collection_mutable/array.gala:454
 	return acc
 }
 
-//line collection_mutable/array.gala:459
+//line collection_mutable/array.gala:458
 func Array_FoldRight[U any, T any](a *Array[T], initial U, f func(T, U) U) U {
-//line collection_mutable/array.gala:460
+//line collection_mutable/array.gala:459
 	var acc = initial
-//line collection_mutable/array.gala:461
+//line collection_mutable/array.gala:460
 	for i := len(a.elements) - 1; i >= 0; i-- {
-//line collection_mutable/array.gala:462
+//line collection_mutable/array.gala:461
 		acc = f(a.elements[i], acc)
 	}
-//line collection_mutable/array.gala:464
+//line collection_mutable/array.gala:463
 	return acc
 }
 
-//line collection_mutable/array.gala:469
+//line collection_mutable/array.gala:468
 func (a *Array[T]) Reduce(f func(T, T) T) T {
-//line collection_mutable/array.gala:470
+//line collection_mutable/array.gala:469
 	if len(a.elements) == 0 {
-//line collection_mutable/array.gala:471
+//line collection_mutable/array.gala:470
 		panic("Array.Reduce on empty array")
 	}
-//line collection_mutable/array.gala:473
+//line collection_mutable/array.gala:472
 	var acc = a.elements[0]
-//line collection_mutable/array.gala:474
+//line collection_mutable/array.gala:473
 	for i := 1; i < len(a.elements); i++ {
-//line collection_mutable/array.gala:475
+//line collection_mutable/array.gala:474
 		acc = f(acc, a.elements[i])
 	}
-//line collection_mutable/array.gala:477
+//line collection_mutable/array.gala:476
 	return acc
 }
 
-//line collection_mutable/array.gala:481
+//line collection_mutable/array.gala:480
 func (a *Array[T]) ReduceOption(f func(T, T) T) Option[T] {
-//line collection_mutable/array.gala:482
+//line collection_mutable/array.gala:481
 	if len(a.elements) == 0 {
-//line collection_mutable/array.gala:483
+//line collection_mutable/array.gala:482
 		return None[T]{}.Apply()
 	}
-//line collection_mutable/array.gala:485
+//line collection_mutable/array.gala:484
 	return Some[T]{}.Apply(a.Reduce(f))
 }
 
-//line collection_mutable/array.gala:491
+//line collection_mutable/array.gala:490
 func (a *Array[T]) ForEach(f func(T)) {
-//line collection_mutable/array.gala:492
+//line collection_mutable/array.gala:491
 	for i := 0; i < len(a.elements); i++ {
-//line collection_mutable/array.gala:493
+//line collection_mutable/array.gala:492
 		f(a.elements[i])
 	}
 }
 
-//line collection_mutable/array.gala:498
+//line collection_mutable/array.gala:497
 func (a *Array[T]) Exists(p func(T) bool) bool {
-//line collection_mutable/array.gala:499
+//line collection_mutable/array.gala:498
 	for i := 0; i < len(a.elements); i++ {
-//line collection_mutable/array.gala:500
+//line collection_mutable/array.gala:499
 		if p(a.elements[i]) {
-//line collection_mutable/array.gala:501
+//line collection_mutable/array.gala:500
 			return true
 		}
 	}
-//line collection_mutable/array.gala:504
+//line collection_mutable/array.gala:503
 	return false
 }
 
-//line collection_mutable/array.gala:508
+//line collection_mutable/array.gala:507
 func (a *Array[T]) ForAll(p func(T) bool) bool {
-//line collection_mutable/array.gala:509
+//line collection_mutable/array.gala:508
 	for i := 0; i < len(a.elements); i++ {
-//line collection_mutable/array.gala:510
+//line collection_mutable/array.gala:509
 		if !p(a.elements[i]) {
-//line collection_mutable/array.gala:511
+//line collection_mutable/array.gala:510
 			return false
 		}
 	}
-//line collection_mutable/array.gala:514
+//line collection_mutable/array.gala:513
 	return true
 }
 
-//line collection_mutable/array.gala:518
+//line collection_mutable/array.gala:517
 func (a *Array[T]) Find(p func(T) bool) Option[T] {
-//line collection_mutable/array.gala:519
+//line collection_mutable/array.gala:518
 	for i := 0; i < len(a.elements); i++ {
+//line collection_mutable/array.gala:519
+		if p(a.elements[i]) {
 //line collection_mutable/array.gala:520
-		if p(a.elements[i]) {
-//line collection_mutable/array.gala:521
 			return Some[T]{}.Apply(a.elements[i])
 		}
 	}
-//line collection_mutable/array.gala:524
+//line collection_mutable/array.gala:523
 	return None[T]{}.Apply()
 }
 
-//line collection_mutable/array.gala:528
+//line collection_mutable/array.gala:527
 func (a *Array[T]) FindLast(p func(T) bool) Option[T] {
-//line collection_mutable/array.gala:529
+//line collection_mutable/array.gala:528
 	for i := len(a.elements) - 1; i >= 0; i-- {
-//line collection_mutable/array.gala:530
+//line collection_mutable/array.gala:529
 		if p(a.elements[i]) {
-//line collection_mutable/array.gala:531
+//line collection_mutable/array.gala:530
 			return Some[T]{}.Apply(a.elements[i])
 		}
 	}
-//line collection_mutable/array.gala:534
+//line collection_mutable/array.gala:533
 	return None[T]{}.Apply()
 }
 
-//line collection_mutable/array.gala:538
+//line collection_mutable/array.gala:537
 func (a *Array[T]) Count(p func(T) bool) int {
-//line collection_mutable/array.gala:539
+//line collection_mutable/array.gala:538
 	return Array_FoldLeft[int](a, 0, func(acc int, elem T) int {
-//line collection_mutable/array.gala:540
+//line collection_mutable/array.gala:539
 		if p(elem) {
-//line collection_mutable/array.gala:541
+//line collection_mutable/array.gala:540
 			return acc + 1
 		}
-//line collection_mutable/array.gala:543
+//line collection_mutable/array.gala:542
 		return acc
 	})
 }
 
-//line collection_mutable/array.gala:550
+//line collection_mutable/array.gala:549
 func Array_Zip[U any, T any](a *Array[T], other *Array[U]) *Array[Tuple[T, U]] {
-//line collection_mutable/array.gala:551
+//line collection_mutable/array.gala:550
 	var minLen = len(a.elements)
-//line collection_mutable/array.gala:552
+//line collection_mutable/array.gala:551
 	if len(other.elements) < minLen {
-//line collection_mutable/array.gala:553
+//line collection_mutable/array.gala:552
 		minLen = len(other.elements)
 	}
-//line collection_mutable/array.gala:555
+//line collection_mutable/array.gala:554
 	var result = EmptyArray[Tuple[T, U]]()
-//line collection_mutable/array.gala:556
+//line collection_mutable/array.gala:555
 	for i := 0; i < minLen; i++ {
-//line collection_mutable/array.gala:557
+//line collection_mutable/array.gala:556
 		result.Append(Tuple[T, U]{V1: NewImmutable(a.elements[i]), V2: NewImmutable(other.elements[i])})
 	}
-//line collection_mutable/array.gala:559
+//line collection_mutable/array.gala:558
 	return result
 }
 
-//line collection_mutable/array.gala:563
+//line collection_mutable/array.gala:562
 func Array_ZipWithIndex[T any](a *Array[T]) *Array[Tuple[T, int]] {
-//line collection_mutable/array.gala:564
+//line collection_mutable/array.gala:563
 	var result = EmptyArray[Tuple[T, int]]()
-//line collection_mutable/array.gala:565
+//line collection_mutable/array.gala:564
 	for i := 0; i < len(a.elements); i++ {
-//line collection_mutable/array.gala:566
+//line collection_mutable/array.gala:565
 		result.Append(Tuple[T, int]{V1: NewImmutable(a.elements[i]), V2: NewImmutable(i)})
 	}
-//line collection_mutable/array.gala:568
+//line collection_mutable/array.gala:567
 	return result
 }
 
-//line collection_mutable/array.gala:572
+//line collection_mutable/array.gala:571
 func (a *Array[T]) Distinct() *Array[T] {
-//line collection_mutable/array.gala:573
+//line collection_mutable/array.gala:572
 	var result = EmptyArray[T]()
-//line collection_mutable/array.gala:574
+//line collection_mutable/array.gala:573
 	for i := 0; i < len(a.elements); i++ {
-//line collection_mutable/array.gala:575
+//line collection_mutable/array.gala:574
 		if !result.Contains(a.elements[i]) {
-//line collection_mutable/array.gala:576
+//line collection_mutable/array.gala:575
 			result.Append(a.elements[i])
 		}
 	}
-//line collection_mutable/array.gala:579
+//line collection_mutable/array.gala:578
 	return result
 }
 
-//line collection_mutable/array.gala:583
+//line collection_mutable/array.gala:582
 func (a *Array[T]) SplitAt(n int) Tuple[*Array[T], *Array[T]] {
-//line collection_mutable/array.gala:584
+//line collection_mutable/array.gala:583
 	return Tuple[*Array[T], *Array[T]]{V1: NewImmutable(a.Take(n)), V2: NewImmutable(a.Drop(n))}
 }
 
-//line collection_mutable/array.gala:588
+//line collection_mutable/array.gala:587
 func Array_Grouped[T any](a *Array[T], n int) *Array[*Array[T]] {
-//line collection_mutable/array.gala:589
+//line collection_mutable/array.gala:588
 	if n <= 0 {
-//line collection_mutable/array.gala:590
+//line collection_mutable/array.gala:589
 		panic("Array.Grouped: group size must be positive")
 	}
-//line collection_mutable/array.gala:592
+//line collection_mutable/array.gala:591
 	var result = EmptyArray[*Array[T]]()
-//line collection_mutable/array.gala:593
+//line collection_mutable/array.gala:592
 	for i := 0; i < len(a.elements); i += n {
-//line collection_mutable/array.gala:594
+//line collection_mutable/array.gala:593
 		var end = i + n
-//line collection_mutable/array.gala:595
+//line collection_mutable/array.gala:594
 		if end > len(a.elements) {
-//line collection_mutable/array.gala:596
+//line collection_mutable/array.gala:595
 			end = len(a.elements)
 		}
-//line collection_mutable/array.gala:598
+//line collection_mutable/array.gala:597
 		result.Append(a.Slice(i, end))
 	}
-//line collection_mutable/array.gala:600
+//line collection_mutable/array.gala:599
 	return result
 }
 
-//line collection_mutable/array.gala:604
+//line collection_mutable/array.gala:603
 func Array_Sliding[T any](a *Array[T], size int) *Array[*Array[T]] {
-//line collection_mutable/array.gala:605
+//line collection_mutable/array.gala:604
 	if size <= 0 {
-//line collection_mutable/array.gala:606
+//line collection_mutable/array.gala:605
 		panic("Array.Sliding: window size must be positive")
 	}
-//line collection_mutable/array.gala:608
+//line collection_mutable/array.gala:607
 	if len(a.elements) < size {
-//line collection_mutable/array.gala:609
+//line collection_mutable/array.gala:608
 		return EmptyArray[*Array[T]]()
 	}
-//line collection_mutable/array.gala:611
+//line collection_mutable/array.gala:610
 	var result = EmptyArray[*Array[T]]()
-//line collection_mutable/array.gala:612
+//line collection_mutable/array.gala:611
 	var limit = len(a.elements) - size
-//line collection_mutable/array.gala:613
+//line collection_mutable/array.gala:612
 	for i := 0; i <= limit; i++ {
-//line collection_mutable/array.gala:614
+//line collection_mutable/array.gala:613
 		result.Append(a.Slice(i, i+size))
 	}
-//line collection_mutable/array.gala:616
+//line collection_mutable/array.gala:615
 	return result
 }
 
-//line collection_mutable/array.gala:620
+//line collection_mutable/array.gala:619
 func Array_GroupBy[K comparable, T any](a *Array[T], f func(T) K) map[K]*Array[T] {
-//line collection_mutable/array.gala:621
+//line collection_mutable/array.gala:620
 	var result = go_interop.MapEmpty[K, *Array[T]]()
-//line collection_mutable/array.gala:622
+//line collection_mutable/array.gala:621
 	for i := 0; i < len(a.elements); i++ {
-//line collection_mutable/array.gala:623
+//line collection_mutable/array.gala:622
 		var elem = a.elements[i]
-//line collection_mutable/array.gala:624
+//line collection_mutable/array.gala:623
 		var key = f(elem)
-//line collection_mutable/array.gala:625
+//line collection_mutable/array.gala:624
 		var existing = result[key]
-//line collection_mutable/array.gala:626
+//line collection_mutable/array.gala:625
 		if existing == nil {
-//line collection_mutable/array.gala:627
+//line collection_mutable/array.gala:626
 			existing = EmptyArray[T]()
-//line collection_mutable/array.gala:628
+//line collection_mutable/array.gala:627
 			result[key] = existing
 		}
-//line collection_mutable/array.gala:630
+//line collection_mutable/array.gala:629
 		existing.Append(elem)
 	}
-//line collection_mutable/array.gala:632
+//line collection_mutable/array.gala:631
 	return result
 }
 
-//line collection_mutable/array.gala:638
+//line collection_mutable/array.gala:637
 func (a *Array[T]) ToGoSlice() []T {
-//line collection_mutable/array.gala:639
+//line collection_mutable/array.gala:638
 	var result []T
-//line collection_mutable/array.gala:640
+//line collection_mutable/array.gala:639
 	for i := 0; i < len(a.elements); i++ {
-//line collection_mutable/array.gala:641
+//line collection_mutable/array.gala:640
 		result = go_interop.SliceAppend(result, a.elements[i])
 	}
-//line collection_mutable/array.gala:643
+//line collection_mutable/array.gala:642
 	return result
 }
 
-//line collection_mutable/array.gala:647
+//line collection_mutable/array.gala:646
 func (a *Array[T]) String() string {
-//line collection_mutable/array.gala:648
+//line collection_mutable/array.gala:647
 	if len(a.elements) == 0 {
-//line collection_mutable/array.gala:649
+//line collection_mutable/array.gala:648
 		return "Array()"
 	}
-//line collection_mutable/array.gala:651
+//line collection_mutable/array.gala:650
 	var result = "Array("
-//line collection_mutable/array.gala:652
+//line collection_mutable/array.gala:651
 	for i := 0; i < len(a.elements); i++ {
-//line collection_mutable/array.gala:653
+//line collection_mutable/array.gala:652
 		if i > 0 {
-//line collection_mutable/array.gala:654
+//line collection_mutable/array.gala:653
 			result = result + ", "
 		}
-//line collection_mutable/array.gala:656
+//line collection_mutable/array.gala:655
 		result = result + fmt.Sprintf("%v", a.elements[i])
 	}
-//line collection_mutable/array.gala:658
+//line collection_mutable/array.gala:657
 	return result + ")"
 }
 
-//line collection_mutable/array.gala:662
+//line collection_mutable/array.gala:661
 func (a *Array[T]) MkString(sep string) string {
-//line collection_mutable/array.gala:663
+//line collection_mutable/array.gala:662
 	if len(a.elements) == 0 {
-//line collection_mutable/array.gala:664
+//line collection_mutable/array.gala:663
 		return ""
 	}
-//line collection_mutable/array.gala:666
+//line collection_mutable/array.gala:665
 	var result = ""
-//line collection_mutable/array.gala:667
+//line collection_mutable/array.gala:666
 	for i := 0; i < len(a.elements); i++ {
-//line collection_mutable/array.gala:668
+//line collection_mutable/array.gala:667
 		if i > 0 {
-//line collection_mutable/array.gala:669
+//line collection_mutable/array.gala:668
 			result = result + sep
 		}
-//line collection_mutable/array.gala:671
+//line collection_mutable/array.gala:670
 		result = result + fmt.Sprintf("%v", a.elements[i])
 	}
-//line collection_mutable/array.gala:673
+//line collection_mutable/array.gala:672
 	return result
 }
 
-//line collection_mutable/array.gala:677
+//line collection_mutable/array.gala:676
 func (a *Array[T]) ToList() *List[T] {
-//line collection_mutable/array.gala:678
+//line collection_mutable/array.gala:677
 	var result = EmptyList[T]()
-//line collection_mutable/array.gala:679
+//line collection_mutable/array.gala:678
 	for i := 0; i < len(a.elements); i++ {
-//line collection_mutable/array.gala:680
+//line collection_mutable/array.gala:679
 		result.Append(a.elements[i])
 	}
-//line collection_mutable/array.gala:682
+//line collection_mutable/array.gala:681
 	return result
 }
 
 //line collection_mutable/array.gala:689
+func lessToCompare[T any](less func(T, T) bool, x T, y T) int {
+	return func() int {
+		if less(x, y) {
+			return (func() int {
+				if less(y, x) {
+					return 0
+				} else {
+					return -1
+				}
+			}())
+		} else {
+			return func() int {
+				if less(y, x) {
+					return 1
+				} else {
+					return 0
+				}
+			}()
+		}
+	}()
+}
+
+//line collection_mutable/array.gala:695
 func (a *Array[T]) Sorted() *Array[T] {
-//line collection_mutable/array.gala:690
-	var sorted = ArrayFromSlice(a.ToGoSlice())
-//line collection_mutable/array.gala:691
-	sort.Slice(sorted.elements, func(i int, j int) bool {
-		return CompareValues(sorted.elements[i], sorted.elements[j]) < 0
-	})
-//line collection_mutable/array.gala:692
-	return sorted
-}
-
+//line collection_mutable/array.gala:696
+	var elements = NewImmutable(a.elements)
 //line collection_mutable/array.gala:697
+	return &Array[T]{elements: go_interop.SliceSortedStable(elements.Get(), func(i int, j int) int {
+		return CompareValues(elements.Get()[i], elements.Get()[j])
+	})}
+}
+
+//line collection_mutable/array.gala:704
 func (a *Array[T]) SortWith(less func(T, T) bool) *Array[T] {
-//line collection_mutable/array.gala:698
-	var sorted = ArrayFromSlice(a.ToGoSlice())
-//line collection_mutable/array.gala:699
-	sort.Slice(sorted.elements, func(i int, j int) bool {
-		return less(sorted.elements[i], sorted.elements[j])
-	})
-//line collection_mutable/array.gala:700
-	return sorted
-}
-
 //line collection_mutable/array.gala:705
-func Array_SortBy[K comparable, T any](a *Array[T], f func(T) K) *Array[T] {
+	var elements = NewImmutable(a.elements)
 //line collection_mutable/array.gala:706
-	var sorted = ArrayFromSlice(a.ToGoSlice())
-//line collection_mutable/array.gala:707
-	sort.Slice(sorted.elements, func(i int, j int) bool {
-		return CompareValues(f(sorted.elements[i]), f(sorted.elements[j])) < 0
-	})
-//line collection_mutable/array.gala:708
-	return sorted
+	return &Array[T]{elements: go_interop.SliceSortedStable(elements.Get(), func(i int, j int) int {
+		return lessToCompare(less, elements.Get()[i], elements.Get()[j])
+	})}
 }
 
-//line collection_mutable/array.gala:712
+//line collection_mutable/array.gala:713
+func Array_SortBy[K comparable, T any](a *Array[T], f func(T) K) *Array[T] {
+//line collection_mutable/array.gala:714
+	var elements = NewImmutable(a.elements)
+//line collection_mutable/array.gala:715
+	var keys = NewImmutable(go_interop.SliceWithSize[K](len(elements.Get())))
+//line collection_mutable/array.gala:716
+	for i := 0; i < len(elements.Get()); i++ {
+//line collection_mutable/array.gala:717
+		keys.Get()[i] = f(elements.Get()[i])
+	}
+//line collection_mutable/array.gala:719
+	return &Array[T]{elements: go_interop.SliceSortedStable(elements.Get(), func(i int, j int) int {
+		return CompareValues(keys.Get()[i], keys.Get()[j])
+	})}
+}
+
+//line collection_mutable/array.gala:723
 func (a *Array[T]) SeqDrop(n int) any {
 	return a.Drop(n)
 }

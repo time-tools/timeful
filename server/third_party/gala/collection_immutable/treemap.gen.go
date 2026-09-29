@@ -1127,7 +1127,7 @@ func (m TreeMap[K, V]) ForEachValue(f func(V)) {
 //line collection_immutable/treemap.gala:613
 func TreeMap_MapValues[U any, K comparable, V any](m TreeMap[K, V], f func(V) U) TreeMap[K, U] {
 //line collection_immutable/treemap.gala:614
-	return TreeMap_FoldLeftKV[TreeMap[K, U]](m, EmptyTreeMap[K, U](), func(acc TreeMap[K, U], k K, v V) TreeMap[K, U] {
+	return TreeMap_FoldLeftKV[TreeMap[K, U], K, V](m, EmptyTreeMap[K, U](), func(acc TreeMap[K, U], k K, v V) TreeMap[K, U] {
 		return acc.Put(k, f(v))
 	})
 }
@@ -1135,7 +1135,7 @@ func TreeMap_MapValues[U any, K comparable, V any](m TreeMap[K, V], f func(V) U)
 //line collection_immutable/treemap.gala:618
 func (m TreeMap[K, V]) Filter(p func(K, V) bool) TreeMap[K, V] {
 //line collection_immutable/treemap.gala:619
-	return TreeMap_FoldLeftKV[TreeMap[K, V]](m, EmptyTreeMap[K, V](), func(acc TreeMap[K, V], k K, v V) TreeMap[K, V] {
+	return TreeMap_FoldLeftKV[TreeMap[K, V], K, V](m, EmptyTreeMap[K, V](), func(acc TreeMap[K, V], k K, v V) TreeMap[K, V] {
 //line collection_immutable/treemap.gala:620
 		if p(k, v) {
 //line collection_immutable/treemap.gala:621
@@ -1149,7 +1149,7 @@ func (m TreeMap[K, V]) Filter(p func(K, V) bool) TreeMap[K, V] {
 //line collection_immutable/treemap.gala:628
 func (m TreeMap[K, V]) FilterKeys(p func(K) bool) TreeMap[K, V] {
 //line collection_immutable/treemap.gala:629
-	return TreeMap_FoldLeftKV[TreeMap[K, V]](m, EmptyTreeMap[K, V](), func(acc TreeMap[K, V], k K, v V) TreeMap[K, V] {
+	return TreeMap_FoldLeftKV[TreeMap[K, V], K, V](m, EmptyTreeMap[K, V](), func(acc TreeMap[K, V], k K, v V) TreeMap[K, V] {
 //line collection_immutable/treemap.gala:630
 		if p(k) {
 //line collection_immutable/treemap.gala:631
@@ -1163,7 +1163,7 @@ func (m TreeMap[K, V]) FilterKeys(p func(K) bool) TreeMap[K, V] {
 //line collection_immutable/treemap.gala:638
 func (m TreeMap[K, V]) FilterValues(p func(V) bool) TreeMap[K, V] {
 //line collection_immutable/treemap.gala:639
-	return TreeMap_FoldLeftKV[TreeMap[K, V]](m, EmptyTreeMap[K, V](), func(acc TreeMap[K, V], k K, v V) TreeMap[K, V] {
+	return TreeMap_FoldLeftKV[TreeMap[K, V], K, V](m, EmptyTreeMap[K, V](), func(acc TreeMap[K, V], k K, v V) TreeMap[K, V] {
 //line collection_immutable/treemap.gala:640
 		if p(v) {
 //line collection_immutable/treemap.gala:641
@@ -1177,7 +1177,7 @@ func (m TreeMap[K, V]) FilterValues(p func(V) bool) TreeMap[K, V] {
 //line collection_immutable/treemap.gala:648
 func (m TreeMap[K, V]) FilterNot(p func(K, V) bool) TreeMap[K, V] {
 //line collection_immutable/treemap.gala:649
-	return TreeMap_FoldLeftKV[TreeMap[K, V]](m, EmptyTreeMap[K, V](), func(acc TreeMap[K, V], k K, v V) TreeMap[K, V] {
+	return TreeMap_FoldLeftKV[TreeMap[K, V], K, V](m, EmptyTreeMap[K, V](), func(acc TreeMap[K, V], k K, v V) TreeMap[K, V] {
 //line collection_immutable/treemap.gala:650
 		if !p(k, v) {
 //line collection_immutable/treemap.gala:651
@@ -1222,7 +1222,7 @@ func TreeMap_FoldLeftKV[U any, K comparable, V any](m TreeMap[K, V], initial U, 
 //line collection_immutable/treemap.gala:685
 func (m TreeMap[K, V]) Exists(p func(K, V) bool) bool {
 //line collection_immutable/treemap.gala:686
-	return TreeMap_FoldLeftKV[bool](m, false, func(acc bool, k K, v V) bool {
+	return TreeMap_FoldLeftKV[bool, K, V](m, false, func(acc bool, k K, v V) bool {
 		return acc || p(k, v)
 	})
 }
@@ -1230,7 +1230,7 @@ func (m TreeMap[K, V]) Exists(p func(K, V) bool) bool {
 //line collection_immutable/treemap.gala:690
 func (m TreeMap[K, V]) ForAll(p func(K, V) bool) bool {
 //line collection_immutable/treemap.gala:691
-	return TreeMap_FoldLeftKV[bool](m, true, func(acc bool, k K, v V) bool {
+	return TreeMap_FoldLeftKV[bool, K, V](m, true, func(acc bool, k K, v V) bool {
 		return acc && p(k, v)
 	})
 }
@@ -1238,7 +1238,7 @@ func (m TreeMap[K, V]) ForAll(p func(K, V) bool) bool {
 //line collection_immutable/treemap.gala:695
 func (m TreeMap[K, V]) Count(p func(K, V) bool) int {
 //line collection_immutable/treemap.gala:696
-	return TreeMap_FoldLeftKV[int](m, 0, func(acc int, k K, v V) int {
+	return TreeMap_FoldLeftKV[int, K, V](m, 0, func(acc int, k K, v V) int {
 //line collection_immutable/treemap.gala:697
 		if p(k, v) {
 //line collection_immutable/treemap.gala:698
@@ -1252,7 +1252,7 @@ func (m TreeMap[K, V]) Count(p func(K, V) bool) int {
 //line collection_immutable/treemap.gala:705
 func (m TreeMap[K, V]) Find(p func(K, V) bool) Option[Tuple[K, V]] {
 //line collection_immutable/treemap.gala:706
-	return TreeMap_FoldLeftKV[Option[Tuple[K, V]]](m, None[Tuple[K, V]]{}.Apply(), func(acc Option[Tuple[K, V]], k K, v V) Option[Tuple[K, V]] {
+	return TreeMap_FoldLeftKV[Option[Tuple[K, V]], K, V](m, None[Tuple[K, V]]{}.Apply(), func(acc Option[Tuple[K, V]], k K, v V) Option[Tuple[K, V]] {
 //line collection_immutable/treemap.gala:707
 		if acc.IsEmpty() && p(k, v) {
 //line collection_immutable/treemap.gala:708
@@ -1266,7 +1266,7 @@ func (m TreeMap[K, V]) Find(p func(K, V) bool) Option[Tuple[K, V]] {
 //line collection_immutable/treemap.gala:717
 func (m TreeMap[K, V]) Keys() TreeSet[K] {
 //line collection_immutable/treemap.gala:718
-	return TreeMap_FoldLeftKV[TreeSet[K]](m, EmptyTreeSet[K](), func(acc TreeSet[K], k K, v V) TreeSet[K] {
+	return TreeMap_FoldLeftKV[TreeSet[K], K, V](m, EmptyTreeSet[K](), func(acc TreeSet[K], k K, v V) TreeSet[K] {
 		return acc.Add(k)
 	})
 }
@@ -1307,7 +1307,7 @@ func treeMapForEachKVReverse[K comparable, V any](node *treeMapNode[K, V], f fun
 //line collection_immutable/treemap.gala:745
 func (m TreeMap[K, V]) KeyArray() Array[K] {
 //line collection_immutable/treemap.gala:746
-	return TreeMap_FoldLeftKV[Array[K]](m, EmptyArray[K](), func(acc Array[K], k K, v V) Array[K] {
+	return TreeMap_FoldLeftKV[Array[K], K, V](m, EmptyArray[K](), func(acc Array[K], k K, v V) Array[K] {
 		return acc.Append(k)
 	})
 }
@@ -1315,7 +1315,7 @@ func (m TreeMap[K, V]) KeyArray() Array[K] {
 //line collection_immutable/treemap.gala:750
 func (m TreeMap[K, V]) ValueArray() Array[V] {
 //line collection_immutable/treemap.gala:751
-	return TreeMap_FoldLeftKV[Array[V]](m, EmptyArray[V](), func(acc Array[V], k K, v V) Array[V] {
+	return TreeMap_FoldLeftKV[Array[V], K, V](m, EmptyArray[V](), func(acc Array[V], k K, v V) Array[V] {
 		return acc.Append(v)
 	})
 }
@@ -1323,7 +1323,7 @@ func (m TreeMap[K, V]) ValueArray() Array[V] {
 //line collection_immutable/treemap.gala:757
 func (m TreeMap[K, V]) PutAll(other TreeMap[K, V]) TreeMap[K, V] {
 //line collection_immutable/treemap.gala:758
-	return TreeMap_FoldLeftKV[TreeMap[K, V]](other, m, func(acc TreeMap[K, V], k K, v V) TreeMap[K, V] {
+	return TreeMap_FoldLeftKV[TreeMap[K, V], K, V](other, m, func(acc TreeMap[K, V], k K, v V) TreeMap[K, V] {
 		return acc.Put(k, v)
 	})
 }
@@ -1331,7 +1331,7 @@ func (m TreeMap[K, V]) PutAll(other TreeMap[K, V]) TreeMap[K, V] {
 //line collection_immutable/treemap.gala:762
 func (m TreeMap[K, V]) Merge(other TreeMap[K, V], f func(V, V) V) TreeMap[K, V] {
 //line collection_immutable/treemap.gala:763
-	return TreeMap_FoldLeftKV[TreeMap[K, V]](other, m, func(acc TreeMap[K, V], k K, v V) TreeMap[K, V] {
+	return TreeMap_FoldLeftKV[TreeMap[K, V], K, V](other, m, func(acc TreeMap[K, V], k K, v V) TreeMap[K, V] {
 //line collection_immutable/treemap.gala:764
 		return func(obj Option[V]) TreeMap[K, V] {
 			{
@@ -1374,7 +1374,7 @@ func (m TreeMap[K, V]) ToGoMap() map[K]V {
 //line collection_immutable/treemap.gala:783
 func (m TreeMap[K, V]) ToArray() Array[Tuple[K, V]] {
 //line collection_immutable/treemap.gala:784
-	return TreeMap_FoldLeftKV[Array[Tuple[K, V]]](m, EmptyArray[Tuple[K, V]](), func(acc Array[Tuple[K, V]], k K, v V) Array[Tuple[K, V]] {
+	return TreeMap_FoldLeftKV[Array[Tuple[K, V]], K, V](m, EmptyArray[Tuple[K, V]](), func(acc Array[Tuple[K, V]], k K, v V) Array[Tuple[K, V]] {
 		return acc.Append(Tuple[K, V]{V1: NewImmutable(k), V2: NewImmutable(v)})
 	})
 }
@@ -1395,7 +1395,7 @@ func (m TreeMap[K, V]) ToList() List[Tuple[K, V]] {
 //line collection_immutable/treemap.gala:798
 func (m TreeMap[K, V]) ToHashMap() HashMap[K, V] {
 //line collection_immutable/treemap.gala:799
-	return TreeMap_FoldLeftKV[HashMap[K, V]](m, EmptyHashMap[K, V](), func(acc HashMap[K, V], k K, v V) HashMap[K, V] {
+	return TreeMap_FoldLeftKV[HashMap[K, V], K, V](m, EmptyHashMap[K, V](), func(acc HashMap[K, V], k K, v V) HashMap[K, V] {
 		return acc.Put(k, v)
 	})
 }
@@ -1479,7 +1479,7 @@ func (m TreeMap[K, V]) Partition(p func(K, V) bool) Tuple[TreeMap[K, V], TreeMap
 //line collection_immutable/treemap.gala:854
 	var initial = NewImmutable(Tuple[TreeMap[K, V], TreeMap[K, V]]{V1: NewImmutable(EmptyTreeMap[K, V]()), V2: NewImmutable(EmptyTreeMap[K, V]())})
 //line collection_immutable/treemap.gala:855
-	return TreeMap_FoldLeftKV[Tuple[TreeMap[K, V], TreeMap[K, V]]](m, initial.Get(), func(acc Tuple[TreeMap[K, V], TreeMap[K, V]], k K, v V) Tuple[TreeMap[K, V], TreeMap[K, V]] {
+	return TreeMap_FoldLeftKV[Tuple[TreeMap[K, V], TreeMap[K, V]], K, V](m, initial.Get(), func(acc Tuple[TreeMap[K, V], TreeMap[K, V]], k K, v V) Tuple[TreeMap[K, V], TreeMap[K, V]] {
 //line collection_immutable/treemap.gala:856
 		if p(k, v) {
 //line collection_immutable/treemap.gala:857

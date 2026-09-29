@@ -923,7 +923,7 @@ func (s TreeSet[T]) MaxOption() Option[T] {
 //line collection_immutable/treeset.gala:464
 func (s TreeSet[T]) AddAll(other TreeSet[T]) TreeSet[T] {
 //line collection_immutable/treeset.gala:465
-	return TreeSet_FoldLeft[TreeSet[T]](other, s, func(acc TreeSet[T], elem T) TreeSet[T] {
+	return TreeSet_FoldLeft[TreeSet[T], T](other, s, func(acc TreeSet[T], elem T) TreeSet[T] {
 		return acc.Add(elem)
 	})
 }
@@ -952,7 +952,7 @@ func (s TreeSet[T]) Intersect(other TreeSet[T]) TreeSet[T] {
 		larger = s
 	}
 //line collection_immutable/treeset.gala:484
-	return TreeSet_FoldLeft[TreeSet[T]](smaller, EmptyTreeSet[T](), func(acc TreeSet[T], elem T) TreeSet[T] {
+	return TreeSet_FoldLeft[TreeSet[T], T](smaller, EmptyTreeSet[T](), func(acc TreeSet[T], elem T) TreeSet[T] {
 //line collection_immutable/treeset.gala:485
 		if larger.Contains(elem) {
 //line collection_immutable/treeset.gala:486
@@ -966,7 +966,7 @@ func (s TreeSet[T]) Intersect(other TreeSet[T]) TreeSet[T] {
 //line collection_immutable/treeset.gala:493
 func (s TreeSet[T]) Diff(other TreeSet[T]) TreeSet[T] {
 //line collection_immutable/treeset.gala:494
-	return TreeSet_FoldLeft[TreeSet[T]](s, EmptyTreeSet[T](), func(acc TreeSet[T], elem T) TreeSet[T] {
+	return TreeSet_FoldLeft[TreeSet[T], T](s, EmptyTreeSet[T](), func(acc TreeSet[T], elem T) TreeSet[T] {
 //line collection_immutable/treeset.gala:495
 		if !other.Contains(elem) {
 //line collection_immutable/treeset.gala:496
@@ -985,7 +985,7 @@ func (s TreeSet[T]) SubsetOf(other TreeSet[T]) bool {
 		return false
 	}
 //line collection_immutable/treeset.gala:507
-	return TreeSet_FoldLeft[bool](s, true, func(acc bool, elem T) bool {
+	return TreeSet_FoldLeft[bool, T](s, true, func(acc bool, elem T) bool {
 		return acc && other.Contains(elem)
 	})
 }
@@ -1017,7 +1017,7 @@ func forEachTree[T comparable](node *treeNode[T], f func(T)) {
 //line collection_immutable/treeset.gala:529
 func MapTreeSet[T comparable, U comparable](s TreeSet[T], f func(T) U) TreeSet[U] {
 //line collection_immutable/treeset.gala:530
-	return TreeSet_FoldLeft[TreeSet[U]](s, EmptyTreeSet[U](), func(acc TreeSet[U], elem T) TreeSet[U] {
+	return TreeSet_FoldLeft[TreeSet[U], T](s, EmptyTreeSet[U](), func(acc TreeSet[U], elem T) TreeSet[U] {
 		return acc.Add(f(elem))
 	})
 }
@@ -1025,7 +1025,7 @@ func MapTreeSet[T comparable, U comparable](s TreeSet[T], f func(T) U) TreeSet[U
 //line collection_immutable/treeset.gala:535
 func FlatMapTreeSet[T comparable, U comparable](s TreeSet[T], f func(T) TreeSet[U]) TreeSet[U] {
 //line collection_immutable/treeset.gala:536
-	return TreeSet_FoldLeft[TreeSet[U]](s, EmptyTreeSet[U](), func(acc TreeSet[U], elem T) TreeSet[U] {
+	return TreeSet_FoldLeft[TreeSet[U], T](s, EmptyTreeSet[U](), func(acc TreeSet[U], elem T) TreeSet[U] {
 		return acc.AddAll(f(elem))
 	})
 }
@@ -1033,7 +1033,7 @@ func FlatMapTreeSet[T comparable, U comparable](s TreeSet[T], f func(T) TreeSet[
 //line collection_immutable/treeset.gala:540
 func (s TreeSet[T]) Filter(p func(T) bool) TreeSet[T] {
 //line collection_immutable/treeset.gala:541
-	return TreeSet_FoldLeft[TreeSet[T]](s, EmptyTreeSet[T](), func(acc TreeSet[T], elem T) TreeSet[T] {
+	return TreeSet_FoldLeft[TreeSet[T], T](s, EmptyTreeSet[T](), func(acc TreeSet[T], elem T) TreeSet[T] {
 //line collection_immutable/treeset.gala:542
 		if p(elem) {
 //line collection_immutable/treeset.gala:543
@@ -1134,7 +1134,7 @@ func (s TreeSet[T]) ReduceOption(f func(T, T) T) Option[T] {
 //line collection_immutable/treeset.gala:610
 func (s TreeSet[T]) Exists(p func(T) bool) bool {
 //line collection_immutable/treeset.gala:611
-	return TreeSet_FoldLeft[bool](s, false, func(acc bool, elem T) bool {
+	return TreeSet_FoldLeft[bool, T](s, false, func(acc bool, elem T) bool {
 		return acc || p(elem)
 	})
 }
@@ -1142,7 +1142,7 @@ func (s TreeSet[T]) Exists(p func(T) bool) bool {
 //line collection_immutable/treeset.gala:615
 func (s TreeSet[T]) ForAll(p func(T) bool) bool {
 //line collection_immutable/treeset.gala:616
-	return TreeSet_FoldLeft[bool](s, true, func(acc bool, elem T) bool {
+	return TreeSet_FoldLeft[bool, T](s, true, func(acc bool, elem T) bool {
 		return acc && p(elem)
 	})
 }
@@ -1150,7 +1150,7 @@ func (s TreeSet[T]) ForAll(p func(T) bool) bool {
 //line collection_immutable/treeset.gala:620
 func (s TreeSet[T]) Find(p func(T) bool) Option[T] {
 //line collection_immutable/treeset.gala:621
-	return TreeSet_FoldLeft[Option[T]](s, None[T]{}.Apply(), func(acc Option[T], elem T) Option[T] {
+	return TreeSet_FoldLeft[Option[T], T](s, None[T]{}.Apply(), func(acc Option[T], elem T) Option[T] {
 //line collection_immutable/treeset.gala:622
 		if acc.IsEmpty() && p(elem) {
 //line collection_immutable/treeset.gala:623
@@ -1164,7 +1164,7 @@ func (s TreeSet[T]) Find(p func(T) bool) Option[T] {
 //line collection_immutable/treeset.gala:630
 func (s TreeSet[T]) Count(p func(T) bool) int {
 //line collection_immutable/treeset.gala:631
-	return TreeSet_FoldLeft[int](s, 0, func(acc int, elem T) int {
+	return TreeSet_FoldLeft[int, T](s, 0, func(acc int, elem T) int {
 //line collection_immutable/treeset.gala:632
 		if p(elem) {
 //line collection_immutable/treeset.gala:633
@@ -1352,7 +1352,7 @@ func forEachTreeReverse[T comparable](node *treeNode[T], f func(T)) {
 //line collection_immutable/treeset.gala:759
 func (s TreeSet[T]) ToArray() Array[T] {
 //line collection_immutable/treeset.gala:760
-	return TreeSet_FoldLeft[Array[T]](s, EmptyArray[T](), func(acc Array[T], elem T) Array[T] {
+	return TreeSet_FoldLeft[Array[T], T](s, EmptyArray[T](), func(acc Array[T], elem T) Array[T] {
 		return acc.Append(elem)
 	})
 }
@@ -1360,7 +1360,7 @@ func (s TreeSet[T]) ToArray() Array[T] {
 //line collection_immutable/treeset.gala:764
 func (s TreeSet[T]) ToHashSet() HashSet[T] {
 //line collection_immutable/treeset.gala:765
-	return TreeSet_FoldLeft[HashSet[T]](s, EmptyHashSet[T](), func(acc HashSet[T], elem T) HashSet[T] {
+	return TreeSet_FoldLeft[HashSet[T], T](s, EmptyHashSet[T](), func(acc HashSet[T], elem T) HashSet[T] {
 		return acc.Add(elem)
 	})
 }

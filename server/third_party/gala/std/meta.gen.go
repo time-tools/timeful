@@ -2,13 +2,15 @@
 
 package std
 
-//line std/meta.gala:9
+//line std/meta.gala:15
 type FieldEncoder interface {
 	WriteKey(name string)
 	WriteString(v string)
 	WriteInt(v int)
 	WriteInt64(v int64)
+	WriteUint64(v uint64)
 	WriteFloat64(v float64)
+	WriteFloat32(v float32)
 	WriteBool(v bool)
 	WriteRune(v rune)
 	WriteNull()
@@ -18,13 +20,16 @@ type FieldEncoder interface {
 	WriteEndObject()
 }
 
-//line std/meta.gala:33
+//line std/meta.gala:41
 type FieldDecoder interface {
 	ReadKey() string
 	ReadString() string
 	ReadInt() int
 	ReadInt64() int64
+	ReadIntN(bitSize int) int64
+	ReadUintN(bitSize int) uint64
 	ReadFloat64() float64
+	ReadFloat32() float32
 	ReadBool() bool
 	ReadRune() rune
 	IsNull() bool
@@ -38,7 +43,7 @@ type FieldDecoder interface {
 	Skip()
 }
 
-//line std/meta.gala:70
+//line std/meta.gala:88
 type StructMeta[T any] interface {
 	NumFields() int
 	FieldName(i int) string

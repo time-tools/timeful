@@ -43,7 +43,7 @@ cd server/slackbot/commands && gala transpile -i num_users.gala -o num_users.go
 ```
 
 A handwritten sibling has no regeneration command because it is not generated.
-GALA 0.81.0 produced the committed output, and regeneration with the same version is deterministic.
+GALA 0.84.1 produced the committed output, and regeneration with the same version is deterministic.
 Re-running the commands above must produce no diff.
 Do not hand-edit a generated file, and never commit one without its `.gala` source.
 The Go build never invokes GALA, which is why both artifacts are committed.
@@ -137,11 +137,11 @@ Use the runtime-enabled style when the file benefits from GALA-native features a
   ```
 
   `models/datetime.go`, `models/uuid.go`, and `models/set.go` are blocked by this rule and stay handwritten.
-  This is language gap `GAP-4`; PR #529 fixes conversions only, not methods.
+  This is language gap `GAP-4`; 0.84.1 rejects the declaration as `GALA-E0048`, because an alias takes no methods of its own, while alias conversions themselves now work.
 
 - Backtick struct tags.
   Every tagged field is a parse error, so the wire shape cannot be reproduced and `models/location.go` is blocked.
-  This is language gap `GAP-1` in the translation roster, and PR #529 explicitly leaves it unchanged:
+  This is language gap `GAP-1` in the translation roster, and 0.84.1 leaves it unchanged:
 
   ```text
   error: extraneous input '`json:"country_code"`' expecting {'}', 'val', 'var', IDENTIFIER}
@@ -317,7 +317,7 @@ Use the runtime-enabled style when the file benefits from GALA-native features a
 ## Runtime probes
 
 Four probes in `/tmp` closed the TASK-0319 "Not yet exercised" list against the vendored runtime.
-Each probe was transpiled with GALA 0.81.0 and compiled in a scratch module whose `go.mod` replaces `martianoff/gala` with `server/third_party/gala`.
+Each probe was transpiled with GALA 0.84.1 and compiled in a scratch module whose `go.mod` replaces `martianoff/gala` with `server/third_party/gala`.
 
 | Probe            | Transpile | Compiles in module | Go API shape                                                                                                                                                           |
 | ---------------- | --------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -362,10 +362,10 @@ Not yet exercised after these probes: `collection_mutable`, the `json`/`yaml` co
 
 The runtime is vendored at `server/third_party/gala/` as one flattened Go module named `martianoff/gala`.
 
-- Provenance: the gala CLI v0.81.0 extraction at `~/.gala/stdlib/v0.81.0`, which is the ready-to-compile snapshot built from `martianoff/gala` 0.81.0.
+- Provenance: the gala CLI v0.84.1 extraction at `~/.gala/stdlib/v0.84.1`, which is the ready-to-compile snapshot built from `martianoff/gala` 0.84.1.
   The Apache-2.0 `LICENSE` was copied from the upstream source checkout.
   Neither the extraction directory nor the upstream checkout shipped a license file next to the snapshot.
-- Layout: all 20 packages (`collection_immutable`, `collection_mutable`, `concurrent`, `crypto`, `fs`, `go_builtins`, `go_interop`, `io`, `json`, `lazy`, `path`, `regex`, `resource`, `std`, `stream`, `strings`, `subprocess`, `test`, `time_utils`, `validation`, `yaml`) live as subdirectories of the module.
+- Layout: all 21 packages (`collection_immutable`, `collection_mutable`, `concurrent`, `crypto`, `fs`, `go_builtins`, `go_interop`, `io`, `json`, `lazy`, `path`, `regex`, `resource`, `std`, `stream`, `strings`, `subprocess`, `test`, `time_utils`, `validation`, `yaml`) live as subdirectories of the module.
   Per-package `go.mod` and `go.sum` files are deleted, and a single root `go.mod` declares `module martianoff/gala` and `go 1.22`.
   The `.gala` sources stay beside their `.gen.go` outputs so each package's origin is visible.
 - Why flattened: generated code imports `martianoff/gala/std`, `martianoff/gala/go_interop`, `martianoff/gala/go_builtins`, and similar paths.
@@ -377,6 +377,7 @@ The runtime is vendored at `server/third_party/gala/` as one flattened Go module
   The build context and the route-test mount are both `./server`, so the rest of `third_party/` arrives with `COPY . .`.
 - Upstream vet noise: `go build ./...` over the vendored tree is clean, while `go vet ./...` reports five pre-existing findings in the snapshot (a `ReadRune` signature suggestion and unreachable-code warnings).
   They are upstream, not introduced here.
+  The 0.84.1 snapshot reports the same five findings, two of them in `std` and three in `json` plus `yaml`.
 - Update procedure: install the matching gala CLI version, re-copy `~/.gala/stdlib/<version>` over the vendored tree, delete the extraction marker and per-package module files, rewrite the root `go.mod`, restore the `LICENSE`, run `go build ./...` inside the vendored tree, run the server build and tests, then regenerate every twin and compare hashes.
 
 ## Verification
@@ -419,5 +420,5 @@ Adoption beyond mostly interop-shaped leaf packages is still limited by the upst
 
 Until then, use GALA where the exported Go API stays Go-shaped, the file needs no struct tags, named scalar receivers, multi-value returns, `switch`, or `defer`, and either the runtime-free style applies or the runtime-enabled shape is acceptable at the boundary.
 
-The per-construct roster with the inventory counts, the GALA 0.81.0 versus PR #529 status matrix, the classified genuine gaps, and the scripted probe corpus is in [`../docs/gala-translation.md`](../docs/gala-translation.md).
+The per-construct roster with the inventory counts, the 0.84.1 status column, the compiler history for the PR #529 fixes, the classified genuine gaps, and the scripted probe corpus is in [`../docs/gala-translation.md`](../docs/gala-translation.md).
 The ordered procedure for adding another twin, from candidate selection to registration, is in [`../docs/gala-rewrite-playbook.md`](../docs/gala-rewrite-playbook.md).

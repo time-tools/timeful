@@ -12,7 +12,7 @@
 # gitignored by explicit path in .gitignore; only the .gala sources, expect files,
 # expected.out files, go.mod, .gitignore, and this runner are committed.
 #
-# The expectations pin GALA 0.81.0. Set GALA_PROBES_ALLOW_ANY_VERSION=1 to run against
+# The expectations pin GALA 0.84.1. Set GALA_PROBES_ALLOW_ANY_VERSION=1 to run against
 # another compiler and see which expectations moved.
 # The go build expectations also pin the Go 1.26 toolchain series; set
 # GALA_PROBES_ALLOW_ANY_GO=1 to run with another toolchain.
@@ -21,7 +21,7 @@ set -uo pipefail
 
 cd "$(dirname "$0")"
 
-EXPECTED_GALA_VERSION="0.81.0"
+EXPECTED_GALA_VERSION="0.84.1"
 actual_version="$(gala version 2>/dev/null | awk '{print $NF}')"
 if [[ "$actual_version" != "$EXPECTED_GALA_VERSION" && "${GALA_PROBES_ALLOW_ANY_VERSION:-0}" != "1" ]]; then
     printf 'expected gala %s, found %s\n' "$EXPECTED_GALA_VERSION" "${actual_version:-none}" >&2

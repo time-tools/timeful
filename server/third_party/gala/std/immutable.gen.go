@@ -41,3 +41,8 @@ func (i Immutable[T]) GetAny() any {
 func NewImmutable[T any](v T) Immutable[T] {
 	return Immutable[T]{value: v}
 }
+
+//line std/immutable.gala:25
+func AddrOfCopy[T any](v T) *T {
+	return &v
+}

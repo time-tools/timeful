@@ -1167,7 +1167,7 @@ func (s *TreeSet[T]) Intersect(other *TreeSet[T]) *TreeSet[T] {
 		})
 	}
 //line collection_mutable/treeset.gala:634
-	return TreeSet_FoldLeft[*TreeSet[T]](other, EmptyTreeSet[T](), func(acc *TreeSet[T], elem T) *TreeSet[T] {
+	return TreeSet_FoldLeft[*TreeSet[T], T](other, EmptyTreeSet[T](), func(acc *TreeSet[T], elem T) *TreeSet[T] {
 //line collection_mutable/treeset.gala:635
 		if s.Contains(elem) {
 //line collection_mutable/treeset.gala:636

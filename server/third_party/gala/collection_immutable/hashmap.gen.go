@@ -670,7 +670,7 @@ func (m HashMap[K, V]) ForEachValue(f func(V)) {
 //line collection_immutable/hashmap.gala:447
 func HashMap_MapValues[U any, K comparable, V any](m HashMap[K, V], f func(V) U) HashMap[K, U] {
 //line collection_immutable/hashmap.gala:448
-	return HashMap_FoldLeftKV[HashMap[K, U]](m, EmptyHashMap[K, U](), func(acc HashMap[K, U], k K, v V) HashMap[K, U] {
+	return HashMap_FoldLeftKV[HashMap[K, U], K, V](m, EmptyHashMap[K, U](), func(acc HashMap[K, U], k K, v V) HashMap[K, U] {
 		return acc.Put(k, f(v))
 	})
 }
@@ -678,7 +678,7 @@ func HashMap_MapValues[U any, K comparable, V any](m HashMap[K, V], f func(V) U)
 //line collection_immutable/hashmap.gala:452
 func (m HashMap[K, V]) Filter(p func(K, V) bool) HashMap[K, V] {
 //line collection_immutable/hashmap.gala:453
-	return HashMap_FoldLeftKV[HashMap[K, V]](m, EmptyHashMap[K, V](), func(acc HashMap[K, V], k K, v V) HashMap[K, V] {
+	return HashMap_FoldLeftKV[HashMap[K, V], K, V](m, EmptyHashMap[K, V](), func(acc HashMap[K, V], k K, v V) HashMap[K, V] {
 //line collection_immutable/hashmap.gala:454
 		if p(k, v) {
 //line collection_immutable/hashmap.gala:455
@@ -692,7 +692,7 @@ func (m HashMap[K, V]) Filter(p func(K, V) bool) HashMap[K, V] {
 //line collection_immutable/hashmap.gala:462
 func (m HashMap[K, V]) FilterKeys(p func(K) bool) HashMap[K, V] {
 //line collection_immutable/hashmap.gala:463
-	return HashMap_FoldLeftKV[HashMap[K, V]](m, EmptyHashMap[K, V](), func(acc HashMap[K, V], k K, v V) HashMap[K, V] {
+	return HashMap_FoldLeftKV[HashMap[K, V], K, V](m, EmptyHashMap[K, V](), func(acc HashMap[K, V], k K, v V) HashMap[K, V] {
 //line collection_immutable/hashmap.gala:464
 		if p(k) {
 //line collection_immutable/hashmap.gala:465
@@ -706,7 +706,7 @@ func (m HashMap[K, V]) FilterKeys(p func(K) bool) HashMap[K, V] {
 //line collection_immutable/hashmap.gala:472
 func (m HashMap[K, V]) FilterValues(p func(V) bool) HashMap[K, V] {
 //line collection_immutable/hashmap.gala:473
-	return HashMap_FoldLeftKV[HashMap[K, V]](m, EmptyHashMap[K, V](), func(acc HashMap[K, V], k K, v V) HashMap[K, V] {
+	return HashMap_FoldLeftKV[HashMap[K, V], K, V](m, EmptyHashMap[K, V](), func(acc HashMap[K, V], k K, v V) HashMap[K, V] {
 //line collection_immutable/hashmap.gala:474
 		if p(v) {
 //line collection_immutable/hashmap.gala:475
@@ -738,7 +738,7 @@ func HashMap_Collect[U any, K comparable, V any](m HashMap[K, V], pf func(K, V) 
 //line collection_immutable/hashmap.gala:496
 func (m HashMap[K, V]) FilterNot(p func(K, V) bool) HashMap[K, V] {
 //line collection_immutable/hashmap.gala:497
-	return HashMap_FoldLeftKV[HashMap[K, V]](m, EmptyHashMap[K, V](), func(acc HashMap[K, V], k K, v V) HashMap[K, V] {
+	return HashMap_FoldLeftKV[HashMap[K, V], K, V](m, EmptyHashMap[K, V](), func(acc HashMap[K, V], k K, v V) HashMap[K, V] {
 //line collection_immutable/hashmap.gala:498
 		if !p(k, v) {
 //line collection_immutable/hashmap.gala:499
@@ -841,7 +841,7 @@ func forAllInNodeMap[K comparable, V any](node *hashMapNode[K, V], p func(K, V) 
 //line collection_immutable/hashmap.gala:573
 func (m HashMap[K, V]) Count(p func(K, V) bool) int {
 //line collection_immutable/hashmap.gala:574
-	return HashMap_FoldLeftKV[int](m, 0, func(acc int, k K, v V) int {
+	return HashMap_FoldLeftKV[int, K, V](m, 0, func(acc int, k K, v V) int {
 //line collection_immutable/hashmap.gala:575
 		if p(k, v) {
 //line collection_immutable/hashmap.gala:576
@@ -855,7 +855,7 @@ func (m HashMap[K, V]) Count(p func(K, V) bool) int {
 //line collection_immutable/hashmap.gala:585
 func (m HashMap[K, V]) Keys() HashSet[K] {
 //line collection_immutable/hashmap.gala:586
-	return HashMap_FoldLeftKV[HashSet[K]](m, EmptyHashSet[K](), func(acc HashSet[K], k K, v V) HashSet[K] {
+	return HashMap_FoldLeftKV[HashSet[K], K, V](m, EmptyHashSet[K](), func(acc HashSet[K], k K, v V) HashSet[K] {
 		return acc.Add(k)
 	})
 }
@@ -863,7 +863,7 @@ func (m HashMap[K, V]) Keys() HashSet[K] {
 //line collection_immutable/hashmap.gala:590
 func (m HashMap[K, V]) Values() List[V] {
 //line collection_immutable/hashmap.gala:591
-	return HashMap_FoldLeftKV[List[V]](m, emptyList[V](), func(acc List[V], k K, v V) List[V] {
+	return HashMap_FoldLeftKV[List[V], K, V](m, emptyList[V](), func(acc List[V], k K, v V) List[V] {
 		return consList[V](v, acc)
 	})
 }
@@ -871,7 +871,7 @@ func (m HashMap[K, V]) Values() List[V] {
 //line collection_immutable/hashmap.gala:595
 func (m HashMap[K, V]) KeyArray() Array[K] {
 //line collection_immutable/hashmap.gala:596
-	return HashMap_FoldLeftKV[Array[K]](m, EmptyArray[K](), func(acc Array[K], k K, v V) Array[K] {
+	return HashMap_FoldLeftKV[Array[K], K, V](m, EmptyArray[K](), func(acc Array[K], k K, v V) Array[K] {
 		return acc.Append(k)
 	})
 }
@@ -879,7 +879,7 @@ func (m HashMap[K, V]) KeyArray() Array[K] {
 //line collection_immutable/hashmap.gala:600
 func (m HashMap[K, V]) ValueArray() Array[V] {
 //line collection_immutable/hashmap.gala:601
-	return HashMap_FoldLeftKV[Array[V]](m, EmptyArray[V](), func(acc Array[V], k K, v V) Array[V] {
+	return HashMap_FoldLeftKV[Array[V], K, V](m, EmptyArray[V](), func(acc Array[V], k K, v V) Array[V] {
 		return acc.Append(v)
 	})
 }
@@ -887,7 +887,7 @@ func (m HashMap[K, V]) ValueArray() Array[V] {
 //line collection_immutable/hashmap.gala:607
 func (m HashMap[K, V]) PutAll(other HashMap[K, V]) HashMap[K, V] {
 //line collection_immutable/hashmap.gala:608
-	return HashMap_FoldLeftKV[HashMap[K, V]](other, m, func(acc HashMap[K, V], k K, v V) HashMap[K, V] {
+	return HashMap_FoldLeftKV[HashMap[K, V], K, V](other, m, func(acc HashMap[K, V], k K, v V) HashMap[K, V] {
 		return acc.Put(k, v)
 	})
 }
@@ -895,7 +895,7 @@ func (m HashMap[K, V]) PutAll(other HashMap[K, V]) HashMap[K, V] {
 //line collection_immutable/hashmap.gala:612
 func (m HashMap[K, V]) Merge(other HashMap[K, V], f func(V, V) V) HashMap[K, V] {
 //line collection_immutable/hashmap.gala:613
-	return HashMap_FoldLeftKV[HashMap[K, V]](other, m, func(acc HashMap[K, V], k K, v V) HashMap[K, V] {
+	return HashMap_FoldLeftKV[HashMap[K, V], K, V](other, m, func(acc HashMap[K, V], k K, v V) HashMap[K, V] {
 //line collection_immutable/hashmap.gala:614
 		return func(obj Option[V]) HashMap[K, V] {
 			{
@@ -938,7 +938,7 @@ func (m HashMap[K, V]) ToGoMap() map[K]V {
 //line collection_immutable/hashmap.gala:633
 func (m HashMap[K, V]) ToList() List[Tuple[K, V]] {
 //line collection_immutable/hashmap.gala:634
-	return HashMap_FoldLeftKV[List[Tuple[K, V]]](m, emptyList[Tuple[K, V]](), func(acc List[Tuple[K, V]], k K, v V) List[Tuple[K, V]] {
+	return HashMap_FoldLeftKV[List[Tuple[K, V]], K, V](m, emptyList[Tuple[K, V]](), func(acc List[Tuple[K, V]], k K, v V) List[Tuple[K, V]] {
 		return consList[Tuple[K, V]](Tuple[K, V]{V1: NewImmutable(k), V2: NewImmutable(v)}, acc)
 	})
 }
@@ -1004,8 +1004,8 @@ func (m HashMap[K, V]) KeySet() HashSet[K] {
 
 //line collection_immutable/hashmap.gala:677
 func (m HashMap[K, V]) Sorted() Array[Tuple[K, V]] {
-	return m.ToArray().SortWith(func(a Tuple[K, V], b Tuple[K, V]) bool {
-		return CompareValues(a.V1.Get(), b.V1.Get()) < 0
+	return Array_SortBy(m.ToArray(), func(e Tuple[K, V]) K {
+		return e.V1.Get()
 	})
 }
 
@@ -1022,7 +1022,7 @@ func HashMap_SortBy[S comparable, K comparable, V any](m HashMap[K, V], f func(T
 //line collection_immutable/hashmap.gala:688
 func (m HashMap[K, V]) Find(p func(K, V) bool) Option[Tuple[K, V]] {
 //line collection_immutable/hashmap.gala:689
-	return HashMap_FoldLeftKV[Option[Tuple[K, V]]](m, None[Tuple[K, V]]{}.Apply(), func(acc Option[Tuple[K, V]], k K, v V) Option[Tuple[K, V]] {
+	return HashMap_FoldLeftKV[Option[Tuple[K, V]], K, V](m, None[Tuple[K, V]]{}.Apply(), func(acc Option[Tuple[K, V]], k K, v V) Option[Tuple[K, V]] {
 //line collection_immutable/hashmap.gala:690
 		if acc.IsEmpty() && p(k, v) {
 //line collection_immutable/hashmap.gala:691
@@ -1068,7 +1068,7 @@ func (m HashMap[K, V]) HeadOption() Option[Tuple[K, V]] {
 		return None[Tuple[K, V]]{}.Apply()
 	}
 //line collection_immutable/hashmap.gala:710
-	return HashMap_FoldLeftKV[Option[Tuple[K, V]]](m, None[Tuple[K, V]]{}.Apply(), func(acc Option[Tuple[K, V]], k K, v V) Option[Tuple[K, V]] {
+	return HashMap_FoldLeftKV[Option[Tuple[K, V]], K, V](m, None[Tuple[K, V]]{}.Apply(), func(acc Option[Tuple[K, V]], k K, v V) Option[Tuple[K, V]] {
 //line collection_immutable/hashmap.gala:711
 		if acc.IsEmpty() {
 //line collection_immutable/hashmap.gala:712
@@ -1082,7 +1082,7 @@ func (m HashMap[K, V]) HeadOption() Option[Tuple[K, V]] {
 //line collection_immutable/hashmap.gala:719
 func (m HashMap[K, V]) ToArray() Array[Tuple[K, V]] {
 //line collection_immutable/hashmap.gala:720
-	return HashMap_FoldLeftKV[Array[Tuple[K, V]]](m, EmptyArray[Tuple[K, V]](), func(acc Array[Tuple[K, V]], k K, v V) Array[Tuple[K, V]] {
+	return HashMap_FoldLeftKV[Array[Tuple[K, V]], K, V](m, EmptyArray[Tuple[K, V]](), func(acc Array[Tuple[K, V]], k K, v V) Array[Tuple[K, V]] {
 		return acc.Append(Tuple[K, V]{V1: NewImmutable(k), V2: NewImmutable(v)})
 	})
 }
@@ -1092,7 +1092,7 @@ func (m HashMap[K, V]) Partition(p func(K, V) bool) Tuple[HashMap[K, V], HashMap
 //line collection_immutable/hashmap.gala:725
 	var initial = NewImmutable(Tuple[HashMap[K, V], HashMap[K, V]]{V1: NewImmutable(EmptyHashMap[K, V]()), V2: NewImmutable(EmptyHashMap[K, V]())})
 //line collection_immutable/hashmap.gala:726
-	return HashMap_FoldLeftKV[Tuple[HashMap[K, V], HashMap[K, V]]](m, initial.Get(), func(acc Tuple[HashMap[K, V], HashMap[K, V]], k K, v V) Tuple[HashMap[K, V], HashMap[K, V]] {
+	return HashMap_FoldLeftKV[Tuple[HashMap[K, V], HashMap[K, V]], K, V](m, initial.Get(), func(acc Tuple[HashMap[K, V], HashMap[K, V]], k K, v V) Tuple[HashMap[K, V], HashMap[K, V]] {
 //line collection_immutable/hashmap.gala:727
 		if p(k, v) {
 //line collection_immutable/hashmap.gala:728

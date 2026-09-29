@@ -521,7 +521,7 @@ func removeFromNode[T comparable](node *hashSetNode[T], elem T, hashCode uint32,
 //line collection_immutable/hashset.gala:361
 func (s HashSet[T]) AddAll(other HashSet[T]) HashSet[T] {
 //line collection_immutable/hashset.gala:362
-	return HashSet_FoldLeft[HashSet[T]](other, s, func(acc HashSet[T], elem T) HashSet[T] {
+	return HashSet_FoldLeft[HashSet[T], T](other, s, func(acc HashSet[T], elem T) HashSet[T] {
 		return acc.Add(elem)
 	})
 }
@@ -550,7 +550,7 @@ func (s HashSet[T]) Intersect(other HashSet[T]) HashSet[T] {
 		larger = s
 	}
 //line collection_immutable/hashset.gala:381
-	return HashSet_FoldLeft[HashSet[T]](smaller, EmptyHashSet[T](), func(acc HashSet[T], elem T) HashSet[T] {
+	return HashSet_FoldLeft[HashSet[T], T](smaller, EmptyHashSet[T](), func(acc HashSet[T], elem T) HashSet[T] {
 //line collection_immutable/hashset.gala:382
 		if larger.Contains(elem) {
 //line collection_immutable/hashset.gala:383
@@ -564,7 +564,7 @@ func (s HashSet[T]) Intersect(other HashSet[T]) HashSet[T] {
 //line collection_immutable/hashset.gala:390
 func (s HashSet[T]) Diff(other HashSet[T]) HashSet[T] {
 //line collection_immutable/hashset.gala:391
-	return HashSet_FoldLeft[HashSet[T]](s, EmptyHashSet[T](), func(acc HashSet[T], elem T) HashSet[T] {
+	return HashSet_FoldLeft[HashSet[T], T](s, EmptyHashSet[T](), func(acc HashSet[T], elem T) HashSet[T] {
 //line collection_immutable/hashset.gala:392
 		if !other.Contains(elem) {
 //line collection_immutable/hashset.gala:393
@@ -583,7 +583,7 @@ func (s HashSet[T]) SubsetOf(other HashSet[T]) bool {
 		return false
 	}
 //line collection_immutable/hashset.gala:404
-	return HashSet_FoldLeft[bool](s, true, func(acc bool, elem T) bool {
+	return HashSet_FoldLeft[bool, T](s, true, func(acc bool, elem T) bool {
 		return acc && other.Contains(elem)
 	})
 }
@@ -619,7 +619,7 @@ func forEachInNode[T comparable](node *hashSetNode[T], f func(T)) {
 //line collection_immutable/hashset.gala:430
 func MapHashSet[T comparable, U comparable](s HashSet[T], f func(T) U) HashSet[U] {
 //line collection_immutable/hashset.gala:431
-	return HashSet_FoldLeft[HashSet[U]](s, EmptyHashSet[U](), func(acc HashSet[U], elem T) HashSet[U] {
+	return HashSet_FoldLeft[HashSet[U], T](s, EmptyHashSet[U](), func(acc HashSet[U], elem T) HashSet[U] {
 		return acc.Add(f(elem))
 	})
 }
@@ -627,7 +627,7 @@ func MapHashSet[T comparable, U comparable](s HashSet[T], f func(T) U) HashSet[U
 //line collection_immutable/hashset.gala:436
 func FlatMapHashSet[T comparable, U comparable](s HashSet[T], f func(T) HashSet[U]) HashSet[U] {
 //line collection_immutable/hashset.gala:437
-	return HashSet_FoldLeft[HashSet[U]](s, EmptyHashSet[U](), func(acc HashSet[U], elem T) HashSet[U] {
+	return HashSet_FoldLeft[HashSet[U], T](s, EmptyHashSet[U](), func(acc HashSet[U], elem T) HashSet[U] {
 		return acc.AddAll(f(elem))
 	})
 }
@@ -635,7 +635,7 @@ func FlatMapHashSet[T comparable, U comparable](s HashSet[T], f func(T) HashSet[
 //line collection_immutable/hashset.gala:441
 func (s HashSet[T]) Filter(p func(T) bool) HashSet[T] {
 //line collection_immutable/hashset.gala:442
-	return HashSet_FoldLeft[HashSet[T]](s, EmptyHashSet[T](), func(acc HashSet[T], elem T) HashSet[T] {
+	return HashSet_FoldLeft[HashSet[T], T](s, EmptyHashSet[T](), func(acc HashSet[T], elem T) HashSet[T] {
 //line collection_immutable/hashset.gala:443
 		if p(elem) {
 //line collection_immutable/hashset.gala:444
@@ -736,7 +736,7 @@ func (s HashSet[T]) ReduceOption(f func(T, T) T) Option[T] {
 //line collection_immutable/hashset.gala:511
 func (s HashSet[T]) Exists(p func(T) bool) bool {
 //line collection_immutable/hashset.gala:512
-	return HashSet_FoldLeft[bool](s, false, func(acc bool, elem T) bool {
+	return HashSet_FoldLeft[bool, T](s, false, func(acc bool, elem T) bool {
 		return acc || p(elem)
 	})
 }
@@ -744,7 +744,7 @@ func (s HashSet[T]) Exists(p func(T) bool) bool {
 //line collection_immutable/hashset.gala:516
 func (s HashSet[T]) ForAll(p func(T) bool) bool {
 //line collection_immutable/hashset.gala:517
-	return HashSet_FoldLeft[bool](s, true, func(acc bool, elem T) bool {
+	return HashSet_FoldLeft[bool, T](s, true, func(acc bool, elem T) bool {
 		return acc && p(elem)
 	})
 }
@@ -752,7 +752,7 @@ func (s HashSet[T]) ForAll(p func(T) bool) bool {
 //line collection_immutable/hashset.gala:521
 func (s HashSet[T]) Find(p func(T) bool) Option[T] {
 //line collection_immutable/hashset.gala:522
-	return HashSet_FoldLeft[Option[T]](s, None[T]{}.Apply(), func(acc Option[T], elem T) Option[T] {
+	return HashSet_FoldLeft[Option[T], T](s, None[T]{}.Apply(), func(acc Option[T], elem T) Option[T] {
 //line collection_immutable/hashset.gala:523
 		if acc.IsEmpty() && p(elem) {
 //line collection_immutable/hashset.gala:524
@@ -766,7 +766,7 @@ func (s HashSet[T]) Find(p func(T) bool) Option[T] {
 //line collection_immutable/hashset.gala:531
 func (s HashSet[T]) Count(p func(T) bool) int {
 //line collection_immutable/hashset.gala:532
-	return HashSet_FoldLeft[int](s, 0, func(acc int, elem T) int {
+	return HashSet_FoldLeft[int, T](s, 0, func(acc int, elem T) int {
 //line collection_immutable/hashset.gala:533
 		if p(elem) {
 //line collection_immutable/hashset.gala:534
@@ -829,7 +829,7 @@ func (s HashSet[T]) ToGoSlice() []T {
 //line collection_immutable/hashset.gala:575
 func (s HashSet[T]) ToList() List[T] {
 //line collection_immutable/hashset.gala:576
-	return HashSet_FoldLeft[List[T]](s, emptyList[T](), func(acc List[T], elem T) List[T] {
+	return HashSet_FoldLeft[List[T], T](s, emptyList[T](), func(acc List[T], elem T) List[T] {
 		return consList[T](elem, acc)
 	})
 }
@@ -837,7 +837,7 @@ func (s HashSet[T]) ToList() List[T] {
 //line collection_immutable/hashset.gala:580
 func (s HashSet[T]) ToArray() Array[T] {
 //line collection_immutable/hashset.gala:581
-	return HashSet_FoldLeft[Array[T]](s, EmptyArray[T](), func(acc Array[T], elem T) Array[T] {
+	return HashSet_FoldLeft[Array[T], T](s, EmptyArray[T](), func(acc Array[T], elem T) Array[T] {
 		return acc.Append(elem)
 	})
 }

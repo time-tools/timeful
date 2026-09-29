@@ -1,3 +1,3 @@
-KIND=build_fail
-ERR=cannot define new methods on non-local type DateTime
-NOTE=type X Y stays a Go alias in 0.81.0 and after PR #529, so methods on named scalars remain illegal; models/datetime.go stays handwritten
+KIND=transpile_fail
+CODE=GALA-E0048
+NOTE=`type X Y` stays a Go alias, so it takes no methods of its own and models/datetime.go stays handwritten; 0.81.0 accepted the declaration and emitted Go that failed to build, and 0.84.1 rejects it at transpile time as GALA-E0048 with a hint to declare a wrapping struct or use a plain function

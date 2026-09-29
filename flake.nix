@@ -9,6 +9,7 @@
       inputs.nixpkgs-lib.url = "github:nix-community/nixpkgs.lib";
     };
     backlog-md.url = "github:time-tools/Backlog.md/aded8e254e6a0205b878cf07e631d1a592782040";
+    gala.url = "github:martianoff/gala/b6165a6465bd3350e98f0906307150d8e82808a9";
   };
 
   outputs = inputs@{ flake-parts, systems, ... }:
@@ -41,6 +42,7 @@
             pkgs.go
             pkgs.playwright-driver.browsers
             inputs.backlog-md.packages.${system}.default
+            inputs.gala.packages.${system}.default
             pkgs.codebase-memory-mcp
             pkgs.ripgrep
             pkgs.actionlint

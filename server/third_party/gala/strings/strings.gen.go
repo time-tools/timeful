@@ -5,6 +5,7 @@ package strings
 import (
 	. "martianoff/gala/collection_immutable"
 	cm "martianoff/gala/collection_mutable"
+	"martianoff/gala/go_interop"
 	"martianoff/gala/lazy"
 	. "martianoff/gala/std"
 	gostrings "strings"
@@ -12,107 +13,107 @@ import (
 	"unicode/utf8"
 )
 
-//line strings/strings.gala:35
+//line strings/strings.gala:36
 func Contains(s string, substr string) bool {
 	return gostrings.Contains(s, substr)
 }
 
-//line strings/strings.gala:38
+//line strings/strings.gala:39
 func HasPrefix(s string, prefix string) bool {
 	return gostrings.HasPrefix(s, prefix)
 }
 
-//line strings/strings.gala:41
+//line strings/strings.gala:42
 func HasSuffix(s string, suffix string) bool {
 	return gostrings.HasSuffix(s, suffix)
 }
 
-//line strings/strings.gala:45
+//line strings/strings.gala:46
 func EqualFold(a string, b string) bool {
 	return gostrings.EqualFold(a, b)
 }
 
-//line strings/strings.gala:49
+//line strings/strings.gala:50
 func LastIndex(s string, substr string) int {
 	return gostrings.LastIndex(s, substr)
 }
 
-//line strings/strings.gala:53
+//line strings/strings.gala:54
 func TrimSpace(s string) string {
 	return gostrings.TrimSpace(s)
 }
 
-//line strings/strings.gala:57
+//line strings/strings.gala:58
 func Trim(s string, cutset string) string {
 	return gostrings.Trim(s, cutset)
 }
 
-//line strings/strings.gala:61
+//line strings/strings.gala:62
 func TrimLeft(s string, cutset string) string {
 	return gostrings.TrimLeft(s, cutset)
 }
 
-//line strings/strings.gala:65
+//line strings/strings.gala:66
 func TrimRight(s string, cutset string) string {
 	return gostrings.TrimRight(s, cutset)
 }
 
-//line strings/strings.gala:69
+//line strings/strings.gala:70
 func TrimPrefix(s string, prefix string) string {
 	return gostrings.TrimPrefix(s, prefix)
 }
 
-//line strings/strings.gala:73
+//line strings/strings.gala:74
 func TrimSuffix(s string, suffix string) string {
 	return gostrings.TrimSuffix(s, suffix)
 }
 
-//line strings/strings.gala:76
+//line strings/strings.gala:77
 func ToLower(s string) string {
 	return gostrings.ToLower(s)
 }
 
-//line strings/strings.gala:79
+//line strings/strings.gala:80
 func ToUpper(s string) string {
 	return gostrings.ToUpper(s)
 }
 
-//line strings/strings.gala:84
+//line strings/strings.gala:85
 func Repeat(s string, count int) string {
 	return gostrings.Repeat(s, count)
 }
 
-//line strings/strings.gala:89
+//line strings/strings.gala:90
 func Replace(s string, old string, new string, n int) string {
 	return gostrings.Replace(s, old, new, n)
 }
 
-//line strings/strings.gala:94
+//line strings/strings.gala:95
 func ReplaceAll(s string, old string, new string) string {
 	return gostrings.ReplaceAll(s, old, new)
 }
 
-//line strings/strings.gala:100
+//line strings/strings.gala:101
 func Split(s string, sep string) Array[string] {
 	return ArrayFromSlice[string](gostrings.Split(s, sep))
 }
 
-//line strings/strings.gala:106
+//line strings/strings.gala:107
 func SplitN(s string, sep string, n int) Array[string] {
 	return ArrayFromSlice[string](gostrings.SplitN(s, sep, n))
 }
 
-//line strings/strings.gala:112
+//line strings/strings.gala:113
 func Fields(s string) Array[string] {
 	return ArrayFromSlice[string](gostrings.Fields(s))
 }
 
-//line strings/strings.gala:117
+//line strings/strings.gala:118
 func Join(parts Array[string], sep string) string {
 	return gostrings.Join(parts.ToGoSlice(), sep)
 }
 
-//line strings/strings.gala:126
+//line strings/strings.gala:127
 type Str struct {
 	runes Immutable[*lazy.Lazy[Array[rune]]]
 	str   Immutable[string]
@@ -125,524 +126,516 @@ func (s Str) Equal(other Str) bool {
 	return Equal(s.runes, other.runes) && Equal(s.str, other.str)
 }
 
-//line strings/strings.gala:132
+//line strings/strings.gala:133
 func S(s string) Str {
 	return strFromString(s)
 }
 
-//line strings/strings.gala:135
+//line strings/strings.gala:136
 func strFromString(s string) Str {
 	return Str{runes: NewImmutable(lazy.New[Array[rune]](func() Array[rune] {
 		return stringToRunes(s)
 	})), str: NewImmutable(s)}
 }
 
-//line strings/strings.gala:138
+//line strings/strings.gala:139
 func strFromRunes(runes Array[rune]) Str {
 	return Str{runes: NewImmutable(lazy.Of(runes)), str: NewImmutable(string(runes.ToGoSlice()))}
 }
 
-//line strings/strings.gala:141
+//line strings/strings.gala:142
 func emptyStr() Str {
 	return Str{runes: NewImmutable(lazy.Of(EmptyArray[rune]())), str: NewImmutable("")}
 }
 
-//line strings/strings.gala:144
+//line strings/strings.gala:148
 func stringToRunes(s string) Array[rune] {
-//line strings/strings.gala:145
-	var result = EmptyArray[rune]()
-//line strings/strings.gala:146
-	for _, r := range s {
-//line strings/strings.gala:147
-		result = result.Append(r)
-	}
-//line strings/strings.gala:149
-	return result
+	return ArrayFromSlice(go_interop.ToRunes(s))
 }
 
-//line strings/strings.gala:153
+//line strings/strings.gala:151
 func runesToString(runes Array[rune]) string {
 	return string(runes.ToGoSlice())
 }
 
-//line strings/strings.gala:156
+//line strings/strings.gala:154
 func (s Str) Length() int {
 	return s.runes.Get().Get().Length()
 }
 
-//line strings/strings.gala:159
+//line strings/strings.gala:157
 func (s Str) IsEmpty() bool {
 	return s.str.Get() == ""
 }
 
-//line strings/strings.gala:162
+//line strings/strings.gala:160
 func (s Str) NonEmpty() bool {
 	return s.str.Get() != ""
 }
 
-//line strings/strings.gala:165
+//line strings/strings.gala:163
 func (s Str) ToString() string {
 	return s.str.Get()
 }
 
-//line strings/strings.gala:168
+//line strings/strings.gala:166
 func (s Str) ToUpper() Str {
 	return strFromString(gostrings.ToUpper(s.str.Get()))
 }
 
-//line strings/strings.gala:171
+//line strings/strings.gala:169
 func (s Str) ToLower() Str {
 	return strFromString(gostrings.ToLower(s.str.Get()))
 }
 
-//line strings/strings.gala:174
+//line strings/strings.gala:172
 func (s Str) Trim() Str {
 	return strFromString(gostrings.TrimSpace(s.str.Get()))
 }
 
-//line strings/strings.gala:177
+//line strings/strings.gala:175
 func (s Str) TrimLeft() Str {
 	return strFromString(gostrings.TrimLeftFunc(s.str.Get(), unicode.IsSpace))
 }
 
-//line strings/strings.gala:180
+//line strings/strings.gala:178
 func (s Str) TrimRight() Str {
 	return strFromString(gostrings.TrimRightFunc(s.str.Get(), unicode.IsSpace))
 }
 
-//line strings/strings.gala:183
+//line strings/strings.gala:181
 func (s Str) TrimPrefix(prefix string) Str {
 	return strFromString(gostrings.TrimPrefix(s.str.Get(), prefix))
 }
 
-//line strings/strings.gala:186
+//line strings/strings.gala:184
 func (s Str) TrimSuffix(suffix string) Str {
 	return strFromString(gostrings.TrimSuffix(s.str.Get(), suffix))
 }
 
-//line strings/strings.gala:189
+//line strings/strings.gala:187
 func (s Str) Replace(old string, new string) Str {
 	return strFromString(gostrings.Replace(s.str.Get(), old, new, 1))
 }
 
-//line strings/strings.gala:192
+//line strings/strings.gala:190
 func (s Str) ReplaceAll(old string, new string) Str {
 	return strFromString(gostrings.ReplaceAll(s.str.Get(), old, new))
 }
 
-//line strings/strings.gala:195
+//line strings/strings.gala:193
 func (s Str) Contains(substr string) bool {
 	return gostrings.Contains(s.str.Get(), substr)
 }
 
-//line strings/strings.gala:198
+//line strings/strings.gala:196
 func (s Str) ContainsAny(chars string) bool {
 	return gostrings.ContainsAny(s.str.Get(), chars)
 }
 
-//line strings/strings.gala:201
+//line strings/strings.gala:199
 func (s Str) StartsWith(prefix string) bool {
 	return gostrings.HasPrefix(s.str.Get(), prefix)
 }
 
-//line strings/strings.gala:204
+//line strings/strings.gala:202
 func (s Str) EndsWith(suffix string) bool {
 	return gostrings.HasSuffix(s.str.Get(), suffix)
 }
 
-//line strings/strings.gala:207
+//line strings/strings.gala:205
 func (s Str) Count(substr string) int {
 	return gostrings.Count(s.str.Get(), substr)
 }
 
-//line strings/strings.gala:210
+//line strings/strings.gala:208
 func (s Str) CharAt(index int) Option[rune] {
-//line strings/strings.gala:211
+//line strings/strings.gala:209
 	if index < 0 || index >= s.runes.Get().Get().Length() {
-//line strings/strings.gala:212
+//line strings/strings.gala:210
 		return None[rune]{}.Apply()
 	}
-//line strings/strings.gala:214
+//line strings/strings.gala:212
 	return Some[rune]{}.Apply(s.runes.Get().Get().Get(index))
 }
 
-//line strings/strings.gala:218
+//line strings/strings.gala:216
 func (s Str) Substring(start int, end int) Str {
-//line strings/strings.gala:219
+//line strings/strings.gala:217
 	var length = NewImmutable(s.runes.Get().Get().Length())
-//line strings/strings.gala:220
+//line strings/strings.gala:218
 	var actualStart = NewImmutable(max(0, min(start, length.Get())))
-//line strings/strings.gala:221
+//line strings/strings.gala:219
 	var actualEnd = NewImmutable(max(actualStart.Get(), min(end, length.Get())))
-//line strings/strings.gala:222
+//line strings/strings.gala:220
 	return strFromRunes(s.runes.Get().Get().Slice(actualStart.Get(), actualEnd.Get()))
 }
 
-//line strings/strings.gala:226
+//line strings/strings.gala:224
 func (s Str) Take(n int) Str {
-//line strings/strings.gala:227
+//line strings/strings.gala:225
 	if n <= 0 {
-//line strings/strings.gala:228
+//line strings/strings.gala:226
 		return emptyStr()
 	}
-//line strings/strings.gala:230
+//line strings/strings.gala:228
 	return strFromRunes(s.runes.Get().Get().Take(n))
 }
 
-//line strings/strings.gala:234
+//line strings/strings.gala:232
 func (s Str) TakeRight(n int) Str {
-//line strings/strings.gala:235
+//line strings/strings.gala:233
 	if n <= 0 {
-//line strings/strings.gala:236
+//line strings/strings.gala:234
 		return emptyStr()
 	}
-//line strings/strings.gala:238
+//line strings/strings.gala:236
 	var length = NewImmutable(s.runes.Get().Get().Length())
-//line strings/strings.gala:239
+//line strings/strings.gala:237
 	if n >= length.Get() {
-//line strings/strings.gala:240
+//line strings/strings.gala:238
 		return s
 	}
-//line strings/strings.gala:242
+//line strings/strings.gala:240
 	return strFromRunes(s.runes.Get().Get().Drop(length.Get() - n))
 }
 
-//line strings/strings.gala:246
+//line strings/strings.gala:244
 func (s Str) Drop(n int) Str {
-//line strings/strings.gala:247
+//line strings/strings.gala:245
 	if n <= 0 {
-//line strings/strings.gala:248
+//line strings/strings.gala:246
 		return s
 	}
-//line strings/strings.gala:250
+//line strings/strings.gala:248
 	return strFromRunes(s.runes.Get().Get().Drop(n))
 }
 
-//line strings/strings.gala:254
+//line strings/strings.gala:252
 func (s Str) DropRight(n int) Str {
-//line strings/strings.gala:255
+//line strings/strings.gala:253
 	if n <= 0 {
-//line strings/strings.gala:256
+//line strings/strings.gala:254
 		return s
 	}
-//line strings/strings.gala:258
+//line strings/strings.gala:256
 	var length = NewImmutable(s.runes.Get().Get().Length())
-//line strings/strings.gala:259
+//line strings/strings.gala:257
 	if n >= length.Get() {
-//line strings/strings.gala:260
+//line strings/strings.gala:258
 		return emptyStr()
 	}
-//line strings/strings.gala:262
+//line strings/strings.gala:260
 	return strFromRunes(s.runes.Get().Get().Take(length.Get() - n))
 }
 
-//line strings/strings.gala:266
+//line strings/strings.gala:264
 func (s Str) Reverse() Str {
 	return strFromRunes(s.runes.Get().Get().Reverse())
 }
 
-//line strings/strings.gala:269
+//line strings/strings.gala:267
 func (s Str) Repeat(n int) Str {
-//line strings/strings.gala:270
+//line strings/strings.gala:268
 	if n <= 0 {
-//line strings/strings.gala:271
+//line strings/strings.gala:269
 		return emptyStr()
 	}
-//line strings/strings.gala:273
+//line strings/strings.gala:271
 	return strFromString(gostrings.Repeat(s.str.Get(), n))
 }
 
-//line strings/strings.gala:277
+//line strings/strings.gala:275
 func (s Str) PadLeft(length int, pad rune) Str {
-//line strings/strings.gala:278
+//line strings/strings.gala:276
 	if s.Length() >= length {
-//line strings/strings.gala:279
+//line strings/strings.gala:277
 		return s
 	}
-//line strings/strings.gala:281
+//line strings/strings.gala:279
 	var padCount = NewImmutable(length - s.Length())
-//line strings/strings.gala:282
+//line strings/strings.gala:280
 	return strFromRunes(ArrayFill(padCount.Get(), pad).AppendAll(s.runes.Get().Get()))
 }
 
-//line strings/strings.gala:286
+//line strings/strings.gala:284
 func (s Str) PadRight(length int, pad rune) Str {
-//line strings/strings.gala:287
+//line strings/strings.gala:285
 	if s.Length() >= length {
-//line strings/strings.gala:288
+//line strings/strings.gala:286
 		return s
 	}
-//line strings/strings.gala:290
+//line strings/strings.gala:288
 	var padCount = NewImmutable(length - s.Length())
-//line strings/strings.gala:291
+//line strings/strings.gala:289
 	return strFromRunes(s.runes.Get().Get().AppendAll(ArrayFill(padCount.Get(), pad)))
 }
 
-//line strings/strings.gala:295
+//line strings/strings.gala:293
 func (s Str) Center(length int, pad rune) Str {
-//line strings/strings.gala:296
+//line strings/strings.gala:294
 	if s.Length() >= length {
-//line strings/strings.gala:297
+//line strings/strings.gala:295
 		return s
 	}
-//line strings/strings.gala:299
+//line strings/strings.gala:297
 	var totalPad = NewImmutable(length - s.Length())
-//line strings/strings.gala:300
+//line strings/strings.gala:298
 	var leftPad = NewImmutable(totalPad.Get() / 2)
-//line strings/strings.gala:301
+//line strings/strings.gala:299
 	var rightPad = NewImmutable(totalPad.Get() - leftPad.Get())
-//line strings/strings.gala:302
+//line strings/strings.gala:300
 	return strFromRunes(ArrayFill(leftPad.Get(), pad).AppendAll(s.runes.Get().Get()).AppendAll(ArrayFill(rightPad.Get(), pad)))
 }
 
-//line strings/strings.gala:306
+//line strings/strings.gala:304
 func (s Str) Capitalize() Str {
-//line strings/strings.gala:307
+//line strings/strings.gala:305
 	if s.IsEmpty() {
+//line strings/strings.gala:306
+		return s
+	}
 //line strings/strings.gala:308
-		return s
-	}
-//line strings/strings.gala:310
-	var first = NewImmutable(unicode.ToUpper(s.runes.Get().Get().Head()))
-//line strings/strings.gala:311
-	return strFromRunes(EmptyArray[rune]().Append(first.Get()).AppendAll(s.runes.Get().Get().Tail()))
+	var runes = NewImmutable(s.runes.Get().Get())
+//line strings/strings.gala:309
+	return strFromRunes(runes.Get().Updated(0, unicode.ToUpper(runes.Get().Head())))
 }
 
-//line strings/strings.gala:315
+//line strings/strings.gala:313
 func (s Str) Uncapitalize() Str {
-//line strings/strings.gala:316
+//line strings/strings.gala:314
 	if s.IsEmpty() {
-//line strings/strings.gala:317
+//line strings/strings.gala:315
 		return s
 	}
-//line strings/strings.gala:319
-	var first = NewImmutable(unicode.ToLower(s.runes.Get().Get().Head()))
-//line strings/strings.gala:320
-	return strFromRunes(EmptyArray[rune]().Append(first.Get()).AppendAll(s.runes.Get().Get().Tail()))
+//line strings/strings.gala:317
+	var runes = NewImmutable(s.runes.Get().Get())
+//line strings/strings.gala:318
+	return strFromRunes(runes.Get().Updated(0, unicode.ToLower(runes.Get().Head())))
 }
 
-//line strings/strings.gala:327
+//line strings/strings.gala:325
 func (s Str) TitleCase() Str {
 	return JoinStrs(Array_Map(s.Words(), func(w Str) Str {
 		return w.Capitalize()
 	}), " ")
 }
 
-//line strings/strings.gala:330
+//line strings/strings.gala:328
 func (s Str) Split(sep string) Array[Str] {
 	return Array_Map(ArrayFromSlice(gostrings.Split(s.str.Get(), sep)), strFromString)
 }
 
-//line strings/strings.gala:334
+//line strings/strings.gala:332
 func (s Str) SplitAt(index int) Tuple[Str, Str] {
-//line strings/strings.gala:335
+//line strings/strings.gala:333
 	var actualIndex = NewImmutable(max(0, min(index, s.Length())))
-//line strings/strings.gala:336
+//line strings/strings.gala:334
 	return Tuple[Str, Str]{V1: NewImmutable(strFromRunes(s.runes.Get().Get().Take(actualIndex.Get()))), V2: NewImmutable(strFromRunes(s.runes.Get().Get().Drop(actualIndex.Get())))}
 }
 
-//line strings/strings.gala:340
+//line strings/strings.gala:338
 func (s Str) Lines() Array[Str] {
-//line strings/strings.gala:341
+//line strings/strings.gala:339
 	var normalized = NewImmutable(gostrings.ReplaceAll(s.str.Get(), "\r\n", "\n"))
-//line strings/strings.gala:342
+//line strings/strings.gala:340
 	return Array_Map(ArrayFromSlice(gostrings.Split(normalized.Get(), "\n")), strFromString)
 }
 
-//line strings/strings.gala:346
+//line strings/strings.gala:344
 func (s Str) Words() Array[Str] {
 	return Array_Map(ArrayFromSlice(gostrings.Fields(s.str.Get())), strFromString)
 }
 
-//line strings/strings.gala:351
+//line strings/strings.gala:349
 func JoinStrs(strs Array[Str], sep string) Str {
-//line strings/strings.gala:352
+//line strings/strings.gala:350
 	if strs.IsEmpty() {
-//line strings/strings.gala:353
+//line strings/strings.gala:351
 		return emptyStr()
 	}
-//line strings/strings.gala:355
+//line strings/strings.gala:353
 	return strFromString(gostrings.Join(Array_Map(strs, func(x Str) string {
 		return x.str.Get()
 	}).ToGoSlice(), sep))
 }
 
-//line strings/strings.gala:359
+//line strings/strings.gala:357
 func (s Str) Concat(other Str) Str {
-//line strings/strings.gala:360
+//line strings/strings.gala:358
 	var newRunes = NewImmutable(lazy.New[Array[rune]](func() Array[rune] {
 		return s.runes.Get().Get().AppendAll(other.runes.Get().Get())
 	}))
-//line strings/strings.gala:361
+//line strings/strings.gala:359
 	return Str{runes: NewImmutable(newRunes.Get()), str: NewImmutable(s.str.Get() + other.str.Get())}
 }
 
-//line strings/strings.gala:365
+//line strings/strings.gala:363
 func (s Str) Plus(other Str) Str {
 	return s.Concat(other)
 }
 
-//line strings/strings.gala:368
+//line strings/strings.gala:366
 func (s Str) Equals(other Str) bool {
 	return s.str.Get() == other.str.Get()
 }
 
-//line strings/strings.gala:371
+//line strings/strings.gala:369
 func (s Str) EqualsIgnoreCase(other Str) bool {
 	return gostrings.EqualFold(s.str.Get(), other.str.Get())
 }
 
-//line strings/strings.gala:374
+//line strings/strings.gala:372
 func (s Str) Compare(other Str) int {
 	return gostrings.Compare(s.str.Get(), other.str.Get())
 }
 
-//line strings/strings.gala:377
+//line strings/strings.gala:375
 func (s Str) ToChars() Array[rune] {
 	return s.runes.Get().Get()
 }
 
-//line strings/strings.gala:380
+//line strings/strings.gala:378
 func (s Str) IsAlpha() bool {
 	return s.NonEmpty() && s.runes.Get().Get().ForAll(unicode.IsLetter)
 }
 
-//line strings/strings.gala:383
+//line strings/strings.gala:381
 func (s Str) IsNumeric() bool {
 	return s.NonEmpty() && s.runes.Get().Get().ForAll(unicode.IsDigit)
 }
 
-//line strings/strings.gala:386
+//line strings/strings.gala:384
 func (s Str) IsAlphanumeric() bool {
 	return s.NonEmpty() && s.runes.Get().Get().ForAll(func(r rune) bool {
 		return unicode.IsLetter(r) || unicode.IsDigit(r)
 	})
 }
 
-//line strings/strings.gala:390
+//line strings/strings.gala:388
 func (s Str) IsWhitespace() bool {
 	return s.NonEmpty() && s.runes.Get().Get().ForAll(unicode.IsSpace)
 }
 
-//line strings/strings.gala:393
+//line strings/strings.gala:391
 func (s Str) IsUpper() bool {
-//line strings/strings.gala:394
+//line strings/strings.gala:392
 	if s.IsEmpty() {
-//line strings/strings.gala:395
+//line strings/strings.gala:393
 		return false
 	}
-//line strings/strings.gala:397
+//line strings/strings.gala:395
 	var letters = NewImmutable(s.runes.Get().Get().Filter(unicode.IsLetter))
-//line strings/strings.gala:398
+//line strings/strings.gala:396
 	return letters.Get().NonEmpty() && letters.Get().ForAll(unicode.IsUpper)
 }
 
-//line strings/strings.gala:402
+//line strings/strings.gala:400
 func (s Str) IsLower() bool {
-//line strings/strings.gala:403
+//line strings/strings.gala:401
 	if s.IsEmpty() {
-//line strings/strings.gala:404
+//line strings/strings.gala:402
 		return false
 	}
-//line strings/strings.gala:406
+//line strings/strings.gala:404
 	var letters = NewImmutable(s.runes.Get().Get().Filter(unicode.IsLetter))
-//line strings/strings.gala:407
+//line strings/strings.gala:405
 	return letters.Get().NonEmpty() && letters.Get().ForAll(unicode.IsLower)
 }
 
-//line strings/strings.gala:411
+//line strings/strings.gala:409
 func (s Str) IndexOf(substr string) Option[int] {
-//line strings/strings.gala:412
+//line strings/strings.gala:410
 	var idx = NewImmutable(gostrings.Index(s.str.Get(), substr))
-//line strings/strings.gala:413
+//line strings/strings.gala:411
 	return When(idx.Get() >= 0, byteIndexToRuneIndex(s.str.Get(), idx.Get()))
 }
 
-//line strings/strings.gala:417
+//line strings/strings.gala:415
 func (s Str) LastIndexOf(substr string) Option[int] {
-//line strings/strings.gala:418
+//line strings/strings.gala:416
 	var idx = NewImmutable(gostrings.LastIndex(s.str.Get(), substr))
-//line strings/strings.gala:419
+//line strings/strings.gala:417
 	return When(idx.Get() >= 0, byteIndexToRuneIndex(s.str.Get(), idx.Get()))
 }
 
-//line strings/strings.gala:423
+//line strings/strings.gala:421
 func byteIndexToRuneIndex(str string, byteIdx int) int {
-//line strings/strings.gala:424
+//line strings/strings.gala:422
 	var runeIdx = 0
-//line strings/strings.gala:425
+//line strings/strings.gala:423
 	var bytePos = 0
-//line strings/strings.gala:426
+//line strings/strings.gala:424
 	for _, r := range str {
-//line strings/strings.gala:427
+//line strings/strings.gala:425
 		if bytePos >= byteIdx {
-//line strings/strings.gala:428
+//line strings/strings.gala:426
 			return runeIdx
 		}
-//line strings/strings.gala:430
+//line strings/strings.gala:428
 		bytePos = bytePos + len(string(r))
-//line strings/strings.gala:431
+//line strings/strings.gala:429
 		runeIdx = runeIdx + 1
 	}
-//line strings/strings.gala:433
+//line strings/strings.gala:431
 	return runeIdx
 }
 
-//line strings/strings.gala:437
+//line strings/strings.gala:435
 func (s Str) IndexOfChar(target rune) Option[int] {
-//line strings/strings.gala:438
+//line strings/strings.gala:436
 	var idx = NewImmutable(s.runes.Get().Get().IndexOf(target))
-//line strings/strings.gala:439
+//line strings/strings.gala:437
 	return When(idx.Get() >= 0, idx.Get())
 }
 
-//line strings/strings.gala:443
+//line strings/strings.gala:441
 func (s Str) Map(f func(rune) rune) Str {
 	return strFromRunes(Array_Map(s.runes.Get().Get(), f))
 }
 
-//line strings/strings.gala:446
+//line strings/strings.gala:444
 func (s Str) Filter(p func(rune) bool) Str {
 	return strFromRunes(s.runes.Get().Get().Filter(p))
 }
 
-//line strings/strings.gala:449
+//line strings/strings.gala:447
 func (s Str) FilterNot(p func(rune) bool) Str {
 	return strFromRunes(s.runes.Get().Get().FilterNot(p))
 }
 
-//line strings/strings.gala:452
+//line strings/strings.gala:450
 func (s Str) ForEach(f func(rune)) {
-//line strings/strings.gala:453
+//line strings/strings.gala:451
 	s.runes.Get().Get().ForEach(f)
 }
 
-//line strings/strings.gala:457
+//line strings/strings.gala:455
 func Str_Fold[U any](s Str, zero U, f func(U, rune) U) U {
 	return Array_FoldLeft(s.runes.Get().Get(), zero, f)
 }
 
-//line strings/strings.gala:460
+//line strings/strings.gala:458
 func (s Str) Exists(p func(rune) bool) bool {
 	return s.runes.Get().Get().Exists(p)
 }
 
-//line strings/strings.gala:463
+//line strings/strings.gala:461
 func (s Str) ForAll(p func(rune) bool) bool {
 	return s.runes.Get().Get().ForAll(p)
 }
 
-//line strings/strings.gala:466
+//line strings/strings.gala:464
 func (s Str) Find(p func(rune) bool) Option[rune] {
 	return s.runes.Get().Get().Find(p)
 }
 
-//line strings/strings.gala:469
+//line strings/strings.gala:467
 func (s Str) ZipWithIndex() Array[Tuple[rune, int]] {
 	return Array_ZipWithIndex[rune](s.runes.Get().Get())
 }
 
-//line strings/strings.gala:474
+//line strings/strings.gala:472
 type NonEmptyStr struct {
 }
 
@@ -653,18 +646,18 @@ func (s NonEmptyStr) Equal(other NonEmptyStr) bool {
 	return true
 }
 
-//line strings/strings.gala:476
+//line strings/strings.gala:474
 func (n NonEmptyStr) Unapply(s Str) Option[Tuple[rune, Str]] {
-//line strings/strings.gala:477
+//line strings/strings.gala:475
 	if s.IsEmpty() {
-//line strings/strings.gala:478
+//line strings/strings.gala:476
 		return None[Tuple[rune, Str]]{}.Apply()
 	}
-//line strings/strings.gala:480
+//line strings/strings.gala:478
 	return Some[Tuple[rune, Str]]{}.Apply(Tuple[rune, Str]{V1: NewImmutable(s.runes.Get().Get().Head()), V2: NewImmutable(strFromRunes(s.runes.Get().Get().Tail()))})
 }
 
-//line strings/strings.gala:484
+//line strings/strings.gala:482
 type EmptyStr struct {
 }
 
@@ -675,40 +668,40 @@ func (s EmptyStr) Equal(other EmptyStr) bool {
 	return true
 }
 
-//line strings/strings.gala:486
+//line strings/strings.gala:484
 func (e EmptyStr) Unapply(s Str) Option[bool] {
-//line strings/strings.gala:487
+//line strings/strings.gala:485
 	if s.IsEmpty() {
-//line strings/strings.gala:488
+//line strings/strings.gala:486
 		return Some[bool]{}.Apply(true)
 	}
-//line strings/strings.gala:490
+//line strings/strings.gala:488
 	return None[bool]{}.Apply()
 }
 
-//line strings/strings.gala:495
+//line strings/strings.gala:493
 func min(a int, b int) int {
-//line strings/strings.gala:496
+//line strings/strings.gala:494
 	if a < b {
+//line strings/strings.gala:495
+		return a
+	}
 //line strings/strings.gala:497
-		return a
-	}
-//line strings/strings.gala:499
 	return b
 }
 
-//line strings/strings.gala:502
+//line strings/strings.gala:500
 func max(a int, b int) int {
-//line strings/strings.gala:503
+//line strings/strings.gala:501
 	if a > b {
-//line strings/strings.gala:504
+//line strings/strings.gala:502
 		return a
 	}
-//line strings/strings.gala:506
+//line strings/strings.gala:504
 	return b
 }
 
-//line strings/strings.gala:511
+//line strings/strings.gala:509
 type StringBuilder struct {
 	parts *cm.Array[string]
 }
@@ -720,122 +713,122 @@ func (s StringBuilder) Equal(other StringBuilder) bool {
 	return Equal(s.parts, other.parts)
 }
 
-//line strings/strings.gala:516
+//line strings/strings.gala:514
 func NewStringBuilder() *StringBuilder {
 	return &StringBuilder{parts: cm.EmptyArray[string]()}
 }
 
-//line strings/strings.gala:519
+//line strings/strings.gala:517
 func NewStringBuilderFrom(s Str) *StringBuilder {
-//line strings/strings.gala:520
+//line strings/strings.gala:518
 	var parts = cm.EmptyArray[string]()
-//line strings/strings.gala:521
+//line strings/strings.gala:519
 	parts.Append(s.str.Get())
-//line strings/strings.gala:522
+//line strings/strings.gala:520
 	return &StringBuilder{parts: parts}
 }
 
-//line strings/strings.gala:526
+//line strings/strings.gala:524
 func NewStringBuilderFromString(s string) *StringBuilder {
-//line strings/strings.gala:527
+//line strings/strings.gala:525
 	var parts = cm.EmptyArray[string]()
-//line strings/strings.gala:528
+//line strings/strings.gala:526
 	parts.Append(s)
-//line strings/strings.gala:529
+//line strings/strings.gala:527
 	return &StringBuilder{parts: parts}
 }
 
-//line strings/strings.gala:533
+//line strings/strings.gala:531
 func (sb *StringBuilder) Append(s Str) *StringBuilder {
-//line strings/strings.gala:534
+//line strings/strings.gala:532
 	sb.parts.Append(s.str.Get())
-//line strings/strings.gala:535
+//line strings/strings.gala:533
 	return sb
 }
 
-//line strings/strings.gala:539
+//line strings/strings.gala:537
 func (sb *StringBuilder) AppendRune(r rune) *StringBuilder {
-//line strings/strings.gala:540
+//line strings/strings.gala:538
 	sb.parts.Append(string(r))
-//line strings/strings.gala:541
+//line strings/strings.gala:539
 	return sb
 }
 
-//line strings/strings.gala:545
+//line strings/strings.gala:543
 func (sb *StringBuilder) AppendLine(s Str) *StringBuilder {
-//line strings/strings.gala:546
+//line strings/strings.gala:544
 	sb.parts.Append(s.str.Get())
-//line strings/strings.gala:547
+//line strings/strings.gala:545
 	sb.parts.Append("\n")
-//line strings/strings.gala:548
+//line strings/strings.gala:546
 	return sb
 }
 
-//line strings/strings.gala:552
+//line strings/strings.gala:550
 func (sb *StringBuilder) AppendString(s string) *StringBuilder {
-//line strings/strings.gala:553
+//line strings/strings.gala:551
 	sb.parts.Append(s)
-//line strings/strings.gala:554
+//line strings/strings.gala:552
 	return sb
 }
 
-//line strings/strings.gala:558
+//line strings/strings.gala:556
 func (sb *StringBuilder) AppendStringLine(s string) *StringBuilder {
-//line strings/strings.gala:559
+//line strings/strings.gala:557
 	sb.parts.Append(s)
-//line strings/strings.gala:560
+//line strings/strings.gala:558
 	sb.parts.Append("\n")
-//line strings/strings.gala:561
+//line strings/strings.gala:559
 	return sb
 }
 
-//line strings/strings.gala:565
+//line strings/strings.gala:563
 func (sb *StringBuilder) ToStr() Str {
 	return strFromString(sb.ToString())
 }
 
-//line strings/strings.gala:568
+//line strings/strings.gala:566
 func (sb *StringBuilder) ToString() string {
-//line strings/strings.gala:569
+//line strings/strings.gala:567
 	if sb.parts.Length() == 0 {
-//line strings/strings.gala:570
+//line strings/strings.gala:568
 		return ""
 	}
-//line strings/strings.gala:572
+//line strings/strings.gala:570
 	return gostrings.Join(sb.parts.ToGoSlice(), "")
 }
 
-//line strings/strings.gala:576
+//line strings/strings.gala:574
 func (sb *StringBuilder) String() string {
 	return sb.ToString()
 }
 
-//line strings/strings.gala:579
+//line strings/strings.gala:577
 func (sb *StringBuilder) Length() int {
 	return cm.Array_FoldLeft(sb.parts, 0, func(acc int, p string) int {
 		return acc + utf8.RuneCountInString(p)
 	})
 }
 
-//line strings/strings.gala:582
+//line strings/strings.gala:580
 func (sb *StringBuilder) RuneCount() int {
 	return cm.Array_FoldLeft(sb.parts, 0, func(acc int, p string) int {
 		return acc + utf8.RuneCountInString(p)
 	})
 }
 
-//line strings/strings.gala:586
+//line strings/strings.gala:584
 func (sb *StringBuilder) IsEmpty() bool {
 	return sb.parts.Length() == 0
 }
 
-//line strings/strings.gala:589
+//line strings/strings.gala:587
 func (sb *StringBuilder) NonEmpty() bool {
 	return sb.parts.Length() > 0
 }
 
-//line strings/strings.gala:592
+//line strings/strings.gala:590
 func (sb *StringBuilder) Reset() {
-//line strings/strings.gala:593
+//line strings/strings.gala:591
 	sb.parts = cm.EmptyArray[string]()
 }

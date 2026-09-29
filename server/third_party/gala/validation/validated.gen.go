@@ -254,8 +254,8 @@ func Validated_Zip2[B any, E any, A any](v0 Validated[E, A], v1 Validated[E, B])
 //line validation/validated.gala:65
 	if errs.Get().IsEmpty() {
 //line validation/validated.gala:66
-		return Validated_FlatMap[Tuple[A, B]](v0, func(a A) Validated[E, Tuple[A, B]] {
-			return Validated_Map[Tuple[A, B]](v1, func(b B) Tuple[A, B] {
+		return Validated_FlatMap[Tuple[A, B], E, A](v0, func(a A) Validated[E, Tuple[A, B]] {
+			return Validated_Map[Tuple[A, B], E, B](v1, func(b B) Tuple[A, B] {
 				return Tuple[A, B]{V1: NewImmutable(a), V2: NewImmutable(b)}
 			})
 		})
@@ -271,9 +271,9 @@ func Validated_Zip3[B any, C any, E any, A any](v0 Validated[E, A], v1 Validated
 //line validation/validated.gala:74
 	if errs.Get().IsEmpty() {
 //line validation/validated.gala:75
-		return Validated_FlatMap[Tuple3[A, B, C]](v0, func(a A) Validated[E, Tuple3[A, B, C]] {
-			return Validated_FlatMap[Tuple3[A, B, C]](v1, func(b B) Validated[E, Tuple3[A, B, C]] {
-				return Validated_Map[Tuple3[A, B, C]](v2, func(c C) Tuple3[A, B, C] {
+		return Validated_FlatMap[Tuple3[A, B, C], E, A](v0, func(a A) Validated[E, Tuple3[A, B, C]] {
+			return Validated_FlatMap[Tuple3[A, B, C], E, B](v1, func(b B) Validated[E, Tuple3[A, B, C]] {
+				return Validated_Map[Tuple3[A, B, C], E, C](v2, func(c C) Tuple3[A, B, C] {
 					return Tuple3[A, B, C]{V1: NewImmutable(a), V2: NewImmutable(b), V3: NewImmutable(c)}
 				})
 			})
@@ -290,10 +290,10 @@ func Validated_Zip4[B any, C any, D any, E any, A any](v0 Validated[E, A], v1 Va
 //line validation/validated.gala:84
 	if errs.Get().IsEmpty() {
 //line validation/validated.gala:85
-		return Validated_FlatMap[Tuple4[A, B, C, D]](v0, func(a A) Validated[E, Tuple4[A, B, C, D]] {
-			return Validated_FlatMap[Tuple4[A, B, C, D]](v1, func(b B) Validated[E, Tuple4[A, B, C, D]] {
-				return Validated_FlatMap[Tuple4[A, B, C, D]](v2, func(c C) Validated[E, Tuple4[A, B, C, D]] {
-					return Validated_Map[Tuple4[A, B, C, D]](v3, func(d D) Tuple4[A, B, C, D] {
+		return Validated_FlatMap[Tuple4[A, B, C, D], E, A](v0, func(a A) Validated[E, Tuple4[A, B, C, D]] {
+			return Validated_FlatMap[Tuple4[A, B, C, D], E, B](v1, func(b B) Validated[E, Tuple4[A, B, C, D]] {
+				return Validated_FlatMap[Tuple4[A, B, C, D], E, C](v2, func(c C) Validated[E, Tuple4[A, B, C, D]] {
+					return Validated_Map[Tuple4[A, B, C, D], E, D](v3, func(d D) Tuple4[A, B, C, D] {
 						return Tuple4[A, B, C, D]{V1: NewImmutable(a), V2: NewImmutable(b), V3: NewImmutable(c), V4: NewImmutable(d)}
 					})
 				})
@@ -311,11 +311,11 @@ func Validated_Zip5[B any, C any, D any, F any, E any, A any](v0 Validated[E, A]
 //line validation/validated.gala:95
 	if errs.Get().IsEmpty() {
 //line validation/validated.gala:96
-		return Validated_FlatMap[Tuple5[A, B, C, D, F]](v0, func(a A) Validated[E, Tuple5[A, B, C, D, F]] {
-			return Validated_FlatMap[Tuple5[A, B, C, D, F]](v1, func(b B) Validated[E, Tuple5[A, B, C, D, F]] {
-				return Validated_FlatMap[Tuple5[A, B, C, D, F]](v2, func(c C) Validated[E, Tuple5[A, B, C, D, F]] {
-					return Validated_FlatMap[Tuple5[A, B, C, D, F]](v3, func(d D) Validated[E, Tuple5[A, B, C, D, F]] {
-						return Validated_Map[Tuple5[A, B, C, D, F]](v4, func(f F) Tuple5[A, B, C, D, F] {
+		return Validated_FlatMap[Tuple5[A, B, C, D, F], E, A](v0, func(a A) Validated[E, Tuple5[A, B, C, D, F]] {
+			return Validated_FlatMap[Tuple5[A, B, C, D, F], E, B](v1, func(b B) Validated[E, Tuple5[A, B, C, D, F]] {
+				return Validated_FlatMap[Tuple5[A, B, C, D, F], E, C](v2, func(c C) Validated[E, Tuple5[A, B, C, D, F]] {
+					return Validated_FlatMap[Tuple5[A, B, C, D, F], E, D](v3, func(d D) Validated[E, Tuple5[A, B, C, D, F]] {
+						return Validated_Map[Tuple5[A, B, C, D, F], E, F](v4, func(f F) Tuple5[A, B, C, D, F] {
 							return Tuple5[A, B, C, D, F]{V1: NewImmutable(a), V2: NewImmutable(b), V3: NewImmutable(c), V4: NewImmutable(d), V5: NewImmutable(f)}
 						})
 					})
@@ -334,12 +334,12 @@ func Validated_Zip6[B any, C any, D any, F any, G any, E any, A any](v0 Validate
 //line validation/validated.gala:107
 	if errs.Get().IsEmpty() {
 //line validation/validated.gala:108
-		return Validated_FlatMap[Tuple6[A, B, C, D, F, G]](v0, func(a A) Validated[E, Tuple6[A, B, C, D, F, G]] {
-			return Validated_FlatMap[Tuple6[A, B, C, D, F, G]](v1, func(b B) Validated[E, Tuple6[A, B, C, D, F, G]] {
-				return Validated_FlatMap[Tuple6[A, B, C, D, F, G]](v2, func(c C) Validated[E, Tuple6[A, B, C, D, F, G]] {
-					return Validated_FlatMap[Tuple6[A, B, C, D, F, G]](v3, func(d D) Validated[E, Tuple6[A, B, C, D, F, G]] {
-						return Validated_FlatMap[Tuple6[A, B, C, D, F, G]](v4, func(f F) Validated[E, Tuple6[A, B, C, D, F, G]] {
-							return Validated_Map[Tuple6[A, B, C, D, F, G]](v5, func(g G) Tuple6[A, B, C, D, F, G] {
+		return Validated_FlatMap[Tuple6[A, B, C, D, F, G], E, A](v0, func(a A) Validated[E, Tuple6[A, B, C, D, F, G]] {
+			return Validated_FlatMap[Tuple6[A, B, C, D, F, G], E, B](v1, func(b B) Validated[E, Tuple6[A, B, C, D, F, G]] {
+				return Validated_FlatMap[Tuple6[A, B, C, D, F, G], E, C](v2, func(c C) Validated[E, Tuple6[A, B, C, D, F, G]] {
+					return Validated_FlatMap[Tuple6[A, B, C, D, F, G], E, D](v3, func(d D) Validated[E, Tuple6[A, B, C, D, F, G]] {
+						return Validated_FlatMap[Tuple6[A, B, C, D, F, G], E, F](v4, func(f F) Validated[E, Tuple6[A, B, C, D, F, G]] {
+							return Validated_Map[Tuple6[A, B, C, D, F, G], E, G](v5, func(g G) Tuple6[A, B, C, D, F, G] {
 								return Tuple6[A, B, C, D, F, G]{V1: NewImmutable(a), V2: NewImmutable(b), V3: NewImmutable(c), V4: NewImmutable(d), V5: NewImmutable(f), V6: NewImmutable(g)}
 							})
 						})
@@ -359,13 +359,13 @@ func Validated_Zip7[B any, C any, D any, F any, G any, H any, E any, A any](v0 V
 //line validation/validated.gala:120
 	if errs.Get().IsEmpty() {
 //line validation/validated.gala:121
-		return Validated_FlatMap[Tuple7[A, B, C, D, F, G, H]](v0, func(a A) Validated[E, Tuple7[A, B, C, D, F, G, H]] {
-			return Validated_FlatMap[Tuple7[A, B, C, D, F, G, H]](v1, func(b B) Validated[E, Tuple7[A, B, C, D, F, G, H]] {
-				return Validated_FlatMap[Tuple7[A, B, C, D, F, G, H]](v2, func(c C) Validated[E, Tuple7[A, B, C, D, F, G, H]] {
-					return Validated_FlatMap[Tuple7[A, B, C, D, F, G, H]](v3, func(d D) Validated[E, Tuple7[A, B, C, D, F, G, H]] {
-						return Validated_FlatMap[Tuple7[A, B, C, D, F, G, H]](v4, func(f F) Validated[E, Tuple7[A, B, C, D, F, G, H]] {
-							return Validated_FlatMap[Tuple7[A, B, C, D, F, G, H]](v5, func(g G) Validated[E, Tuple7[A, B, C, D, F, G, H]] {
-								return Validated_Map[Tuple7[A, B, C, D, F, G, H]](v6, func(h H) Tuple7[A, B, C, D, F, G, H] {
+		return Validated_FlatMap[Tuple7[A, B, C, D, F, G, H], E, A](v0, func(a A) Validated[E, Tuple7[A, B, C, D, F, G, H]] {
+			return Validated_FlatMap[Tuple7[A, B, C, D, F, G, H], E, B](v1, func(b B) Validated[E, Tuple7[A, B, C, D, F, G, H]] {
+				return Validated_FlatMap[Tuple7[A, B, C, D, F, G, H], E, C](v2, func(c C) Validated[E, Tuple7[A, B, C, D, F, G, H]] {
+					return Validated_FlatMap[Tuple7[A, B, C, D, F, G, H], E, D](v3, func(d D) Validated[E, Tuple7[A, B, C, D, F, G, H]] {
+						return Validated_FlatMap[Tuple7[A, B, C, D, F, G, H], E, F](v4, func(f F) Validated[E, Tuple7[A, B, C, D, F, G, H]] {
+							return Validated_FlatMap[Tuple7[A, B, C, D, F, G, H], E, G](v5, func(g G) Validated[E, Tuple7[A, B, C, D, F, G, H]] {
+								return Validated_Map[Tuple7[A, B, C, D, F, G, H], E, H](v6, func(h H) Tuple7[A, B, C, D, F, G, H] {
 									return Tuple7[A, B, C, D, F, G, H]{V1: NewImmutable(a), V2: NewImmutable(b), V3: NewImmutable(c), V4: NewImmutable(d), V5: NewImmutable(f), V6: NewImmutable(g), V7: NewImmutable(h)}
 								})
 							})
@@ -386,14 +386,14 @@ func Validated_Zip8[B any, C any, D any, F any, G any, H any, I any, E any, A an
 //line validation/validated.gala:134
 	if errs.Get().IsEmpty() {
 //line validation/validated.gala:135
-		return Validated_FlatMap[Tuple8[A, B, C, D, F, G, H, I]](v0, func(a A) Validated[E, Tuple8[A, B, C, D, F, G, H, I]] {
-			return Validated_FlatMap[Tuple8[A, B, C, D, F, G, H, I]](v1, func(b B) Validated[E, Tuple8[A, B, C, D, F, G, H, I]] {
-				return Validated_FlatMap[Tuple8[A, B, C, D, F, G, H, I]](v2, func(c C) Validated[E, Tuple8[A, B, C, D, F, G, H, I]] {
-					return Validated_FlatMap[Tuple8[A, B, C, D, F, G, H, I]](v3, func(d D) Validated[E, Tuple8[A, B, C, D, F, G, H, I]] {
-						return Validated_FlatMap[Tuple8[A, B, C, D, F, G, H, I]](v4, func(f F) Validated[E, Tuple8[A, B, C, D, F, G, H, I]] {
-							return Validated_FlatMap[Tuple8[A, B, C, D, F, G, H, I]](v5, func(g G) Validated[E, Tuple8[A, B, C, D, F, G, H, I]] {
-								return Validated_FlatMap[Tuple8[A, B, C, D, F, G, H, I]](v6, func(h H) Validated[E, Tuple8[A, B, C, D, F, G, H, I]] {
-									return Validated_Map[Tuple8[A, B, C, D, F, G, H, I]](v7, func(i I) Tuple8[A, B, C, D, F, G, H, I] {
+		return Validated_FlatMap[Tuple8[A, B, C, D, F, G, H, I], E, A](v0, func(a A) Validated[E, Tuple8[A, B, C, D, F, G, H, I]] {
+			return Validated_FlatMap[Tuple8[A, B, C, D, F, G, H, I], E, B](v1, func(b B) Validated[E, Tuple8[A, B, C, D, F, G, H, I]] {
+				return Validated_FlatMap[Tuple8[A, B, C, D, F, G, H, I], E, C](v2, func(c C) Validated[E, Tuple8[A, B, C, D, F, G, H, I]] {
+					return Validated_FlatMap[Tuple8[A, B, C, D, F, G, H, I], E, D](v3, func(d D) Validated[E, Tuple8[A, B, C, D, F, G, H, I]] {
+						return Validated_FlatMap[Tuple8[A, B, C, D, F, G, H, I], E, F](v4, func(f F) Validated[E, Tuple8[A, B, C, D, F, G, H, I]] {
+							return Validated_FlatMap[Tuple8[A, B, C, D, F, G, H, I], E, G](v5, func(g G) Validated[E, Tuple8[A, B, C, D, F, G, H, I]] {
+								return Validated_FlatMap[Tuple8[A, B, C, D, F, G, H, I], E, H](v6, func(h H) Validated[E, Tuple8[A, B, C, D, F, G, H, I]] {
+									return Validated_Map[Tuple8[A, B, C, D, F, G, H, I], E, I](v7, func(i I) Tuple8[A, B, C, D, F, G, H, I] {
 										return Tuple8[A, B, C, D, F, G, H, I]{V1: NewImmutable(a), V2: NewImmutable(b), V3: NewImmutable(c), V4: NewImmutable(d), V5: NewImmutable(f), V6: NewImmutable(g), V7: NewImmutable(h), V8: NewImmutable(i)}
 									})
 								})
@@ -415,15 +415,15 @@ func Validated_Zip9[B any, C any, D any, F any, G any, H any, I any, J any, E an
 //line validation/validated.gala:149
 	if errs.Get().IsEmpty() {
 //line validation/validated.gala:150
-		return Validated_FlatMap[Tuple9[A, B, C, D, F, G, H, I, J]](v0, func(a A) Validated[E, Tuple9[A, B, C, D, F, G, H, I, J]] {
-			return Validated_FlatMap[Tuple9[A, B, C, D, F, G, H, I, J]](v1, func(b B) Validated[E, Tuple9[A, B, C, D, F, G, H, I, J]] {
-				return Validated_FlatMap[Tuple9[A, B, C, D, F, G, H, I, J]](v2, func(c C) Validated[E, Tuple9[A, B, C, D, F, G, H, I, J]] {
-					return Validated_FlatMap[Tuple9[A, B, C, D, F, G, H, I, J]](v3, func(d D) Validated[E, Tuple9[A, B, C, D, F, G, H, I, J]] {
-						return Validated_FlatMap[Tuple9[A, B, C, D, F, G, H, I, J]](v4, func(f F) Validated[E, Tuple9[A, B, C, D, F, G, H, I, J]] {
-							return Validated_FlatMap[Tuple9[A, B, C, D, F, G, H, I, J]](v5, func(g G) Validated[E, Tuple9[A, B, C, D, F, G, H, I, J]] {
-								return Validated_FlatMap[Tuple9[A, B, C, D, F, G, H, I, J]](v6, func(h H) Validated[E, Tuple9[A, B, C, D, F, G, H, I, J]] {
-									return Validated_FlatMap[Tuple9[A, B, C, D, F, G, H, I, J]](v7, func(i I) Validated[E, Tuple9[A, B, C, D, F, G, H, I, J]] {
-										return Validated_Map[Tuple9[A, B, C, D, F, G, H, I, J]](v8, func(j J) Tuple9[A, B, C, D, F, G, H, I, J] {
+		return Validated_FlatMap[Tuple9[A, B, C, D, F, G, H, I, J], E, A](v0, func(a A) Validated[E, Tuple9[A, B, C, D, F, G, H, I, J]] {
+			return Validated_FlatMap[Tuple9[A, B, C, D, F, G, H, I, J], E, B](v1, func(b B) Validated[E, Tuple9[A, B, C, D, F, G, H, I, J]] {
+				return Validated_FlatMap[Tuple9[A, B, C, D, F, G, H, I, J], E, C](v2, func(c C) Validated[E, Tuple9[A, B, C, D, F, G, H, I, J]] {
+					return Validated_FlatMap[Tuple9[A, B, C, D, F, G, H, I, J], E, D](v3, func(d D) Validated[E, Tuple9[A, B, C, D, F, G, H, I, J]] {
+						return Validated_FlatMap[Tuple9[A, B, C, D, F, G, H, I, J], E, F](v4, func(f F) Validated[E, Tuple9[A, B, C, D, F, G, H, I, J]] {
+							return Validated_FlatMap[Tuple9[A, B, C, D, F, G, H, I, J], E, G](v5, func(g G) Validated[E, Tuple9[A, B, C, D, F, G, H, I, J]] {
+								return Validated_FlatMap[Tuple9[A, B, C, D, F, G, H, I, J], E, H](v6, func(h H) Validated[E, Tuple9[A, B, C, D, F, G, H, I, J]] {
+									return Validated_FlatMap[Tuple9[A, B, C, D, F, G, H, I, J], E, I](v7, func(i I) Validated[E, Tuple9[A, B, C, D, F, G, H, I, J]] {
+										return Validated_Map[Tuple9[A, B, C, D, F, G, H, I, J], E, J](v8, func(j J) Tuple9[A, B, C, D, F, G, H, I, J] {
 											return Tuple9[A, B, C, D, F, G, H, I, J]{V1: NewImmutable(a), V2: NewImmutable(b), V3: NewImmutable(c), V4: NewImmutable(d), V5: NewImmutable(f), V6: NewImmutable(g), V7: NewImmutable(h), V8: NewImmutable(i), V9: NewImmutable(j)}
 										})
 									})
@@ -446,16 +446,16 @@ func Validated_Zip10[B any, C any, D any, F any, G any, H any, I any, J any, K a
 //line validation/validated.gala:165
 	if errs.Get().IsEmpty() {
 //line validation/validated.gala:166
-		return Validated_FlatMap[Tuple10[A, B, C, D, F, G, H, I, J, K]](v0, func(a A) Validated[E, Tuple10[A, B, C, D, F, G, H, I, J, K]] {
-			return Validated_FlatMap[Tuple10[A, B, C, D, F, G, H, I, J, K]](v1, func(b B) Validated[E, Tuple10[A, B, C, D, F, G, H, I, J, K]] {
-				return Validated_FlatMap[Tuple10[A, B, C, D, F, G, H, I, J, K]](v2, func(c C) Validated[E, Tuple10[A, B, C, D, F, G, H, I, J, K]] {
-					return Validated_FlatMap[Tuple10[A, B, C, D, F, G, H, I, J, K]](v3, func(d D) Validated[E, Tuple10[A, B, C, D, F, G, H, I, J, K]] {
-						return Validated_FlatMap[Tuple10[A, B, C, D, F, G, H, I, J, K]](v4, func(f F) Validated[E, Tuple10[A, B, C, D, F, G, H, I, J, K]] {
-							return Validated_FlatMap[Tuple10[A, B, C, D, F, G, H, I, J, K]](v5, func(g G) Validated[E, Tuple10[A, B, C, D, F, G, H, I, J, K]] {
-								return Validated_FlatMap[Tuple10[A, B, C, D, F, G, H, I, J, K]](v6, func(h H) Validated[E, Tuple10[A, B, C, D, F, G, H, I, J, K]] {
-									return Validated_FlatMap[Tuple10[A, B, C, D, F, G, H, I, J, K]](v7, func(i I) Validated[E, Tuple10[A, B, C, D, F, G, H, I, J, K]] {
-										return Validated_FlatMap[Tuple10[A, B, C, D, F, G, H, I, J, K]](v8, func(j J) Validated[E, Tuple10[A, B, C, D, F, G, H, I, J, K]] {
-											return Validated_Map[Tuple10[A, B, C, D, F, G, H, I, J, K]](v9, func(k K) Tuple10[A, B, C, D, F, G, H, I, J, K] {
+		return Validated_FlatMap[Tuple10[A, B, C, D, F, G, H, I, J, K], E, A](v0, func(a A) Validated[E, Tuple10[A, B, C, D, F, G, H, I, J, K]] {
+			return Validated_FlatMap[Tuple10[A, B, C, D, F, G, H, I, J, K], E, B](v1, func(b B) Validated[E, Tuple10[A, B, C, D, F, G, H, I, J, K]] {
+				return Validated_FlatMap[Tuple10[A, B, C, D, F, G, H, I, J, K], E, C](v2, func(c C) Validated[E, Tuple10[A, B, C, D, F, G, H, I, J, K]] {
+					return Validated_FlatMap[Tuple10[A, B, C, D, F, G, H, I, J, K], E, D](v3, func(d D) Validated[E, Tuple10[A, B, C, D, F, G, H, I, J, K]] {
+						return Validated_FlatMap[Tuple10[A, B, C, D, F, G, H, I, J, K], E, F](v4, func(f F) Validated[E, Tuple10[A, B, C, D, F, G, H, I, J, K]] {
+							return Validated_FlatMap[Tuple10[A, B, C, D, F, G, H, I, J, K], E, G](v5, func(g G) Validated[E, Tuple10[A, B, C, D, F, G, H, I, J, K]] {
+								return Validated_FlatMap[Tuple10[A, B, C, D, F, G, H, I, J, K], E, H](v6, func(h H) Validated[E, Tuple10[A, B, C, D, F, G, H, I, J, K]] {
+									return Validated_FlatMap[Tuple10[A, B, C, D, F, G, H, I, J, K], E, I](v7, func(i I) Validated[E, Tuple10[A, B, C, D, F, G, H, I, J, K]] {
+										return Validated_FlatMap[Tuple10[A, B, C, D, F, G, H, I, J, K], E, J](v8, func(j J) Validated[E, Tuple10[A, B, C, D, F, G, H, I, J, K]] {
+											return Validated_Map[Tuple10[A, B, C, D, F, G, H, I, J, K], E, K](v9, func(k K) Tuple10[A, B, C, D, F, G, H, I, J, K] {
 												return Tuple10[A, B, C, D, F, G, H, I, J, K]{V1: NewImmutable(a), V2: NewImmutable(b), V3: NewImmutable(c), V4: NewImmutable(d), V5: NewImmutable(f), V6: NewImmutable(g), V7: NewImmutable(h), V8: NewImmutable(i), V9: NewImmutable(j), V10: NewImmutable(k)}
 											})
 										})

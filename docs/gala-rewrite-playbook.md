@@ -54,12 +54,12 @@ Read the rung from that output rather than from this page, because the labels ar
 
 Act on the file-level verdict:
 
-| File-level verdict | What to do |
-| ----------------- | ---------- |
-| rung 1 | Rewrite the whole file, and continue to step 3. |
-| rung 2 | Transpile the part the roster can express and move the rest into a handwritten sibling, cutting between the members at step 4. |
-| rung 3 | Stop, and leave the file handwritten. The roster's own wording for that rung is the reason. |
-| no verdict, because the roster classifies none of the families | Stop, and treat the missing classification as a roster gap to fill rather than a file to attempt. |
+| File-level verdict                                             | What to do                                                                                                                     |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| rung 1                                                         | Rewrite the whole file, and continue to step 3.                                                                                |
+| rung 2                                                         | Transpile the part the roster can express and move the rest into a handwritten sibling, cutting between the members at step 4. |
+| rung 3                                                         | Stop, and leave the file handwritten. The roster's own wording for that rung is the reason.                                    |
+| no verdict, because the roster classifies none of the families | Stop, and treat the missing classification as a roster gap to fill rather than a file to attempt.                              |
 
 The verdict is advisory, so the exit status is `0` for every row in that table, including the one that says stop; the exit status never decides the outcome.
 A row in the family table that reads `not classified in the roster` is a construct family the roster does not cover.
@@ -67,11 +67,11 @@ The file-level verdict ignores such a family, so its presence is blocking until 
 
 The other exit statuses mean the tool could not answer, not that the file is blocked:
 
-| Exit status | Meaning | What to do |
-| ----------- | ------- | ---------- |
-| `2` | the path could not be read, or the file did not parse as Go | check the path and confirm the argument is the Go file rather than its `.gala` source, which is a parse failure |
-| `3` | the roster page is missing or no longer shaped as the tool expects | stop, because the tool cannot gate anything it cannot read, and repair the roster before retrying |
-| `4` | the file contains no construct family the roster classifies | check the path, because this status means the tool walked the file and found nothing it recognises |
+| Exit status | Meaning                                                            | What to do                                                                                                      |
+| ----------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `2`         | the path could not be read, or the file did not parse as Go        | check the path and confirm the argument is the Go file rather than its `.gala` source, which is a parse failure |
+| `3`         | the roster page is missing or no longer shaped as the tool expects | stop, because the tool cannot gate anything it cannot read, and repair the roster before retrying               |
+| `4`         | the file contains no construct family the roster classifies        | check the path, because this status means the tool walked the file and found nothing it recognises              |
 
 ## Step 3: Choose the output style
 
@@ -186,11 +186,11 @@ Each one catches a failure the others do not, and a step skipped here is a step 
 
 A twin that is not registered is not finished, because the next agent reads these tables as the list of what exists.
 
-| Where | What gains a row or a count |
-| ----- | -------------------------- |
-| [`../server/README.md`](../server/README.md) | one row in the transpiled GALA sources table, carrying the generated file, its `.gala` source, and its regeneration command; and the handwritten-siblings sentence, when the package gained one |
-| [`../server/GALA.md`](../server/GALA.md) | one row in the current-usage table, carrying the package, the `.gala` source, the generated Go, and the handwritten sibling; and the sentence above that table, which counts the packages and the `.gala` sources |
-| [`gala-translation.md`](gala-translation.md) | the inventory summary sentence and the inventory table, both re-derived by `go run ./inventory` from the corpus directory and re-checked with `go run ./inventory -check` |
+| Where                                        | What gains a row or a count                                                                                                                                                                                       |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`../server/README.md`](../server/README.md) | one row in the transpiled GALA sources table, carrying the generated file, its `.gala` source, and its regeneration command; and the handwritten-siblings sentence, when the package gained one                   |
+| [`../server/GALA.md`](../server/GALA.md)     | one row in the current-usage table, carrying the package, the `.gala` source, the generated Go, and the handwritten sibling; and the sentence above that table, which counts the packages and the `.gala` sources |
+| [`gala-translation.md`](gala-translation.md) | the inventory summary sentence and the inventory table, both re-derived by `go run ./inventory` from the corpus directory and re-checked with `go run ./inventory -check`                                         |
 
 The roster's construct verdicts, gap classes, and mechanical rewrite rows do not change when a twin is added, because they are derived from construct families and from probes rather than from the list of files.
 Run `audit.sh` after the roster edit to confirm the page is still self-consistent.
@@ -214,16 +214,16 @@ Aborting is a correct outcome of this procedure, not a failure of it, and the re
 These transpile cleanly and fail afterwards, either at build time, at the Go call boundary, or on the next regeneration.
 Each is a transpiler behaviour that `server/GALA.md` and the roster's [workarounds and contested verdicts](gala-translation.md#workarounds-and-contested-verdicts) section record; that section is where the pin and the probe behind each one live.
 
-| Trap | How it fails | What to do |
-| ---- | ------------ | ---------- |
+| Trap                                                                                           | How it fails                                                                                                                                                                                                                                                                                                                                                   | What to do                                                                                                                                                |
+| ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `.Size()` on a field whose type is declared in a handwritten `.go` sibling in the same package | the transpiler only knows a field's type from a GALA declaration, so with the struct declared in the sibling it emits the call through the field and `go build` fails on a method the Go type does not have; this is specific to a package that mixes a `.gala` file with a handwritten sibling, and the same call on a GALA-declared field is not the problem | compare the value against `""` instead, which is what the committed twins do, and take the byte-count and character-count spellings apart before choosing |
-| A bare type or value name that an imported package also exports | the transpiler resolves the bare name to the import, so the twin calls the imported type instead of the local one and `go build` fails on a mismatched type | never name the type in the `.gala` file; call a handwritten constructor in the sibling instead, as the Slack command twin does |
-| An exported package-level `val` | it transpiles, and the Go caller's own source stops compiling because the exported Go type changed | keep `var` for anything that crosses into Go |
-| A GALA struct declared for a type Go callers already construct | it transpiles, and Go callers see synthesized exported members and wrapped fields they did not ask for | keep the struct handwritten and transpile the functions around it |
-| A multi-value receive left in its `:=` spelling | the transpiler panics rather than emitting a diagnostic | take the `var` spelling from the roster's mechanical rewrites |
-| A documentation comment moved into a `.gala` source | it transpiles, and the comment is silently absent from the twin, so a later reader sees an undocumented export | put the prose in `doc.go` or in a handwritten sibling |
-| A transpile run from the repository root | it transpiles, and the emitted `//line` directives name a path that does not resolve from the generated file, which then shows up as a diff on every regeneration | run it from the package directory |
-| `.Size()` chosen where the Go code meant a byte count | it transpiles, it builds, and the count is wrong, because the two spellings do not count the same thing | match the original intent; the roster's mechanical rewrites separate the byte count from the character count |
+| A bare type or value name that an imported package also exports                                | the transpiler resolves the bare name to the import, so the twin calls the imported type instead of the local one and `go build` fails on a mismatched type                                                                                                                                                                                                    | never name the type in the `.gala` file; call a handwritten constructor in the sibling instead, as the Slack command twin does                            |
+| An exported package-level `val`                                                                | it transpiles, and the Go caller's own source stops compiling because the exported Go type changed                                                                                                                                                                                                                                                             | keep `var` for anything that crosses into Go                                                                                                              |
+| A GALA struct declared for a type Go callers already construct                                 | it transpiles, and Go callers see synthesized exported members and wrapped fields they did not ask for                                                                                                                                                                                                                                                         | keep the struct handwritten and transpile the functions around it                                                                                         |
+| A multi-value receive left in its `:=` spelling                                                | the transpiler panics rather than emitting a diagnostic                                                                                                                                                                                                                                                                                                        | take the `var` spelling from the roster's mechanical rewrites                                                                                             |
+| A documentation comment moved into a `.gala` source                                            | it transpiles, and the comment is silently absent from the twin, so a later reader sees an undocumented export                                                                                                                                                                                                                                                 | put the prose in `doc.go` or in a handwritten sibling                                                                                                     |
+| A transpile run from the repository root                                                       | it transpiles, and the emitted `//line` directives name a path that does not resolve from the generated file, which then shows up as a diff on every regeneration                                                                                                                                                                                              | run it from the package directory                                                                                                                         |
+| `.Size()` chosen where the Go code meant a byte count                                          | it transpiles, it builds, and the count is wrong, because the two spellings do not count the same thing                                                                                                                                                                                                                                                        | match the original intent; the roster's mechanical rewrites separate the byte count from the character count                                              |
 
 ## Definition of done for one file
 

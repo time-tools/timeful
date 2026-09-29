@@ -354,3 +354,48 @@ func (s Tuple10[A, B, C, D, E, F, G, H, I, J]) Unapply(v any) (Immutable[A], Imm
 func (t Tuple10[A, B, C, D, E, F, G, H, I, J]) String() string {
 	return fmt.Sprintf("(%v, %v, %v, %v, %v, %v, %v, %v, %v, %v)", t.V1.Get(), t.V2.Get(), t.V3.Get(), t.V4.Get(), t.V5.Get(), t.V6.Get(), t.V7.Get(), t.V8.Get(), t.V9.Get(), t.V10.Get())
 }
+
+//line std/tuple.gala:122
+func GoTuple[A any, B any](a A, b B) Tuple[A, B] {
+	return Tuple[A, B]{V1: NewImmutable(a), V2: NewImmutable(b)}
+}
+
+//line std/tuple.gala:126
+func GoTuple3[A any, B any, C any](a A, b B, c C) Tuple3[A, B, C] {
+	return Tuple3[A, B, C]{V1: NewImmutable(a), V2: NewImmutable(b), V3: NewImmutable(c)}
+}
+
+//line std/tuple.gala:130
+func GoTuple4[A any, B any, C any, D any](a A, b B, c C, d D) Tuple4[A, B, C, D] {
+	return Tuple4[A, B, C, D]{V1: NewImmutable(a), V2: NewImmutable(b), V3: NewImmutable(c), V4: NewImmutable(d)}
+}
+
+//line std/tuple.gala:134
+func GoTuple5[A any, B any, C any, D any, E any](a A, b B, c C, d D, e E) Tuple5[A, B, C, D, E] {
+	return Tuple5[A, B, C, D, E]{V1: NewImmutable(a), V2: NewImmutable(b), V3: NewImmutable(c), V4: NewImmutable(d), V5: NewImmutable(e)}
+}
+
+//line std/tuple.gala:138
+func GoTuple6[A any, B any, C any, D any, E any, F any](a A, b B, c C, d D, e E, f F) Tuple6[A, B, C, D, E, F] {
+	return Tuple6[A, B, C, D, E, F]{V1: NewImmutable(a), V2: NewImmutable(b), V3: NewImmutable(c), V4: NewImmutable(d), V5: NewImmutable(e), V6: NewImmutable(f)}
+}
+
+//line std/tuple.gala:142
+func GoTuple7[A any, B any, C any, D any, E any, F any, G any](a A, b B, c C, d D, e E, f F, g G) Tuple7[A, B, C, D, E, F, G] {
+	return Tuple7[A, B, C, D, E, F, G]{V1: NewImmutable(a), V2: NewImmutable(b), V3: NewImmutable(c), V4: NewImmutable(d), V5: NewImmutable(e), V6: NewImmutable(f), V7: NewImmutable(g)}
+}
+
+//line std/tuple.gala:146
+func GoTuple8[A any, B any, C any, D any, E any, F any, G any, H any](a A, b B, c C, d D, e E, f F, g G, h H) Tuple8[A, B, C, D, E, F, G, H] {
+	return Tuple8[A, B, C, D, E, F, G, H]{V1: NewImmutable(a), V2: NewImmutable(b), V3: NewImmutable(c), V4: NewImmutable(d), V5: NewImmutable(e), V6: NewImmutable(f), V7: NewImmutable(g), V8: NewImmutable(h)}
+}
+
+//line std/tuple.gala:150
+func GoTuple9[A any, B any, C any, D any, E any, F any, G any, H any, I any](a A, b B, c C, d D, e E, f F, g G, h H, i I) Tuple9[A, B, C, D, E, F, G, H, I] {
+	return Tuple9[A, B, C, D, E, F, G, H, I]{V1: NewImmutable(a), V2: NewImmutable(b), V3: NewImmutable(c), V4: NewImmutable(d), V5: NewImmutable(e), V6: NewImmutable(f), V7: NewImmutable(g), V8: NewImmutable(h), V9: NewImmutable(i)}
+}
+
+//line std/tuple.gala:154
+func GoTuple10[A any, B any, C any, D any, E any, F any, G any, H any, I any, J any](a A, b B, c C, d D, e E, f F, g G, h H, i I, j J) Tuple10[A, B, C, D, E, F, G, H, I, J] {
+	return Tuple10[A, B, C, D, E, F, G, H, I, J]{V1: NewImmutable(a), V2: NewImmutable(b), V3: NewImmutable(c), V4: NewImmutable(d), V5: NewImmutable(e), V6: NewImmutable(f), V7: NewImmutable(g), V8: NewImmutable(h), V9: NewImmutable(i), V10: NewImmutable(j)}
+}

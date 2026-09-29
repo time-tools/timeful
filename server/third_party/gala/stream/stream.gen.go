@@ -301,7 +301,7 @@ func Stream_Map[U any, T any](s Stream[T], f func(T) U) Stream[U] {
 			h := _tmp_10
 			if _tmp_9 {
 				return cons[U](f(h), func() Stream[U] {
-					return Stream_Map[U](s.Tail(), f)
+					return Stream_Map[U, T](s.Tail(), f)
 				})
 			} else {
 				_tmp_11 := None[T]{}.Unapply(obj)
@@ -330,7 +330,7 @@ func Stream_FlatMap[U any, T any](s Stream[T], f func(T) Stream[U]) Stream[U] {
 			h := _tmp_14
 			if _tmp_13 {
 				return f(h).Concat(Suspend[U](func() Stream[U] {
-					return Stream_FlatMap[U](s.Tail(), f)
+					return Stream_FlatMap[U, T](s.Tail(), f)
 				}))
 			} else {
 				_tmp_15 := None[T]{}.Unapply(obj)
@@ -555,7 +555,7 @@ func Stream_Zip[U any, T any](s Stream[T], other Stream[U]) Stream[Tuple[T, U]] 
 						b := _tmp_41
 						if _tmp_40 {
 							return cons[Tuple[T, U]](Tuple[T, U]{V1: NewImmutable(a), V2: NewImmutable(b)}, func() Stream[Tuple[T, U]] {
-								return Stream_Zip[U](s.Tail(), other.Tail())
+								return Stream_Zip[U, T](s.Tail(), other.Tail())
 							})
 						} else {
 							_tmp_42 := None[U]{}.Unapply(obj)
@@ -879,7 +879,7 @@ func (s Stream[T]) Reduce(f func(T, T) T) Option[T] {
 			_ = _tmp_74
 			h := _tmp_74
 			if _tmp_73 {
-				return Some[T]{}.Apply(Stream_Fold[T](s.Tail(), h, f))
+				return Some[T]{}.Apply(Stream_Fold[T, T](s.Tail(), h, f))
 			} else {
 				_tmp_75 := None[T]{}.Unapply(obj)
 				if _tmp_75 {
@@ -1094,12 +1094,12 @@ func Stream_Collect[U any, T any](s Stream[T], pf func(T) Option[U]) Stream[U] {
 						v := _tmp_90
 						if _tmp_89 {
 							return cons[U](v, func() Stream[U] {
-								return Stream_Collect[U](s.Tail(), pf)
+								return Stream_Collect[U, T](s.Tail(), pf)
 							})
 						} else {
 							_tmp_91 := None[U]{}.Unapply(obj)
 							if _tmp_91 {
-								return Stream_Collect[U](s.Tail(), pf)
+								return Stream_Collect[U, T](s.Tail(), pf)
 							} else {
 								panic("unreachable")
 							}
