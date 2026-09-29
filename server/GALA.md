@@ -107,22 +107,28 @@ Use the runtime-enabled style when the file benefits from GALA-native features a
   The workaround is the split: keep multi-value members in a handwritten sibling and transpile the rest, which `appenv` and `utils` now do.
   This is boundary gap `GAP-2` in the translation roster.
 - Receiving a multi-value Go call with `:=`.
-  `var a, b = f()` and the plain reassignment `a, b = f()` work, but `:=` is an internal transpiler panic, so every twin converts the original `x, y := call()` to `var`:
+  This used to abort with an internal transpiler panic; PR [#529](https://github.com/martianoff/gala/pull/529) fixed it and it transpiles on the pinned release.
+  It is a val-style binding rather than a neutral one, so every twin still takes the `var` spelling: `:=` wraps each result and the transpiler inserts `.Get()` at every read, while `var a, b = f()` emits a plain Go binding.
 
   ```text
-  error[GALA-E0017]: internal transpiler panic: runtime error: index out of range [1] with length 1
-    --> probe_mv_short.gala:6:25
-    |
-  6 | 	n, err := strconv.Atoi(text)
-    | 	                       ^^^^ please file an issue at https://github.com/martianoff/gala/i…
-    |
+  // n, err := strconv.Atoi("42")
+  var (
+  	_tmp_1, _tmp_2 = strconv.Atoi("42")
+  	n              = std.NewImmutable(_tmp_1)
+  	err            = std.NewImmutable(_tmp_2)
+  )
   ```
 
 - `if err := f(); err != nil`.
-  The scoped binding wraps the call in `std.NewImmutable(...)`, so the generated Go does not compile; use `var err = f()` on the previous line:
+  The initializer slot is rejected at transpile time as `GALA-E0047`; use `var err = f()` on the previous line:
 
   ```text
-  probe_ifinit.gala:7: invalid operation: err != nil (mismatched types std.Immutable[error] and untyped nil)
+  error[GALA-E0047]: `if` takes no initializer statement
+    --> probe_ifinit.gala:6:1
+    |
+  6 | 	if err := strconv.Atoi(text); err != nil {
+    | 	^^ wrap the call in `Try(...)` and `match` on `Success(v)` / `F…
+    |
   ```
 
 - `type X Y` emits a Go alias.
@@ -295,7 +301,7 @@ Use the runtime-enabled style when the file benefits from GALA-native features a
   ```
 
 - GALA struct declarations are not drop-in twins.
-  Every GALA struct gains exported `Copy`, `Equal`, `Unapply`, and `Is<Type>` methods plus an exported `<Type>Instance` interface, and fields are wrapped in `std.Immutable[T]` unless declared with `var`.
+  Every GALA struct gains exported `Copy`, `Equal`, and `Unapply` methods, a generic struct additionally gains an exported `<Type>Instance` interface and an `Is<Type>()` method, and fields are wrapped in `std.Immutable[T]` unless declared with `var`.
   `var` fields emit plain Go types, but the synthesized members still grow the exported API, so an existing Go struct stays handwritten.
 - `panic`, `append`, and `make` as bare builtins.
   Use `go_builtins.Panic`, `go_interop.SliceAppend`, and `go_interop.MapEmpty`/`MapPut` instead.
@@ -410,7 +416,8 @@ The runtime is vendored at `server/third_party/gala/` as one flattened Go module
 
 Adoption beyond mostly interop-shaped leaf packages is still limited by the upstream gaps the roster classifies; in rough priority order:
 
-- `GAP-2`: Go-style multi-value return signatures, or an interop escape hatch for them, plus a fix for the `:=` receive panic.
+- `GAP-2`: Go-style multi-value return signatures, or an interop escape hatch for them.
+  The `:=` receive panic that used to be part of this ask was fixed by PR [#529](https://github.com/martianoff/gala/pull/529); what remains is the signature itself.
   This is the top ask; it alone would unblock `appenv.ResolvePort`, `routes/respondent_identity.go`, every marshaler in `models`, and most of `postgres`.
 - `GAP-1`: preservation of struct tags, so JSON-shaped structs like `models/location.go` and `errs/errors.go` can be rewritten.
 - `GAP-4`: defined types for non-struct types, or an explicit newtype declaration, so named scalars with methods (`DateTime`, `UUID`) can move.

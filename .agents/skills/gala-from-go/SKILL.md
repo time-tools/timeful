@@ -135,6 +135,7 @@ Each of these is a way the translation goes wrong without producing an error at 
   Inside the GALA file it already reads as a plain value, so writing `.Get()` there produces a double unwrap that fails to build.
 - **A non-`var` struct field is not a plain Go field.**
   It becomes `std.Immutable[T]`, and the struct gains synthesized `Copy`, `Equal`, and `Unapply` members.
+  A generic struct additionally gains an `Instance` interface and an `Is<Type>()` method, so check the emitted member set for a non-generic and a generic struct separately rather than assuming one set covers both.
   Declare `var` for any field Go code reads.
 - **A struct declared in a handwritten sibling is not a GALA struct.**
   Constructing it positionally, calling `.Size()` or `.ByteSize()` on one of its fields, or calling a method on it can transpile and then fail to build, because the transpiler emits a call on a type it does not know.

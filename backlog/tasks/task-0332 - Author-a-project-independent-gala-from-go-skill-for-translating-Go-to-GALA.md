@@ -4,7 +4,7 @@ title: Author a project-independent gala-from-go skill for translating Go to GAL
 status: Done
 assignee: []
 created_date: '2026-09-29 18:49'
-updated_date: '2026-09-29 19:01'
+updated_date: '2026-09-29 19:28'
 labels: []
 dependencies: []
 modified_files:
@@ -143,7 +143,31 @@ Both are the argument for the version-agnostic design, since in each case the dr
 
 1. A first draft asserted that a `for` post statement has no `++` spelling. Transpiling `i++` in a post slot succeeds and emits Go `i++`. The rule is about mutability, not the operator: `++` on a `val` or a `:=` binding is rejected, while the `:=` in a `for` init slot is mutable.
 2. A first draft named `concurrent.Future.WithTimeout` as a free function. `gala doc concurrent` shows `WithTimeout` as a method on `Future[T]`, alongside `AwaitFor(timeout)`. The row now names the method.
+
+### Correction to Finding 4
+
+Finding 4 above claimed the roster's `Instance` interface claim was not reproducible. That was too broad and is withdrawn: `Instance` and `Is<T>()` are synthesized for a generic struct and not for a non-generic one, so the roster is right for the case that has a generic struct. The correction was found by sweeping the whole repository for the string, which surfaced a freshly generated probe file containing a `PairInstance` interface. TASK-0333 carries the fix.
 <!-- SECTION:NOTES:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+created: 2026-09-29 19:28
+---
+### Correction to Finding 4: the `Instance` claim was right, and my finding was too broad
+
+I asserted that the roster's claim that a GALA struct gains an `Instance` interface was not reproducible, on the evidence of one non-generic struct. That generalizes from a single case and it is wrong.
+
+Measured side by side on the same compiler:
+
+- `struct P(var A int)` emits `Copy`, `Equal`, `Unapply` and nothing else.
+- `struct Pair[T any](var First T, var Second T)` emits `Copy`, `Equal`, `Unapply`, plus a `PairInstance` interface and an `IsPair() bool` method.
+
+So the `Instance` interface and the `Is<T>()` method are synthesized for a **generic** struct and not for a non-generic one. The roster's claim is correct where it matters; it states the rule without the generic qualifier, which is the real defect.
+
+This was caught by a sweep for the string across the whole repository, which turned up a generated probe file the corpus had just written containing a `PairInstance` interface. Two lessons worth keeping: a sweep that searches generated output as well as sources catches what a claim-level reading misses, and a single negative result is not a refutation of a conditional claim.
+---
+<!-- COMMENTS:END -->
 
 ## Final Summary
 
@@ -186,4 +210,10 @@ Two claims the first drafts got wrong, both caught by the check the row itself p
 ## Not done here
 
 The `:=` correction against the roster, and the three defect reports to the upstream tracker, are follow-up work outside this task's scope and are recorded in the task notes. Copying the skill into the upstream checkout, adding it to the plugin and marketplace descriptions, and opening a pull request remain separate later work.
+
+## Correction issued after finalization
+
+Finding 4 in this summary is withdrawn as too broad. The `Instance` interface and the `Is<T>()` method are synthesized for a **generic** struct and not for a non-generic one, so the roster's claim is correct for the case that has a generic struct; its real defect is stating the rule without the generic qualifier. Measured side by side on the pinned compiler: `struct P(var A int)` emits `Copy`, `Equal`, `Unapply` only, while `struct Pair[T any](...)` emits those three plus a `PairInstance` interface and an `IsPair()` method. The error was generalizing a conditional claim from a single non-generic test case; TASK-0333 corrects the documents and the skill to carry the generic qualifier.
+
+Findings 1, 2, and 3, the three transpiler defects, and both first-draft corrections stand as written.
 <!-- SECTION:FINAL_SUMMARY:END -->
