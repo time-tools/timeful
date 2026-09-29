@@ -42,6 +42,7 @@ Verify the rows your translation depends on rather than trusting this file, and 
 | `struct{}` in type position | `map[T]struct{}`                             | a named empty struct, which changes the element type identity    | workaround | parse error | transpile `struct{}` as a map value type                                 |
 | interface declaration     | `type Repo interface { Get(id string) string }` | `type Repo interface { Get(id string) string }`                  | direct     | —          | transpile; declare it with `type X interface`, not a bare `interface`    |
 | `interface{}`             | `Details interface{}`                           | `Details any`                                                    | workaround | parse error | transpile both spellings; only `any` parses                              |
+| type sum, tagged union   | a `switch` on a type tag dispatching to per-type constructors | `sealed type T { case A(...); case B(...) }`    | workaround | —          | transpile a sealed type and read the emitted parent struct, the per-variant `Apply` and `Unapply`, and the discriminant |
 | `chan` type               | `func send(ch chan int)`                        | `concurrent.Future` or `go_interop` where no channel type crosses the boundary | workaround | parse error | transpile a channel type in a signature, a field, or a local |
 | fixed-size array type     | `[16]byte`                                      | `Array[T]`, or a struct when the arity carries meaning         | answered   | parse error | transpile an array type in any position                                  |
 | `map` type in type position | `map[K]V`                                    | `map[K]V`                                                       | direct     | —          | transpile a field, a parameter, or an alias                              |
@@ -54,6 +55,10 @@ The `var` versus `val` and `var` versus `:=` distinctions are shape rules, not p
 `references/gaps.md` and the traps section of `SKILL.md` say what each one costs.
 
 A rejection without a code is still a rejection: some checks report a plain error rather than a `GALA-Exxxx` page, so read the message rather than assuming a code is always there.
+
+A `sealed type` is the one declaration in this file whose emitted form a Go caller cannot use at all, so read the generated struct before you translate a type sum into one.
+The parent is one struct with a field per variant, each field a `std.Immutable`, plus a private discriminant and one constant per variant; each variant is its own struct with `Apply` and an `Unapply` returning a `std.Option`; and the parent gains `Copy`, `Equal`, `String`, and an `is<Variant>()` helper per variant.
+Construction has to go through a variant's `Apply`, and a match ends in `panic("unreachable")` on the branch no variant can reach, so this is a boundary change and not a local spelling.
 
 ## Functions And Lambdas
 
@@ -103,9 +108,10 @@ The `:=` in a `for` init slot is the exception that reads as inconsistent, becau
 
 | Construct                | Go                    | GALA                                                          | Status      | Code       | Check                                                                    |
 | ------------------------ | --------------------- | ------------------------------------------------------------- | ----------- | ---------- | ------------------------------------------------------------------------ |
-| `len` on bytes           | `len(b)`              | `b.ByteSize()`                                                 | workaround | `GALA-E0035` | `gala explain GALA-E0035`, then transpile `len` on a string and a slice |
-| `len` on characters      | `len([]rune(s))`      | `s.Size()`                                                     | workaround | `GALA-E0035` | transpile `.Size()` on a non-ASCII string and compare with `.ByteSize()` |
-| `len` on a collection    | `len(xs)`             | `xs.Size()`                                                    | workaround | `GALA-E0035` | transpile `.Size()` on a slice                                          |
+| `len` on a string's bytes | `len(b)`              | `b.ByteSize()`, which emits Go's `len`                        | workaround | `GALA-E0035` | `gala explain GALA-E0035`, then transpile `.ByteSize()` and read the emitted `len` |
+| `len` on characters      | `len([]rune(s))`      | `s.Size()`, which emits `utf8.RuneCountInString`              | workaround | `GALA-E0035` | transpile `.Size()` on a non-ASCII string and read the emitted call against `.ByteSize()` |
+| `len` on a Go slice      | `len(xs)`             | `xs.Size()`, which emits Go's `len`                           | workaround | `GALA-E0035` | transpile `.Size()` on a Go slice and read the emitted call                |
+| `len` on a GALA collection | `len(xs)`           | `xs.Size()`, which stays a method call on the collection       | workaround | `GALA-E0035` | transpile the same call on a `HashMap` and read the difference             |
 | `make` a slice           | `make([]T, n)`        | `go_interop.SliceWithSize[T](n)`, or `SliceWithCapacity[T](n)` | workaround | parse error | transpile `make`, then the helper                                         |
 | `make` a map             | `make(map[K]V)`       | `go_interop.MapEmpty[K, V]()`, or `MapWithCapacity[K, V](n)`  | workaround | parse error | transpile `make`, then the helper                                         |
 | `new`                    | `new(T)`              | `go_interop.New[T]()`, or a zero value                           | workaround | `GALA-E0035` | `gala explain GALA-E0035`, then transpile `new`                          |
@@ -119,6 +125,7 @@ The `:=` in a `for` init slot is the exception that reads as inconsistent, becau
 | `recover`                | `recover()`           | `Try(...)` captures the panic as a value but cannot resume in place | answered | `GALA-E0035` | transpile `recover`                                                      |
 | `[]byte(s)`              | `[]byte(s)`           | `go_interop.ToBytes(s)`; `string(b)` needs no helper            | workaround | `GALA-E0040` | `gala explain GALA-E0040`, then transpile both directions               |
 | slice expression         | `args[from:to]`       | `go_interop.Slice`, `SliceFrom`, `SliceTo`, `SliceTake`, `SliceDrop` | workaround | parse error | transpile one slice expression, then the helper for its arity         |
+| string truncation        | `value[:n]`           | a rune-accumulating loop, which counts characters rather than bytes | workaround | parse error | transpile `value[:n]`; then decide which count the original meant before writing the loop |
 | map index                | `m[k]`                | `m[k]` on a Go map; `m.Get(k)` on a `HashMap`                   | direct     | —          | transpile an index on each container type                                |
 | type assertion           | `s, ok := v.(string)` | `v match { case s: string => s; case _ => "" }`                 | workaround | parse error | transpile the assertion, then the type-pattern `match`                |
 | function-type field read | `h.Execute()`         | the same, when the struct is a GALA declaration                 | direct     | —          | transpile; a struct declared in a handwritten sibling behaves differently |
@@ -126,7 +133,11 @@ The `:=` in a `for` init slot is the exception that reads as inconsistent, becau
 | comparison and arithmetic | `a == b`, `x + 1`     | the same                                                         | direct     | —          | transpile; `==` on a collection value is not the Go meaning            |
 
 A bare builtin is a hard error rather than a style violation, and the check is resolver-aware: a name the program declares itself is left alone.
-`gala doc go_interop` does not work, so read the helper list from the transpiler's own diagnostic hint rather than from `gala doc`.
+Nearly every substitute in this table lives in a package `gala doc` cannot describe, so read the helper list from the transpiler's own diagnostic hint instead; [Pinning A Row](#pinning-a-row) says why that package is the exception.
+
+`.Size()` is not one spelling with one meaning: it lowers to a rune count on a string, to Go's `len` on a Go slice, and to a method call on a GALA collection.
+A row that says `.Size()` without naming the receiver is not a row, because the two lowerings count different things and the one that is correct depends on which the Go code originally asked for.
+The same warning applies to a member the program does not have: a missing method is refused with a diagnostic that enumerates what the type does declare, so read that list rather than guessing the name.
 
 ## Containers
 
@@ -162,7 +173,7 @@ The container type decides which spelling applies, not whether the file is style
 | Construct             | Go                                | GALA                                                                  | Status      | Code       | Check                                                                       |
 | --------------------- | --------------------------------- | --------------------------------------------------------------------- | ----------- | ---------- | --------------------------------------------------------------------------- |
 | scoped cleanup        | `defer f.Close()`                 | `use f = acquire` after a single-value acquire                        | workaround | `GALA-E0036` | transpile the `use` form and read the emitted `defer`                   |
-| cleanup after a checked acquire | `defer f.Close()`         | `resource.Using[*os.File, T](f, (x) => ...)`                          | workaround | `GALA-E0036` | transpile with and without explicit type arguments and compare         |
+| cleanup after a checked acquire | `defer f.Close()`         | `resource.Using[R, A](res, (x) => ...)`, both type arguments written out | workaround | `GALA-E0036` | transpile with and without explicit type arguments and read the emitted body type |
 | non-`Closeable` cleanup | `defer os.RemoveAll(d)`          | `resource.Bracket(resource, release, body)`                           | workaround | `GALA-E0036` | transpile the `Bracket` form                                             |
 | critical section      | `mu.Lock(); defer mu.Unlock()`     | `resource.Bracket(init, release, body)` or `resource.WithLock`         | workaround | `GALA-E0036` | transpile the `WithLock` form                                           |
 | goroutine             | `go f()`                           | `go_interop.Spawn(() => f())`                                         | workaround | `GALA-E0036` | transpile the `Spawn` form                                              |
@@ -173,6 +184,27 @@ The container type decides which spelling applies, not whether the file is style
 | a method on a `use`-bound value | `f.Name()` after `use f = os.Open(p)` | handle the error first, then bind with `use`                     | answered   | `GALA-E0044` | transpile the two-step form                                            |
 
 `use` accepts a single-value acquire, so a call that returns `(T, error)` has to have its error handled before the binding, and the resulting binding is a `Try` rather than the value, which is why calling a method on it fails.
+
+A resource combinator's result type argument is not optional in practice: omit it and the result defaults to `any`, which strips the return type off the enclosing function rather than producing a type error where you wrote one.
+The body's parameter still binds correctly, which is what makes this hard to see in the source; transpile the form you intend to use and read the emitted function's own signature, because a clean transpile here is not evidence of a correct one.
+
+The capture guard is boundary-specific, and which boundary decides whether you get a diagnostic or a race.
+A `concurrent.Future` body that captures a reassignable binding is refused before codegen, while `go_interop.Spawn` accepts the same capture, emits an unchecked goroutine, and lets the enclosing function return before the body has run.
+Treat the two rows as independent and verify the spawn form by running the result under the race detector.
+
+## Packages And Files
+
+These rows are about a package rather than about a construct, and they only bite in a package that mixes a translated file with a handwritten sibling.
+
+| Construct                                  | Go                                          | GALA                                             | Status      | Code          | Check                                                              |
+| ------------------------------------------ | ------------------------------------------- | ------------------------------------------------ | ----------- | ------------- | ------------------------------------------------------------------ |
+| an import the file does not declare         | `import "os"` in the file that uses it      | the same import in every file that uses it       | direct      | —             | omit it from one file of a pair, read the generated import block, then build |
+| a qualified name no file in the package imports | `pkg.F()` with no `pkg` import           | the same, written in the file that uses it       | direct      | `GALA-E0023`  | transpile a file that uses a package nothing in the package imports |
+| a declaration in a handwritten sibling      | `helper()` defined in the `.go` file        | referenced by name from the `.gala` file         | direct      | —             | transpile both files; the name resolves, and the members behind it are the transpiler's problem |
+| an import alias                             | `store "example.com/project/store"`         | the same                                         | direct      | —             | transpile                                                            |
+
+A package's imports are resolved as a unit but emitted per file, so the failure mode of a missing import is chosen by whether some *other* file in the package has it: a clean transpile followed by a compiler error when a sibling has it, and a transpile-time refusal when none does.
+An alias is direct, and a sibling declaration is visible as a name; neither of those two rows is a claim that the transpiler knows what the name is.
 
 ## Pinning A Row
 
@@ -188,5 +220,6 @@ gala doc <package>                    # what a GALA-source package exports
 ```
 
 `gala doc` describes GALA-source packages only, so a package whose source is handwritten Go is not found by it and its helpers have to be read from a transpiler diagnostic instead.
+The two packages this costs you the most are the interop ones: they are handwritten Go where every other runtime package has GALA sources, and they are the packages that supply the substitute for nearly every builtin row in this file, so a reader sent to `gala doc` for a helper list arrives at a package that is not there.
 `gala transpile` to a scratch path rather than to `/dev/stdout`, which the writer cannot open on every platform.
 To test a shape claim rather than an acceptance claim, read the emitted Go; to test an acceptance claim, build and run it, because a wrapper that is invisible to the program is still a wrapper.

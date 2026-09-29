@@ -6,6 +6,18 @@ This file owns two things: the vocabulary for classifying a gap, and the shape o
 Read [`constructs.md`](constructs.md) first.
 It says what each construct does today, and a construct with a `workaround` row is not a gap.
 
+## Where To Look Before You Decide
+
+Four upstream places carry the answers, and consulting them is cheaper than filing something already answered.
+
+- The language specification, whose section numbers the rows in [`constructs.md`](constructs.md) cite for a refusal.
+- The best-practices document, for the intended spelling where a construct has more than one.
+- The generated documentation index, which is a digest of both and is the fastest place to find a section number you do not have.
+- `gala explain --list` and the page for one code, which is the compiler's own account of itself and outranks every document for what the compiler currently does.
+
+One upstream page is worth naming so you do not cite it: the Go-interoperability feature page claims that bare `len`, `make`, and `cap` work, and the specification and the compiler both contradict it.
+A report that leans on that page gets corrected against you, so treat it as evidence of intent rather than as a description of behavior.
+
 ## Classify Before Reporting
 
 A row is a gap only if it has no substitute.
@@ -28,6 +40,11 @@ The two reportable classes differ in what a fix looks like.
 A language gap needs new grammar or new semantics.
 A boundary gap needs an interop escape hatch: a way to produce or accept the Go shape, even if the GALA side is a different shape.
 A boundary gap is real even though the behavior is expressible, because the thing that breaks is a caller on the other side of the boundary, and a caller cannot be changed from inside the transpiler.
+
+A substitute can carry a cost of its own, and the cost belongs in the report.
+Naming a struct where the Go code had an anonymous one is a substitution, and it can change the element type's identity, raise the Go language version the emitted code needs, or drop a promotion a caller relied on.
+"Has a substitute" and "costs nothing" are different claims, so a boundary gap whose substitute has a price is still a boundary gap, and the price is the part the maintainer cannot infer.
+Record what the substitute changed, not only that one exists.
 
 `documented answer` is the class most often mistaken for a gap, because a parse error and a `GALA-Exxxx` rejection both look like a wall.
 Run `gala explain GALA-Exxxx` and read the hint before classifying anything that has a code: the hint is the answer, and a report that restates it is a duplicate.
@@ -62,7 +79,7 @@ A Go function literal inside a composite literal is a parse error in the Go spel
 A GALA lambda in that position transpiles and builds, so the construct was never missing and there was nothing to file.
 
 Assignment to a `:=` binding is a documented semantic, not a gap.
-`docs/GALA.MD` states that `:=` bindings are immutable, and the rejection is that rule working as written; `var` is the mutable form and the migration is mechanical.
+The language specification states that `:=` bindings are immutable, and the rejection is that rule working as written; `var` is the mutable form and the migration is mechanical.
 A construct the language deliberately refuses is a fact about the language, not a gap in it.
 
 A construct the transpiler accepts and then lowers wrongly is neither of these.
@@ -73,6 +90,16 @@ It is a defect, and it belongs under [Defects Observed While Pinning Rows](#defe
 These are not gaps.
 Each is a construct GALA is supposed to handle, where the handling is wrong, so each is an issue rather than a request, and none of them is a reason to leave the file handwritten without saying so.
 All three below are filed, and the contrast in each one is what makes the fix legible, so a new report on the same construct should lead with the contrast rather than the repro.
+
+Two things make a defect report land, and both are about the evidence rather than the diagnosis.
+
+Lead with the artifact the transpiler itself generated that states the correct shape.
+The compiler emits the declaration and the extraction it later mislowers, so its own output contains the specification of what it should have done; a report that quotes that line needs no argument about intent, because the contradiction is inside one file.
+A reader who has not seen your code can then check the claim against the compiler rather than against your reasoning.
+
+Choose your assertion to match the claim, and notice that the two directions are not interchangeable.
+A check that a marker is *present* pins a shape the compiler produced, so it cannot back a claim that a construct is blocked; a check that a marker is *absent* pins the shape's absence, and a construct is blocked exactly when the thing it needs is not emitted.
+The same asymmetry is why a program that prints the right answer proves nothing about whether a wrapper is there.
 
 **`fallthrough` inside a `match` arm produces an internal error instead of a diagnostic.** Filed.
 A bare `fallthrough` statement is correctly rejected as a forbidden statement keyword, but the same word inside a `match` arm passes the parser, reaches codegen, and produces Go that does not parse, so the transpiler reports an internal transpile error.
@@ -137,7 +164,8 @@ and who breaks when it changes>
 
 **Searched**
 
-<`gala explain --list`, the specification sections you read, and the upstream triage issue>
+<`gala explain --list`, the specification and best-practices sections you read,
+the generated documentation index, and the upstream triage issue>
 ```
 
 Two habits make a report land.
@@ -162,4 +190,5 @@ Then the ones that are not about a construct at all:
 - A row you have not transpiled on the compiler you have.
 - A failure that a transpile-and-run on a minimal repro does not reproduce, which is a signal to look for a context effect in the real file rather than to report the isolated result.
 - A `GALA-E0017` internal error for input that already has a correct diagnostic, which is a defect to report once rather than a gap to file.
+- A gap whose only evidence is a shape that was *found*, such as a program's output or a marker asserted present, because neither distinguishes "blocked" from "accepted with the wrong shape".
 - A gap that needs new grammar or new semantics and has a working substitute for every use in the code being translated; that is a request to be filed only when the substitute genuinely cannot carry the code.

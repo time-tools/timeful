@@ -57,11 +57,28 @@ The verdicts are about the file; the gap classes in [`references/gaps.md`](refer
 3. **Keep it handwritten.**
    A shape is blocked and splitting would leave less in the translated file than the split is worth, or a Go-facing API or wire format would change.
 
-Two shape rules decide whether a file can be rewritten whole, and both are about what escapes the package rather than about taste.
+Three shape rules decide whether a file can be rewritten whole, and all three are about what escapes the package rather than about taste.
 
 - An exported package-level `val` emits `var X = std.NewImmutable(...)`, so a Go caller has to call `.Get()`; keep `var` for anything that crosses into Go.
 - A `:=` binding is a val-style binding, not a neutral one: it lowers through `std.NewImmutable` and every read emits `.Get()`.
   Use `var` for anything a Go caller or a sibling `.go` file can see.
+- A `sealed type` is the largest of the three: it emits one merged struct whose every field is a `std.Immutable`, a private discriminant with one constant per variant, an `Apply` and an `Unapply` per variant, an `is<Variant>()` helper per variant, and `Copy`, `Equal`, and `String` on the parent.
+  A variant's `Unapply` returns a `std.Option`, and a match over the type ends in `panic("unreachable")` on the branch no variant can reach.
+  There is no form a Go caller can construct positionally, so a file that introduces one reshapes its package's exported surface as surely as a `val` does.
+  Read the emitted struct before committing to it rather than trusting this summary.
+
+### The Mixed Package
+
+Verdict 2 creates a package that holds a `.gala` file beside a handwritten `.go` sibling, and that is where the transpiler stops being a function of the file you are translating.
+Three rules belong to the package rather than to the file, and each one fails somewhere other than the transpile, which is what makes them expensive:
+
+- Every `.gala` file imports everything it uses, including a package a sibling file already imports.
+  A qualified name resolves against the imports of *any* file in the package, while the generated file carries only the imports its own source declares, so a missing import in one file is invisible to the transpiler and surfaces as `undefined: <pkg>` from `go build`, attributed through the `//line` directive to the `.gala` file you did write.
+  When no file in the package imports that package at all, the transpile is refused with `GALA-E0023` instead, so the diagnostic itself tells you which of the two cases you are in.
+- A declaration in a handwritten sibling is visible to the `.gala` file as a name but is not a GALA declaration, so the transpiler emits calls against a type whose members it never saw.
+  [`references/gaps.md`](references/gaps.md) records the case known to fail and why a repro in isolation settles nothing either way.
+- A bare name that both a translated file and an imported package export is contested rather than settled: on the compiler this skill was measured against, the local declaration wins, and a report of the opposite is a fact about the reporter's compiler rather than about the language.
+  Do not depend on the outcome either way: never name such a type in a `.gala` file, and call a handwritten constructor in the sibling instead, so the ambiguity never gets a chance to arise.
 
 A construct family with no row in [`references/constructs.md`](references/constructs.md) is a blocking unknown, not a licence to guess.
 Transpile the minimal form yourself, add the row, and record what you found.
@@ -106,6 +123,28 @@ Read the emitted Go for every shape claim and build and run for every acceptance
 That distinction is not pedantry: a value wrapped in `std.Immutable` is invisible to a program that only passes it around, so a green test run does not disprove that the wrapper is there.
 When a claim is about what the transpiler emits, read the file; when it is about whether the program is correct, run it.
 
+### Checking A Shape Claim
+
+Three kinds of claim need three different checks, and no one of them substitutes for another.
+A rejection settles only that something was refused, a passing run settles only what the program observed, and only the emitted text settles what was generated.
+Pick the check the claim needs before deciding it is true.
+
+Two rules make reading the emitted text reliable, and both come from the same property: the file is generated, so its shape is not where the author's attention went.
+
+- Assert the absence, not only the presence.
+  A marker that must be present proves the wrapper is there; a marker that must be *absent*, taken from the same program in the other spelling, is what proves the two spellings differ.
+  A transpiler that started wrapping both would pass every presence check and every output assertion in the suite, and fail only the absence.
+- Name a semantic thing in the marker, never layout.
+  A wrapper constructor call, a synthesized type or method name, and a call on a binding all survive formatting.
+  Indentation, a line break, and a column do not, because the output is formatted and carries `//line` directives naming your own source.
+
+The import block is the cheapest read in the file and the most useful one, because it is the transpiler's own account of what the translation cost.
+A file that emits no runtime import pulled in nothing; a file that emits one has moved a dependency into the generated code, whatever the source looked like.
+Read it before deciding whether a rewrite is worth its blast radius.
+
+Finally, read the emitted `//line` directives themselves.
+They name the path the transpiler was given, so relative directives are the evidence that you transpiled from the package directory rather than a claim that you did.
+
 ## Stop And Report
 
 Leaving a file or a member handwritten is a correct outcome, not a failure of this procedure.
@@ -138,9 +177,18 @@ Each of these is a way the translation goes wrong without producing an error at 
   It becomes `std.Immutable[T]`, and the struct gains synthesized `Copy`, `Equal`, and `Unapply` members.
   A generic struct additionally gains an `Instance` interface and an `Is<Type>()` method, so check the emitted member set for a non-generic and a generic struct separately rather than assuming one set covers both.
   Declare `var` for any field Go code reads.
+- **A `sealed type` is not a struct with a tag.**
+  One merged struct carries every variant's fields as `std.Immutable`, plus a private discriminant and one constant per variant, and each variant gets `Apply` and `Unapply` with `is<Variant>()` helpers on the parent.
+  The parent gains `Copy`, `Equal`, and `String`, and a Go caller cannot construct it positionally at all, so a sealed type is a boundary change and not a local rewrite.
+- **A `val` holding a collection reads through two unwraps.**
+  A `HashMap` bound with `val` and read with `Get` emits `m.Get().Get(k)`: the outer call unwraps the binding and the inner one is the lookup.
+  It builds and returns the right value, so nothing reports it until a Go caller or a sibling reads the name it is bound to.
 - **A struct declared in a handwritten sibling is not a GALA struct.**
   Constructing it positionally, calling `.Size()` or `.ByteSize()` on one of its fields, or calling a method on it can transpile and then fail to build, because the transpiler emits a call on a type it does not know.
   This is a mixed-package effect and does not reproduce in a package with no handwritten sibling, so a repro in isolation proves nothing either way.
+- **A sibling file's import hides a missing import from the transpiler.**
+  A qualified name resolves against the imports of any file in the package, so a file that omits an import its sibling already has transpiles cleanly and then fails `go build` with `undefined: <pkg>`, blamed on the `.gala` file through its `//line` directive.
+  Import everything each file uses; do not treat a sibling's import as coverage.
 - **A struct pattern over `var` fields transpiles and then fails to build.**
   A `match` on a struct calls its synthesized `Unapply`, and the emitted read of a `var` field carries a `.Get()` that the plain Go field does not have; the same match over non-`var` fields builds.
   Check both field kinds rather than assuming they behave alike, and if it reproduces, report it as a defect: the two field kinds differ only in their wrapper, and the transpiler unwraps the wrong one.
@@ -155,8 +203,19 @@ Each of these is a way the translation goes wrong without producing an error at 
 - **A float format verb on an integer does not fail; it mangles.**
   `f"$n%.2f"` where `n` is an integer lowers to a `Sprintf` with a float verb on an integer, which prints Go's `%!f(int=...)` marker rather than raising an error.
   That matches Go, so the translation is faithful, but it means a mangled format string is not evidence that the translation is wrong.
+- **A byte-boundary truncation has no spelling, and the substitute changes the count.**
+  `s[:n]` is a parse error, so a truncation has to become a hand-written loop, and a loop that accumulates runes stops at character boundaries rather than the byte boundary the Go code asked for.
+  The rewrite builds, runs, and returns a different length for any non-ASCII input, so decide which of the two meanings the code wanted before writing the loop.
+- **A resource combinator's result type defaults to `any`, which drops the enclosing function's return type.**
+  `resource.Using(res, (x) => x.Name)` binds the body's parameter correctly and defaults its *result* to `any`, so the enclosing function is emitted with no result at all.
+  The transpile is clean; the failure is `too many return values` and `(no value) used as value` from `go build`, in a generated file.
+  Supply both type arguments explicitly.
 - **A `use` binding is not the acquired value.**
   `use x = acquire` takes a single-value acquire, so a call returning `(T, error)` has to have its error handled first, and the resulting binding is a `Try`, which is why calling a method on it fails.
+- **The capture guard covers one concurrency boundary and not the other.**
+  A closure that captures a reassignable binding is refused when it crosses into a `concurrent.Future`, with a diagnostic naming the race.
+  The same capture is accepted by `go_interop.Spawn`: it transpiles, the enclosing function returns before the spawned body has run, and the program's own output shows the zero value.
+  Run a build of the result under the race detector rather than trusting the guard to have covered both.
 - **`Try` and `FromError` are not interchangeable for a void Go call.**
   Both transpile cleanly and the difference shows at run time, so a transpile alone does not settle it.
 - **A bare builtin or statement keyword is a hard error, not a style finding.**
@@ -179,3 +238,5 @@ Each of these is a way the translation goes wrong without producing an error at 
 - Never copy a row from a stale document without running its check.
 - Never hand-edit a generated file; it carries a `DO NOT EDIT` header and the next transpile discards the edit without a trace.
 - Never transpile from a directory other than the package directory, because the emitted `//line` directives name the path the transpiler was given.
+- Never let a sibling file's import stand in for your own, because the transpiler resolves the name and the compiler does not.
+- Never settle a shape claim from a passing run, and never settle it from a presence assertion alone.
