@@ -13,6 +13,9 @@ The ordered procedure, the decisions, and the reasons live in `docs/gala-rewrite
 Follow the playbook and read a verdict from the roster; do not work from this file or from recalled knowledge of a spike session.
 Where this file names a page for a judgement, that page owns the judgement and this file deliberately carries no copy of it.
 
+For the project-independent version of the same knowledge, indexed by Go syntax rather than by this repository's procedure, see `.agents/skills/gala-from-go/`.
+That skill is staged for upstream, so prefer it as the source for a construct's GALA spelling and keep this repository's roster as the authority for a file-level verdict.
+
 ## Where The Knowledge Lives
 
 Ask each page only the question it owns.
