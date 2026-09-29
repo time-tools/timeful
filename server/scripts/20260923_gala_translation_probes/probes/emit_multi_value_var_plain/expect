@@ -1,0 +1,5 @@
+KIND=emit
+ABSENT=std.NewImmutable
+ABSENT=n.Get()
+ABSENT=err.Get()
+NOTE=absence half of the multi-value `:=` claim, and the half that carries it: the `var` spelling of the program in emit_multi_value_define_wraps emits no wrapper and no unwrapping, so the two spellings are no longer interchangeable for a Go-visible binding. The markers are the same three strings the presence half asserts, over the same program, so a transpiler change that wraps both spellings fails here even though every output assertion would still pass. Pinned to the GALA release by construction; re-baseline with the procedure in docs/gala-translation.md under "When to revisit"

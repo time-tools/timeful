@@ -1,0 +1,8 @@
+package main
+
+struct Pair[T any](var First T, var Second T)
+
+func main() {
+	p := Pair[int]{First: 1, Second: 2}
+	Println(p.First)
+}

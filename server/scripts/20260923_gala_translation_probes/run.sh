@@ -7,6 +7,28 @@
 #   KIND=transpile_fail  gala transpile must fail; CODE and ERR are checked against
 #                        the diagnostic
 #   KIND=build_fail      transpile must succeed and go build must fail on ERR
+#   KIND=emit            transpile must succeed and the text of main.gen.go must
+#                        satisfy every CONTAINS and ABSENT marker
+#
+# Which kind a new claim needs:
+#   - a claim about what the program does            -> KIND=pass (add RUN=yes)
+#   - a claim that something is rejected             -> KIND=transpile_fail
+#   - a claim that the emitted Go does not compile   -> KIND=build_fail
+#   - a claim about the shape of the emitted Go      -> KIND=emit
+# A construct can be accepted with the wrong shape, so the two rejection kinds
+# never carry a shape claim, and a wrapper the program never observes is invisible
+# to an output assertion, so KIND=pass never carries one either.
+#
+# KIND=emit markers are literal substrings of main.gen.go, and both keys are
+# repeatable, so one probe can pin several markers:
+#   CONTAINS=<marker>  the marker must appear in the emitted Go
+#   ABSENT=<marker>    the marker must not appear in the emitted Go
+# A marker names a semantic thing: a wrapper constructor call, a synthesized
+# interface or method, a method call on a binding. Never use whitespace,
+# indentation, or a line break, because the emitted Go is formatted and carries
+# //line directives naming the probe's own source.
+# The polarity lives in the key name rather than in a separate mode key, so a
+# marker needs no escaping and the expect file reads as an assertion list.
 #
 # Generated Go files (main.gen.go), runner-written fixtures, logs, and binaries are
 # gitignored by explicit path in .gitignore; only the .gala sources, expect files,
@@ -16,6 +38,10 @@
 # another compiler and see which expectations moved.
 # The go build expectations also pin the Go 1.26 toolchain series; set
 # GALA_PROBES_ALLOW_ANY_GO=1 to run with another toolchain.
+# KIND=emit pins codegen rather than behaviour, so it is the kind most tightly
+# coupled to the compiler release: a GALA bump is expected to fail those probes,
+# and the re-baseline procedure is in docs/gala-translation.md under
+# "When to revisit".
 
 set -uo pipefail
 
@@ -112,6 +138,13 @@ expect_value() {
     sed -n "s/^$2=//p" "$1" | head -n 1
 }
 
+# expect_values returns every value of a key, one per line, in file order. The
+# single-valued keys above still take the first value; only the repeatable
+# KIND=emit marker keys read more than one.
+expect_values() {
+    sed -n "s/^$2=//p" "$1"
+}
+
 report_ok() {
     printf 'PASS %s: %s\n' "$1" "$2"
     passed=$((passed + 1))
@@ -133,9 +166,12 @@ for dir in probes/*/; do
     err="$(expect_value "$expect_file" ERR)"
     want_run="$(expect_value "$expect_file" RUN)"
     note="$(expect_value "$expect_file" NOTE)"
+    mapfile -t contains_markers < <(expect_values "$expect_file" CONTAINS)
+    mapfile -t absent_markers < <(expect_values "$expect_file" ABSENT)
     transpile_log="$LOG_DIR/$name.transpile.log"
     build_log="$LOG_DIR/$name.build.log"
     run_log="$LOG_DIR/$name.run.log"
+    emit_log="$LOG_DIR/$name.emit.txt"
 
     materialize_fixtures "$name"
 
@@ -219,6 +255,56 @@ for dir in probes/*/; do
         else
             report_ok "$name" "transpiled and built"
         fi
+        ;;
+    emit)
+        if [[ $transpile_status -ne 0 ]]; then
+            report_fail "$name" "transpile failed"
+            sed -n '1,6p' "$transpile_log"
+            continue
+        fi
+        if [[ ${#contains_markers[@]} -eq 0 && ${#absent_markers[@]} -eq 0 ]]; then
+            report_fail "$name" "KIND=emit without a CONTAINS or ABSENT marker"
+            continue
+        fi
+        if [[ ! -f "$dir/main.gen.go" ]]; then
+            report_fail "$name" "transpile succeeded but wrote no main.gen.go"
+            continue
+        fi
+        { printf -- '--- %s\n' "$dir/main.gen.go"; cat -n "$dir/main.gen.go"; } >"$emit_log" 2>&1
+        # Every failing assertion is collected, not just the first, so one run
+        # shows the whole drift; report_fail prints the FAIL line, then the
+        # collected detail follows the way the other kinds' excerpts do.
+        emit_detail=()
+        emit_failures=0
+        for marker in "${contains_markers[@]}"; do
+            if [[ -z "$marker" ]]; then
+                emit_detail+=("  empty CONTAINS marker")
+                emit_failures=$((emit_failures + 1))
+            elif ! grep -qF -- "$marker" "$dir/main.gen.go"; then
+                emit_detail+=("  no match for CONTAINS=$marker")
+                emit_failures=$((emit_failures + 1))
+            fi
+        done
+        for marker in "${absent_markers[@]}"; do
+            if [[ -z "$marker" ]]; then
+                emit_detail+=("  empty ABSENT marker")
+                emit_failures=$((emit_failures + 1))
+            elif grep -qF -- "$marker" "$dir/main.gen.go"; then
+                emit_detail+=("  matched ABSENT=$marker, which the emitted Go must not contain")
+                while IFS= read -r hit; do
+                    emit_detail+=("  $hit")
+                done < <(grep -nF -C 2 -- "$marker" "$dir/main.gen.go")
+                emit_failures=$((emit_failures + 1))
+            fi
+        done
+        if [[ $emit_failures -gt 0 ]]; then
+            report_fail "$name" "$emit_failures of $(( ${#contains_markers[@]} + ${#absent_markers[@]} )) emitted-text assertion(s) did not hold"
+            printf '%s\n' "${emit_detail[@]}"
+            printf '  the generated Go, numbered; a full copy is at %s\n' "$emit_log"
+            sed -n '2,61p' "$emit_log" | sed 's/^/  /'
+            continue
+        fi
+        report_ok "$name" "transpiled, and the emitted Go held ${#contains_markers[@]} presence and ${#absent_markers[@]} absence assertion(s)"
         ;;
     *)
         report_fail "$name" "unknown KIND: $kind"

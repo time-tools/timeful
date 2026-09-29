@@ -1,0 +1,8 @@
+package main
+
+struct Person(var Name string)
+
+func main() {
+	p := Person{Name: "ada"}
+	Println(p.Name)
+}

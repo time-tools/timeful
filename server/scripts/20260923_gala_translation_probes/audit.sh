@@ -12,6 +12,13 @@
 #   6. the mechanical rewrite catalog and the no-rewrite index agree with the
 #      roster's gap classes, in both directions
 #
+# Check 3 classifies probe kinds rather than inheriting the pass rule, because a
+# blocker has to fail for the construct it names. KIND=pass asserts behaviour and
+# a KIND=emit probe carrying a CONTAINS marker pins a shape that is there rather
+# than a shape that is missing, so neither can back a gap claim. A KIND=emit
+# probe whose markers are all ABSENT can: a construct is blocked exactly when the
+# thing it needs is not emitted.
+#
 # Checks 4 and 6 read the construct roster section of the page, so a table
 # elsewhere on the page that repeats the same column names cannot influence
 # either of them.
@@ -96,6 +103,14 @@ for dir in probes/*/; do
             fail "$name: $kind without CODE or ERR"
         fi
         ;;
+    emit)
+        if [[ -z "$(expect_value "$dir/expect" CONTAINS)" && -z "$(expect_value "$dir/expect" ABSENT)" ]]; then
+            fail "$name: KIND=emit without a CONTAINS or ABSENT marker"
+        fi
+        if grep -qE '^(CONTAINS|ABSENT)=[[:space:]]*$' "$dir/expect"; then
+            fail "$name: empty CONTAINS or ABSENT marker"
+        fi
+        ;;
     *)
         fail "$name: unknown KIND '$kind'"
         ;;
@@ -127,22 +142,44 @@ fi
 
 # --- 3. gap rows name failing, non-contested probes ------------------------
 
+# The blocking probe list is whatever the Genuine gaps table's Blocking probe
+# cell names, so the parser reads that cell by its header rather than by a probe
+# name prefix.
+
 gap_rows="$(mktemp)"
 awk -F'|' '
 function trim(s) { gsub(/^[ \t]+/, "", s); gsub(/[ \t]+$/, "", s); return s }
-/^\| GAP-/ {
+/^\| Gap / && /Blocking probe/ {
+    for (i = 2; i < NF; i++) {
+        if (trim($i) == "Blocking probe") pc = i
+    }
+    in_table = 1
+    next
+}
+in_table && /^\| *-+/ { next }
+in_table && /^\| GAP-/ {
     id = trim($2); kind = trim($3)
     fams = trim($4); gsub(/`/, "", fams); gsub(/ *, */, ",", fams)
+    # The blocking probe is whatever the Blocking probe cell names, so a new
+    # probe prefix is pickable without editing this script. Reading the whole
+    # row instead would take a probe named in the workaround or upstream cell
+    # for the blocker.
+    cell = (pc == 0 ? $0 : $(pc))
     probes = ""
+    n = split(cell, parts, "`")
+    for (i = 2; i <= n; i += 2) {
+        t = trim(parts[i])
+        if (t != "") probes = probes (probes == "" ? "" : ",") t
+    }
     contested = 0
     n = split($0, parts, "`")
     for (i = 2; i <= n; i += 2) {
-        t = parts[i]
-        if (t ~ /^blocked_/) probes = probes (probes == "" ? "" : ",") t
-        if (t ~ /^contested_/) contested = 1
+        if (trim(parts[i]) ~ /^contested_/) contested = 1
     }
     print id "\x1f" kind "\x1f" fams "\x1f" probes "\x1f" contested
-}' "$DOC" >"$gap_rows"
+    next
+}
+{ in_table = 0 }' "$DOC" >"$gap_rows"
 
 gap_count=0
 before_gaps=$failures
@@ -169,9 +206,16 @@ while IFS=$'\x1f' read -r id kind fams probes contested; do
             continue
         fi
         kind_value="$(expect_value "probes/$probe/expect" KIND)"
-        if [[ "$kind_value" == "pass" ]]; then
+        case "$kind_value" in
+        pass)
             fail "$id: probe $probe is KIND=pass, not a blocker"
-        fi
+            ;;
+        emit)
+            if [[ -n "$(expect_value "probes/$probe/expect" CONTAINS)" ]]; then
+                fail "$id: probe $probe is KIND=emit with a presence marker, not a blocker"
+            fi
+            ;;
+        esac
         gap_probe_ok["$probe"]=1
     done
     IFS=',' read -r -a fam_list <<<"$fams"
