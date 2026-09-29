@@ -122,6 +122,24 @@ func init() {
 }
 GO
         ;;
+    blocked_size_inferred_receiver)
+        cat >"probes/$1/types.go" <<'GO'
+package main
+
+type Log struct {
+	ID      string
+	Members []Member
+}
+
+type Member struct {
+	Email string
+}
+
+func listLogs() ([]Log, error) {
+	return nil, nil
+}
+GO
+        ;;
     contested_size_field_go_sibling)
         cat >"probes/$1/types.go" <<'GO'
 package main

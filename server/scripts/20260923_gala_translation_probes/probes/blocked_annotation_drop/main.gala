@@ -1,0 +1,9 @@
+package main
+
+// @Summary Returns a public profile
+// @Router /users/{userId} [get]
+func getUser() string = "user"
+
+func main() {
+	Println(getUser())
+}

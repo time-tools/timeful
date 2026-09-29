@@ -6,7 +6,7 @@ The upstream language references are [GALA.MD](https://github.com/martianoff/gal
 
 ## Current usage
 
-Eleven packages carry a GALA source and a committed, generated Go twin (thirteen `.gala` sources in total).
+Thirteen packages carry a GALA source and a committed, generated Go twin (fifteen `.gala` sources in total).
 
 | Package                   | GALA source                                   | Generated Go                                | Handwritten sibling                                                                     |
 | ------------------------- | --------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------- |
@@ -23,6 +23,8 @@ Eleven packages carry a GALA source and a committed, generated Go twin (thirteen
 | `discord_bot/commands`    | `discord_bot/commands/num_users.gala`         | `discord_bot/commands/num_users.go`         | —                                                                                       |
 | `discord_bot`             | `discord_bot/init.gala`                       | `discord_bot/init.go`                       | —                                                                                       |
 | `slackbot/commands`       | `slackbot/commands/num_users.gala`            | `slackbot/commands/num_users.go`            | `slackbot/commands/utils.go` (`newResponse`)                                            |
+| `middleware`              | `middleware/auth.gala`                        | `middleware/auth.go`                        | `middleware/doc.go` (package comment)                                                   |
+| `postgres`                | `postgres/dailylogs.gala`                     | `postgres/dailylogs.go`                     | `postgres/dailylogs_methods.go` (the four `*Repository` daily-log methods)              |
 
 Regenerate a package from its own directory so the embedded `//line` directives stay relative:
 
@@ -101,6 +103,24 @@ Use the runtime-enabled style when the file benefits from GALA-native features a
 
 ## What does not work
 
+- A `swag` annotation on a handler.
+  The transpiler emits no comments at all, so an annotation written in the `.gala` source is absent from the generated Go and `swag init` drops the endpoint from the OpenAPI document.
+  A handwritten sibling cannot supply it either, because an annotation has to sit immediately above its declaration.
+  `routes/users.go` is the one annotated file the translation roster reports as rewritable, and it stays handwritten for this reason.
+  The roster does not mention annotations, so every route handler is exposed to this and the file-level verdict does not show it.
+- Calling a method that a handwritten sibling declares.
+  `GALA-E0044`, and it is loud: `Repository has no method withTransaction`.
+  The transpiler resolves a method call against the declarations in the same `.gala` file and reads no Go sibling, so a `.gala` file cannot call a method on a type that stays handwritten.
+  `Repository` is declared in `repository.go`, which stays handwritten, and its 106 methods are spread across twelve files, so twelve of the fourteen rung-2 `postgres` candidates are blocked by this alone.
+  The only viable shape is a declarations-only split, which is what `dailylogs` now is.
+- `.Size()` on a receiver whose type was inferred from a Go call.
+  The transpiler types a receiver from the `.gala` file's own text, so a receiver written out resolves even across packages while one inferred from a Go-declared function does not, even in the same package.
+  A multi-value binding cannot be annotated to pin the type, so there is no substitute.
+  This is what blocks both `active_users.go` files, which are rung 1 in the roster.
+- A method call on a `:=` binding.
+  `usersRouter := router.Group("/users")` followed by `usersRouter.GET(...)` emits `usersRouter.Get().GET(...)`, a call that does not exist in Go.
+  The transpile is clean and the failure appears only at `go build`.
+  The `var` spelling is correct and emits no wrapper at all.
 - Go-style multi-value returns.
   A declaration like `func f() (string, error)` is a parse error, and GALA returns tuples instead.
   This blocks drop-in rewrites of Go helpers such as `appenv.ResolvePort`, `utils.CORSOrigins`, and `utils.GetListmonkOtpFromAddress`.
@@ -410,12 +430,23 @@ The runtime is vendored at `server/third_party/gala/` as one flattened Go module
   | `discord_bot/init.go`                       | `87dcafb9086c5764ec97d1d1125778291a79c667824f074c995f558e38bfd6cb` |
   | `slackbot/commands/num_users.go`            | `6ddeea45ec41555cd07751c52125cc3de794231b8599e5586ca8f2868aed00f9` |
 
+| `middleware/auth.go` | `3b1cb9a2a86d94ae8906a4c2950963e3a367b90a9786eadf4c97c63753a69743`
+| `postgres/dailylogs.go` | `ae3fe90adc34a683ed2bf6fa91f960cce2b23b3a6ae17c064b2e524e2e15c078` |
+
 - The probe module compiled and ran against the vendored runtime, and its `go run` output confirmed the sealed, monad, collection, and concurrency shapes described above.
 
 ## When to revisit
 
 Adoption beyond mostly interop-shaped leaf packages is still limited by the upstream gaps the roster classifies; in rough priority order:
 
+- `GAP-11`: a comment-preserving emit, or an interop escape hatch letting a generated file carry a Go-facing comment.
+  The transpiler emits no comments, so a `swag` annotation written in a `.gala` source is absent from the generated Go and `swag init` drops the endpoint from the OpenAPI document.
+  A handwritten sibling cannot supply an annotation, because an annotation has to sit immediately above its declaration.
+  This blocks every route handler, not only the one candidate the roster reports as rewritable, and the file-level verdict does not show it.
+- `GAP-12`: type resolution across the Go boundary, or an accepted type annotation on a multi-value binding.
+  `.Size()` needs a receiver type the transpiler can read from the `.gala` file's own text, so a receiver written out resolves even across packages while one inferred from a Go call does not.
+  A multi-value binding takes no type annotation, so there is no spelling that recovers it.
+  This blocks both `active_users.go` files, which the roster reports as rung 1.
 - `GAP-2`: Go-style multi-value return signatures, or an interop escape hatch for them.
   The `:=` receive panic that used to be part of this ask was fixed by PR [#529](https://github.com/martianoff/gala/pull/529); what remains is the signature itself.
   This is the top ask; it alone would unblock `appenv.ResolvePort`, `routes/respondent_identity.go`, every marshaler in `models`, and most of `postgres`.

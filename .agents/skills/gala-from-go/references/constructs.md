@@ -73,6 +73,7 @@ Construction has to go through a variant's `Apply`, and a match ends in `panic("
 | function type              | `Execute func(args []string)`                        | the same, as a field or parameter type           | direct     | —          | transpile                                                          |
 | lambda                     | `func(x int) int { return x }`                       | `(x) => x`; the parameter is parenthesized      | workaround | `GALA-E0042` | `gala explain GALA-E0042`, then transpile a bare-parameter lambda  |
 | lambda with a block body   | `func(x int) int { if x > 0 { return 1 }; return 0 }` | `(x) => { if (x > 0) { return 1 }; return 0 }` | direct     | —          | transpile a lambda whose body is a block                          |
+| block-bodied lambda in return position | `func F() T { return func(x U) { ... } }` | `(x U) => { ... }`; annotate the parameter | answered | `GALA-E0033` | transpile `func F() T = (x) => { ... }` and read whether the hint's promised typed return is honoured |
 | lambda in a composite literal | `Command{Execute: func() string { return "x" }}` | `Command(Execute = () => "x")`                  | workaround | parse error | transpile a Go-style function literal inside a literal, then a lambda |
 | declaration ordering       | `f(g())` where `f` is declared later                | a declaration may follow its use                                 | direct     | —          | transpile a call to a function declared below it                   |
 | nested function            | `func f() { func g() {} }`                           | a lambda bound to a `val`                                     | answered   | `GALA-E0052` | `gala explain GALA-E0052`, then transpile a nested function      |
@@ -111,6 +112,7 @@ The `:=` in a `for` init slot is the exception that reads as inconsistent, becau
 | `len` on a string's bytes | `len(b)`              | `b.ByteSize()`, which emits Go's `len`                        | workaround | `GALA-E0035` | `gala explain GALA-E0035`, then transpile `.ByteSize()` and read the emitted `len` |
 | `len` on characters      | `len([]rune(s))`      | `s.Size()`, which emits `utf8.RuneCountInString`              | workaround | `GALA-E0035` | transpile `.Size()` on a non-ASCII string and read the emitted call against `.ByteSize()` |
 | `len` on a Go slice      | `len(xs)`             | `xs.Size()`, which emits Go's `len`                           | workaround | `GALA-E0035` | transpile `.Size()` on a Go slice and read the emitted call                |
+| `len` on a Go slice whose type was inferred | `var xs, err = f(); len(xs)` | none; a multi-value binding takes no type annotation | — | `GALA-E0035` | transpile `.Size()` on a receiver from `var a, b = f()` and on one from an annotated parameter, in the same package |
 | `len` on a GALA collection | `len(xs)`           | `xs.Size()`, which stays a method call on the collection       | workaround | `GALA-E0035` | transpile the same call on a `HashMap` and read the difference             |
 | `make` a slice           | `make([]T, n)`        | `go_interop.SliceWithSize[T](n)`, or `SliceWithCapacity[T](n)` | workaround | parse error | transpile `make`, then the helper                                         |
 | `make` a map             | `make(map[K]V)`       | `go_interop.MapEmpty[K, V]()`, or `MapWithCapacity[K, V](n)`  | workaround | parse error | transpile `make`, then the helper                                         |
@@ -137,6 +139,11 @@ Nearly every substitute in this table lives in a package `gala doc` cannot descr
 
 `.Size()` is not one spelling with one meaning: it lowers to a rune count on a string, to Go's `len` on a Go slice, and to a method call on a GALA collection.
 A row that says `.Size()` without naming the receiver is not a row, because the two lowerings count different things and the one that is correct depends on which the Go code originally asked for.
+
+The receiver's *spelling* decides whether the call lowers at all, independently of what the receiver is.
+A receiver whose type is written out resolves even when the type is declared in another package as a GALA struct, and a receiver whose type is inferred from a call into a Go-declared function does not resolve even when that function returns a GALA-declared type in the same package.
+So the same `len` over the same slice is a `workaround` or a wall depending only on how the binding was written, and a `var` that pins an explicit type is what moves it from one to the other — except that a multi-value binding cannot be pinned, which is the case [`references/gaps.md`](gaps.md) records as a boundary gap.
+Check the binding's spelling before concluding anything about the receiver.
 The same warning applies to a member the program does not have: a missing method is refused with a diagnostic that enumerates what the type does declare, so read that list rather than guessing the name.
 
 ## Containers

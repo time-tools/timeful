@@ -1,0 +1,57 @@
+package middleware
+
+import (
+	"net/http"
+
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-gonic/gin"
+	"timeful/server/accounts"
+	"timeful/server/errs"
+	"timeful/server/responses"
+)
+
+// AuthRequired rejects a request that carries no usable session identity.
+//
+// The session carries the account's platform identity UUID. A session value
+// that is absent, is not a string, or is the empty string is treated the same
+// way, because only a non-empty platform identity can be resolved.
+//
+// The authoritative account is then resolved from PostgreSQL, and the calendar
+// connections, provider tokens, sub-calendars, and preferences are
+// PostgreSQL-authoritative and loaded through the accounts boundary rather
+// than from the session.
+//
+// On success the resolved user and account are published on the Gin context as
+// "authUser" and "authAccount" and the handler chain continues.
+//
+// This documentation lives here rather than in doc.go because the transpiler
+// emits no comments, and doc.go cannot re-declare AuthRequired to attach one.
+func AuthRequired() gin.HandlerFunc = (c *gin.Context) => {
+	var platformIdentityID = sessions.Default(c).Get("userId") match {
+		case s: string => s
+		case _ => ""
+	}
+	if platformIdentityID == "" {
+		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.NotSignedIn})
+		c.Abort()
+		return
+	}
+
+	var account, err = accounts.Resolve(c.Request.Context(), platformIdentityID)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
+		c.Abort()
+		return
+	}
+
+	var user, loadErr = accounts.LoadSessionUser(c.Request.Context(), account)
+	if loadErr != nil {
+		c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed to load account integration data"})
+		c.Abort()
+		return
+	}
+
+	c.Set("authUser", user)
+	c.Set("authAccount", account)
+	c.Next()
+}

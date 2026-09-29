@@ -37,9 +37,14 @@ Each one has a `.gala` source beside it, and some packages also have a handwritt
 | `discord_bot/commands/num_users.go`         | `discord_bot/commands/num_users.gala`         | `cd server/discord_bot/commands && gala transpile -i num_users.gala -o num_users.go`                 |
 | `discord_bot/init.go`                       | `discord_bot/init.gala`                       | `cd server/discord_bot && gala transpile -i init.gala -o init.go`                                    |
 | `slackbot/commands/num_users.go`            | `slackbot/commands/num_users.gala`            | `cd server/slackbot/commands && gala transpile -i num_users.gala -o num_users.go`                    |
+| `middleware/auth.go`                        | `middleware/auth.gala`                        | `cd server/middleware && gala transpile -i auth.gala -o auth.go`                                     |
+| `postgres/dailylogs.go`                     | `postgres/dailylogs.gala`                     | `cd server/postgres && gala transpile -i dailylogs.gala -o dailylogs.go`                             |
 
-Handwritten siblings beside generated files are `appenv/appenv_port.go` (`ResolvePort`), `utils/array_utils_extra.go` (`ArrayToSet`, `ElementWithIndex`, `FindAddedRemovedKept`), `services/providerconfig/doc.go` (package comment), and `slackbot/commands/utils.go` (the `newResponse` constructor).
+Handwritten siblings beside generated files are `appenv/appenv_port.go` (`ResolvePort`), `utils/array_utils_extra.go` (`ArrayToSet`, `ElementWithIndex`, `FindAddedRemovedKept`), `services/providerconfig/doc.go` (package comment), `slackbot/commands/utils.go` (the `newResponse` constructor), `middleware/doc.go` (package comment), and `postgres/dailylogs_methods.go` (the four `*Repository` daily-log methods).
 They are not generated and have no regeneration command.
+
+A file carrying `swag` annotations cannot be a GALA source, because the transpiler emits no comments and an annotation has to sit immediately above its declaration.
+`routes/users.go` is the one such file the translation roster reports as rewritable, and it stays handwritten for that reason; see `GALA.md` for the finding.
 See `GALA.md` for the two output styles, the vendored runtime under `third_party/gala/`, and the findings from the transpilation spikes.
 The per-construct Go-to-GALA roster, its inventory counts, and the scripted probe corpus are in [`../docs/gala-translation.md`](../docs/gala-translation.md).
 The ordered procedure for turning one more Go file into a twin is in [`../docs/gala-rewrite-playbook.md`](../docs/gala-rewrite-playbook.md).

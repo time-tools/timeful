@@ -66,10 +66,39 @@ A construct reaches this section only if it has no substitute at all.
 | Construct | What happens | What a fix needs |
 | --------- | ------------ | ---------------- |
 | `const`   | parse error; the keyword is not in the grammar | a const declaration whose value stays a Go compile-time constant |
+| a comment on a declaration | the transpiler emits no comments, so a doc comment or a `swag` annotation written in the `.gala` source is absent from the emitted Go | a comment-preserving emit, or an interop escape hatch letting a generated file carry a Go-facing comment |
+| `.Size()` on a value whose type was inferred from a Go call | the transpiler resolves a receiver's type from the `.gala` file's own text and does not read a Go sibling's signature, so the call is emitted against a type it never resolved | type resolution across the Go boundary, or an accepted type annotation on a multi-value binding |
 
 `const` is the one construct here with nothing standing in for it.
 `var` and `val` cover every use except a value that has to remain a Go compile-time constant, which is the whole of the gap, and it is a small one.
 A file whose only `const` is a named number transliterates cleanly; report it only when a constant has to stay constant for a Go reader or a wire format.
+
+The other two are boundary gaps, and both are about the Go side of the boundary rather than the GALA side, which is what makes them gaps rather than defects.
+
+A comment is dropped wherever it sits, and the two places it hurts are far apart.
+A doc comment on an exported declaration disappears from `go doc`, and it cannot be rescued by a handwritten sibling, because a sibling cannot re-declare a function to attach a comment to it.
+A `swag` annotation disappears from the generated OpenAPI document, and it cannot be rescued either, because an annotation has to sit immediately above its declaration; a file that loses one silently drops a documented endpoint from the contract.
+The substitute is to keep the comment in the `.gala` source, which is where it stays readable to whoever edits that source and invisible to every Go tool.
+That is a real substitute with a real price, so this is a boundary gap rather than a defect: what breaks is a tool on the other side of the boundary, and a tool cannot be changed from inside the transpiler.
+
+The `.Size()` case is a narrower reading of the receiver-resolution defect recorded below under [Defects Observed While Pinning Rows](#defects-observed-while-pinning-rows), and the two are worth reading together.
+The defect says the receiver is not typed; this says there is no way to type it yourself, which is what turns a lowering bug into a gap.
+A receiver whose type is written out resolves fine, even when the type is declared in another package as a GALA struct:
+
+```gala
+func CountMany(logs []types.Log) int = logs.Size()   // builds
+```
+
+A receiver whose type is *inferred* from a call into a Go-declared function does not, even when that function sits in the same package and returns a GALA-declared type:
+
+```gala
+var logs, err = List()   // List is declared in repo.go and returns []Log
+return logs.Size()        // logs.Size undefined (type []Log has no field or method Size)
+```
+
+The obvious repair is to annotate the binding, and it is closed: a multi-value binding takes no type annotation, so `var logs []Log, err = List()` is a parse error.
+`go_interop` has `SliceCap` but no length helper either, and `go_interop.SliceFrom(x, 0).Size()` resolves the receiver only by copying the whole slice to read its length.
+So there is no spelling, and the price is that any file counting the elements of a slice returned by a Go function cannot be translated at all.
 
 ## Constructs That Were Never Gaps
 
@@ -115,6 +144,29 @@ The transpiler cannot know the field's type, so it emits a method call on a plai
 The same call on a GALA-declared struct lowers correctly, so the trigger is a mixed package rather than the construct itself, and it holds for a plain `string` field as much as for a slice.
 The specification and the lint skill both sanction `.Size()` as the replacement for `len` with no caveat about an unresolved receiver, and the failure surfaces only as a Go compiler error against generated code the reader did not write, which is what makes it a documentation and diagnostics gap.
 It is also worth knowing as a limitation when deciding whether a member can move into a `.gala` file beside a `.go` sibling.
+
+**A `:=` binding mislowers a method call made on it.** Not filed.
+The `SKILL.md` trap that records a `:=` binding as a `val` binding says the value wraps and that every read emits `.Get()`.
+The receiver of a method call is worse than a read: the transpiler treats the call as a read of the binding and unwraps the receiver, which is never right for a method defined on the value's own type.
+
+```gala
+var usersRouter = router.Group("/users")
+usersRouter.GET("/:userId", getPublicUserProfile)   // emits usersRouter.GET(...), builds
+```
+
+```gala
+usersRouter := router.Group("/users")
+usersRouter.GET("/:userId", getPublicUserProfile)   // emits usersRouter.Get().GET(...), does not build
+```
+
+The transpile is clean, there is no diagnostic, and the failure is a `go build` error against generated code the reader did not write.
+The two-spelling contrast is one keyword and the emitted artifact states the correct shape in the first case, so a report needs no argument about intent.
+Assert the absence as well as the presence: the `var` form emits no `std.NewImmutable` anywhere in the file, and that absence is what distinguishes the two lowerings rather than merely the presence of a wrapper in one of them.
+
+**A block-bodied lambda in return position cannot infer its parameter type.** Not filed; the diagnostic already names the fix.
+`func F() T = (x) => { ... }` is refused with `GALA-E0033`, even though the hint offers "a typed val, function argument, or **return**" and the return type is written out.
+Annotating the parameter, `(x T) => { ... }`, is accepted.
+The `constructs.md` row for a block-bodied lambda is marked `direct` on the strength of a minimal form whose parameter happened to be inferable, so the row needs the annotated spelling alongside the bare one.
 
 ## Report Template
 
