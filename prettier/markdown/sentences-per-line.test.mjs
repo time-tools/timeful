@@ -10,7 +10,7 @@ function format(markdown, options = {}) {
   })
 }
 
-describe('table-safe sentences-per-line formatter', () => {
+describe('local sentences-per-line corrections', () => {
   it('splits prose sentences onto separate physical lines', async () => {
     await expect(
       format('The first sentence ends here. The second sentence follows.\n'),
@@ -32,7 +32,7 @@ describe('table-safe sentences-per-line formatter', () => {
     ).toHaveLength(3)
   })
 
-  it('round-trips the QR-011 table without splitting its response rows', async () => {
+  it('keeps a long cell with inline links on its row and stays idempotent', async () => {
     const source = [
       '| Scenario element | Requirement |',
       '| --- | --- |',
@@ -120,19 +120,43 @@ describe('table-safe sentences-per-line formatter', () => {
     )
   })
 
-  it('does not split after digit periods', async () => {
-    await expect(format('It costs 3. Next sentence.\n')).resolves.toBe(
-      'It costs 3. Next sentence.\n',
-    )
+  it('does not split inside an interior decimal', async () => {
     await expect(
-      format('Version 3. **Next section** starts here.\n'),
-    ).resolves.toBe('Version 3. **Next section** starts here.\n')
+      format('It targets Apache 2.0 now. Next sentence.\n'),
+    ).resolves.toBe('It targets Apache 2.0 now.\nNext sentence.\n')
+    await expect(
+      format('Pin version 14.14 today. Next sentence.\n'),
+    ).resolves.toBe('Pin version 14.14 today.\nNext sentence.\n')
   })
 
-  it('does not split after known or custom abbreviations at structure gaps', async () => {
-    await expect(format('Cite Dr. [Wu](#w) said.\n')).resolves.toBe(
-      'Cite Dr. [Wu](#w) said.\n',
+  it('splits a sentence that ends in a number', async () => {
+    await expect(format('It costs 3. Next sentence.\n')).resolves.toBe(
+      'It costs 3.\nNext sentence.\n',
     )
+    await expect(
+      format('Ship it in Week 1. What follows is the method.\n'),
+    ).resolves.toBe('Ship it in Week 1.\nWhat follows is the method.\n')
+    await expect(
+      format('1. Hold a kickoff during Week 1. Present the project.\n'),
+    ).resolves.toBe(
+      '1. Hold a kickoff during Week 1.\n   Present the project.\n',
+    )
+  })
+
+  it('keeps list markers and table rows intact when splitting numbers', async () => {
+    await expect(format('1. First item.\n2. Second item.\n')).resolves.toBe(
+      '1. First item.\n2. Second item.\n',
+    )
+    const table = await format(
+      '| A | B |\n| --- | --- |\n| x | It ends in Week 1. Then more. |\n',
+    )
+    expect(
+      table.split('\n').filter((line) => line.startsWith('|')),
+    ).toHaveLength(3)
+    expect(table).toContain('It ends in Week 1. Then more.')
+  })
+
+  it('does not split at structure gaps after a configured abbreviation', async () => {
     await expect(
       format('Cite Xu. [Wang](#w) said.\n', {
         sentencesPerLineAdditionalAbbreviations: ['Xu.'],

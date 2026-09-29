@@ -18,7 +18,7 @@ const knownAbbreviations = new Set([
   'ltd',
 ])
 
-const closingPairsPattern = /[)"'”’\]]+$/
+const closingPairsPattern = /[)"'”’\]*_]+$/
 const terminalPunctuationPattern = /[.!?]$/
 const digitPeriodPattern = /\d\.$/
 const initialismPattern = /(?:^|[\s("'])(?:[A-Za-z]\.)+$/

@@ -9,11 +9,22 @@ session_id="$(
 import json
 import sys
 
-sessions = json.load(sys.stdin)
-if len(sessions) != 1:
+payload = sys.stdin.read().strip()
+if not payload:
+    raise SystemExit(
+        "No OpenCode session found for the current directory, because"
+        " `opencode session list` scopes to it. Start opencode here and retry."
+    )
+
+try:
+    sessions = json.loads(payload)
+except json.JSONDecodeError as error:
+    raise SystemExit(f"Unexpected output from `opencode session list`: {error}")
+
+if not isinstance(sessions, list) or len(sessions) != 1:
     raise SystemExit("Could not determine the most recently updated OpenCode session.")
 
-session_id = sessions[0].get("id")
+session_id = sessions[0].get("id") if isinstance(sessions[0], dict) else None
 if not isinstance(session_id, str) or not session_id.startswith("ses_"):
     raise SystemExit("Could not determine the most recently updated OpenCode session.")
 
