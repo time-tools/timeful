@@ -4,7 +4,7 @@ title: Re-pin the GALA toolchain to 0.84.1 and collapse the pre-PR-529 version s
 status: Done
 assignee: []
 created_date: '2026-09-29 15:12'
-updated_date: '2026-09-29 15:31'
+updated_date: '2026-09-29 15:41'
 labels: []
 dependencies: []
 modified_files:
@@ -116,6 +116,14 @@ All 21 nested go.mod files in the 0.84.1 snapshot declared only internal martian
 created: 2026-09-29 15:31
 ---
 Definition of Done items left unchecked are not applicable rather than outstanding. #3 e2e: this change touches the backend toolchain, the vendored GALA runtime, and documentation; it changes no browser-observable behavior, and the route/backend suite that does exercise the runtime passed in the isolated Compose stack. #5 swagger: no API route handler or annotation was touched, so `swag init` and `npm run gen:api` would produce no diff. #8 contract documents: no API, wire format, or environment contract changed, so `docs/environments.md`, `PLUGIN_API_README.md`, and migration notes have nothing to record.
+---
+
+author: @opencode
+created: 2026-09-29 15:41
+---
+Follow-up disposition of the stale pinned-version text named in this task's final summary. The three active work orders that hardcoded 0.81.0 are now updated: TASK-0323 (description and AC #2, plus the `version matrix` reference, since the roster now carries a single 0.84.1 status column and a changelog), TASK-0330, and TASK-0330.05.
+
+The 0.81.0 text inside completed tasks is left intact on purpose. Those references are measured evidence of what was pinned and observed when the work ran: TASK-0320's vendoring provenance, TASK-0322 and TASK-0324's corpus runs against 0.81.0 and the PR #529 split, TASK-0330.01 and TASK-0330.02's `gala 0.81.0; 54 probes` run output, and TASK-0321 and TASK-0326's recorded constraints. Rewriting them to 0.84.1 would assert that a run happened against a compiler it did not run against. `docs/gala-translation.md` and `server/GALA.md` are the current-version sources of truth.
 ---
 <!-- COMMENTS:END -->
 

@@ -5,6 +5,7 @@ status: To Do
 assignee:
   - '@opencode'
 created_date: '2026-09-26 13:35'
+updated_date: '2026-09-29 15:40'
 labels: []
 dependencies: []
 references:
@@ -67,7 +68,7 @@ Delivered as ordered subtasks, each independently reviewable and each landing it
   A second competing document is the drift risk this initiative exists to remove, so nothing here may fork it.
 - No new upstream issue or PR.
   The work is local to this repository.
-- GALA 0.81.0 and the Go 1.26 series stay the pinned toolchains, and the vendored runtime under `server/third_party/gala/` is not modified.
+- GALA 0.84.1 and the Go 1.26 series stay the pinned toolchains, and the vendored runtime under `server/third_party/gala/` is not modified.
 - The committed twins and the corpus expectations are not re-baselined as a side effect of this work.
 - Root Markdown follows the sentence-per-line and table-row rules in `docs/AGENTS.md`, and terminology follows `docs/terminology/README.md`.
 - Discovery for a new page in `docs/` is by inbound link from `server/GALA.md` and `server/README.md`; the repository has no docs index.
