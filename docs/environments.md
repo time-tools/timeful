@@ -98,9 +98,8 @@ Compose-to-frontend build arg mappings:
 
 - **`VITE_ENABLE_SIGN_IN`** — Controls sign-in and sign-up availability in the frontend.
   Defaults to `true` when unset or blank.
-  Set to `false` to hide sign-in buttons, redirect
-  sign-in/sign-up routes away, and replace sign-in-gated feature prompts with
-  "Requires sign-in, which is disabled in this build." Existing auth sessions still
+  Set to `false` to hide sign-in buttons, redirect sign-in/sign-up routes away, and replace sign-in-gated feature prompts with "Requires sign-in, which is disabled in this build."
+  Existing auth sessions still
   work, so previously signed-in users retain access to auth-protected routes.
   This is a frontend-only gate; backend auth endpoints remain live regardless.
 - **`VITE_ENABLE_RICH_LANDING`** — Controls whether the full landing page is shown.
