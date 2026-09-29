@@ -21,7 +21,7 @@ It does not govern how a repository stores or commits the result; that belongs t
 | Is this a gap, how is it classified, and how do I report it?          | [`references/gaps.md`](references/gaps.md)             |
 
 Ask each file only the question it owns, and read a construct's row before writing a line of GALA.
-A construct that works and a construct that is blocked are both plain Go until the row says otherwise, and the two produce opposite outcomes.
+A construct that works and a construct GALA refuses are both plain Go until the row says otherwise, and the two produce opposite outcomes.
 
 ## Before Starting
 
@@ -84,7 +84,8 @@ Work one construct at a time, in this order, and transpile to a scratch path aft
 5. Comments.
    The transpiler emits no documentation comments, so package and declaration comments belong in a handwritten `doc.go`.
 
-Stop at the first construct whose row says `blocked` and apply the triage verdicts again for the member rather than the file, because a blocked member is a split, not a failure.
+Stop at the first construct whose row is not `direct` and apply the triage verdicts again for the member rather than the file, because a member GALA cannot carry is a split, not a failure.
+A `workaround` or an `answered` row is not that case: the row already names the spelling to use, so take it and keep going.
 
 ## Verify
 
