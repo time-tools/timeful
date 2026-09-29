@@ -10,15 +10,19 @@ It says what each construct does today, and a construct with a `workaround` row 
 
 A row is a gap only if it has no substitute.
 Classify it into exactly one of these, because the class determines whether there is anything to file at all.
+The first four are the classes [`constructs.md`](constructs.md) records as a `Status`; the last two are the ones that belong in a report, and neither has a `Status` because neither is a property of a single row.
 
-| Class             | Meaning                                                                                       | File it? |
-| ----------------- | --------------------------------------------------------------------------------------------- | -------- |
-| direct            | The construct is written as it stands; no substitution is involved.                             | No       |
-| workaround        | Only an interop helper or a plain-Go spelling preserves the behavior.                           | No       |
-| analog            | A GALA-native construct expresses the same behavior, such as `match`, `Try`, `use`, or `.ByteSize()`. | No    |
-| documented answer | The construct is refused, and a diagnostic says so and names the replacement.                    | No       |
-| boundary gap      | GALA expresses the behavior, but not as a Go-shaped drop-in, so a Go API or a wire format changes. | Yes  |
-| language gap      | GALA has no syntax or no semantics for the construct, so nothing in the language expresses it.     | Yes      |
+| Class             | Status in `constructs.md` | Meaning                                                                                       | File it? |
+| ----------------- | ------------------------- | --------------------------------------------------------------------------------------------- | -------- |
+| direct            | `direct`                  | The construct is written as it stands; no substitution is involved.                             | No       |
+| workaround        | `workaround`              | Only an interop helper or a plain-Go spelling preserves the behavior.                           | No       |
+| analog            | `answered`                | A GALA-native construct expresses the same behavior, such as `match`, `Try`, `use`, or `.ByteSize()`. | No    |
+| documented answer | `answered`, `semantic`    | The construct is refused, and either a diagnostic or the specification names the replacement.   | No       |
+| boundary gap      | —                         | GALA expresses the behavior, but not as a Go-shaped drop-in, so a Go API or a wire format changes. | Yes  |
+| language gap      | —                         | GALA has no syntax or no semantics for the construct, so nothing in the language expresses it.     | Yes      |
+
+A construct whose handling is wrong rather than missing is a fourth thing, recorded in `constructs.md` as `defect` and listed under [Defects Observed While Pinning Rows](#defects-observed-while-pinning-rows).
+It is a report, but a report about the compiler rather than about the language, which is why it is not a gap class.
 
 The two reportable classes differ in what a fix looks like.
 A language gap needs new grammar or new semantics.
@@ -27,59 +31,42 @@ A boundary gap is real even though the behavior is expressible, because the thin
 
 `documented answer` is the class most often mistaken for a gap, because a parse error and a `GALA-Exxxx` rejection both look like a wall.
 Run `gala explain GALA-Exxxx` and read the hint before classifying anything that has a code: the hint is the answer, and a report that restates it is a duplicate.
-A parse error has no hint, so for those the question is whether the specification or the standard library already names a replacement, which is the question the triage table below records.
+A parse error has no hint, so for those the question is whether the specification or the standard library already names a replacement, which is the question the `answered` rows in [`constructs.md`](constructs.md) record.
 
 Do not promote a `workaround` to a gap because the workaround is ugly.
 A helper that compiles and preserves the behavior is an answer, and a report that ignores it is answered with "use the helper".
 Do not promote a `documented answer` to a gap because the answer is inconvenient, and do not demote a boundary gap to a workaround because the repository has a local convention for living with it; a local convention is evidence about impact, not about whether the gap exists.
 
-## Blocked On The Compiler In Hand
+## Gaps Worth Filing
 
-The rows below were each re-derived by transpiling a minimal repro on the compiler in hand.
-Re-verify a row before relying on it, because a release may have lifted it.
-The `Kind` column says what a row is worth, and reading it as one undifferentiated list of gaps overstates most of them.
+There is very little here, and that is the finding rather than an absence.
 
-A construct that is rejected with a coded diagnostic whose hint states the fix is a documented answer, not a gap.
-Report it only if the hint is missing or wrong.
-A construct the transpiler accepts and then lowers wrongly is a defect, and it belongs under [Defects Observed While Pinning Rows](#defects-observed-while-pinning-rows) rather than in this table.
-A construct with no substitute at all is a gap, and it is the only kind here worth filing.
+Of the Go constructs GALA refuses, almost every one is a documented answer rather than a gap: the construct is rejected, and either a diagnostic names the replacement or the specification states the rule.
+Those live as `answered` and `semantic` rows in [`constructs.md`](constructs.md), which is also where the replacement spelling is, so there is no reason to list them a second time.
 
-| Construct                    | What happens                                        | Code       | Kind       | What a fix needs                                                             |
-| ---------------------------- | --------------------------------------------------- | ---------- | ---------- | ---------------------------------------------------------------------------- |
-| `const`                      | parse error; the keyword is not in the grammar       | parse error | gap        | a const declaration whose value stays a Go compile-time constant            |
-| backtick struct tag          | parse error in a field list                          | parse error | answered   | tag preservation on emitted structs                                          |
-| `switch`                     | parse error, single-case or multi-case                | parse error | answered   | a `switch` form, or a documented rule that `match` is the only answer        |
-| embedded field               | parse error, bare and `embed` spellings alike         | parse error | answered   | embedded-field syntax and field promotion                                    |
-| `struct{}` in a type position | parse error                                          | parse error | answered   | `struct{}` as a type expression                                              |
-| anonymous struct type        | parse error in a type position                        | parse error | answered   | anonymous struct type syntax                                                 |
-| fixed-size array type        | parse error in any position                           | parse error | answered   | `[N]T` grammar                                                               |
-| type assertion               | parse error                                           | parse error | answered   | a type-assertion expression form                                             |
-| `interface{}`                | parse error; only `any` parses                        | parse error | answered   | acceptance of the Go spelling, for wire-facing signatures                   |
-| `select`                     | parse error                                           | parse error | answered   | a `select` statement, or a documented multiplexing analog                    |
-| `goto`                       | parse error                                           | parse error | answered   | a labelled-jump form, or a documented answer                                 |
-| method on a defined type     | rejected; the declared type is an alias to a non-local type | `GALA-E0048` | answered | an explicit newtype declaration that carries methods                         |
-| `if` initializer             | rejected                                              | `GALA-E0047` | answered | an initializer slot, or acceptance that `Try` plus `match` is the only answer |
-| `recover`                    | forbidden builtin; `Try` captures a panic but cannot resume in place | `GALA-E0035` | answered | an in-place `recover`                              |
-| `multi-value return`         | parse error in a signature                            | parse error | answered   | multi-value return signatures, or an interop escape hatch                    |
-| `chan` type in a signature, field, or local | parse error                          | parse error | answered   | channel types at the Go boundary                                             |
-| grouped parameters           | rejected                                              | `GALA-E0034` | answered | acceptance of the Go spelling                                                |
-| nested function              | rejected                                              | `GALA-E0052` | answered | a local-function form, or a documented answer                                |
-| a `match` over a struct      | rejected for want of a default case                    | `GALA-E0003` | answered | exhaustive matching over a non-sealed type, or a documented rule             |
-| assignment to a `:=` binding | rejected; the binding is immutable, with no diagnostic code | —      | semantic  | nothing; `:=` bindings are immutable by design and `var` is the mutable form  |
+A construct reaches this section only if it has no substitute at all.
 
-Only `const` is a gap in the sense this file means by the word, and even it has a substitute for everything except a value that must stay a Go compile-time constant.
+| Construct | What happens | What a fix needs |
+| --------- | ------------ | ---------------- |
+| `const`   | parse error; the keyword is not in the grammar | a const declaration whose value stays a Go compile-time constant |
 
-The `answered` rows are already settled upstream, and re-filing them wastes the report slot a real gap needs.
-Eight were triaged and answered in the upstream triage issue, four more were named in the pull request that closed it, and the rest carry a coded diagnostic whose hint states the fix or a rule the specification states outright.
-A row with a code whose `gala explain GALA-Exxxx` page states the fix belongs in a rewrite guide rather than in an issue; run that first and read what the hint already says.
+`const` is the one construct here with nothing standing in for it.
+`var` and `val` cover every use except a value that has to remain a Go compile-time constant, which is the whole of the gap, and it is a small one.
+A file whose only `const` is a named number transliterates cleanly; report it only when a constant has to stay constant for a Go reader or a wire format.
 
-The `semantic` row is not a defect either.
-`docs/GALA.MD` states that `:=` bindings are immutable, and the rejection is the specification working as written.
+## Constructs That Were Never Gaps
+
+Two of these were listed as blocked before they were checked against the language, and they are kept here because the reasoning is what stops them coming back.
+
+A Go function literal inside a composite literal is a parse error in the Go spelling only.
+A GALA lambda in that position transpiles and builds, so the construct was never missing and there was nothing to file.
+
+Assignment to a `:=` binding is a documented semantic, not a gap.
+`docs/GALA.MD` states that `:=` bindings are immutable, and the rejection is that rule working as written; `var` is the mutable form and the migration is mechanical.
 A construct the language deliberately refuses is a fact about the language, not a gap in it.
 
-Two rows were removed from this list rather than reclassified.
-`fallthrough` in a `match` arm is a defect, and it is filed as one.
-A Go function literal inside a composite literal is a parse error in the Go spelling only, and a GALA lambda in that position transpiles and builds, so it was never a gap.
+A construct the transpiler accepts and then lowers wrongly is neither of these.
+It is a defect, and it belongs under [Defects Observed While Pinning Rows](#defects-observed-while-pinning-rows).
 
 ## Defects Observed While Pinning Rows
 
@@ -160,14 +147,19 @@ Check `gala explain --list` before filing, because a construct that is forbidden
 
 ## What Not To File
 
-Do not file these, and do not spend a report slot on them:
+Do not file these, and do not spend a report slot on them.
 
-- A construct with a `workaround` row in [`constructs.md`](constructs.md).
-- A construct the upstream triage issue has already answered, or that a merged pull request named as having a documented replacement.
+The first four are the ones that look like walls and are not; each has already been filed and answered upstream, and re-filing one spends the credibility a real gap needs.
+
+- A construct with a `workaround` row in [`constructs.md`](constructs.md), which is where the replacement spelling is.
+- A construct with an `answered` row there: `switch`, struct tags, embedded fields, anonymous and `struct{}` types, fixed-size arrays, type assertions, `interface{}`, `select`, `goto`, a method on a defined type, the `if` initializer, `recover`, multi-value returns, channel types, grouped parameters, and nested functions.
+- A construct with a `semantic` row there, such as assigning to a `:=` binding.
 - A construct whose `gala explain GALA-Exxxx` page already states the fix, which is a documented answer rather than a gap.
-- A construct the specification deliberately refuses, where the rejection is the rule working as written.
+
+Then the ones that are not about a construct at all:
+
 - A style preference, such as preferring a GALA collection to a Go slice where the value only ever meets a Go API.
 - A row you have not transpiled on the compiler you have.
 - A failure that a transpile-and-run on a minimal repro does not reproduce, which is a signal to look for a context effect in the real file rather than to report the isolated result.
-- A `GALA-E0017` internal error for input that already has a correct diagnostic, which duplicates a row above instead of adding one.
+- A `GALA-E0017` internal error for input that already has a correct diagnostic, which is a defect to report once rather than a gap to file.
 - A gap that needs new grammar or new semantics and has a working substitute for every use in the code being translated; that is a request to be filed only when the substitute genuinely cannot carry the code.

@@ -11,7 +11,7 @@ Do not read it top to bottom expecting to learn GALA; `SKILL.md` owns the proced
 | ----------- | ---------------------------------------------------------------------------------------------------------------- |
 | `Go`        | The minimal Go form.                                                                                             |
 | `GALA`      | The spelling that replaces it. `—` means nothing in the language expresses it, and the row is a gap.               |
-| `Status`    | `direct` works as written, `workaround` preserves the behavior through a helper or a different construct, `answered` is refused with a diagnostic that names the replacement, and `semantic` is refused because the language says so. A `defect` is a construct whose handling is wrong, not one that is missing. |
+| `Status`    | `direct` works as written, `workaround` preserves the behavior through a helper or a different construct, `answered` is refused with a diagnostic that names the replacement, and `semantic` is refused because the language says so. A `defect` is a construct whose handling is wrong, not one that is missing. [`references/gaps.md`](gaps.md) maps each of these to a gap class. |
 | `Code`      | The diagnostic code, or `parse error` when the construct never reaches the resolver. `—` when nothing fires.       |
 | `Check`     | A command or a step that re-derives the row on the compiler you have. Run it before you rely on the row.           |
 
