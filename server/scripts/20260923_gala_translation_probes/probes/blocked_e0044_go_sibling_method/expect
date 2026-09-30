@@ -1,0 +1,4 @@
+KIND=transpile_fail
+CODE=GALA-E0044
+ERR=Repo declares no methods
+NOTE=upstream #615: the receiver's type is declared in the .gala file and the method in a handwritten .go sibling, so the method set is judged against the transpiled file only and a method Go accepts is refused. The hint states a falsehood, and the GALA-E0044 page asserts the opposite of what happens: a type declared in the package being compiled is fully known and still checked. Changing the sibling's extension to .gala transpiles and builds.

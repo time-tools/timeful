@@ -1,0 +1,3 @@
+KIND=pass
+RUN=yes
+NOTE=MapPut infers its value type from the map argument, so no type arguments are needed on a map[string]any. The roster row that required go_interop.MapPut[string, any](m, "a", x) was wrong; the explicit form still builds, so the row's spelling is unnecessary rather than broken.

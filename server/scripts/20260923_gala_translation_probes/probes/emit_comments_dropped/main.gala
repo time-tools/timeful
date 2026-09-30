@@ -1,0 +1,12 @@
+package main
+
+/* BlockComment is the block syntax. */
+func BlockComment() int = 42
+
+// LineComment is the line syntax.
+func LineComment() int = 7
+
+func main() {
+	Println(BlockComment())
+	Println(LineComment())
+}

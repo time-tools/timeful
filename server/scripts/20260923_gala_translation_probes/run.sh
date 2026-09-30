@@ -72,11 +72,13 @@ passed=0
 failed=0
 failed_names=()
 
-materialize_fixtures() {
-    case "$1" in
-    pass_name_collision_workaround | contested_bare_response_name)
-        mkdir -p fixtures/collide
-        cat >fixtures/collide/response.go <<'GO'
+# The bare-name probes share one colliding fixture: an imported package that also
+# exports Response, and the handwritten constructor that returns the local type.
+# Writing it once here is what keeps a probe from drifting away from the others.
+
+write_collide_package() {
+    mkdir -p fixtures/collide
+    cat >fixtures/collide/response.go <<'GO'
 package collide
 
 type Response struct {
@@ -87,7 +89,10 @@ func Default() Response {
 	return Response{Status: 500}
 }
 GO
-        cat >"probes/$1/helper.go" <<'GO'
+}
+
+write_response_helper() {
+    cat >"probes/$1/helper.go" <<'GO'
 package main
 
 type Response struct {
@@ -98,6 +103,16 @@ func newResponse(status int) *Response {
 	return &Response{Status: status}
 }
 GO
+}
+
+materialize_fixtures() {
+    case "$1" in
+    pass_name_collision_workaround | contested_bare_response_name | blocked_bare_name_type_position)
+        write_collide_package
+        write_response_helper "$1"
+        ;;
+    blocked_bare_name_type_gala_sibling)
+        write_collide_package
         ;;
     pass_exported_val)
         cat >"probes/$1/check.go" <<'GO'
@@ -119,6 +134,61 @@ import "fmt"
 func init() {
 	c := Counter{N: 1}
 	fmt.Println(c.Next())
+}
+GO
+        ;;
+    blocked_bare_name_type_position)
+        cat >"probes/$1/helper.go" <<'GO'
+package main
+
+type Response struct {
+	Status int
+}
+
+func newResponse(status int) *Response {
+	return &Response{Status: status}
+}
+GO
+        ;;
+    blocked_receiver_unwrap_samepkg | blocked_receiver_unwrap_val | emit_var_receiver_no_wrapper)
+        cat >"probes/$1/types.go" <<'GO'
+package main
+
+type Greeter struct{ Name string }
+
+func (g Greeter) Hello() string { return "hello " + g.Name }
+
+func (g *Greeter) Rename(name string) { g.Name = name }
+
+func NewGreeter(name string) Greeter { return Greeter{Name: name} }
+GO
+        ;;
+    blocked_e0044_go_sibling_method)
+        cat >"probes/$1/types.go" <<'GO'
+package main
+
+func (r Repo) Save() error { return nil }
+GO
+        ;;
+    blocked_resource_go_sibling_type)
+        cat >"probes/$1/types.go" <<'GO'
+package main
+
+type Res struct{ name string }
+
+func (r Res) Close() error { return nil }
+
+func (r Res) Name() string { return r.name }
+
+func OpenRes(name string) Res { return Res{name: name} }
+GO
+        ;;
+    pass_slice_from_size_len)
+        cat >"probes/$1/types.go" <<'GO'
+package main
+
+func listLogs() ([]string, error) {
+	return []string{"a", "b", "c"}, nil
 }
 GO
         ;;
@@ -195,6 +265,11 @@ for dir in probes/*/; do
 
     (cd "$dir" && gala transpile -i main.gala -o main.gen.go) >"$transpile_log" 2>&1
     transpile_status=$?
+
+    if [[ -f "$dir/sibling.gala" && $transpile_status -eq 0 ]]; then
+        (cd "$dir" && gala transpile -i sibling.gala -o sibling.gen.go) >>"$transpile_log" 2>&1
+        transpile_status=$?
+    fi
 
     if [[ -n "$note" ]]; then
         printf '  note: %s\n' "$note"

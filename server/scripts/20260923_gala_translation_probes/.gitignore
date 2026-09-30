@@ -1,5 +1,6 @@
 # Runner-generated Go files and fixtures (see run.sh materialize_fixtures).
 main.gen.go
+sibling.gen.go
 probes/*/helper.go
 probes/*/check.go
 probes/*/types.go

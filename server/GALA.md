@@ -106,20 +106,26 @@ Use the runtime-enabled style when the file benefits from GALA-native features a
 - A `swag` annotation on a handler.
   The transpiler emits no comments at all, so an annotation written in the `.gala` source is absent from the generated Go and `swag init` drops the endpoint from the OpenAPI document.
   A handwritten sibling cannot supply it either, because an annotation has to sit immediately above its declaration.
+  A package comment _is_ recoverable from a `doc.go` sibling; a declaration comment and an annotation are not, because the only spelling is a bodiless re-declaration, which is a Go error.
   `routes/users.go` is the one annotated file the translation roster reports as rewritable, and it stays handwritten for this reason.
-  The roster does not mention annotations, so every route handler is exposed to this and the file-level verdict does not show it.
+  49 `@Router` directives live across 12 files here, so every route handler is exposed to this and the file-level verdict does not show it.
+  Filed upstream as [#619](https://github.com/martianoff/gala/issues/619).
 - Calling a method that a handwritten sibling declares.
   `GALA-E0044`, and it is loud: `Repository has no method withTransaction`.
-  The transpiler resolves a method call against the declarations in the same `.gala` file and reads no Go sibling, so a `.gala` file cannot call a method on a type that stays handwritten.
+  The transpiler resolves a method call against the declarations in the same `.gala` file and reads no Go sibling.
+  The refusal only fires when the _type_ is declared in the transpiled file: a method on a type the transpiler does not know passes through and Go resolves it, so the failure is a declarations-in-GALA split rather than any mixed package.
   `Repository` is declared in `repository.go`, which stays handwritten, and its 106 methods are spread across twelve files, so twelve of the fourteen rung-2 `postgres` candidates are blocked by this alone.
   The only viable shape is a declarations-only split, which is what `dailylogs` now is.
 - `.Size()` on a receiver whose type was inferred from a Go call.
   The transpiler types a receiver from the `.gala` file's own text, so a receiver written out resolves even across packages while one inferred from a Go-declared function does not, even in the same package.
-  A multi-value binding cannot be annotated to pin the type, so there is no substitute.
   This is what blocks both `active_users.go` files, which are rung 1 in the roster.
-- A method call on a `:=` binding.
+  It is not the absence of a substitute: `go_interop.SliceFrom(logs, 0).Size()` reaches the same length without naming the type, and `SliceFrom` is `s[from:]`, so it is a view and allocates nothing.
+  A multi-value binding still cannot be annotated, which is why the roster classes this as a workaround rather than a boundary gap, and a `string` receiver still has no zero-cost spelling because `go_interop` ships `MapLen` and `SliceCap` but no length helper for either kind.
+  The lowering defect is filed upstream as [#613](https://github.com/martianoff/gala/issues/613).
+- A method call on a `:=` or `val` binding.
   `usersRouter := router.Group("/users")` followed by `usersRouter.GET(...)` emits `usersRouter.Get().GET(...)`, a call that does not exist in Go.
-  The transpile is clean and the failure appears only at `go build`.
+  `val` emits the same thing, so `var` is the only safe spelling of the three rather than a style preference.
+  The transpile is clean and the failure appears only at `go build`, and only for a pointer-receiver method: a value-receiver method on the unwrapped copy builds and runs, so the same source is either a build failure or a quiet copy.
   The `var` spelling is correct and emits no wrapper at all.
 - Go-style multi-value returns.
   A declaration like `func f() (string, error)` is a parse error, and GALA returns tuples instead.
@@ -327,14 +333,27 @@ Use the runtime-enabled style when the file benefits from GALA-native features a
   Use `go_builtins.Panic`, `go_interop.SliceAppend`, and `go_interop.MapEmpty`/`MapPut` instead.
 - `[]byte(s)` conversions.
   Use `go_interop.ToBytes`; `string(bytes)` works directly.
-- Documentation comments.
+- Documentation comments and every other comment.
   Generated Go contains no comments, so package comments live in handwritten `eventid/doc.go` and `services/providerconfig/doc.go`, and comments attached to exported declarations are lost when the file is transpiled.
+  Both comment syntaxes parse and neither reaches the emitted Go, so this is an emit gap rather than a grammar gap, which [`emit_comments_dropped`](scripts/20260923_gala_translation_probes/probes/emit_comments_dropped/) pins by asserting both comment bodies are absent from `main.gen.go`.
+- A bare name in a declared-type position.
+  When an imported package exports a name a sibling `.gala` file also declares, the return type, parameter type, and `var` annotation resolve to the import while a constructor position resolves locally, so one file can end up using two different types under one name.
+  Only a declaration in the same `.gala` file resolves correctly, which is why `slackbot/commands/utils.go` carries a handwritten `newResponse`.
+  Filed upstream as [#616](https://github.com/martianoff/gala/issues/616).
+- A resource combinator over a Go-declared resource type.
+  `resource.Using(res, body)` infers both type arguments when the resource type is declared in a `.gala` file, and upstream's own example relies on that; with a handwritten Go sibling it binds the body parameter to `any`, and a partial type-argument list emits the transpiler's own parameter name as a Go type.
+  Filed upstream as [#618](https://github.com/martianoff/gala/issues/618).
+- Two forms that lose a result type.
+  `func F() = <expr>` never infers one, so the emitted Go function is void and its body returns a value; `var (a, b) = f()` panics the transpiler with `GALA-E0017` where `val` transpiles.
+  Filed upstream as [#617](https://github.com/martianoff/gala/issues/617) and [#620](https://github.com/martianoff/gala/issues/620).
 - Byte-level string slicing.
   `value[:n]` does not parse, so `truncate` uses a rune-accumulation loop that preserves the original byte semantics.
 - Matching a string-typed constant such as `case Development =>`, which binds a new name instead of comparing; `string(Development)` is not an extractor either.
   `appenv` therefore uses `if`/`else` with `string(...)` comparisons.
 - Imports do not propagate between sibling `.gala` files.
   Each file must import what it uses, which a concurrency probe hit as `error[GALA-E0025]: undefined: Future ... 'concurrent' is not imported in this file`.
+  On the pinned release the check is a refusal rather than a lookup, so a sibling's import never stands in for a missing one: a qualified name the file does not import is refused with `GALA-E0023` and a hint naming the package that declares it, whether or not another file in the package imports that package.
+  The construct roster's `named-imports` row records the import syntax itself as a direct form, and this per-file check is the limit that row does not carry.
 - Name collisions with imported packages.
   A bare type name that an imported package exports resolves to that package even when a sibling `.go` declares it locally; `slackbot/commands/num_users.gala` calling `Response{...}` emitted `pgstore.Response{...}` and failed to compile, while the same pattern works for `Command` because no import exports that name.
   The workaround is a handwritten constructor (`newResponse` in `slackbot/commands/utils.go`).
@@ -429,9 +448,8 @@ The runtime is vendored at `server/third_party/gala/` as one flattened Go module
   | `discord_bot/commands/num_users.go`         | `d699d3116829b604fd048f8f9f5d6082a31e122d0f6ec0b7e9fd60b58ccd830e` |
   | `discord_bot/init.go`                       | `87dcafb9086c5764ec97d1d1125778291a79c667824f074c995f558e38bfd6cb` |
   | `slackbot/commands/num_users.go`            | `6ddeea45ec41555cd07751c52125cc3de794231b8599e5586ca8f2868aed00f9` |
-
-| `middleware/auth.go` | `3b1cb9a2a86d94ae8906a4c2950963e3a367b90a9786eadf4c97c63753a69743`
-| `postgres/dailylogs.go` | `ae3fe90adc34a683ed2bf6fa91f960cce2b23b3a6ae17c064b2e524e2e15c078` |
+  | `middleware/auth.go`                        | `3b1cb9a2a86d94ae8906a4c2950963e3a367b90a9786eadf4c97c63753a69743` |
+  | `postgres/dailylogs.go`                     | `ae3fe90adc34a683ed2bf6fa91f960cce2b23b3a6ae17c064b2e524e2e15c078` |
 
 - The probe module compiled and ran against the vendored runtime, and its `go run` output confirmed the sealed, monad, collection, and concurrency shapes described above.
 
@@ -439,14 +457,11 @@ The runtime is vendored at `server/third_party/gala/` as one flattened Go module
 
 Adoption beyond mostly interop-shaped leaf packages is still limited by the upstream gaps the roster classifies; in rough priority order:
 
-- `GAP-11`: a comment-preserving emit, or an interop escape hatch letting a generated file carry a Go-facing comment.
-  The transpiler emits no comments, so a `swag` annotation written in a `.gala` source is absent from the generated Go and `swag init` drops the endpoint from the OpenAPI document.
-  A handwritten sibling cannot supply an annotation, because an annotation has to sit immediately above its declaration.
-  This blocks every route handler, not only the one candidate the roster reports as rewritable, and the file-level verdict does not show it.
-- `GAP-12`: type resolution across the Go boundary, or an accepted type annotation on a multi-value binding.
-  `.Size()` needs a receiver type the transpiler can read from the `.gala` file's own text, so a receiver written out resolves even across packages while one inferred from a Go call does not.
-  A multi-value binding takes no type annotation, so there is no spelling that recovers it.
-  This blocks both `active_users.go` files, which the roster reports as rung 1.
+- `GAP-11`, now filed upstream as [#619](https://github.com/martianoff/gala/issues/619): a comment-preserving emit, or an interop escape hatch letting a generated file carry a Go-facing comment.
+  A `swag` annotation is the case that bites here, because it is what deletes a documented endpoint from the OpenAPI document rather than only a godoc comment.
+- Upstream reports filed on 2026-09-30 from minimal reproductions, none of which is a substitute problem:
+  [#614](https://github.com/martianoff/gala/issues/614) for a method-call receiver on a `:=` or `val` binding, [#615](https://github.com/martianoff/gala/issues/615) for the false-positive `GALA-E0044`, [#616](https://github.com/martianoff/gala/issues/616) for a bare name in a declared-type position, [#617](https://github.com/martianoff/gala/issues/617) and [#620](https://github.com/martianoff/gala/issues/620) for the two forms that lose a result type, and [#618](https://github.com/martianoff/gala/issues/618) for a resource combinator over a Go-declared type.
+  The two feature requests the maintainer invited in #528 are [#619](https://github.com/martianoff/gala/issues/619) for comments in generated Go and [#621](https://github.com/martianoff/gala/issues/621) for a newtype over a non-struct type.
 - `GAP-2`: Go-style multi-value return signatures, or an interop escape hatch for them.
   The `:=` receive panic that used to be part of this ask was fixed by PR [#529](https://github.com/martianoff/gala/pull/529); what remains is the signature itself.
   This is the top ask; it alone would unblock `appenv.ResolvePort`, `routes/respondent_identity.go`, every marshaler in `models`, and most of `postgres`.

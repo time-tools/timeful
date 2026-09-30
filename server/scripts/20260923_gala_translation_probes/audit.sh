@@ -11,6 +11,8 @@
 #   5. every GAP-n referenced from server/GALA.md exists here and vice versa
 #   6. the mechanical rewrite catalog and the no-rewrite index agree with the
 #      roster's gap classes, in both directions
+#   7. every Markdown table row in the five GALA documents has the same cell
+#      count as its own header, and closes with a pipe
 #
 # Check 3 classifies probe kinds rather than inheriting the pass rule, because a
 # blocker has to fail for the construct it names. KIND=pass asserts behaviour and
@@ -22,6 +24,13 @@
 # Checks 4 and 6 read the construct roster section of the page, so a table
 # elsewhere on the page that repeats the same column names cannot influence
 # either of them.
+#
+# Check 7 exists because a damaged table row survives every other check in this
+# repository: Prettier reformats such a row rather than reporting it, a row that
+# has lost its closing pipe is still legal GFM, and the sentence-per-line
+# linter does not read table cells. A row whose cells no longer line up with
+# its header renders as a different table than the author wrote, which is how a
+# replacement inserted without deleting the old text survives a review.
 #
 # The corpus runner (run.sh) pins the toolchains; this script only checks the
 # artifacts against each other.
@@ -465,6 +474,70 @@ for fam in "${!family_class[@]}"; do
 done
 if [[ $failures -eq $before_catalog ]]; then
     ok "$rule_rows mechanical rewrite rows and $index_rows no-rewrite index rows agree with the roster"
+fi
+
+# --- 7. Markdown table row integrity ----------------------------------------
+
+# The five documents a reader compares against each other, so a damaged row in
+# one of them contradicts the others. A table is a header line, its delimiter
+# row, and the rows that follow it; the header's own cell count is what every
+# other row is measured against, so a row that is damaged is reported rather
+# than silently becoming the new baseline.
+#
+# Only an unescaped pipe separates cells, because a \| inside a code span is
+# part of its cell rather than a boundary; that is what keeps the `fallthrough`
+# row in constructs.md, which writes a match arm as `\|`, from reading as a
+# seven-cell row. A table may be indented, as the sha256 table inside a list
+# item in server/GALA.md is, and a fence may be indented too, so neither is
+# anchored to the first column.
+
+before_tables=$failures
+table_docs=0
+for doc in \
+    "$DOC" \
+    "$SERVER_GALA" \
+    "../../../.agents/skills/gala-from-go/SKILL.md" \
+    "../../../.agents/skills/gala-from-go/references/constructs.md" \
+    "../../../.agents/skills/gala-from-go/references/gaps.md"; do
+    if [[ ! -f "$doc" ]]; then
+        fail "missing $doc"
+        continue
+    fi
+    table_docs=$((table_docs + 1))
+    while IFS=$'\t' read -r line cells header; do
+        if [[ "$cells" == unterminated ]]; then
+            fail "$doc:$line: table row does not close with a pipe"
+        else
+            fail "$doc:$line: table row has $cells cells, its header has $header"
+        fi
+    done < <(awk '
+        function trim(s) { gsub(/^[ \t]+/, "", s); gsub(/[ \t]+$/, "", s); return s }
+        function cells(line,   t) {
+            t = line
+            sub(/^[ \t]*/, "", t)
+            gsub(/\\\|/, "", t)
+            return split(t, parts, "[|]") - 2
+        }
+        /^[ \t]*```/ { fenced = !fenced; next }
+        fenced { next }
+        {
+            bare = trim($0)
+            if (bare ~ /^\|/) {
+                n = cells($0)
+                if (header == 0) {
+                    header = n
+                } else if (n != header) {
+                    printf "%d\t%d\t%d\n", NR, n, header
+                }
+                if (bare !~ /\|$/) printf "%d\tunterminated\t0\n", NR
+                next
+            }
+            header = 0
+        }
+    ' "$doc")
+done
+if [[ $failures -eq $before_tables ]]; then
+    ok "every table row in the $table_docs GALA documents matches its own header"
 fi
 
 # --- report -----------------------------------------------------------------

@@ -61,6 +61,7 @@ Three shape rules decide whether a file can be rewritten whole, and all three ar
 
 - An exported package-level `val` emits `var X = std.NewImmutable(...)`, so a Go caller has to call `.Get()`; keep `var` for anything that crosses into Go.
 - A `:=` binding is a val-style binding, not a neutral one: it lowers through `std.NewImmutable` and every read emits `.Get()`.
+  `val` emits the same thing, so `var` is the only safe spelling of the three.
   Use `var` for anything a Go caller or a sibling `.go` file can see.
 - A `sealed type` is the largest of the three: it emits one merged struct whose every field is a `std.Immutable`, a private discriminant with one constant per variant, an `Apply` and an `Unapply` per variant, an `is<Variant>()` helper per variant, and `Copy`, `Equal`, and `String` on the parent.
   A variant's `Unapply` returns a `std.Option`, and a match over the type ends in `panic("unreachable")` on the branch no variant can reach.
@@ -99,7 +100,9 @@ Work one construct at a time, in this order, and transpile to a scratch path aft
 4. Bodies and calls.
    Translate the calls, choosing the helper or the GALA-native form by which container type the value actually is, not by how the file is styled.
 5. Comments.
-   The transpiler emits no documentation comments, so package and declaration comments belong in a handwritten `doc.go`.
+   The transpiler emits no comments at all, so package and declaration comments belong in a handwritten `doc.go`.
+   Only the package comment can move there: a declaration comment and a `swag` annotation have to sit immediately above their declaration, and the only spelling in another file is a bodiless re-declaration, which does not compile.
+   An annotated handler therefore has to stay handwritten, which is filed upstream as [#619](https://github.com/martianoff/gala/issues/619).
 
 Stop at the first construct whose row is not `direct` and apply the triage verdicts again for the member rather than the file, because a member GALA cannot carry is a split, not a failure.
 A `workaround` or an `answered` row is not that case: the row already names the spelling to use, so take it and keep going.
@@ -169,7 +172,8 @@ Each of these is a way the translation goes wrong without producing an error at 
 - **A `:=` binding is a `val` binding.**
   It lowers through `std.NewImmutable` and every read emits `.Get()`.
   A program that only passes the value around still runs, so the wrapper survives a green test and shows up as a build failure in a Go sibling or a Go caller.
-  Use `var` for anything visible from Go.
+  The worst case is the method-call *receiver*, which is not a read at all: `x := f()` then `x.M()` emits `x.Get().M()`, which does not exist in Go when `M` has a pointer receiver.
+  `val` emits the identical artifact, so `var` is the only safe spelling of the three, and it is the shape to reach for whenever a binding's value has methods.
 - **A package-level `val` is not a plain Go var.**
   It emits `var X = std.NewImmutable(...)`, and a Go caller needs `.Get()`.
   Inside the GALA file it already reads as a plain value, so writing `.Get()` there produces a double unwrap that fails to build.
@@ -185,7 +189,12 @@ Each of these is a way the translation goes wrong without producing an error at 
   It builds and returns the right value, so nothing reports it until a Go caller or a sibling reads the name it is bound to.
 - **A struct declared in a handwritten sibling is not a GALA struct.**
   Constructing it positionally, calling `.Size()` or `.ByteSize()` on one of its fields, or calling a method on it can transpile and then fail to build, because the transpiler emits a call on a type it does not know.
+  A method call on such a type passes through and Go resolves it, so the failure is about the *type's* origin, not the call's; `go_interop.SliceFrom(x, 0).Size()` reaches a length the direct spelling cannot, and it is a view rather than a copy.
+  The mirror direction is worse: a type declared in the `.gala` file whose method is declared in the sibling is *refused* with `GALA-E0044` and a hint that claims the type declares no methods, although Go accepts the program ([#615](https://github.com/martianoff/gala/issues/615)).
   This is a mixed-package effect and does not reproduce in a package with no handwritten sibling, so a repro in isolation proves nothing either way.
+- **A bare name in a declared-type position can resolve to an import.**
+  A return type, a parameter type, or a `var` annotation takes an imported package's qualifier whenever any import of the file exports that name, even when the package declares the name itself; a constructor position resolves correctly, so the two can disagree inside one file.
+  Declare the type in the same `.gala` file, or reach it through a handwritten constructor, and never assume a bare name in a type position means the local type ([#616](https://github.com/martianoff/gala/issues/616)).
 - **A sibling file's import hides a missing import from the transpiler.**
   A qualified name resolves against the imports of any file in the package, so a file that omits an import its sibling already has transpiles cleanly and then fails `go build` with `undefined: <pkg>`, blamed on the `.gala` file through its `//line` directive.
   Import everything each file uses; do not treat a sibling's import as coverage.

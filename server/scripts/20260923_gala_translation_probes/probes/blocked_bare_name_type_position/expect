@@ -1,0 +1,3 @@
+KIND=build_fail
+ERR=r.Extra undefined
+NOTE=upstream #616: a bare name in a declared-type position resolves to an imported package that exports the name, over a declaration in the same package. Extra exists only on the local type, so the field read is what exposes the substitution. A constructor position resolves correctly, which is why the earlier Response finding never reproduced: it only used that position.
