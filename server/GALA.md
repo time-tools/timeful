@@ -350,9 +350,11 @@ Use the runtime-enabled style when the file benefits from GALA-native features a
   `value[:n]` does not parse, so `truncate` uses a rune-accumulation loop that preserves the original byte semantics.
 - Matching a string-typed constant such as `case Development =>`, which binds a new name instead of comparing; `string(Development)` is not an extractor either.
   `appenv` therefore uses `if`/`else` with `string(...)` comparisons.
-- Imports do not propagate between sibling `.gala` files.
-  Each file must import what it uses, which a concurrency probe hit as `error[GALA-E0025]: undefined: Future ... 'concurrent' is not imported in this file`.
-  On the pinned release the check is a refusal rather than a lookup, so a sibling's import never stands in for a missing one: a qualified name the file does not import is refused with `GALA-E0023` and a hint naming the package that declares it, whether or not another file in the package imports that package.
+- Imports are checked per file, and a missing import is a refusal rather than a lookup.
+  Each file must import what it uses; a qualified name the file does not import is refused at transpile time with `error[GALA-E0023]: undefined: <pkg>`, whether or not another file in the package imports that package, and whether that other file is a `.gala` file or a handwritten `.go` one.
+  An unqualified GALA-runtime name is the same rule from the other side, and its hint names the package that declares it: a concurrency probe calling `Future(2)` without importing `martianoff/gala/concurrent` reads `error[GALA-E0023]: undefined: Future` with `Future is declared in the GALA package "martianoff/gala/concurrent", which this file does not import`.
+  `gala explain GALA-E0025` states the same per-file rule and says outright that sibling files' imports do not propagate, but `GALA-E0025` did not fire in any shape measured on 0.84.1, so it is the authority for the rule rather than for the code the pinned compiler emits.
+  The corpus pins all of it in [`blocked_import_omitted_gala_sibling`](scripts/20260923_gala_translation_probes/probes/blocked_import_omitted_gala_sibling/), [`blocked_import_omitted_go_sibling`](scripts/20260923_gala_translation_probes/probes/blocked_import_omitted_go_sibling/), and [`blocked_runtime_name_omitted_import`](scripts/20260923_gala_translation_probes/probes/blocked_runtime_name_omitted_import/).
   The construct roster's `named-imports` row records the import syntax itself as a direct form, and this per-file check is the limit that row does not carry.
 - Name collisions with imported packages.
   A bare type name that an imported package exports resolves to that package even when a sibling `.go` declares it locally; `slackbot/commands/num_users.gala` calling `Response{...}` emitted `pgstore.Response{...}` and failed to compile, while the same pattern works for `Command` because no import exports that name.

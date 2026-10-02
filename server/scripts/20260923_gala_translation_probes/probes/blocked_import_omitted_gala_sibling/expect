@@ -1,0 +1,4 @@
+KIND=transpile_fail
+CODE=GALA-E0023
+ERR=undefined: strings
+NOTE=the sibling .gala file imports strings, so a transpiler that resolved a qualified name against the imports of every file in the package would accept this one and let go build report undefined: strings through the //line directive. 0.84.1 refuses the transpile instead, and the hint names no declaring package because a Go package is not on the GALA search paths. blocked_import_omitted_go_sibling pins the same refusal with a handwritten .go sibling, because the sibling's language is not what decides it.

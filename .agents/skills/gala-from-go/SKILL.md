@@ -71,11 +71,12 @@ Three shape rules decide whether a file can be rewritten whole, and all three ar
 ### The Mixed Package
 
 Verdict 2 creates a package that holds a `.gala` file beside a handwritten `.go` sibling, and that is where the transpiler stops being a function of the file you are translating.
-Three rules belong to the package rather than to the file, and each one fails somewhere other than the transpile, which is what makes them expensive:
+Three rules belong to the package rather than to the file; the first is loud at the transpile, and the other two fail somewhere other than it, which is what makes them expensive:
 
 - Every `.gala` file imports everything it uses, including a package a sibling file already imports.
-  A qualified name resolves against the imports of *any* file in the package, while the generated file carries only the imports its own source declares, so a missing import in one file is invisible to the transpiler and surfaces as `undefined: <pkg>` from `go build`, attributed through the `//line` directive to the `.gala` file you did write.
-  When no file in the package imports that package at all, the transpile is refused with `GALA-E0023` instead, so the diagnostic itself tells you which of the two cases you are in.
+  Import resolution is per file, so an import one file omits is refused at transpile time with `GALA-E0023` rather than carried into the generated file for `go build` to find.
+  Whether a sibling imports the package does not change that: a `.gala` sibling, a handwritten `.go` sibling, and no sibling at all produce the same diagnostic, so there is no case where a missing import is invisible until the build.
+  An unqualified GALA-runtime name is the same rule from the other side, and its hint names the package that declares the name and both spellings of the fix.
 - A declaration in a handwritten sibling is visible to the `.gala` file as a name but is not a GALA declaration, so the transpiler emits calls against a type whose members it never saw.
   [`references/gaps.md`](references/gaps.md) records the case known to fail and why a repro in isolation settles nothing either way.
 - A bare name that both a translated file and an imported package export is contested rather than settled: on the compiler this skill was measured against, the local declaration wins, and a report of the opposite is a fact about the reporter's compiler rather than about the language.
@@ -195,9 +196,10 @@ Each of these is a way the translation goes wrong without producing an error at 
 - **A bare name in a declared-type position can resolve to an import.**
   A return type, a parameter type, or a `var` annotation takes an imported package's qualifier whenever any import of the file exports that name, even when the package declares the name itself; a constructor position resolves correctly, so the two can disagree inside one file.
   Declare the type in the same `.gala` file, or reach it through a handwritten constructor, and never assume a bare name in a type position means the local type ([#616](https://github.com/martianoff/gala/issues/616)).
-- **A sibling file's import hides a missing import from the transpiler.**
-  A qualified name resolves against the imports of any file in the package, so a file that omits an import its sibling already has transpiles cleanly and then fails `go build` with `undefined: <pkg>`, blamed on the `.gala` file through its `//line` directive.
-  Import everything each file uses; do not treat a sibling's import as coverage.
+- **A sibling file's import is not your import.**
+  A qualified name resolves against the imports of the file that writes it, so a file that omits an import its sibling already has is refused with `GALA-E0023` rather than transpiled and left for `go build` to report against the `.gala` file through its `//line` directive.
+  Read `undefined: <pkg>` as "this file does not import it" rather than "the package does not import it", because a `.gala` sibling, a handwritten `.go` sibling, and no sibling all give the same diagnostic.
+  An unqualified runtime name reads the same way, with a hint naming the declaring package, so there is nothing to infer from which sibling imported what.
 - **A struct pattern over `var` fields transpiles and then fails to build.**
   A `match` on a struct calls its synthesized `Unapply`, and the emitted read of a `var` field carries a `.Get()` that the plain Go field does not have; the same match over non-`var` fields builds.
   Check both field kinds rather than assuming they behave alike, and if it reproduces, report it as a defect: the two field kinds differ only in their wrapper, and the transpiler unwraps the wrong one.
@@ -247,5 +249,5 @@ Each of these is a way the translation goes wrong without producing an error at 
 - Never copy a row from a stale document without running its check.
 - Never hand-edit a generated file; it carries a `DO NOT EDIT` header and the next transpile discards the edit without a trace.
 - Never transpile from a directory other than the package directory, because the emitted `//line` directives name the path the transpiler was given.
-- Never let a sibling file's import stand in for your own, because the transpiler resolves the name and the compiler does not.
+- Never let a sibling file's import stand in for your own, because the check is per file and a missing import is refused rather than carried.
 - Never settle a shape claim from a passing run, and never settle it from a presence assertion alone.

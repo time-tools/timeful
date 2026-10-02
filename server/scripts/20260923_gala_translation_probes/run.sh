@@ -170,6 +170,15 @@ package main
 func (r Repo) Save() error { return nil }
 GO
         ;;
+    blocked_import_omitted_go_sibling)
+        cat >"probes/$1/helper.go" <<'GO'
+package main
+
+import "strings"
+
+func upper(s string) string { return strings.ToUpper(s) }
+GO
+        ;;
     blocked_resource_go_sibling_type)
         cat >"probes/$1/types.go" <<'GO'
 package main
