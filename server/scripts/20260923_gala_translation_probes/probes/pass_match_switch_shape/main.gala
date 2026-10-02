@@ -1,0 +1,12 @@
+package main
+
+func classify(day string) string = day match {
+	case "sat" => "weekend"
+	case "sun" => "weekend"
+	case _ => "weekday"
+}
+
+func main() {
+	Println(classify("sat"))
+	Println(classify("mon"))
+}

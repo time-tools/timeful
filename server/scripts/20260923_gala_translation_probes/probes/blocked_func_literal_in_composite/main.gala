@@ -1,0 +1,17 @@
+package main
+
+type Command struct {
+	Name    string
+	Execute func() string
+}
+
+var command = Command{
+	Name: "x",
+	Execute: func() string {
+		return "x"
+	},
+}
+
+func main() {
+	Println(command.Name)
+}

@@ -1,0 +1,3 @@
+KIND=pass
+RUN=yes
+NOTE=the substitute for the var destructuring form: the val spelling of the identical program transpiles, builds and runs, so upstream #620 is a crash on one spelling of a construct the language already has. The annotation slot sits after the whole name list, so a multi-value binding still cannot be annotated; that is a grammar shape, not a missing construct.

@@ -1,0 +1,3 @@
+KIND=pass
+RUN=yes
+NOTE=`any` is the equivalent of `interface{}` for parameters and struct fields; interface{} itself does not parse (blocked_interface_empty)

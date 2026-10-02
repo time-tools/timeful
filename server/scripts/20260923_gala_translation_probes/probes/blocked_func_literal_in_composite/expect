@@ -1,0 +1,3 @@
+KIND=transpile_fail
+ERR=extraneous input 'return' expecting
+NOTE=inline function literals inside composite literals do not parse; declare a named unexported function and reference it

@@ -1,0 +1,7 @@
+package main
+
+import . "martianoff/gala/resource"
+
+func main() {
+	Println(Using(OpenRes("go.mod"), (r) => r.Name().Size()))
+}

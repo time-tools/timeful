@@ -1,0 +1,3 @@
+KIND=transpile_fail
+ERR=no viable alternative at input '{case<-ch:'
+NOTE=select with a case does not parse; the repo's uses also need chan and make, so select stays handwritten

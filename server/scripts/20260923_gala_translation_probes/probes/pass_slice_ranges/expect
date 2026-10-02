@@ -1,0 +1,3 @@
+KIND=pass
+RUN=yes
+NOTE=every slice expression is expressible: bounded ranges use Slice(s, from, to), one-sided ones use SliceFrom/SliceTo/SliceTake/SliceDrop, and SliceCopy replaces copy; blocked_slice_expression pins the parse error

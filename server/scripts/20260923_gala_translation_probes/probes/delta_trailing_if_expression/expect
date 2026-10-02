@@ -1,0 +1,3 @@
+KIND=pass
+RUN=yes
+NOTE=PR #529 delta: a trailing if expression used as a block value used to emit bare expression statements in 0.81.0, failing `go build` with `missing return`; the fix promotes each branch to a return, and this expectation pins the returned branch

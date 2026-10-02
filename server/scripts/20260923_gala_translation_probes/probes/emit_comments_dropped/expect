@@ -1,0 +1,4 @@
+KIND=emit
+ABSENT=BlockComment is the block syntax.
+ABSENT=LineComment is the line syntax.
+NOTE=upstream #619 covers the line syntax: an annotation or a doc comment written above a declaration is absent from the generated Go. This probe adds the block syntax, which parses rather than being refused, so the gap is an emit gap rather than a grammar gap. Both markers are the comment bodies rather than any layout, and the block comment is present in the .gala source, so a parser that dropped the source comment before codegen would pass the same assertion and still fail GAP-11; blocked_annotation_drop is the paired line-syntax probe.

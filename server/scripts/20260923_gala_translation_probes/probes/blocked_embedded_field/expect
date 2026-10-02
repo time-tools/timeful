@@ -1,0 +1,4 @@
+KIND=transpile_fail
+CODE=GALA-E0034
+ERR=parameter "Base" has no declared type
+NOTE=embedded fields do not parse (bare spelling rejected as an untyped parameter, `embed` is a parse error); embedded structs stay handwritten

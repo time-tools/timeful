@@ -1,0 +1,43 @@
+package services
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
+
+	"timeful/server/logger"
+	"timeful/server/models"
+	"timeful/server/services/auth"
+)
+
+func CallApi(user *models.User, calendarAuth *models.OAuth2CalendarAuth, method string, url string, body *map[string]any) *http.Response {
+	if user != nil {
+		auth.RefreshUserTokenIfNecessary(user, nil)
+	}
+
+	var bodyBuffer *bytes.Buffer
+	if body != nil {
+		var bodyBytes, _ = json.Marshal(body)
+		bodyBuffer = bytes.NewBuffer(bodyBytes)
+	} else {
+		bodyBuffer = nil
+	}
+
+	var req *http.Request
+	if bodyBuffer != nil {
+		var created, _ = http.NewRequest(method, url, bodyBuffer)
+		req = created
+	} else {
+		var created, _ = http.NewRequest(method, url, nil)
+		req = created
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", calendarAuth.AccessToken))
+
+	var response, err = http.DefaultClient.Do(req)
+	if err != nil {
+		logger.StdErr.Panicln(err)
+	}
+
+	return response
+}

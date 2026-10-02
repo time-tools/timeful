@@ -1,0 +1,10 @@
+package main
+
+struct Pair[T any](var First T, var Second T)
+
+type IntPair Pair[int]
+
+func main() {
+	val p = IntPair(1, 2)
+	Println(p.First)
+}

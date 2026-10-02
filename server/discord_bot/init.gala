@@ -1,0 +1,89 @@
+package discord_bot
+
+import (
+	"os"
+	"regexp"
+
+	"github.com/bwmarrin/discordgo"
+	"martianoff/gala/go_interop"
+	"timeful/server/discord_bot/commands"
+	"timeful/server/logger"
+	"timeful/server/utils"
+)
+
+var BotId string
+var bot *discordgo.Session
+var listeningChannel *discordgo.Channel
+var commandMap = go_interop.MapEmpty[string, commands.Command]()
+
+func listeningChannelName() string {
+	var configuredChannel = os.Getenv("DISCORD_BOT_CHANNEL")
+	if configuredChannel != "" {
+		return configuredChannel
+	}
+	if utils.IsRelease() {
+		return "timeful-bot"
+	}
+	return "timeful-bot-dev"
+}
+
+func Init() {
+	var token = os.Getenv("DISCORD_BOT_TOKEN")
+	var guildId = os.Getenv("GUILD_ID")
+	var botSession, err = discordgo.New("Bot " + token)
+	bot = botSession
+	if err != nil {
+		logger.StdErr.Panicln(err)
+	}
+
+	var u, userErr = bot.User("@me")
+	if userErr != nil {
+		logger.StdErr.Panicln(userErr)
+	}
+	BotId = u.ID
+
+	err = bot.Open()
+	if err != nil {
+		logger.StdErr.Panicln(err)
+	}
+	logger.StdOut.Println("Discord bot initialized")
+
+	var channelName = listeningChannelName()
+	var channels, _ = bot.GuildChannels(guildId)
+	for _, channel := range channels {
+		if channel.Name == channelName {
+			listeningChannel = channel
+			break
+		}
+	}
+
+	commands.Init()
+	for _, command := range commands.Commands {
+		commandMap[command.Name] = command
+	}
+
+	bot.AddHandler(messageHandler)
+}
+
+func SendMessage(message string) {
+	_, _ = bot.ChannelMessageSend(listeningChannel.ID, message)
+}
+
+func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
+	if m.ChannelID != listeningChannel.ID {
+		return
+	}
+	if m.Author.ID == BotId {
+		return
+	}
+
+	var re = regexp.MustCompile(" +")
+	var args = re.Split(m.Content, -1)
+	var commandName = args[0]
+	args = go_interop.SliceFrom(args, 1)
+
+	var command, ok = commandMap[commandName]
+	if ok {
+		command.Execute(s, m, args)
+	}
+}

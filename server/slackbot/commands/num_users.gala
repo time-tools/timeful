@@ -1,0 +1,28 @@
+package commands
+
+import (
+	"context"
+	"fmt"
+
+	"timeful/server/logger"
+	pgstore "timeful/server/postgres"
+)
+
+func executeNumUsers(args []string, webhookUrl string) {
+	var repository, err = pgstore.DefaultRepository()
+	if err != nil {
+		logger.StdErr.Panicln(err)
+	}
+	var n, countErr = repository.CountAccounts(context.Background())
+	if countErr != nil {
+		logger.StdErr.Panicln(countErr)
+	}
+
+	SendRawMessage(newResponse("in_channel", fmt.Sprintf("Number of currently signed up users: %v", n)), webhookUrl)
+}
+
+var numUsers Command = Command{
+	Name:        "/num_users",
+	Description: "Returns the number of signed up users",
+	Execute:     executeNumUsers,
+}

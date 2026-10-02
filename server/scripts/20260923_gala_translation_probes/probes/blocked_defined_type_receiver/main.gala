@@ -1,0 +1,10 @@
+package main
+
+type DateTime int64
+
+func (d DateTime) IsZero() bool = d == 0
+
+func main() {
+	var d DateTime
+	Println(d.IsZero())
+}

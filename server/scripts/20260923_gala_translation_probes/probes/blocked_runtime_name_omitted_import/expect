@@ -1,0 +1,4 @@
+KIND=transpile_fail
+CODE=GALA-E0023
+ERR=is declared in the GALA package "martianoff/gala/concurrent", which this file does not import
+NOTE=the unqualified shape: the sibling .gala file dot-imports concurrent, and a bare runtime name the file does not import is refused with a hint that names the declaring package and both spellings of the fix. The ERR marker is the naming half of that hint, because it is what separates this diagnostic from the generic spelling on a Go package qualifier and from GALA-E0025, which states the same per-file rule but did not fire in any shape measured on 0.84.1.

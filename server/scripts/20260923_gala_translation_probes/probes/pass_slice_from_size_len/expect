@@ -1,0 +1,3 @@
+KIND=pass
+RUN=yes
+NOTE=the substitute for the inferred-receiver case, which is what makes it a workaround rather than a boundary gap: SliceFrom is s[from:], so this is a view and allocates nothing. A multi-value binding still takes no type annotation, but that is a grammar shape rather than the only spelling, so the roster row is a workaround rather than a boundary gap.

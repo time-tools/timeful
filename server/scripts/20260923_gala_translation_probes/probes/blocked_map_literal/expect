@@ -1,0 +1,3 @@
+KIND=transpile_fail
+CODE=GALA-E0008
+NOTE=map literals are not a first-class construct; use go_interop.MapEmpty/MapPut or a HashMap

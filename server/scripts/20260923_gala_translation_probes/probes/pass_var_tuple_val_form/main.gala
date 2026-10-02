@@ -1,0 +1,9 @@
+package main
+
+import . "martianoff/gala/std"
+
+func main() {
+	val (a, b) = Tuple[int, int](V1 = 1, V2 = 2)
+	Println(a)
+	Println(b)
+}

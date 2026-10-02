@@ -1,0 +1,25 @@
+package commands
+
+import (
+	"fmt"
+
+	"github.com/bwmarrin/discordgo"
+)
+
+func executeHelp(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
+	var message string
+	for _, command := range Commands {
+		message += fmt.Sprintf("\n\n`%s`: %s ", command.Name, command.Description)
+		if command.Usage != "" {
+			message += fmt.Sprintf("Usage: `%s`", command.Usage)
+		}
+	}
+
+	sendMessage(s, m, message)
+}
+
+var help Command = Command{
+	Name:        "!help",
+	Description: "Displays this help message",
+	Execute:     executeHelp,
+}

@@ -1,0 +1,3 @@
+KIND=transpile_fail
+CODE=GALA-E0035
+NOTE=append is a bare Go builtin; use go_interop.SliceAppend/SliceAppendAll or a GALA collection

@@ -105,6 +105,24 @@
         "type": "github"
       }
     },
+    "gala": {
+      "inputs": {
+        "nixpkgs": "nixpkgs_2"
+      },
+      "locked": {
+        "lastModified": 1790943669,
+        "narHash": "sha256-dJ8djuK5OwA4zWqOX4g/5/NxzZbFX4o5lq4uTm+gn04=",
+        "owner": "martianoff",
+        "repo": "gala",
+        "rev": "e2e28c318ff1eb606f7f607199b629d93b78ab1f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "martianoff",
+        "repo": "gala",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1784356753,
@@ -138,6 +156,22 @@
     },
     "nixpkgs_2": {
       "locked": {
+        "lastModified": 1790055231,
+        "narHash": "sha256-QpXotokGh5eeMG1Njiuh27oP0rK6t5+cMp7ymXSs7mc=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "b6c98e9e6633ee64753b594ff4a5febf0367fc00",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixpkgs-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgs_3": {
+      "locked": {
         "lastModified": 1789844176,
         "narHash": "sha256-COQmpo4lFIzMgUjr3ntDpjH0NwrCnf7N0uhR+6WPGP8=",
         "owner": "nixos",
@@ -156,7 +190,8 @@
       "inputs": {
         "backlog-md": "backlog-md",
         "flake-parts": "flake-parts_2",
-        "nixpkgs": "nixpkgs_2",
+        "gala": "gala",
+        "nixpkgs": "nixpkgs_3",
         "systems": "systems_3"
       }
     },

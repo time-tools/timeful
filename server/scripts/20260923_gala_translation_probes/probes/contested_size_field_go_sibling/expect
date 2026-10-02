@@ -1,0 +1,3 @@
+KIND=build_fail
+ERR=c.Usage.Size undefined
+NOTE=contested: with the struct declared in a handwritten sibling .go file, .Size() lowers to a method call Go rejects; this reproduces the repo finding

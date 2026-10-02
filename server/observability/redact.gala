@@ -1,0 +1,71 @@
+package observability
+
+import (
+	"regexp"
+	"strings"
+	"unicode/utf8"
+)
+
+// redactedValue replaces every credential-bearing capture group.
+var redactedValue = "[REDACTED]"
+
+// urlUserInfoPattern matches URL userinfo, for example https://user:password@host/path.
+var urlUserInfoPattern = regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9+.\-]*://)([^/@\s]+)@`)
+
+// schemeCredentialPattern matches Bearer and Basic scheme credentials.
+var schemeCredentialPattern = regexp.MustCompile(`(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=\-]{6,}`)
+
+// credentialFieldPattern matches credential-bearing headers and fields, including
+// JSON forms. Unquoted values stop at a query separator so following parameters survive.
+var credentialFieldPattern = regexp.MustCompile(`(?i)\b(authorization|proxy-authorization|cookie|set-cookie|x-api-key|api[-_]?key|password|passwd|secret|token|access_token|refresh_token|id_token|edit_token|editToken|owner_token)\b("?)(\s*[:=]\s*)("[^"]*"|'[^']*'|[^&\n]+)`)
+
+// sensitiveQueryPattern matches token, secret, credential, and OAuth-code query parameters.
+var sensitiveQueryPattern = regexp.MustCompile(`(?i)([?&][^=&\s#]*(?:token|secret|password|passwd|api[-_]?key|credential|auth|code|otp)[^=&\s#]*=)[^&#\s]*`)
+
+// Redact removes credentials, secrets, and token-bearing URLs and headers from
+// a diagnostic string. Structured records never carry raw requests, so this is
+// the defense-in-depth pass over error context that originated in a handler.
+// value: the diagnostic string to redact.
+func Redact(value string) string {
+	if value == "" {
+		return value
+	}
+	var redacted = urlUserInfoPattern.ReplaceAllString(value, "${1}" + redactedValue + "@")
+	redacted = schemeCredentialPattern.ReplaceAllString(redacted, "${1} " + redactedValue)
+	redacted = credentialFieldPattern.ReplaceAllString(redacted, "${1}${2}${3}" + redactedValue)
+	redacted = sensitiveQueryPattern.ReplaceAllString(redacted, "${1}" + redactedValue)
+	return redacted
+}
+
+// truncate bounds a redacted value so a single record can never grow without
+// limit from captured error context. The result is always valid UTF-8, because
+// an invalid string attribute makes protobuf marshalling fail for the whole
+// export batch.
+// value: the string to bound.
+// limit: the maximum byte length of the result.
+func truncate(var value string, limit int) string {
+	value = strings.ToValidUTF8(value, "\uFFFD")
+	if value.ByteSize() <= limit {
+		return value
+	}
+	var trimmed = ""
+	var cut = ""
+	var used = 0
+	var lastSpaceIndex = -1
+	for _, r := range value {
+		var size = utf8.RuneLen(r)
+		if used + size > limit {
+			break
+		}
+		if r == ' ' || r == '\t' || r == '\n' {
+			cut = trimmed
+			lastSpaceIndex = used
+		}
+		trimmed = trimmed + string(r)
+		used = used + size
+	}
+	if lastSpaceIndex > limit/2 {
+		trimmed = cut
+	}
+	return trimmed + "..."
+}

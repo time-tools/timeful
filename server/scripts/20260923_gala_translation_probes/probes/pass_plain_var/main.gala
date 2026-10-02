@@ -1,0 +1,9 @@
+package main
+
+var Answer = 42
+
+func main() {
+	var doubled = Answer * 2
+	Println(Answer)
+	Println(doubled)
+}

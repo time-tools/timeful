@@ -1,0 +1,9 @@
+package main
+
+import "timeful/gala-probes/fixtures/collide"
+
+func size(r Response) int = r.Extra
+
+func main() {
+	Println(size(newResponse(200)))
+}

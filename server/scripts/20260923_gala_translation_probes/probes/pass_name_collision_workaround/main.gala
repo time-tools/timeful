@@ -1,0 +1,10 @@
+package main
+
+import "timeful/gala-probes/fixtures/collide"
+
+func main() {
+	var remote = collide.Default()
+	val local = newResponse(200)
+	Println(remote.Status)
+	Println(local.Status)
+}

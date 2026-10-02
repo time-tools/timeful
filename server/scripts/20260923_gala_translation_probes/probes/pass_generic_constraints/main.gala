@@ -1,0 +1,17 @@
+package main
+
+import . "martianoff/gala/go_interop"
+
+func contains[T comparable](xs []T, needle T) bool {
+	for _, x := range xs {
+		if (x == needle) {
+			return true
+		}
+	}
+	return false
+}
+
+func main() {
+	Println(contains(SliceOf("a", "b"), "b"))
+	Println(contains(SliceOf(1, 2), 3))
+}

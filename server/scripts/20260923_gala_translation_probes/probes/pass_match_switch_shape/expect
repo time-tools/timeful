@@ -1,0 +1,3 @@
+KIND=pass
+RUN=yes
+NOTE=a switch whose cases are all literal patterns rewrites to `match`, with `case _` as the default; an identifier case binds instead of comparing, so those stay handwritten

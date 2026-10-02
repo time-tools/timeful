@@ -1,0 +1,3 @@
+KIND=transpile_fail
+ERR=mismatched input 'struct' expecting
+NOTE=struct{} as a type expression does not parse; models/set.go keeps map[T]struct{} handwritten

@@ -1,0 +1,3 @@
+KIND=build_fail
+ERR=(no value) used as value
+NOTE=0.81.0 lowers a tail-position Panic to Go's void panic(...) in a value position; keep the invariant as a statement with an early return instead

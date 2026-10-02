@@ -1,0 +1,16 @@
+package main
+
+import "os"
+
+func open(path string) *os.File {
+	var f, err = os.Open(path)
+	if err != nil {
+		return nil
+	}
+	return f
+}
+
+func main() {
+	use f = open("go.mod")
+	Println(f != nil)
+}

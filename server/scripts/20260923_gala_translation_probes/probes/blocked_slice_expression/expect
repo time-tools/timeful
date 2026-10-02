@@ -1,0 +1,3 @@
+KIND=transpile_fail
+ERR=extraneous input ':' expecting ']'
+NOTE=slice expressions do not parse; use go_interop.SliceFrom/SliceTake/SliceDrop

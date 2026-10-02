@@ -17,6 +17,38 @@ docker compose --env-file .env.development -f compose.yaml -f compose.developmen
 See `docs/environments.md` for the complete configuration contract.
 Direct server execution and `server/.env` are unsupported.
 
+## Transpiled GALA sources
+
+Generated Go files are committed because the Go build never invokes GALA.
+Each one has a `.gala` source beside it, and some packages also have a handwritten sibling for members GALA cannot express.
+
+| Generated file                              | GALA source                                   | Regeneration command                                                                                 |
+| ------------------------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `eventid/eventid.go`                        | `eventid/eventid.gala`                        | `cd server/eventid && gala transpile -i eventid.gala -o eventid.go`                                  |
+| `observability/redact.go`                   | `observability/redact.gala`                   | `cd server/observability && gala transpile -i redact.gala -o redact.go`                              |
+| `logger/logger.go`                          | `logger/logger.gala`                          | `cd server/logger && gala transpile -i logger.gala -o logger.go`                                     |
+| `appenv/appenv.go`                          | `appenv/appenv.gala`                          | `cd server/appenv && gala transpile -i appenv.gala -o appenv.go`                                     |
+| `utils/array_utils.go`                      | `utils/array_utils.gala`                      | `cd server/utils && gala transpile -i array_utils.gala -o array_utils.go`                            |
+| `utils/request_utils.go`                    | `utils/request_utils.gala`                    | `cd server/utils && gala transpile -i request_utils.gala -o request_utils.go`                        |
+| `services/services.go`                      | `services/services.gala`                      | `cd server/services && gala transpile -i services.gala -o services.go`                               |
+| `services/providerconfig/providerconfig.go` | `services/providerconfig/providerconfig.gala` | `cd server/services/providerconfig && gala transpile -i providerconfig.gala -o providerconfig.go`    |
+| `routes/guest_response_ownership.go`        | `routes/guest_response_ownership.gala`        | `cd server/routes && gala transpile -i guest_response_ownership.gala -o guest_response_ownership.go` |
+| `discord_bot/commands/help.go`              | `discord_bot/commands/help.gala`              | `cd server/discord_bot/commands && gala transpile -i help.gala -o help.go`                           |
+| `discord_bot/commands/num_users.go`         | `discord_bot/commands/num_users.gala`         | `cd server/discord_bot/commands && gala transpile -i num_users.gala -o num_users.go`                 |
+| `discord_bot/init.go`                       | `discord_bot/init.gala`                       | `cd server/discord_bot && gala transpile -i init.gala -o init.go`                                    |
+| `slackbot/commands/num_users.go`            | `slackbot/commands/num_users.gala`            | `cd server/slackbot/commands && gala transpile -i num_users.gala -o num_users.go`                    |
+| `middleware/auth.go`                        | `middleware/auth.gala`                        | `cd server/middleware && gala transpile -i auth.gala -o auth.go`                                     |
+| `postgres/dailylogs.go`                     | `postgres/dailylogs.gala`                     | `cd server/postgres && gala transpile -i dailylogs.gala -o dailylogs.go`                             |
+
+Handwritten siblings beside generated files are `appenv/appenv_port.go` (`ResolvePort`), `utils/array_utils_extra.go` (`ArrayToSet`, `ElementWithIndex`, `FindAddedRemovedKept`), `services/providerconfig/doc.go` (package comment), `slackbot/commands/utils.go` (the `newResponse` constructor), `middleware/doc.go` (package comment), and `postgres/dailylogs_methods.go` (the four `*Repository` daily-log methods).
+They are not generated and have no regeneration command.
+
+A file carrying `swag` annotations cannot be a GALA source, because the transpiler emits no comments and an annotation has to sit immediately above its declaration.
+`routes/users.go` is the one such file the translation roster reports as rewritable, and it stays handwritten for that reason; see `GALA.md` for the finding.
+See `GALA.md` for the two output styles, the vendored runtime under `third_party/gala/`, and the findings from the transpilation spikes.
+The per-construct Go-to-GALA roster, its inventory counts, and the scripted probe corpus are in [`../docs/gala-translation.md`](../docs/gala-translation.md).
+The ordered procedure for turning one more Go file into a twin is in [`../docs/gala-rewrite-playbook.md`](../docs/gala-rewrite-playbook.md).
+
 ## Tests
 
 Pure unit tests can run on the host or in a container.

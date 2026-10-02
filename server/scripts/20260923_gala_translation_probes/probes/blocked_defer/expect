@@ -1,0 +1,3 @@
+KIND=transpile_fail
+CODE=GALA-E0036
+NOTE=defer is not on the GALA surface; the hint points at `use x = ...` or the resource combinators

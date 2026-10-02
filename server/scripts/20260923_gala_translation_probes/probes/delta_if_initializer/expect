@@ -1,0 +1,3 @@
+KIND=transpile_fail
+CODE=GALA-E0047
+NOTE=PR #529 delta: `if err := f(); err != nil` used to bind std.Immutable[error] in 0.81.0 and fail `go build`; it is now rejected at transpile time as GALA-E0047 with a `Try` hint, so the blocker is a diagnostic rather than a codegen defect

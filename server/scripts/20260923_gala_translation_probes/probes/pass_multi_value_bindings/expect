@@ -1,0 +1,3 @@
+KIND=pass
+RUN=yes
+NOTE=multi-value Go calls work with `var a, b = f()`, plain reassignment, and a blank receive; the `:=` spelling is delta_multi_value_define

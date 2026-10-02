@@ -1,0 +1,5 @@
+KIND=emit
+CONTAINS=std.NewImmutable
+CONTAINS=n.Get()
+CONTAINS=err.Get()
+NOTE=presence half of the multi-value `:=` claim: each result is bound through the std.Immutable wrapper constructor and every read unwraps with .Get(). The markers are a constructor call and two method calls, not layout, so gofmt output and the //line directives cannot move them. Paired with emit_multi_value_var_plain, which is the same program in the `var` spelling and asserts all three are absent; that absence half is what carries the claim, because a wrapper the program never observes is invisible to a KIND=pass output assertion. This probe pins codegen rather than behaviour, so it is the kind most tightly coupled to the compiler release: a GALA bump is expected to fail it, and the re-baseline procedure is in docs/gala-translation.md under "When to revisit"

@@ -1,0 +1,3 @@
+KIND=pass
+RUN=yes
+NOTE=Try(goCall()) wraps a Go (T, error) call; use it for recoverable failures instead of panic, and as the value-flow alternative to an if initializer

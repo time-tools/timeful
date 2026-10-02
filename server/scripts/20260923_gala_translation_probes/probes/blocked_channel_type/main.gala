@@ -1,0 +1,9 @@
+package main
+
+func worker(ch chan int) {
+	Println("x")
+}
+
+func main() {
+	Println("x")
+}

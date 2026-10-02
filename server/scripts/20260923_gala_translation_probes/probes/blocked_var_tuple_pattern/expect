@@ -1,0 +1,4 @@
+KIND=transpile_fail
+CODE=GALA-E0017
+ERR=internal transpiler panic
+NOTE=upstream #620: varDeclaration accepts the grammar's tuplePattern branch and the transformer asserts IdentifierListContext, so the identical program with val instead of var transpiles and this one panics. A construct the grammar accepts should not reach an internal error, and the hint names no line the author can fix.

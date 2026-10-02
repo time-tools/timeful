@@ -23,3 +23,5 @@ infra/support-mail/certs/*.key
 node_modules
 *.pyc
 .vscode
+
+.gala

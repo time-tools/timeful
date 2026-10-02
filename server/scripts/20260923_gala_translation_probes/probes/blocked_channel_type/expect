@@ -1,0 +1,3 @@
+KIND=transpile_fail
+ERR=extraneous input 'int' expecting ')'
+NOTE=chan types do not parse; channel work stays handwritten or moves to go_interop/concurrent

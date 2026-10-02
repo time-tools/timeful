@@ -1,0 +1,12 @@
+package main
+
+import . "martianoff/gala/collection_immutable"
+
+func main() {
+	val m = EmptyHashMap[string, int]().Put("a", 1).Put("b", 2)
+	Println(m.GetOrElse("a", 0))
+	Println(m.Remove("a").Size())
+	val xs = ArrayOf(1, 2, 3).Append(4)
+	Println(xs.Size())
+	Println(xs.Get(0))
+}

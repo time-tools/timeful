@@ -1,0 +1,9 @@
+package main
+
+func safe() {
+	recover()
+}
+
+func main() {
+	safe()
+}

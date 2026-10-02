@@ -1,0 +1,11 @@
+package main
+
+struct Box(var Payload any)
+
+func describe(v any) string = "value"
+
+func main() {
+	val b = Box(Payload = 1)
+	Println(describe(b.Payload))
+	Println(describe(2))
+}

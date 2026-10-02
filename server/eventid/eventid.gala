@@ -1,0 +1,14 @@
+// Package eventid validates canonical public event identifiers.
+//
+// The canonical form is an eight-character Crockford base32 identifier.
+package eventid
+
+import "regexp"
+
+// canonicalShortID matches an eight-character Crockford base32 identifier.
+var canonicalShortID = regexp.MustCompile(`^[0-9A-HJKMNPQRSTVWXYZ]{8}$`)
+
+// Canonical reports whether id is an eight-character Crockford base32 event
+// identifier.
+// id: the identifier to test.
+func Canonical(id string) bool = canonicalShortID.MatchString(id)

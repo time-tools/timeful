@@ -1,0 +1,4 @@
+KIND=emit
+ABSENT=std.Immutable[string]
+ABSENT=Name.Get()
+NOTE=absence half of the field-wrapping claim, and the half the mechanical rewrite depends on: a `var` field stays a plain Go field of its declared type, which is what makes `struct Person(var Name string)` the Go-shaped spelling the catalog prescribes. Both markers are the strings emit_field_wrapped_immutable asserts are present, over the same struct shape, so a transpiler change that starts wrapping `var` fields fails here while every output probe would still pass. The markers name what must not be emitted, so audit.sh accepts this probe as a gap blocker. Pinned to the GALA release by construction; re-baseline with the procedure in docs/gala-translation.md under "When to revisit"

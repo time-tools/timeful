@@ -1,0 +1,7 @@
+package main
+
+func answer() int = 42
+
+func main() {
+	Println(answer())
+}

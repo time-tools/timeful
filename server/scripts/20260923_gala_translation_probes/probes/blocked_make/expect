@@ -1,0 +1,3 @@
+KIND=transpile_fail
+ERR=no viable alternative at input
+NOTE=make is a parse error in 0.81.0; GALA.MD section 11 documents go_interop.SliceWithSize/MapEmpty as the replacement

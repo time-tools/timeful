@@ -1,0 +1,9 @@
+package main
+
+type Payload struct {
+	Name string `json:"name"`
+}
+
+func main() {
+	Println("x")
+}

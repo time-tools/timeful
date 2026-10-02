@@ -1,0 +1,3 @@
+KIND=pass
+RUN=yes
+NOTE=GALA collections replace Go literals when the container can be a HashMap/Array: EmptyHashMap/Put/Remove and ArrayOf/Append/Get; the Go map/slice branch stays on go_interop (pass_go_interop_map_slice)
