@@ -7,12 +7,14 @@ status: To Do
 assignee:
   - Danila Danko
 created_date: '2026-09-30 21:19'
+updated_date: '2026-10-02 19:55'
 labels: []
 dependencies: []
 references:
   - >-
     backlog/tasks/task-0338 -
     Re-derive-the-import-resolution-rows-that-GALA-0.84.1-contradicts.md
+  - 'https://github.com/martianoff/gala/issues/648'
 documentation:
   - .agents/skills/gala-from-go/references/constructs.md
   - docs/gala-translation.md
@@ -107,3 +109,11 @@ This task owns the type-position hole and must not re-litigate the value-positio
 - [ ] #7 `scripts/` or `prettier/` changed: run root `npm run fmt:check`
 - [ ] #8 Contract-affecting changes update their documents. This includes `docs/environments.md`; `PLUGIN_API_README.md`; and migration and rollout notes
 <!-- DOD:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Filed upstream as #648 on 2026-09-30: "An unqualified GALA type name in a type position is not import-checked: the transpile succeeds and `go build` reports `undefined`". The report states the build provenance honestly (`gala version` reports 0.84.1 but the binary was built from master HEAD, so it is not the release tag), and it contrasts the three cases that already work so the maintainer can see the hole is narrow rather than "imports are unenforced".
+
+No duplicate exists: #613 through #620 are all closed, and the only adjacent issue, #616, is the opposite direction (the import is present and an imported qualifier wins over a package-local declaration). #528 and #621 are the only open issues and neither covers import resolution.
+<!-- SECTION:NOTES:END -->
