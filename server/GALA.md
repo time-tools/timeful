@@ -46,6 +46,7 @@ The vendored runtime is one flattened Go module named `martianoff/gala`.
 `server/go.mod` requires it at `v0.0.0` and replaces it with the local directory, so generated imports such as `martianoff/gala/std` and `martianoff/gala/go_interop` resolve with no network fetch and no `go.sum` entry.
 `server/Dockerfile` copies `third_party/gala/go.mod` before `go mod download`, because the local replace has to resolve inside the dependency layer.
 The Apache-2.0 `LICENSE` is copied from the upstream source checkout; the CLI extraction does not ship one.
+The committed copy is a stopgap: [#698](https://github.com/martianoff/gala/issues/698) asks upstream to publish the transpiled tree as a per-release, checksum-pinned asset, which would replace the vendoring step with a download.
 
 When the flake rev and `VENDORED_FROM` disagree, stop translating and run a sync iteration first.
 The version string alone cannot identify the compiler, because several commits share one version string, so the extraction is proved by the fingerprint in its `.stdlib-extracted` marker.
@@ -132,6 +133,7 @@ A report closed after the flake lock is fixed upstream but not yet in the pinned
 | [#648](https://github.com/martianoff/gala/issues/648)  | Type-position import name is not checked                 | closed                 | fixed (verified here)             |
 | [#678](https://github.com/martianoff/gala/issues/678)  | `gala-local` refused the stdlib `test` package           | closed                 | fixed (verified here)             |
 | [PR #680](https://github.com/martianoff/gala/pull/680) | Local bootstrap gives batch files their package siblings | merged before the lock | included                          |
+| [#698](https://github.com/martianoff/gala/issues/698)  | Publish the transpiled stdlib as a release asset         | open                   | n/a (packaging request)           |
 
 The loop re-checks a report's finding on the pinned compiler before relying on it, because "closed" and "in the pinned rev" are different claims.
 
