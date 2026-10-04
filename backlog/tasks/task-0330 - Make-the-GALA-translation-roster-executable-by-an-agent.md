@@ -1,11 +1,11 @@
 ---
 id: TASK-0330
 title: Make the GALA translation roster executable by an agent
-status: To Do
+status: Done
 assignee:
   - '@opencode'
 created_date: '2026-09-26 13:35'
-updated_date: '2026-09-29 15:40'
+updated_date: '2026-10-04 13:23'
 labels: []
 dependencies: []
 references:
@@ -92,3 +92,23 @@ This task is finalized once all five subtasks are Done and their artifacts are c
 - [ ] #7 `scripts/` or `prettier/` changed: run root `npm run fmt:check`
 - [ ] #8 Contract-affecting changes update their documents. This includes `docs/environments.md`; `PLUGIN_API_README.md`; and migration and rollout notes
 <!-- DOD:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+created: 2026-10-04 12:36
+---
+TASK-0330.05 was superseded by TASK-0341 and has been archived. The pilot it described was never run; its function is now the `gala-loop` skill, and the first executed loop iteration is the type-position import re-check recorded as TASK-0342. The carried facts live in TASK-0341 and `server/GALA.md`.
+---
+
+created: 2026-10-04 13:23
+---
+DoD annotation (TASK-0343, AC #6): TASK-0330 defines no acceptance criteria of its own; its four delivered subtasks carried their own DoD items, and subtask .05 was superseded by TASK-0341 and archived. #1: no task-level ACs to satisfy; .01-.04 are Done and .05's function moved to the gala-loop skill. #2: the inventory tool's unit tests were green at delivery under .01/.02; both test files and the tool itself were deleted by TASK-0341, so they cannot be re-run today. #3: no e2e tests existed for this documentation and tooling work. #4: the roster and playbook Markdown was formatted before TASK-0341 deleted those files; the current tree passes `npm run format:markdown:check` under TASK-0343. #5: no swagger annotations changed. #6: the code graph was refreshed by TASK-0341 after the tool was deleted; TASK-0343 refreshes it again. #7: no root `scripts/` or `prettier/` files changed; TASK-0343 runs root `npm run fmt:check` to confirm. #8: no environment, plugin-API, migration, or rollout documents changed. The boxes stay unchecked because the artifacts they would certify no longer exist; this comment is the annotation.
+---
+<!-- COMMENTS:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+TASK-0330 delivered the preflight, the mechanical rewrite catalog, the playbook, and the rewrite skill through subtasks .01-.04, all Done. Subtask .05 was superseded by TASK-0341, which replaced the playbook and the corpus with the `server/GALA.md` ledger, the `gala-loop` skill, and `server/scripts/gala/verify.sh`, and archived the subtask with its durable facts carried into TASK-0341. This task is finalized Done rather than archived so its four delivered subtasks remain recorded.
+<!-- SECTION:FINAL_SUMMARY:END -->

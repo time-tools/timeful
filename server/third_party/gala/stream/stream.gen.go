@@ -8,7 +8,12 @@ import (
 	. "martianoff/gala/std"
 )
 
-//line stream/stream.gala:12
+//line stream/stream.gala:7
+
+// Stream is a lazy, potentially infinite sequence.
+// Elements are computed on demand using thunks (functions).
+// All transformation operations (Map, Filter, Take, etc.) are lazy.
+// Terminal operations (ToArray, ForEach, Fold, etc.) force evaluation.
 type Stream[T any] struct {
 	headThunk  Immutable[func() Option[T]]
 	tailThunk  Immutable[func() Stream[T]]
@@ -32,7 +37,9 @@ func (_ Stream[T]) IsStream() bool {
 	return true
 }
 
-//line stream/stream.gala:21
+//line stream/stream.gala:19
+
+// empty returns an empty stream.
 func empty[T any]() Stream[T] {
 //line stream/stream.gala:22
 	var nilTail *Stream[T] = nil
@@ -44,7 +51,9 @@ func empty[T any]() Stream[T] {
 	}), evaluated: NewImmutable(true), cachedHead: NewImmutable(None[T]{}.Apply()), cachedTail: nilTail}
 }
 
-//line stream/stream.gala:33
+//line stream/stream.gala:31
+
+// cons creates a stream with head and lazy tail.
 func cons[T any](head T, tail func() Stream[T]) Stream[T] {
 //line stream/stream.gala:34
 	var nilTail *Stream[T] = nil
@@ -54,7 +63,9 @@ func cons[T any](head T, tail func() Stream[T]) Stream[T] {
 	}), tailThunk: NewImmutable(tail), evaluated: NewImmutable(false), cachedHead: NewImmutable(Some[T]{}.Apply(head)), cachedTail: nilTail}
 }
 
-//line stream/stream.gala:45
+//line stream/stream.gala:43
+
+// lazyStream creates a fully lazy stream where even the head is not computed until accessed.
 func lazyStream[T any](headThunk func() Option[T], tailThunk func() Stream[T]) Stream[T] {
 //line stream/stream.gala:46
 	var nilTail *Stream[T] = nil
@@ -62,12 +73,16 @@ func lazyStream[T any](headThunk func() Option[T], tailThunk func() Stream[T]) S
 	return Stream[T]{headThunk: NewImmutable(headThunk), tailThunk: NewImmutable(tailThunk), evaluated: NewImmutable(false), cachedHead: NewImmutable(None[T]{}.Apply()), cachedTail: nilTail}
 }
 
-//line stream/stream.gala:57
+//line stream/stream.gala:55
+
+// Empty returns an empty Stream.
 func Empty[T any]() Stream[T] {
 	return empty[T]()
 }
 
-//line stream/stream.gala:60
+//line stream/stream.gala:58
+
+// Of creates a Stream from variadic arguments.
 func Of[T any](elements ...T) Stream[T] {
 //line stream/stream.gala:61
 	if len(elements) == 0 {
@@ -78,7 +93,9 @@ func Of[T any](elements ...T) Stream[T] {
 	return fromSliceIndex[T](elements, 0)
 }
 
-//line stream/stream.gala:68
+//line stream/stream.gala:66
+
+// fromSliceIndex creates a stream starting at index i.
 func fromSliceIndex[T any](elements []T, i int) Stream[T] {
 //line stream/stream.gala:69
 	if i >= len(elements) {
@@ -95,12 +112,18 @@ func fromSliceIndex[T any](elements []T, i int) Stream[T] {
 	})
 }
 
-//line stream/stream.gala:80
+//line stream/stream.gala:76
+
+// NewCons creates a stream with a head element and a lazy tail.
+// Note: Named NewCons to avoid conflict with collection_immutable.Cons dot import
+// and the StreamCons pattern matching extractor type.
 func NewCons[T any](head T, tail func() Stream[T]) Stream[T] {
 	return cons[T](head, tail)
 }
 
-//line stream/stream.gala:83
+//line stream/stream.gala:81
+
+// FromArray creates a Stream from an Array.
 func FromArray[T any](arr Array[T]) Stream[T] {
 //line stream/stream.gala:84
 	if arr.IsEmpty() {
@@ -128,7 +151,9 @@ func fromArrayIndex[T any](arr Array[T], i int) Stream[T] {
 	})
 }
 
-//line stream/stream.gala:100
+//line stream/stream.gala:98
+
+// FromList creates a Stream from a List.
 func FromList[T any](list List[T]) Stream[T] {
 //line stream/stream.gala:101
 	if list.IsEmpty() {
@@ -141,21 +166,29 @@ func FromList[T any](list List[T]) Stream[T] {
 	})
 }
 
-//line stream/stream.gala:108
+//line stream/stream.gala:106
+
+// Continually creates an infinite stream by repeatedly evaluating a function.
 func Continually[T any](elem func() T) Stream[T] {
 	return cons[T](elem(), func() Stream[T] {
 		return Continually[T](elem)
 	})
 }
 
-//line stream/stream.gala:112
+//line stream/stream.gala:109
+
+// Iterate creates an infinite stream by iterating a function from a seed.
+// Stream: seed, f(seed), f(f(seed)), ...
 func Iterate[T any](seed T, f func(T) T) Stream[T] {
 	return cons[T](seed, func() Stream[T] {
 		return Iterate[T](f(seed), f)
 	})
 }
 
-//line stream/stream.gala:116
+//line stream/stream.gala:113
+
+// Unfold creates a stream by repeatedly applying a function.
+// The function returns None to terminate or Some((value, nextState)) to continue.
 func Unfold[T any, S any](seed S, f func(S) Option[Tuple[T, S]]) Stream[T] {
 //line stream/stream.gala:117
 	return func(obj Option[Tuple[T, S]]) Stream[T] {
@@ -179,7 +212,9 @@ func Unfold[T any, S any](seed S, f func(S) Option[Tuple[T, S]]) Stream[T] {
 	}(f(seed))
 }
 
-//line stream/stream.gala:124
+//line stream/stream.gala:122
+
+// Range creates a finite stream of integers from start (inclusive) to end (exclusive).
 func Range(start int, end int) Stream[int] {
 //line stream/stream.gala:125
 	if start >= end {
@@ -192,7 +227,9 @@ func Range(start int, end int) Stream[int] {
 	})
 }
 
-//line stream/stream.gala:132
+//line stream/stream.gala:130
+
+// RangeStep creates a stream from start to end with given step.
 func RangeStep(start int, end int, step int) Stream[int] {
 //line stream/stream.gala:133
 	if step > 0 && start >= end {
@@ -215,21 +252,27 @@ func RangeStep(start int, end int, step int) Stream[int] {
 	})
 }
 
-//line stream/stream.gala:146
+//line stream/stream.gala:144
+
+// From creates an infinite stream of integers starting from n.
 func From(n int) Stream[int] {
 	return cons[int](n, func() Stream[int] {
 		return From(n + 1)
 	})
 }
 
-//line stream/stream.gala:149
+//line stream/stream.gala:147
+
+// Repeat creates an infinite stream that repeats the given element.
 func Repeat[T any](elem T) Stream[T] {
 	return cons[T](elem, func() Stream[T] {
 		return Repeat[T](elem)
 	})
 }
 
-//line stream/stream.gala:152
+//line stream/stream.gala:150
+
+// Head returns the first element of the stream wrapped in Option.
 func (s Stream[T]) Head() Option[T] {
 //line stream/stream.gala:153
 	return func(obj Option[T]) Option[T] {
@@ -256,12 +299,16 @@ func (s Stream[T]) Head() Option[T] {
 	}(s.cachedHead.Get())
 }
 
-//line stream/stream.gala:160
+//line stream/stream.gala:158
+
+// HeadOrElse returns the first element or a default value.
 func (s Stream[T]) HeadOrElse(defaultVal T) T {
 	return s.Head().GetOrElse(defaultVal)
 }
 
-//line stream/stream.gala:163
+//line stream/stream.gala:161
+
+// Tail returns the tail of the stream.
 func (s Stream[T]) Tail() Stream[T] {
 //line stream/stream.gala:164
 	if s.cachedTail != nil {
@@ -276,17 +323,23 @@ func (s Stream[T]) Tail() Stream[T] {
 	return tail
 }
 
-//line stream/stream.gala:174
+//line stream/stream.gala:172
+
+// IsEmpty returns true if the stream is empty.
 func (s Stream[T]) IsEmpty() bool {
 	return s.Head().IsEmpty()
 }
 
-//line stream/stream.gala:177
+//line stream/stream.gala:175
+
+// NonEmpty returns true if the stream is not empty.
 func (s Stream[T]) NonEmpty() bool {
 	return s.Head().IsDefined()
 }
 
-//line stream/stream.gala:180
+//line stream/stream.gala:178
+
+// Map transforms each element using a function (lazy).
 func Stream_Map[U any, T any](s Stream[T], f func(T) U) Stream[U] {
 //line stream/stream.gala:181
 	return func(obj Option[T]) Stream[U] {
@@ -315,7 +368,9 @@ func Stream_Map[U any, T any](s Stream[T], f func(T) U) Stream[U] {
 	}(s.Head())
 }
 
-//line stream/stream.gala:188
+//line stream/stream.gala:186
+
+// FlatMap applies a function returning a stream to each element and flattens (lazy).
 func Stream_FlatMap[U any, T any](s Stream[T], f func(T) Stream[U]) Stream[U] {
 //line stream/stream.gala:189
 	return func(obj Option[T]) Stream[U] {
@@ -344,7 +399,9 @@ func Stream_FlatMap[U any, T any](s Stream[T], f func(T) Stream[U]) Stream[U] {
 	}(s.Head())
 }
 
-//line stream/stream.gala:196
+//line stream/stream.gala:194
+
+// Suspend creates a stream that is entirely lazy - even existence of elements is deferred.
 func Suspend[T any](thunk func() Stream[T]) Stream[T] {
 //line stream/stream.gala:197
 	return lazyStream[T](func() Option[T] {
@@ -354,7 +411,9 @@ func Suspend[T any](thunk func() Stream[T]) Stream[T] {
 	})
 }
 
-//line stream/stream.gala:204
+//line stream/stream.gala:202
+
+// Filter keeps only elements satisfying the predicate (lazy).
 func (s Stream[T]) Filter(p func(T) bool) Stream[T] {
 //line stream/stream.gala:205
 	return func(obj Option[T]) Stream[T] {
@@ -389,14 +448,18 @@ func (s Stream[T]) Filter(p func(T) bool) Stream[T] {
 	}(s.Head())
 }
 
-//line stream/stream.gala:212
+//line stream/stream.gala:210
+
+// FilterNot keeps only elements not satisfying the predicate (lazy).
 func (s Stream[T]) FilterNot(p func(T) bool) Stream[T] {
 	return s.Filter(func(x T) bool {
 		return !p(x)
 	})
 }
 
-//line stream/stream.gala:215
+//line stream/stream.gala:213
+
+// Take returns a stream of the first n elements (lazy).
 func (s Stream[T]) Take(n int) Stream[T] {
 //line stream/stream.gala:216
 	if n <= 0 {
@@ -430,7 +493,9 @@ func (s Stream[T]) Take(n int) Stream[T] {
 	}(s.Head())
 }
 
-//line stream/stream.gala:226
+//line stream/stream.gala:224
+
+// TakeWhile returns elements while predicate holds (lazy).
 func (s Stream[T]) TakeWhile(p func(T) bool) Stream[T] {
 //line stream/stream.gala:227
 	return func(obj Option[T]) Stream[T] {
@@ -465,7 +530,9 @@ func (s Stream[T]) TakeWhile(p func(T) bool) Stream[T] {
 	}(s.Head())
 }
 
-//line stream/stream.gala:234
+//line stream/stream.gala:232
+
+// Drop skips the first n elements (lazy).
 func (s Stream[T]) Drop(n int) Stream[T] {
 //line stream/stream.gala:235
 	if n <= 0 {
@@ -496,7 +563,9 @@ func (s Stream[T]) Drop(n int) Stream[T] {
 	}(s.Head())
 }
 
-//line stream/stream.gala:245
+//line stream/stream.gala:243
+
+// DropWhile skips elements while predicate holds (lazy).
 func (s Stream[T]) DropWhile(p func(T) bool) Stream[T] {
 //line stream/stream.gala:246
 	return func(obj Option[T]) Stream[T] {
@@ -529,7 +598,9 @@ func (s Stream[T]) DropWhile(p func(T) bool) Stream[T] {
 	}(s.Head())
 }
 
-//line stream/stream.gala:253
+//line stream/stream.gala:251
+
+// Zip combines two streams into a stream of tuples (lazy).
 func Stream_Zip[U any, T any](s Stream[T], other Stream[U]) Stream[Tuple[T, U]] {
 //line stream/stream.gala:254
 	return func(obj Option[T]) Stream[Tuple[T, U]] {
@@ -579,7 +650,9 @@ func Stream_Zip[U any, T any](s Stream[T], other Stream[U]) Stream[Tuple[T, U]] 
 	}(s.Head())
 }
 
-//line stream/stream.gala:264
+//line stream/stream.gala:262
+
+// ZipWithIndex pairs each element with its index (lazy).
 func Stream_ZipWithIndex[T any](s Stream[T]) Stream[Tuple[T, int]] {
 	return zipWithIndexFrom[T](s, 0)
 }
@@ -613,7 +686,9 @@ func zipWithIndexFrom[T any](s Stream[T], idx int) Stream[Tuple[T, int]] {
 	}(s.Head())
 }
 
-//line stream/stream.gala:274
+//line stream/stream.gala:272
+
+// Concat appends another stream (lazy).
 func (s Stream[T]) Concat(other Stream[T]) Stream[T] {
 //line stream/stream.gala:275
 	return func(obj Option[T]) Stream[T] {
@@ -642,19 +717,25 @@ func (s Stream[T]) Concat(other Stream[T]) Stream[T] {
 	}(s.Head())
 }
 
-//line stream/stream.gala:282
+//line stream/stream.gala:280
+
+// Append adds an element at the end (lazy, but must traverse to end).
 func (s Stream[T]) Append(elem T) Stream[T] {
 	return s.Concat(Of[T](elem))
 }
 
-//line stream/stream.gala:285
+//line stream/stream.gala:283
+
+// Prepend adds an element at the beginning (lazy, O(1)).
 func (s Stream[T]) Prepend(elem T) Stream[T] {
 	return cons[T](elem, func() Stream[T] {
 		return s
 	})
 }
 
-//line stream/stream.gala:288
+//line stream/stream.gala:286
+
+// Intersperse inserts a separator between elements (lazy).
 func (s Stream[T]) Intersperse(sep T) Stream[T] {
 //line stream/stream.gala:289
 	return func(obj Option[T]) Stream[T] {
@@ -695,7 +776,9 @@ func (s Stream[T]) Intersperse(sep T) Stream[T] {
 	}(s.Head())
 }
 
-//line stream/stream.gala:302
+//line stream/stream.gala:300
+
+// Distinct removes duplicates (lazy, uses O(n) memory for seen elements).
 func (s Stream[T]) Distinct() Stream[T] {
 	return distinctHelper[T](s, EmptyHashSet[any]())
 }
@@ -737,7 +820,10 @@ func distinctHelper[T any](s Stream[T], seen HashSet[any]) Stream[T] {
 	}(s.Head())
 }
 
-//line stream/stream.gala:319
+//line stream/stream.gala:316
+
+// ToArray forces evaluation and collects elements into an Array.
+// WARNING: Will not terminate for infinite streams!
 func (s Stream[T]) ToArray() Array[T] {
 //line stream/stream.gala:320
 	var result = EmptyArray[T]()
@@ -770,7 +856,10 @@ func (s Stream[T]) ToArray() Array[T] {
 	return result
 }
 
-//line stream/stream.gala:336
+//line stream/stream.gala:333
+
+// ToList forces evaluation and collects elements into a List.
+// WARNING: Will not terminate for infinite streams!
 func (s Stream[T]) ToList() List[T] {
 //line stream/stream.gala:337
 	var result = EmptyList[T]()
@@ -803,7 +892,10 @@ func (s Stream[T]) ToList() List[T] {
 	return result
 }
 
-//line stream/stream.gala:353
+//line stream/stream.gala:350
+
+// ForEach applies a function to each element for side effects.
+// WARNING: Will not terminate for infinite streams!
 func (s Stream[T]) ForEach(f func(T)) {
 //line stream/stream.gala:354
 	var current = s
@@ -832,7 +924,10 @@ func (s Stream[T]) ForEach(f func(T)) {
 	}
 }
 
-//line stream/stream.gala:368
+//line stream/stream.gala:365
+
+// Fold reduces the stream from left using initial value and binary function.
+// WARNING: Will not terminate for infinite streams!
 func Stream_Fold[U any, T any](s Stream[T], zero U, f func(U, T) U) U {
 //line stream/stream.gala:369
 	var acc = zero
@@ -865,7 +960,11 @@ func Stream_Fold[U any, T any](s Stream[T], zero U, f func(U, T) U) U {
 	return acc
 }
 
-//line stream/stream.gala:386
+//line stream/stream.gala:382
+
+// Reduce reduces the stream using a binary function, starting with first element.
+// Returns None for empty stream.
+// WARNING: Will not terminate for infinite streams!
 func (s Stream[T]) Reduce(f func(T, T) T) Option[T] {
 //line stream/stream.gala:387
 	return func(obj Option[T]) Option[T] {
@@ -892,7 +991,9 @@ func (s Stream[T]) Reduce(f func(T, T) T) Option[T] {
 	}(s.Head())
 }
 
-//line stream/stream.gala:394
+//line stream/stream.gala:392
+
+// Find returns the first element satisfying the predicate.
 func (s Stream[T]) Find(p func(T) bool) Option[T] {
 //line stream/stream.gala:395
 	var current = s
@@ -927,12 +1028,17 @@ func (s Stream[T]) Find(p func(T) bool) Option[T] {
 	return None[T]{}.Apply()
 }
 
-//line stream/stream.gala:411
+//line stream/stream.gala:409
+
+// Exists returns true if any element satisfies the predicate.
 func (s Stream[T]) Exists(p func(T) bool) bool {
 	return s.Find(p).IsDefined()
 }
 
-//line stream/stream.gala:415
+//line stream/stream.gala:412
+
+// ForAll returns true if all elements satisfy the predicate.
+// WARNING: Will not terminate for infinite streams if all elements match!
 func (s Stream[T]) ForAll(p func(T) bool) bool {
 //line stream/stream.gala:416
 	var current = s
@@ -967,7 +1073,10 @@ func (s Stream[T]) ForAll(p func(T) bool) bool {
 	return true
 }
 
-//line stream/stream.gala:433
+//line stream/stream.gala:430
+
+// Count returns the number of elements.
+// WARNING: Will not terminate for infinite streams!
 func (s Stream[T]) Count() int {
 //line stream/stream.gala:434
 	var count = 0
@@ -984,17 +1093,24 @@ func (s Stream[T]) Count() int {
 	return count
 }
 
-//line stream/stream.gala:444
+//line stream/stream.gala:442
+
+// Length is an alias for Count.
 func (s Stream[T]) Length() int {
 	return s.Count()
 }
 
-//line stream/stream.gala:447
+//line stream/stream.gala:445
+
+// Size is an alias for Count.
 func (s Stream[T]) Size() int {
 	return s.Count()
 }
 
-//line stream/stream.gala:451
+//line stream/stream.gala:448
+
+// MkString joins elements into a string with separator.
+// WARNING: Will not terminate for infinite streams!
 func (s Stream[T]) MkString(sep string) string {
 //line stream/stream.gala:452
 	var result = ""
@@ -1036,7 +1152,10 @@ func (s Stream[T]) MkString(sep string) string {
 	return result
 }
 
-//line stream/stream.gala:473
+//line stream/stream.gala:470
+
+// String returns a string representation.
+// Only shows first few elements to avoid infinite output.
 func (s Stream[T]) String() string {
 //line stream/stream.gala:474
 	var preview = NewImmutable(s.Take(10).ToArray())
@@ -1052,7 +1171,9 @@ func (s Stream[T]) String() string {
 	return fmt.Sprintf("Stream(%s%s)", preview.Get().MkString(", "), suffix.Get())
 }
 
-//line stream/stream.gala:480
+//line stream/stream.gala:478
+
+// Get returns the element at index n.
 func (s Stream[T]) Get(n int) Option[T] {
 //line stream/stream.gala:481
 	if n < 0 {
@@ -1063,12 +1184,16 @@ func (s Stream[T]) Get(n int) Option[T] {
 	return s.Drop(n).Head()
 }
 
-//line stream/stream.gala:488
+//line stream/stream.gala:486
+
+// Slice returns elements from start (inclusive) to end (exclusive).
 func (s Stream[T]) Slice(start int, end int) Stream[T] {
 	return s.Drop(start).Take(end - start)
 }
 
-//line stream/stream.gala:491
+//line stream/stream.gala:489
+
+// Collect applies a partial function and keeps defined results (lazy).
 func Stream_Collect[U any, T any](s Stream[T], pf func(T) Option[U]) Stream[U] {
 //line stream/stream.gala:492
 	return func(obj Option[T]) Stream[U] {
@@ -1118,7 +1243,9 @@ func Stream_Collect[U any, T any](s Stream[T], pf func(T) Option[U]) Stream[U] {
 	}(s.Head())
 }
 
-//line stream/stream.gala:502
+//line stream/stream.gala:500
+
+// Scan produces a stream of cumulative results (lazy).
 func Stream_Scan[U any, T any](s Stream[T], zero U, f func(U, T) U) Stream[U] {
 //line stream/stream.gala:503
 	return cons[U](zero, func() Stream[U] {
@@ -1158,22 +1285,32 @@ func scanHelper[T any, U any](s Stream[T], acc U, f func(U, T) U) Stream[U] {
 	}(s.Head())
 }
 
-//line stream/stream.gala:518
+//line stream/stream.gala:515
+
+// SplitAt splits the stream at position n.
+// Returns (first n elements, rest).
 func (s Stream[T]) SplitAt(n int) Tuple[Stream[T], Stream[T]] {
 	return Tuple[Stream[T], Stream[T]]{V1: NewImmutable(s.Take(n)), V2: NewImmutable(s.Drop(n))}
 }
 
-//line stream/stream.gala:521
+//line stream/stream.gala:519
+
+// Span splits at first element not satisfying predicate.
 func (s Stream[T]) Span(p func(T) bool) Tuple[Stream[T], Stream[T]] {
 	return Tuple[Stream[T], Stream[T]]{V1: NewImmutable(s.TakeWhile(p)), V2: NewImmutable(s.DropWhile(p))}
 }
 
-//line stream/stream.gala:524
+//line stream/stream.gala:522
+
+// Partition splits into elements satisfying and not satisfying predicate.
 func (s Stream[T]) Partition(p func(T) bool) Tuple[Stream[T], Stream[T]] {
 	return Tuple[Stream[T], Stream[T]]{V1: NewImmutable(s.Filter(p)), V2: NewImmutable(s.FilterNot(p))}
 }
 
-//line stream/stream.gala:528
+//line stream/stream.gala:525
+
+// Contains checks if element is in the stream.
+// WARNING: May not terminate for infinite streams if element is not found!
 func (s Stream[T]) Contains(elem T) bool {
 //line stream/stream.gala:529
 	var current = s
@@ -1208,7 +1345,10 @@ func (s Stream[T]) Contains(elem T) bool {
 	return false
 }
 
-//line stream/stream.gala:546
+//line stream/stream.gala:543
+
+// IndexOf returns the index of the first occurrence of elem, or -1 if not found.
+// WARNING: May not terminate for infinite streams if element is not found!
 func (s Stream[T]) IndexOf(elem T) int {
 //line stream/stream.gala:547
 	var idx = 0
@@ -1247,7 +1387,10 @@ func (s Stream[T]) IndexOf(elem T) int {
 	return -1
 }
 
-//line stream/stream.gala:566
+//line stream/stream.gala:563
+
+// IndexWhere returns the index of the first element satisfying predicate.
+// WARNING: May not terminate for infinite streams if no element matches!
 func (s Stream[T]) IndexWhere(p func(T) bool) int {
 //line stream/stream.gala:567
 	var idx = 0
@@ -1286,7 +1429,9 @@ func (s Stream[T]) IndexWhere(p func(T) bool) int {
 	return -1
 }
 
-//line stream/stream.gala:587
+//line stream/stream.gala:585
+
+// StreamCons extracts head and tail from a non-empty stream.
 type StreamCons[T any] struct {
 }
 
@@ -1332,7 +1477,9 @@ func (c StreamCons[T]) Unapply(s Stream[T]) Option[Tuple[T, Stream[T]]] {
 	}(s.Head())
 }
 
-//line stream/stream.gala:597
+//line stream/stream.gala:595
+
+// StreamNil matches empty streams.
 type StreamNil[T any] struct {
 }
 

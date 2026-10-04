@@ -1,8 +1,0 @@
-package main
-
-struct Repo()
-
-func main() {
-	var r = Repo()
-	Println(r.Save())
-}

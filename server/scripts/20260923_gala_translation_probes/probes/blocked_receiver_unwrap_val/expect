@@ -1,3 +1,0 @@
-KIND=build_fail
-ERR=cannot call pointer method Rename on Greeter
-NOTE=val is not a workaround for upstream #614: it emits the same wrapper and the same unwrapped receiver as the := spelling, so var is the only safe binding of the three. The two emitted files are identical apart from the binding spelling the two sources ask for: `x := std.NewImmutable(...)` against `var x = std.NewImmutable(...)`, which is what makes the contrast legible.

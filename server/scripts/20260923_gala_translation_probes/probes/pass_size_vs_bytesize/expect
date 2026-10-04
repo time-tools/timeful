@@ -1,3 +1,0 @@
-KIND=pass
-RUN=yes
-NOTE=.Size() counts characters and .ByteSize() counts bytes; Go len() is banned (blocked_len)

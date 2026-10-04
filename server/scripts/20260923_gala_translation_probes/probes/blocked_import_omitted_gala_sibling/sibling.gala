@@ -1,5 +1,0 @@
-package main
-
-import "strings"
-
-func Upper(s string) string = strings.ToUpper(s)

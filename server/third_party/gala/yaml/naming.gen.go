@@ -5,7 +5,14 @@ package yaml
 import "martianoff/gala/std"
 import "martianoff/gala/go_interop"
 
-//line yaml/naming.gala:10
+//line yaml/naming.gala:3
+
+// Naming represents a field naming strategy for serialization.
+// Mirrors json.Naming so the two codecs can be configured the same way.
+//
+// Usage:
+//
+//	val codec = Codec[Person](SnakeCase())
 type Naming struct {
 	_variant uint8
 }
@@ -17,6 +24,7 @@ const (
 	_Naming_AsIs
 )
 
+// CamelCase converts PascalCase to camelCase (e.g., "FirstName" -> "firstName")
 type CamelCase struct {
 }
 
@@ -27,6 +35,7 @@ func (_ CamelCase) Unapply(v Naming) bool {
 	return v._variant == _Naming_CamelCase
 }
 
+// SnakeCase converts PascalCase to snake_case (e.g., "FirstName" -> "first_name")
 type SnakeCase struct {
 }
 
@@ -37,6 +46,7 @@ func (_ SnakeCase) Unapply(v Naming) bool {
 	return v._variant == _Naming_SnakeCase
 }
 
+// KebabCase converts PascalCase to kebab-case (e.g., "FirstName" -> "first-name")
 type KebabCase struct {
 }
 
@@ -47,6 +57,7 @@ func (_ KebabCase) Unapply(v Naming) bool {
 	return v._variant == _Naming_KebabCase
 }
 
+// AsIs keeps the original PascalCase field names unchanged
 type AsIs struct {
 }
 
@@ -89,7 +100,9 @@ func (s Naming) String() string {
 	}
 }
 
-//line yaml/naming.gala:22
+//line yaml/naming.gala:20
+
+// ApplyNaming converts a single PascalCase field name using the given strategy.
 func ApplyNaming(fieldName string, naming Naming) string {
 	return func(obj Naming) string {
 		{

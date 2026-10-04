@@ -1,3 +1,0 @@
-KIND=build_fail
-ERR=cannot call pointer method Rename on Greeter
-NOTE=upstream #614: a method-call receiver on a := or val binding is lowered into a read of the binding, so the receiver is unwrapped. The transpiler emits std.AddrOfCopy for this case when the receiver's type is GALA-declared or imported, and skips it when the type is declared in a handwritten .go sibling of the same package, which also suppresses GALA-E0053. A value-receiver method builds and silently runs on the copy, so the failure needs a pointer receiver to be visible.

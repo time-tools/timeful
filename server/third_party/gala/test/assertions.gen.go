@@ -6,7 +6,9 @@ import "fmt"
 import "martianoff/gala/std"
 import "strings"
 
-//line test/assertions.gala:12
+//line test/assertions.gala:10
+
+// Eq asserts that actual equals expected.
 func Eq[V any](t T, actual V, expected V) T {
 //line test/assertions.gala:13
 	if !std.Equal(actual, expected) {
@@ -17,7 +19,9 @@ func Eq[V any](t T, actual V, expected V) T {
 	return t
 }
 
-//line test/assertions.gala:20
+//line test/assertions.gala:18
+
+// NotEq asserts that actual does not equal expected.
 func NotEq[V any](t T, actual V, expected V) T {
 //line test/assertions.gala:21
 	if std.Equal(actual, expected) {
@@ -28,7 +32,9 @@ func NotEq[V any](t T, actual V, expected V) T {
 	return t
 }
 
-//line test/assertions.gala:28
+//line test/assertions.gala:26
+
+// EqMsg asserts that actual equals expected with a custom message.
 func EqMsg[V any](t T, actual V, expected V, msg string) T {
 //line test/assertions.gala:29
 	if !std.Equal(actual, expected) {
@@ -39,7 +45,9 @@ func EqMsg[V any](t T, actual V, expected V, msg string) T {
 	return t
 }
 
-//line test/assertions.gala:36
+//line test/assertions.gala:34
+
+// IsNil asserts that the value is nil.
 func IsNil(t T, value any) T {
 //line test/assertions.gala:37
 	if value != nil {
@@ -50,7 +58,9 @@ func IsNil(t T, value any) T {
 	return t
 }
 
-//line test/assertions.gala:44
+//line test/assertions.gala:42
+
+// NotNil asserts that the value is not nil.
 func NotNil(t T, value any) T {
 //line test/assertions.gala:45
 	if value == nil {
@@ -61,7 +71,9 @@ func NotNil(t T, value any) T {
 	return t
 }
 
-//line test/assertions.gala:56
+//line test/assertions.gala:54
+
+// IsTrue asserts that condition is true.
 func IsTrue(t T, condition bool) T {
 //line test/assertions.gala:57
 	if !condition {
@@ -72,7 +84,9 @@ func IsTrue(t T, condition bool) T {
 	return t
 }
 
-//line test/assertions.gala:64
+//line test/assertions.gala:62
+
+// IsFalse asserts that condition is false.
 func IsFalse(t T, condition bool) T {
 //line test/assertions.gala:65
 	if condition {
@@ -83,7 +97,9 @@ func IsFalse(t T, condition bool) T {
 	return t
 }
 
-//line test/assertions.gala:76
+//line test/assertions.gala:74
+
+// Greater asserts that a > b.
 func Greater[V any](t T, a V, b V) T {
 //line test/assertions.gala:77
 	if std.CompareValues(a, b) <= 0 {
@@ -94,7 +110,9 @@ func Greater[V any](t T, a V, b V) T {
 	return t
 }
 
-//line test/assertions.gala:84
+//line test/assertions.gala:82
+
+// GreaterOrEq asserts that a >= b.
 func GreaterOrEq[V any](t T, a V, b V) T {
 //line test/assertions.gala:85
 	if std.CompareValues(a, b) < 0 {
@@ -105,7 +123,9 @@ func GreaterOrEq[V any](t T, a V, b V) T {
 	return t
 }
 
-//line test/assertions.gala:92
+//line test/assertions.gala:90
+
+// Less asserts that a < b.
 func Less[V any](t T, a V, b V) T {
 //line test/assertions.gala:93
 	if std.CompareValues(a, b) >= 0 {
@@ -116,7 +136,9 @@ func Less[V any](t T, a V, b V) T {
 	return t
 }
 
-//line test/assertions.gala:100
+//line test/assertions.gala:98
+
+// LessOrEq asserts that a <= b.
 func LessOrEq[V any](t T, a V, b V) T {
 //line test/assertions.gala:101
 	if std.CompareValues(a, b) > 0 {
@@ -127,7 +149,9 @@ func LessOrEq[V any](t T, a V, b V) T {
 	return t
 }
 
-//line test/assertions.gala:112
+//line test/assertions.gala:110
+
+// Contains asserts that haystack contains needle.
 func Contains(t T, haystack string, needle string) T {
 //line test/assertions.gala:113
 	if !strings.Contains(haystack, needle) {
@@ -138,7 +162,9 @@ func Contains(t T, haystack string, needle string) T {
 	return t
 }
 
-//line test/assertions.gala:120
+//line test/assertions.gala:118
+
+// NotContains asserts that haystack does not contain needle.
 func NotContains(t T, haystack string, needle string) T {
 //line test/assertions.gala:121
 	if strings.Contains(haystack, needle) {
@@ -149,7 +175,9 @@ func NotContains(t T, haystack string, needle string) T {
 	return t
 }
 
-//line test/assertions.gala:128
+//line test/assertions.gala:126
+
+// HasPrefix asserts that s starts with prefix.
 func HasPrefix(t T, s string, prefix string) T {
 //line test/assertions.gala:129
 	if !strings.HasPrefix(s, prefix) {
@@ -160,7 +188,9 @@ func HasPrefix(t T, s string, prefix string) T {
 	return t
 }
 
-//line test/assertions.gala:136
+//line test/assertions.gala:134
+
+// HasSuffix asserts that s ends with suffix.
 func HasSuffix(t T, s string, suffix string) T {
 //line test/assertions.gala:137
 	if !strings.HasSuffix(s, suffix) {
@@ -171,7 +201,9 @@ func HasSuffix(t T, s string, suffix string) T {
 	return t
 }
 
-//line test/assertions.gala:148
+//line test/assertions.gala:146
+
+// IsSome asserts that the Option is Some (defined).
 func IsSome[V any](t T, opt std.Option[V]) T {
 //line test/assertions.gala:149
 	if opt.IsEmpty() {
@@ -182,7 +214,9 @@ func IsSome[V any](t T, opt std.Option[V]) T {
 	return t
 }
 
-//line test/assertions.gala:156
+//line test/assertions.gala:154
+
+// IsNone asserts that the Option is None (empty).
 func IsNone[V any](t T, opt std.Option[V]) T {
 //line test/assertions.gala:157
 	if opt.IsDefined() {
@@ -193,7 +227,9 @@ func IsNone[V any](t T, opt std.Option[V]) T {
 	return t
 }
 
-//line test/assertions.gala:168
+//line test/assertions.gala:166
+
+// IsSuccess asserts that the Try is Success.
 func IsSuccess[V any](t T, tr std.Try[V]) T {
 //line test/assertions.gala:169
 	if tr.IsFailure() {
@@ -204,7 +240,9 @@ func IsSuccess[V any](t T, tr std.Try[V]) T {
 	return t
 }
 
-//line test/assertions.gala:176
+//line test/assertions.gala:174
+
+// IsFailure asserts that the Try is Failure.
 func IsFailure[V any](t T, tr std.Try[V]) T {
 //line test/assertions.gala:177
 	if tr.IsSuccess() {
@@ -215,7 +253,9 @@ func IsFailure[V any](t T, tr std.Try[V]) T {
 	return t
 }
 
-//line test/assertions.gala:188
+//line test/assertions.gala:186
+
+// Panics asserts that the function panics.
 func Panics(t T, f func()) T {
 //line test/assertions.gala:189
 	var result = std.NewImmutable(std.Try[bool]{}.Apply(func() bool {
@@ -233,7 +273,9 @@ func Panics(t T, f func()) T {
 	return t
 }
 
-//line test/assertions.gala:200
+//line test/assertions.gala:198
+
+// NotPanics asserts that the function does not panic.
 func NotPanics(t T, f func()) T {
 //line test/assertions.gala:201
 	var result = std.NewImmutable(std.Try[bool]{}.Apply(func() bool {
@@ -251,7 +293,9 @@ func NotPanics(t T, f func()) T {
 	return t
 }
 
-//line test/assertions.gala:216
+//line test/assertions.gala:214
+
+// Fail unconditionally fails the test with the given message.
 func Fail(t T, msg string) T {
 	return t.Error(msg)
 }

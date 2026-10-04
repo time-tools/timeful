@@ -1,6 +1,0 @@
-KIND=emit
-CONTAINS=x.Rename("there")
-CONTAINS=x.Hello()
-ABSENT=std.NewImmutable
-ABSENT=AddrOfCopy
-NOTE=the good half of the upstream #614 contrast, and the only safe spelling of the three: var emits neither the wrapper nor the unwrap, while := and val emit both. The absence half carries the claim, because a transpiler that wrapped this spelling too would pass every output probe and fail only this one.

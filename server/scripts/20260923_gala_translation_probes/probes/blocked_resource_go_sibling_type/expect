@@ -1,3 +1,0 @@
-KIND=build_fail
-ERR=does not match inferred type
-NOTE=upstream #618: the documented spelling with no type arguments infers correctly when the resource type is GALA-declared, including in upstream's own examples/resource_combinators.gala, and degrades the body lambda's parameter to any when the type is declared in a handwritten .go sibling. PR #606 already made this shape a GALA-E0033 for an unresolved parameter type; here the expected type resolves to nil rather than Unusable, so the guard does not fire.

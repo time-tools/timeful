@@ -1,3 +1,0 @@
-KIND=pass
-RUN=yes
-NOTE=PR #529 delta: `a, b := f()` used to abort the pre-0.84.1 transpiler with an internal GALA-E0017 panic; the fix makes it transpile. It is a val-style binding rather than a neutral one, so it wraps each result and the transpiler inserts .Get() at every read, which is why the roster's mechanical rewrites prefer the `var` spelling. This expectation pins the recovered value so a regression back to a panic or a dropped binding is caught; it does not pin the emitted shape, because a wrapper the program never observes is invisible to an output assertion

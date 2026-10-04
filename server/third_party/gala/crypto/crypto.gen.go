@@ -22,7 +22,11 @@ import (
 	. "martianoff/gala/std"
 )
 
-//line crypto/crypto.gala:25
+//line crypto/crypto.gala:21
+
+// Digest is the opaque output of a hash function. The internal
+// representation is Array[byte]; the only way out is via the encoding
+// methods below.
 type Digest struct {
 	bytes Immutable[Array[byte]]
 }
@@ -31,37 +35,54 @@ func (s Digest) Copy() Digest {
 	return Digest{bytes: Copy(s.bytes)}
 }
 
-//line crypto/crypto.gala:28
+//line crypto/crypto.gala:26
+
+// Bytes returns the raw digest as an immutable Array[byte].
 func (d Digest) Bytes() Array[byte] {
 	return d.bytes.Get()
 }
 
-//line crypto/crypto.gala:31
+//line crypto/crypto.gala:29
+
+// Size returns the length of the digest in bytes.
 func (d Digest) Size() int {
 	return d.bytes.Get().Size()
 }
 
-//line crypto/crypto.gala:34
+//line crypto/crypto.gala:32
+
+// Hex returns the lowercase hex encoding of the digest.
 func (d Digest) Hex() string {
 	return hex.EncodeToString(d.bytes.Get().ToGoSlice())
 }
 
-//line crypto/crypto.gala:37
+//line crypto/crypto.gala:35
+
+// Base64 returns the standard (padded) base64 encoding of the digest.
 func (d Digest) Base64() string {
 	return base64.StdEncoding.EncodeToString(d.bytes.Get().ToGoSlice())
 }
 
-//line crypto/crypto.gala:40
+//line crypto/crypto.gala:38
+
+// String returns the hex encoding (same as Hex).
 func (d Digest) String() string {
 	return d.Hex()
 }
 
-//line crypto/crypto.gala:44
+//line crypto/crypto.gala:41
+
+// Equal compares two digests in constant time. Different sizes compare
+// as not equal (subtle.ConstantTimeCompare returns 0 on length mismatch).
 func (d Digest) Equal(other Digest) bool {
 	return subtle.ConstantTimeCompare(d.bytes.Get().ToGoSlice(), other.bytes.Get().ToGoSlice()) == 1
 }
 
-//line crypto/crypto.gala:50
+//line crypto/crypto.gala:46
+
+// Hasher is a streaming hash. Holds a Go hash.Hash; mutable because the
+// underlying stdlib hashers are inherently stateful. Hasher is the only
+// place that mutability lives — Digest is fully immutable.
 type Hasher struct {
 	algorithm Immutable[string]
 	h         hash.Hash
@@ -74,7 +95,10 @@ func (s Hasher) Equal(other Hasher) bool {
 	return Equal(s.algorithm, other.algorithm) && Equal(s.h, other.h)
 }
 
-//line crypto/crypto.gala:57
+//line crypto/crypto.gala:54
+
+// Update feeds more bytes into the running hash and returns the receiver
+// for chaining: h.Update(a).Update(b).Finish().
 func (h *Hasher) Update(data Array[byte]) *Hasher {
 //line crypto/crypto.gala:58
 	h.h.Write(data.ToGoSlice())
@@ -82,7 +106,11 @@ func (h *Hasher) Update(data Array[byte]) *Hasher {
 	return h
 }
 
-//line crypto/crypto.gala:65
+//line crypto/crypto.gala:61
+
+// Finish returns the current digest. The hasher remains usable, but
+// continuing to feed bytes will produce a digest of the full stream so
+// far rather than just what came after Finish.
 func (h *Hasher) Finish() Digest {
 //line crypto/crypto.gala:66
 	var sum = NewImmutable(h.h.Sum(nil))
@@ -90,12 +118,16 @@ func (h *Hasher) Finish() Digest {
 	return Digest{bytes: NewImmutable(ArrayFromSlice(sum.Get()))}
 }
 
-//line crypto/crypto.gala:71
+//line crypto/crypto.gala:69
+
+// Algorithm returns the human-readable algorithm name (e.g. "SHA-256").
 func (h *Hasher) Algorithm() string {
 	return h.algorithm.Get()
 }
 
-//line crypto/crypto.gala:76
+//line crypto/crypto.gala:74
+
+// Sha256 is the SHA-256 algorithm (FIPS 180-4), 32-byte digest.
 type Sha256 struct {
 }
 
@@ -141,7 +173,9 @@ func (s Sha256) NewHasher() *Hasher {
 	return &Hasher{algorithm: NewImmutable("SHA-256"), h: sha256.New()}
 }
 
-//line crypto/crypto.gala:92
+//line crypto/crypto.gala:90
+
+// Sha512 is the SHA-512 algorithm (FIPS 180-4), 64-byte digest.
 type Sha512 struct {
 }
 
@@ -187,7 +221,10 @@ func (s Sha512) NewHasher() *Hasher {
 	return &Hasher{algorithm: NewImmutable("SHA-512"), h: sha512.New()}
 }
 
-//line crypto/crypto.gala:109
+//line crypto/crypto.gala:106
+
+// Sha1 is the SHA-1 algorithm, 20-byte digest. Considered cryptographically
+// broken for collision resistance — included for legacy interop only.
 type Sha1 struct {
 }
 
@@ -233,7 +270,10 @@ func (s Sha1) NewHasher() *Hasher {
 	return &Hasher{algorithm: NewImmutable("SHA-1"), h: sha1.New()}
 }
 
-//line crypto/crypto.gala:126
+//line crypto/crypto.gala:123
+
+// Md5 is the MD5 algorithm, 16-byte digest. Considered cryptographically
+// broken — included for legacy interop only.
 type Md5 struct {
 }
 
@@ -279,7 +319,9 @@ func (s Md5) NewHasher() *Hasher {
 	return &Hasher{algorithm: NewImmutable("MD5"), h: md5.New()}
 }
 
-//line crypto/crypto.gala:149
+//line crypto/crypto.gala:147
+
+// HmacSha256 is HMAC-SHA-256, 32-byte tag.
 type HmacSha256 struct {
 	Key Immutable[Array[byte]]
 }
@@ -326,7 +368,9 @@ func (h HmacSha256) NewHasher() *Hasher {
 	return &Hasher{algorithm: NewImmutable("HMAC-SHA256"), h: hmac.New(sha256.New, h.Key.Get().ToGoSlice())}
 }
 
-//line crypto/crypto.gala:165
+//line crypto/crypto.gala:163
+
+// HmacSha512 is HMAC-SHA-512, 64-byte tag.
 type HmacSha512 struct {
 	Key Immutable[Array[byte]]
 }
@@ -373,7 +417,10 @@ func (h HmacSha512) NewHasher() *Hasher {
 	return &Hasher{algorithm: NewImmutable("HMAC-SHA512"), h: hmac.New(sha512.New, h.Key.Get().ToGoSlice())}
 }
 
-//line crypto/crypto.gala:182
+//line crypto/crypto.gala:179
+
+// HmacSha1 is HMAC-SHA-1, 20-byte tag. SHA-1 collision resistance is
+// broken, but HMAC-SHA-1 remains in use for legacy interop.
 type HmacSha1 struct {
 	Key Immutable[Array[byte]]
 }
@@ -420,7 +467,11 @@ func (h HmacSha1) NewHasher() *Hasher {
 	return &Hasher{algorithm: NewImmutable("HMAC-SHA1"), h: hmac.New(sha1.New, h.Key.Get().ToGoSlice())}
 }
 
-//line crypto/crypto.gala:202
+//line crypto/crypto.gala:198
+
+// RandomBytes returns n cryptographically secure random bytes from the OS
+// RNG. n == 0 returns an empty Array. Returns Failure on negative size or
+// RNG read error.
 func RandomBytes(n int) Try[Array[byte]] {
 //line crypto/crypto.gala:203
 	if n < 0 {
@@ -436,9 +487,8 @@ func RandomBytes(n int) Try[Array[byte]] {
 	var buf = NewImmutable(ArrayFill[byte](n, byte(0)).ToGoSlice())
 //line crypto/crypto.gala:210
 	var (
-		_tmp_1, _tmp_2 = rand.Read(buf.Get())
-		_              = NewImmutable(_tmp_1)
-		err            = NewImmutable(_tmp_2)
+		_, _tmp_1 = rand.Read(buf.Get())
+		err       = NewImmutable(_tmp_1)
 	)
 //line crypto/crypto.gala:211
 	if err.Get() != nil {
@@ -449,12 +499,19 @@ func RandomBytes(n int) Try[Array[byte]] {
 	return Success[Array[byte]]{}.Apply(ArrayFromSlice(buf.Get()))
 }
 
-//line crypto/crypto.gala:221
+//line crypto/crypto.gala:216
+
+// ConstantTimeEqual reports whether a and b are byte-for-byte equal, using
+// a constant-time comparison. Different lengths return false (subtle
+// handles this). Generalizes Digest.Equal to arbitrary byte slices — useful
+// for comparing tokens, MACs, or any secret-bearing bytes.
 func ConstantTimeEqual(a Array[byte], b Array[byte]) bool {
 	return subtle.ConstantTimeCompare(a.ToGoSlice(), b.ToGoSlice()) == 1
 }
 
-//line crypto/crypto.gala:229
+//line crypto/crypto.gala:227
+
+// Ed25519PublicKey wraps a 32-byte Ed25519 public key.
 type Ed25519PublicKey struct {
 	bytes Immutable[Array[byte]]
 }
@@ -466,7 +523,10 @@ func (s Ed25519PublicKey) Equal(other Ed25519PublicKey) bool {
 	return Equal(s.bytes, other.bytes)
 }
 
-//line crypto/crypto.gala:233
+//line crypto/crypto.gala:230
+
+// Ed25519PrivateKey wraps a 64-byte Ed25519 private key in Go's
+// representation: the 32-byte seed followed by the 32-byte public key.
 type Ed25519PrivateKey struct {
 	bytes Immutable[Array[byte]]
 }
@@ -478,7 +538,9 @@ func (s Ed25519PrivateKey) Equal(other Ed25519PrivateKey) bool {
 	return Equal(s.bytes, other.bytes)
 }
 
-//line crypto/crypto.gala:236
+//line crypto/crypto.gala:234
+
+// Ed25519KeyPair bundles a matched Ed25519 public/private pair.
 type Ed25519KeyPair struct {
 	Public  Immutable[Ed25519PublicKey]
 	Private Immutable[Ed25519PrivateKey]
@@ -500,7 +562,9 @@ func (s Ed25519KeyPair) Unapply(v any) (Immutable[Ed25519PublicKey], Immutable[E
 	return *new(Immutable[Ed25519PublicKey]), *new(Immutable[Ed25519PrivateKey]), false
 }
 
-//line crypto/crypto.gala:239
+//line crypto/crypto.gala:237
+
+// Signature wraps a 64-byte Ed25519 signature.
 type Signature struct {
 	bytes Immutable[Array[byte]]
 }
@@ -509,7 +573,10 @@ func (s Signature) Copy() Signature {
 	return Signature{bytes: Copy(s.bytes)}
 }
 
-//line crypto/crypto.gala:243
+//line crypto/crypto.gala:240
+
+// GenerateEd25519KeyPair returns a fresh Ed25519 keypair drawn from
+// crypto/rand, or Failure if the OS RNG fails.
 func GenerateEd25519KeyPair() Try[Ed25519KeyPair] {
 	return Try_Map(Try[Tuple[ed25519.PublicKey, ed25519.PrivateKey]]{}.Apply(func() Tuple[ed25519.PublicKey, ed25519.PrivateKey] {
 		_v0, _v1, _err := ed25519.GenerateKey(rand.Reader)
@@ -522,7 +589,10 @@ func GenerateEd25519KeyPair() Try[Ed25519KeyPair] {
 	})
 }
 
-//line crypto/crypto.gala:251
+//line crypto/crypto.gala:248
+
+// Ed25519PrivateKeyFromSeed derives the 64-byte Ed25519 private key from a
+// 32-byte seed (the canonical RFC 8032 wire format for an Ed25519 secret).
 func Ed25519PrivateKeyFromSeed(seed Array[byte]) Ed25519PrivateKey {
 //line crypto/crypto.gala:252
 	var priv = NewImmutable(ed25519.NewKeyFromSeed(seed.ToGoSlice()))
@@ -530,22 +600,31 @@ func Ed25519PrivateKeyFromSeed(seed Array[byte]) Ed25519PrivateKey {
 	return Ed25519PrivateKey{bytes: NewImmutable(ArrayFromSlice[byte](priv.Get()))}
 }
 
-//line crypto/crypto.gala:258
+//line crypto/crypto.gala:255
+
+// Ed25519PrivateKeyFromBytes wraps a raw 64-byte Ed25519 private key
+// (Go's seed||pub representation).
 func Ed25519PrivateKeyFromBytes(bytes Array[byte]) Ed25519PrivateKey {
 	return Ed25519PrivateKey{bytes: NewImmutable(bytes)}
 }
 
-//line crypto/crypto.gala:262
+//line crypto/crypto.gala:260
+
+// Ed25519PublicKeyFromBytes wraps a raw 32-byte Ed25519 public key.
 func Ed25519PublicKeyFromBytes(bytes Array[byte]) Ed25519PublicKey {
 	return Ed25519PublicKey{bytes: NewImmutable(bytes)}
 }
 
-//line crypto/crypto.gala:266
+//line crypto/crypto.gala:264
+
+// SignatureFromBytes wraps a raw 64-byte Ed25519 signature.
 func SignatureFromBytes(bytes Array[byte]) Signature {
 	return Signature{bytes: NewImmutable(bytes)}
 }
 
-//line crypto/crypto.gala:270
+//line crypto/crypto.gala:268
+
+// Sign returns the Ed25519 signature of message under sk.
 func (sk Ed25519PrivateKey) Sign(message Array[byte]) Signature {
 //line crypto/crypto.gala:271
 	var sig = NewImmutable(ed25519.Sign(sk.bytes.Get().ToGoSlice(), message.ToGoSlice()))
@@ -553,12 +632,18 @@ func (sk Ed25519PrivateKey) Sign(message Array[byte]) Signature {
 	return Signature{bytes: NewImmutable(ArrayFromSlice[byte](sig.Get()))}
 }
 
-//line crypto/crypto.gala:276
+//line crypto/crypto.gala:274
+
+// Verify reports whether sig is a valid Ed25519 signature on message under pk.
 func (pk Ed25519PublicKey) Verify(message Array[byte], sig Signature) bool {
 	return ed25519.Verify(pk.bytes.Get().ToGoSlice(), message.ToGoSlice(), sig.bytes.Get().ToGoSlice())
 }
 
-//line crypto/crypto.gala:282
+//line crypto/crypto.gala:278
+
+// PublicKey returns the Ed25519 public key embedded in sk. Go's
+// PrivateKey is laid out as seed||pub, so this is a slice — no curve
+// math needed.
 func (sk Ed25519PrivateKey) PublicKey() Ed25519PublicKey {
 //line crypto/crypto.gala:283
 	var pub = NewImmutable(go_interop.SliceDrop(sk.bytes.Get().ToGoSlice(), 32))
@@ -566,37 +651,53 @@ func (sk Ed25519PrivateKey) PublicKey() Ed25519PublicKey {
 	return Ed25519PublicKey{bytes: NewImmutable(ArrayFromSlice[byte](pub.Get()))}
 }
 
-//line crypto/crypto.gala:288
+//line crypto/crypto.gala:286
+
+// Bytes returns the raw 32-byte public key.
 func (pk Ed25519PublicKey) Bytes() Array[byte] {
 	return pk.bytes.Get()
 }
 
-//line crypto/crypto.gala:291
+//line crypto/crypto.gala:289
+
+// Bytes returns the raw 64-byte private key (seed||pub).
 func (sk Ed25519PrivateKey) Bytes() Array[byte] {
 	return sk.bytes.Get()
 }
 
-//line crypto/crypto.gala:294
+//line crypto/crypto.gala:292
+
+// Bytes returns the raw 64-byte signature.
 func (s Signature) Bytes() Array[byte] {
 	return s.bytes.Get()
 }
 
-//line crypto/crypto.gala:297
+//line crypto/crypto.gala:295
+
+// Hex returns the lowercase hex encoding of the signature.
 func (s Signature) Hex() string {
 	return hex.EncodeToString(s.bytes.Get().ToGoSlice())
 }
 
-//line crypto/crypto.gala:300
+//line crypto/crypto.gala:298
+
+// Base64 returns the standard (padded) base64 encoding of the signature.
 func (s Signature) Base64() string {
 	return base64.StdEncoding.EncodeToString(s.bytes.Get().ToGoSlice())
 }
 
-//line crypto/crypto.gala:305
+//line crypto/crypto.gala:301
+
+// Equal compares two signatures in constant time. Different sizes
+// compare as not equal (subtle.ConstantTimeCompare returns 0 on length
+// mismatch).
 func (s Signature) Equal(other Signature) bool {
 	return subtle.ConstantTimeCompare(s.bytes.Get().ToGoSlice(), other.bytes.Get().ToGoSlice()) == 1
 }
 
-//line crypto/crypto.gala:313
+//line crypto/crypto.gala:311
+
+// X25519PublicKey wraps a 32-byte X25519 public key (a Curve25519 u-coord).
 type X25519PublicKey struct {
 	bytes Immutable[Array[byte]]
 }
@@ -608,7 +709,9 @@ func (s X25519PublicKey) Equal(other X25519PublicKey) bool {
 	return Equal(s.bytes, other.bytes)
 }
 
-//line crypto/crypto.gala:316
+//line crypto/crypto.gala:314
+
+// X25519PrivateKey wraps a 32-byte X25519 scalar.
 type X25519PrivateKey struct {
 	bytes Immutable[Array[byte]]
 }
@@ -620,7 +723,9 @@ func (s X25519PrivateKey) Equal(other X25519PrivateKey) bool {
 	return Equal(s.bytes, other.bytes)
 }
 
-//line crypto/crypto.gala:319
+//line crypto/crypto.gala:317
+
+// X25519KeyPair bundles a matched X25519 public/private pair.
 type X25519KeyPair struct {
 	Public  Immutable[X25519PublicKey]
 	Private Immutable[X25519PrivateKey]
@@ -642,7 +747,10 @@ func (s X25519KeyPair) Unapply(v any) (Immutable[X25519PublicKey], Immutable[X25
 	return *new(Immutable[X25519PublicKey]), *new(Immutable[X25519PrivateKey]), false
 }
 
-//line crypto/crypto.gala:323
+//line crypto/crypto.gala:320
+
+// GenerateX25519KeyPair returns a fresh X25519 keypair drawn from
+// crypto/rand, or Failure if the OS RNG fails.
 func GenerateX25519KeyPair() Try[X25519KeyPair] {
 //line crypto/crypto.gala:324
 	var curve = NewImmutable(ecdh.X25519())
@@ -661,25 +769,33 @@ func GenerateX25519KeyPair() Try[X25519KeyPair] {
 	})
 }
 
-//line crypto/crypto.gala:335
+//line crypto/crypto.gala:333
+
+// X25519PrivateKeyFromBytes wraps a raw 32-byte X25519 scalar.
 func X25519PrivateKeyFromBytes(bytes Array[byte]) X25519PrivateKey {
 	return X25519PrivateKey{bytes: NewImmutable(bytes)}
 }
 
-//line crypto/crypto.gala:339
+//line crypto/crypto.gala:337
+
+// X25519PublicKeyFromBytes wraps a raw 32-byte X25519 public key.
 func X25519PublicKeyFromBytes(bytes Array[byte]) X25519PublicKey {
 	return X25519PublicKey{bytes: NewImmutable(bytes)}
 }
 
-//line crypto/crypto.gala:345
+//line crypto/crypto.gala:341
+
+// ECDH computes the X25519 shared secret between sk and peer. The
+// stdlib rejects all-zero outputs and low-order points (RFC 7748 §6.1)
+// and returns an error in those cases — that error becomes Failure here.
 func (sk X25519PrivateKey) ECDH(peer X25519PublicKey) Try[Array[byte]] {
 //line crypto/crypto.gala:346
 	var curve = NewImmutable(ecdh.X25519())
 //line crypto/crypto.gala:347
 	var (
-		_tmp_3, _tmp_4 = curve.Get().NewPrivateKey(sk.bytes.Get().ToGoSlice())
-		privKey        = NewImmutable(_tmp_3)
-		perr           = NewImmutable(_tmp_4)
+		_tmp_2, _tmp_3 = curve.Get().NewPrivateKey(sk.bytes.Get().ToGoSlice())
+		privKey        = NewImmutable(_tmp_2)
+		perr           = NewImmutable(_tmp_3)
 	)
 //line crypto/crypto.gala:348
 	if perr.Get() != nil {
@@ -688,9 +804,9 @@ func (sk X25519PrivateKey) ECDH(peer X25519PublicKey) Try[Array[byte]] {
 	}
 //line crypto/crypto.gala:351
 	var (
-		_tmp_5, _tmp_6 = curve.Get().NewPublicKey(peer.bytes.Get().ToGoSlice())
-		pubKey         = NewImmutable(_tmp_5)
-		kerr           = NewImmutable(_tmp_6)
+		_tmp_4, _tmp_5 = curve.Get().NewPublicKey(peer.bytes.Get().ToGoSlice())
+		pubKey         = NewImmutable(_tmp_4)
+		kerr           = NewImmutable(_tmp_5)
 	)
 //line crypto/crypto.gala:352
 	if kerr.Get() != nil {
@@ -699,9 +815,9 @@ func (sk X25519PrivateKey) ECDH(peer X25519PublicKey) Try[Array[byte]] {
 	}
 //line crypto/crypto.gala:355
 	var (
-		_tmp_7, _tmp_8 = privKey.Get().ECDH(pubKey.Get())
-		secret         = NewImmutable(_tmp_7)
-		eerr           = NewImmutable(_tmp_8)
+		_tmp_6, _tmp_7 = privKey.Get().ECDH(pubKey.Get())
+		secret         = NewImmutable(_tmp_6)
+		eerr           = NewImmutable(_tmp_7)
 	)
 //line crypto/crypto.gala:356
 	if eerr.Get() != nil {
@@ -712,7 +828,11 @@ func (sk X25519PrivateKey) ECDH(peer X25519PublicKey) Try[Array[byte]] {
 	return Success[Array[byte]]{}.Apply(ArrayFromSlice[byte](secret.Get()))
 }
 
-//line crypto/crypto.gala:365
+//line crypto/crypto.gala:361
+
+// PublicKey derives the X25519 public key from sk. Returns Failure if sk's
+// bytes are not a well-formed X25519 scalar (corrupt or incorrectly
+// constructed key).
 func (sk X25519PrivateKey) PublicKey() Try[X25519PublicKey] {
 //line crypto/crypto.gala:366
 	var curve = NewImmutable(ecdh.X25519())
@@ -731,17 +851,24 @@ func (sk X25519PrivateKey) PublicKey() Try[X25519PublicKey] {
 	})
 }
 
-//line crypto/crypto.gala:374
+//line crypto/crypto.gala:372
+
+// Bytes returns the raw 32-byte X25519 public key.
 func (pk X25519PublicKey) Bytes() Array[byte] {
 	return pk.bytes.Get()
 }
 
-//line crypto/crypto.gala:377
+//line crypto/crypto.gala:375
+
+// Bytes returns the raw 32-byte X25519 scalar.
 func (sk X25519PrivateKey) Bytes() Array[byte] {
 	return sk.bytes.Get()
 }
 
-//line crypto/crypto.gala:385
+//line crypto/crypto.gala:382
+
+// RandomHex returns a hex-encoded string of n random bytes drawn from
+// crypto/rand (length 2n), or Failure if the OS RNG fails.
 func RandomHex(n int) Try[string] {
 //line crypto/crypto.gala:386
 	var buf = NewImmutable(go_interop.SliceWithSize[byte](n))
@@ -757,7 +884,10 @@ func RandomHex(n int) Try[string] {
 	})
 }
 
-//line crypto/crypto.gala:392
+//line crypto/crypto.gala:389
+
+// RandomBase64URL returns base64.RawURLEncoding (URL-safe, no padding) of
+// n random bytes drawn from crypto/rand, or Failure if the OS RNG fails.
 func RandomBase64URL(n int) Try[string] {
 //line crypto/crypto.gala:393
 	var buf = NewImmutable(go_interop.SliceWithSize[byte](n))
@@ -771,4 +901,756 @@ func RandomBase64URL(n int) Try[string] {
 	}), func(_ int) string {
 		return base64.RawURLEncoding.EncodeToString(buf.Get())
 	})
+}
+
+type StructMeta_Digest struct {
+}
+
+func (_ StructMeta_Digest) NumFields() int {
+	return 1
+}
+func (_ StructMeta_Digest) FieldName(i int) string {
+	switch i {
+	case 0:
+		return "bytes"
+	default:
+		return ""
+	}
+}
+func (_ StructMeta_Digest) EncodeFields(w FieldEncoder, t Digest, nameFn func(int) string, omitFn func(int) bool, naming func(string) string) {
+	w.WriteStartObject()
+	if !omitFn(0) {
+		w.WriteKey(nameFn(0))
+		w.WriteStartArray()
+		t.bytes.Get().ForEach(func(__elem1 byte) {
+			w.WriteUint64(uint64(__elem1))
+		})
+		w.WriteEndArray()
+	}
+	w.WriteEndObject()
+}
+func (_ StructMeta_Digest) DecodeFields(r FieldDecoder, lookup func(string) int, naming func(string) string) Digest {
+	panic("Digest has private fields and no `func (d Digest) Validate() Try[Digest]` method, so it cannot be decoded")
+	var _bytes Array[byte]
+	r.StartObject()
+	for r.HasMoreFields() {
+		key := r.ReadKey()
+		switch lookup(key) {
+		case 0:
+			{
+				var __slice1 []byte
+				r.StartArray()
+				for r.HasMoreElements() {
+					var __elem2 byte
+					__elem2 = byte(r.ReadUintN(8))
+					__slice1 = append(__slice1, __elem2)
+				}
+				r.EndArray()
+				_bytes = ArrayFromSlice(__slice1)
+			}
+		default:
+			r.Skip()
+		}
+	}
+	r.EndObject()
+	return Digest{bytes: NewImmutable(_bytes)}
+}
+func (_ StructMeta_Digest) FieldIsEmpty(t Digest, i int) bool {
+	switch i {
+	case 0:
+		return t.bytes.Get().IsEmpty()
+	}
+	return false
+}
+func (_ StructMeta_Digest) Empty() Digest {
+	panic("Digest has private fields and no `func (d Digest) Validate() Try[Digest]` method, so it cannot be decoded")
+	return Digest{}
+}
+
+type StructMeta_Ed25519KeyPair struct {
+}
+
+func (_ StructMeta_Ed25519KeyPair) NumFields() int {
+	return 2
+}
+func (_ StructMeta_Ed25519KeyPair) FieldName(i int) string {
+	switch i {
+	case 0:
+		return "Public"
+	case 1:
+		return "Private"
+	default:
+		return ""
+	}
+}
+func (_ StructMeta_Ed25519KeyPair) EncodeFields(w FieldEncoder, t Ed25519KeyPair, nameFn func(int) string, omitFn func(int) bool, naming func(string) string) {
+	w.WriteStartObject()
+	if !omitFn(0) {
+		w.WriteKey(nameFn(0))
+		StructMeta_Ed25519PublicKey{}.EncodeFields(w, t.Public.Get(), func(i int) string {
+			return naming(StructMeta_Ed25519PublicKey{}.FieldName(i))
+		}, func(i int) bool {
+			_ = i
+			return false
+		}, naming)
+	}
+	if !omitFn(1) {
+		w.WriteKey(nameFn(1))
+		StructMeta_Ed25519PrivateKey{}.EncodeFields(w, t.Private.Get(), func(i int) string {
+			return naming(StructMeta_Ed25519PrivateKey{}.FieldName(i))
+		}, func(i int) bool {
+			_ = i
+			return false
+		}, naming)
+	}
+	w.WriteEndObject()
+}
+func (_ StructMeta_Ed25519KeyPair) DecodeFields(r FieldDecoder, lookup func(string) int, naming func(string) string) Ed25519KeyPair {
+	var _Public Ed25519PublicKey
+	var __seen1 bool
+	var _Private Ed25519PrivateKey
+	var __seen2 bool
+	r.StartObject()
+	for r.HasMoreFields() {
+		key := r.ReadKey()
+		switch lookup(key) {
+		case 0:
+			_Public = StructMeta_Ed25519PublicKey{}.DecodeFields(r, func(key string) int {
+				_meta := StructMeta_Ed25519PublicKey{}
+				n := _meta.NumFields()
+				for i := 0; i < n; i++ {
+					if naming(_meta.FieldName(i)) == key {
+						return i
+					}
+				}
+				return -1
+			}, naming)
+			__seen1 = true
+		case 1:
+			_Private = StructMeta_Ed25519PrivateKey{}.DecodeFields(r, func(key string) int {
+				_meta := StructMeta_Ed25519PrivateKey{}
+				n := _meta.NumFields()
+				for i := 0; i < n; i++ {
+					if naming(_meta.FieldName(i)) == key {
+						return i
+					}
+				}
+				return -1
+			}, naming)
+			__seen2 = true
+		default:
+			r.Skip()
+		}
+	}
+	r.EndObject()
+	if !__seen1 {
+		_Public = StructMeta_Ed25519PublicKey{}.Empty()
+	}
+	if !__seen2 {
+		_Private = StructMeta_Ed25519PrivateKey{}.Empty()
+	}
+	return Ed25519KeyPair{Public: NewImmutable(_Public), Private: NewImmutable(_Private)}
+}
+func (_ StructMeta_Ed25519KeyPair) FieldIsEmpty(t Ed25519KeyPair, i int) bool {
+	return false
+}
+func (_ StructMeta_Ed25519KeyPair) Empty() Ed25519KeyPair {
+	return Ed25519KeyPair{Public: NewImmutable(StructMeta_Ed25519PublicKey{}.Empty()), Private: NewImmutable(StructMeta_Ed25519PrivateKey{}.Empty())}
+}
+
+type StructMeta_Ed25519PrivateKey struct {
+}
+
+func (_ StructMeta_Ed25519PrivateKey) NumFields() int {
+	return 1
+}
+func (_ StructMeta_Ed25519PrivateKey) FieldName(i int) string {
+	switch i {
+	case 0:
+		return "bytes"
+	default:
+		return ""
+	}
+}
+func (_ StructMeta_Ed25519PrivateKey) EncodeFields(w FieldEncoder, t Ed25519PrivateKey, nameFn func(int) string, omitFn func(int) bool, naming func(string) string) {
+	w.WriteStartObject()
+	if !omitFn(0) {
+		w.WriteKey(nameFn(0))
+		w.WriteStartArray()
+		t.bytes.Get().ForEach(func(__elem1 byte) {
+			w.WriteUint64(uint64(__elem1))
+		})
+		w.WriteEndArray()
+	}
+	w.WriteEndObject()
+}
+func (_ StructMeta_Ed25519PrivateKey) DecodeFields(r FieldDecoder, lookup func(string) int, naming func(string) string) Ed25519PrivateKey {
+	panic("Ed25519PrivateKey has private fields and no `func (e Ed25519PrivateKey) Validate() Try[Ed25519PrivateKey]` method, so it cannot be decoded")
+	var _bytes Array[byte]
+	r.StartObject()
+	for r.HasMoreFields() {
+		key := r.ReadKey()
+		switch lookup(key) {
+		case 0:
+			{
+				var __slice1 []byte
+				r.StartArray()
+				for r.HasMoreElements() {
+					var __elem2 byte
+					__elem2 = byte(r.ReadUintN(8))
+					__slice1 = append(__slice1, __elem2)
+				}
+				r.EndArray()
+				_bytes = ArrayFromSlice(__slice1)
+			}
+		default:
+			r.Skip()
+		}
+	}
+	r.EndObject()
+	return Ed25519PrivateKey{bytes: NewImmutable(_bytes)}
+}
+func (_ StructMeta_Ed25519PrivateKey) FieldIsEmpty(t Ed25519PrivateKey, i int) bool {
+	switch i {
+	case 0:
+		return t.bytes.Get().IsEmpty()
+	}
+	return false
+}
+func (_ StructMeta_Ed25519PrivateKey) Empty() Ed25519PrivateKey {
+	panic("Ed25519PrivateKey has private fields and no `func (e Ed25519PrivateKey) Validate() Try[Ed25519PrivateKey]` method, so it cannot be decoded")
+	return Ed25519PrivateKey{}
+}
+
+type StructMeta_Ed25519PublicKey struct {
+}
+
+func (_ StructMeta_Ed25519PublicKey) NumFields() int {
+	return 1
+}
+func (_ StructMeta_Ed25519PublicKey) FieldName(i int) string {
+	switch i {
+	case 0:
+		return "bytes"
+	default:
+		return ""
+	}
+}
+func (_ StructMeta_Ed25519PublicKey) EncodeFields(w FieldEncoder, t Ed25519PublicKey, nameFn func(int) string, omitFn func(int) bool, naming func(string) string) {
+	w.WriteStartObject()
+	if !omitFn(0) {
+		w.WriteKey(nameFn(0))
+		w.WriteStartArray()
+		t.bytes.Get().ForEach(func(__elem1 byte) {
+			w.WriteUint64(uint64(__elem1))
+		})
+		w.WriteEndArray()
+	}
+	w.WriteEndObject()
+}
+func (_ StructMeta_Ed25519PublicKey) DecodeFields(r FieldDecoder, lookup func(string) int, naming func(string) string) Ed25519PublicKey {
+	panic("Ed25519PublicKey has private fields and no `func (e Ed25519PublicKey) Validate() Try[Ed25519PublicKey]` method, so it cannot be decoded")
+	var _bytes Array[byte]
+	r.StartObject()
+	for r.HasMoreFields() {
+		key := r.ReadKey()
+		switch lookup(key) {
+		case 0:
+			{
+				var __slice1 []byte
+				r.StartArray()
+				for r.HasMoreElements() {
+					var __elem2 byte
+					__elem2 = byte(r.ReadUintN(8))
+					__slice1 = append(__slice1, __elem2)
+				}
+				r.EndArray()
+				_bytes = ArrayFromSlice(__slice1)
+			}
+		default:
+			r.Skip()
+		}
+	}
+	r.EndObject()
+	return Ed25519PublicKey{bytes: NewImmutable(_bytes)}
+}
+func (_ StructMeta_Ed25519PublicKey) FieldIsEmpty(t Ed25519PublicKey, i int) bool {
+	switch i {
+	case 0:
+		return t.bytes.Get().IsEmpty()
+	}
+	return false
+}
+func (_ StructMeta_Ed25519PublicKey) Empty() Ed25519PublicKey {
+	panic("Ed25519PublicKey has private fields and no `func (e Ed25519PublicKey) Validate() Try[Ed25519PublicKey]` method, so it cannot be decoded")
+	return Ed25519PublicKey{}
+}
+
+type StructMeta_HmacSha1 struct {
+}
+
+func (_ StructMeta_HmacSha1) NumFields() int {
+	return 1
+}
+func (_ StructMeta_HmacSha1) FieldName(i int) string {
+	switch i {
+	case 0:
+		return "Key"
+	default:
+		return ""
+	}
+}
+func (_ StructMeta_HmacSha1) EncodeFields(w FieldEncoder, t HmacSha1, nameFn func(int) string, omitFn func(int) bool, naming func(string) string) {
+	w.WriteStartObject()
+	if !omitFn(0) {
+		w.WriteKey(nameFn(0))
+		w.WriteStartArray()
+		t.Key.Get().ForEach(func(__elem1 byte) {
+			w.WriteUint64(uint64(__elem1))
+		})
+		w.WriteEndArray()
+	}
+	w.WriteEndObject()
+}
+func (_ StructMeta_HmacSha1) DecodeFields(r FieldDecoder, lookup func(string) int, naming func(string) string) HmacSha1 {
+	var _Key Array[byte]
+	r.StartObject()
+	for r.HasMoreFields() {
+		key := r.ReadKey()
+		switch lookup(key) {
+		case 0:
+			{
+				var __slice1 []byte
+				r.StartArray()
+				for r.HasMoreElements() {
+					var __elem2 byte
+					__elem2 = byte(r.ReadUintN(8))
+					__slice1 = append(__slice1, __elem2)
+				}
+				r.EndArray()
+				_Key = ArrayFromSlice(__slice1)
+			}
+		default:
+			r.Skip()
+		}
+	}
+	r.EndObject()
+	return HmacSha1{Key: NewImmutable(_Key)}
+}
+func (_ StructMeta_HmacSha1) FieldIsEmpty(t HmacSha1, i int) bool {
+	switch i {
+	case 0:
+		return t.Key.Get().IsEmpty()
+	}
+	return false
+}
+func (_ StructMeta_HmacSha1) Empty() HmacSha1 {
+	return HmacSha1{}
+}
+
+type StructMeta_HmacSha256 struct {
+}
+
+func (_ StructMeta_HmacSha256) NumFields() int {
+	return 1
+}
+func (_ StructMeta_HmacSha256) FieldName(i int) string {
+	switch i {
+	case 0:
+		return "Key"
+	default:
+		return ""
+	}
+}
+func (_ StructMeta_HmacSha256) EncodeFields(w FieldEncoder, t HmacSha256, nameFn func(int) string, omitFn func(int) bool, naming func(string) string) {
+	w.WriteStartObject()
+	if !omitFn(0) {
+		w.WriteKey(nameFn(0))
+		w.WriteStartArray()
+		t.Key.Get().ForEach(func(__elem1 byte) {
+			w.WriteUint64(uint64(__elem1))
+		})
+		w.WriteEndArray()
+	}
+	w.WriteEndObject()
+}
+func (_ StructMeta_HmacSha256) DecodeFields(r FieldDecoder, lookup func(string) int, naming func(string) string) HmacSha256 {
+	var _Key Array[byte]
+	r.StartObject()
+	for r.HasMoreFields() {
+		key := r.ReadKey()
+		switch lookup(key) {
+		case 0:
+			{
+				var __slice1 []byte
+				r.StartArray()
+				for r.HasMoreElements() {
+					var __elem2 byte
+					__elem2 = byte(r.ReadUintN(8))
+					__slice1 = append(__slice1, __elem2)
+				}
+				r.EndArray()
+				_Key = ArrayFromSlice(__slice1)
+			}
+		default:
+			r.Skip()
+		}
+	}
+	r.EndObject()
+	return HmacSha256{Key: NewImmutable(_Key)}
+}
+func (_ StructMeta_HmacSha256) FieldIsEmpty(t HmacSha256, i int) bool {
+	switch i {
+	case 0:
+		return t.Key.Get().IsEmpty()
+	}
+	return false
+}
+func (_ StructMeta_HmacSha256) Empty() HmacSha256 {
+	return HmacSha256{}
+}
+
+type StructMeta_HmacSha512 struct {
+}
+
+func (_ StructMeta_HmacSha512) NumFields() int {
+	return 1
+}
+func (_ StructMeta_HmacSha512) FieldName(i int) string {
+	switch i {
+	case 0:
+		return "Key"
+	default:
+		return ""
+	}
+}
+func (_ StructMeta_HmacSha512) EncodeFields(w FieldEncoder, t HmacSha512, nameFn func(int) string, omitFn func(int) bool, naming func(string) string) {
+	w.WriteStartObject()
+	if !omitFn(0) {
+		w.WriteKey(nameFn(0))
+		w.WriteStartArray()
+		t.Key.Get().ForEach(func(__elem1 byte) {
+			w.WriteUint64(uint64(__elem1))
+		})
+		w.WriteEndArray()
+	}
+	w.WriteEndObject()
+}
+func (_ StructMeta_HmacSha512) DecodeFields(r FieldDecoder, lookup func(string) int, naming func(string) string) HmacSha512 {
+	var _Key Array[byte]
+	r.StartObject()
+	for r.HasMoreFields() {
+		key := r.ReadKey()
+		switch lookup(key) {
+		case 0:
+			{
+				var __slice1 []byte
+				r.StartArray()
+				for r.HasMoreElements() {
+					var __elem2 byte
+					__elem2 = byte(r.ReadUintN(8))
+					__slice1 = append(__slice1, __elem2)
+				}
+				r.EndArray()
+				_Key = ArrayFromSlice(__slice1)
+			}
+		default:
+			r.Skip()
+		}
+	}
+	r.EndObject()
+	return HmacSha512{Key: NewImmutable(_Key)}
+}
+func (_ StructMeta_HmacSha512) FieldIsEmpty(t HmacSha512, i int) bool {
+	switch i {
+	case 0:
+		return t.Key.Get().IsEmpty()
+	}
+	return false
+}
+func (_ StructMeta_HmacSha512) Empty() HmacSha512 {
+	return HmacSha512{}
+}
+
+type StructMeta_Signature struct {
+}
+
+func (_ StructMeta_Signature) NumFields() int {
+	return 1
+}
+func (_ StructMeta_Signature) FieldName(i int) string {
+	switch i {
+	case 0:
+		return "bytes"
+	default:
+		return ""
+	}
+}
+func (_ StructMeta_Signature) EncodeFields(w FieldEncoder, t Signature, nameFn func(int) string, omitFn func(int) bool, naming func(string) string) {
+	w.WriteStartObject()
+	if !omitFn(0) {
+		w.WriteKey(nameFn(0))
+		w.WriteStartArray()
+		t.bytes.Get().ForEach(func(__elem1 byte) {
+			w.WriteUint64(uint64(__elem1))
+		})
+		w.WriteEndArray()
+	}
+	w.WriteEndObject()
+}
+func (_ StructMeta_Signature) DecodeFields(r FieldDecoder, lookup func(string) int, naming func(string) string) Signature {
+	panic("Signature has private fields and no `func (s Signature) Validate() Try[Signature]` method, so it cannot be decoded")
+	var _bytes Array[byte]
+	r.StartObject()
+	for r.HasMoreFields() {
+		key := r.ReadKey()
+		switch lookup(key) {
+		case 0:
+			{
+				var __slice1 []byte
+				r.StartArray()
+				for r.HasMoreElements() {
+					var __elem2 byte
+					__elem2 = byte(r.ReadUintN(8))
+					__slice1 = append(__slice1, __elem2)
+				}
+				r.EndArray()
+				_bytes = ArrayFromSlice(__slice1)
+			}
+		default:
+			r.Skip()
+		}
+	}
+	r.EndObject()
+	return Signature{bytes: NewImmutable(_bytes)}
+}
+func (_ StructMeta_Signature) FieldIsEmpty(t Signature, i int) bool {
+	switch i {
+	case 0:
+		return t.bytes.Get().IsEmpty()
+	}
+	return false
+}
+func (_ StructMeta_Signature) Empty() Signature {
+	panic("Signature has private fields and no `func (s Signature) Validate() Try[Signature]` method, so it cannot be decoded")
+	return Signature{}
+}
+
+type StructMeta_X25519KeyPair struct {
+}
+
+func (_ StructMeta_X25519KeyPair) NumFields() int {
+	return 2
+}
+func (_ StructMeta_X25519KeyPair) FieldName(i int) string {
+	switch i {
+	case 0:
+		return "Public"
+	case 1:
+		return "Private"
+	default:
+		return ""
+	}
+}
+func (_ StructMeta_X25519KeyPair) EncodeFields(w FieldEncoder, t X25519KeyPair, nameFn func(int) string, omitFn func(int) bool, naming func(string) string) {
+	w.WriteStartObject()
+	if !omitFn(0) {
+		w.WriteKey(nameFn(0))
+		StructMeta_X25519PublicKey{}.EncodeFields(w, t.Public.Get(), func(i int) string {
+			return naming(StructMeta_X25519PublicKey{}.FieldName(i))
+		}, func(i int) bool {
+			_ = i
+			return false
+		}, naming)
+	}
+	if !omitFn(1) {
+		w.WriteKey(nameFn(1))
+		StructMeta_X25519PrivateKey{}.EncodeFields(w, t.Private.Get(), func(i int) string {
+			return naming(StructMeta_X25519PrivateKey{}.FieldName(i))
+		}, func(i int) bool {
+			_ = i
+			return false
+		}, naming)
+	}
+	w.WriteEndObject()
+}
+func (_ StructMeta_X25519KeyPair) DecodeFields(r FieldDecoder, lookup func(string) int, naming func(string) string) X25519KeyPair {
+	var _Public X25519PublicKey
+	var __seen1 bool
+	var _Private X25519PrivateKey
+	var __seen2 bool
+	r.StartObject()
+	for r.HasMoreFields() {
+		key := r.ReadKey()
+		switch lookup(key) {
+		case 0:
+			_Public = StructMeta_X25519PublicKey{}.DecodeFields(r, func(key string) int {
+				_meta := StructMeta_X25519PublicKey{}
+				n := _meta.NumFields()
+				for i := 0; i < n; i++ {
+					if naming(_meta.FieldName(i)) == key {
+						return i
+					}
+				}
+				return -1
+			}, naming)
+			__seen1 = true
+		case 1:
+			_Private = StructMeta_X25519PrivateKey{}.DecodeFields(r, func(key string) int {
+				_meta := StructMeta_X25519PrivateKey{}
+				n := _meta.NumFields()
+				for i := 0; i < n; i++ {
+					if naming(_meta.FieldName(i)) == key {
+						return i
+					}
+				}
+				return -1
+			}, naming)
+			__seen2 = true
+		default:
+			r.Skip()
+		}
+	}
+	r.EndObject()
+	if !__seen1 {
+		_Public = StructMeta_X25519PublicKey{}.Empty()
+	}
+	if !__seen2 {
+		_Private = StructMeta_X25519PrivateKey{}.Empty()
+	}
+	return X25519KeyPair{Public: NewImmutable(_Public), Private: NewImmutable(_Private)}
+}
+func (_ StructMeta_X25519KeyPair) FieldIsEmpty(t X25519KeyPair, i int) bool {
+	return false
+}
+func (_ StructMeta_X25519KeyPair) Empty() X25519KeyPair {
+	return X25519KeyPair{Public: NewImmutable(StructMeta_X25519PublicKey{}.Empty()), Private: NewImmutable(StructMeta_X25519PrivateKey{}.Empty())}
+}
+
+type StructMeta_X25519PrivateKey struct {
+}
+
+func (_ StructMeta_X25519PrivateKey) NumFields() int {
+	return 1
+}
+func (_ StructMeta_X25519PrivateKey) FieldName(i int) string {
+	switch i {
+	case 0:
+		return "bytes"
+	default:
+		return ""
+	}
+}
+func (_ StructMeta_X25519PrivateKey) EncodeFields(w FieldEncoder, t X25519PrivateKey, nameFn func(int) string, omitFn func(int) bool, naming func(string) string) {
+	w.WriteStartObject()
+	if !omitFn(0) {
+		w.WriteKey(nameFn(0))
+		w.WriteStartArray()
+		t.bytes.Get().ForEach(func(__elem1 byte) {
+			w.WriteUint64(uint64(__elem1))
+		})
+		w.WriteEndArray()
+	}
+	w.WriteEndObject()
+}
+func (_ StructMeta_X25519PrivateKey) DecodeFields(r FieldDecoder, lookup func(string) int, naming func(string) string) X25519PrivateKey {
+	panic("X25519PrivateKey has private fields and no `func (x X25519PrivateKey) Validate() Try[X25519PrivateKey]` method, so it cannot be decoded")
+	var _bytes Array[byte]
+	r.StartObject()
+	for r.HasMoreFields() {
+		key := r.ReadKey()
+		switch lookup(key) {
+		case 0:
+			{
+				var __slice1 []byte
+				r.StartArray()
+				for r.HasMoreElements() {
+					var __elem2 byte
+					__elem2 = byte(r.ReadUintN(8))
+					__slice1 = append(__slice1, __elem2)
+				}
+				r.EndArray()
+				_bytes = ArrayFromSlice(__slice1)
+			}
+		default:
+			r.Skip()
+		}
+	}
+	r.EndObject()
+	return X25519PrivateKey{bytes: NewImmutable(_bytes)}
+}
+func (_ StructMeta_X25519PrivateKey) FieldIsEmpty(t X25519PrivateKey, i int) bool {
+	switch i {
+	case 0:
+		return t.bytes.Get().IsEmpty()
+	}
+	return false
+}
+func (_ StructMeta_X25519PrivateKey) Empty() X25519PrivateKey {
+	panic("X25519PrivateKey has private fields and no `func (x X25519PrivateKey) Validate() Try[X25519PrivateKey]` method, so it cannot be decoded")
+	return X25519PrivateKey{}
+}
+
+type StructMeta_X25519PublicKey struct {
+}
+
+func (_ StructMeta_X25519PublicKey) NumFields() int {
+	return 1
+}
+func (_ StructMeta_X25519PublicKey) FieldName(i int) string {
+	switch i {
+	case 0:
+		return "bytes"
+	default:
+		return ""
+	}
+}
+func (_ StructMeta_X25519PublicKey) EncodeFields(w FieldEncoder, t X25519PublicKey, nameFn func(int) string, omitFn func(int) bool, naming func(string) string) {
+	w.WriteStartObject()
+	if !omitFn(0) {
+		w.WriteKey(nameFn(0))
+		w.WriteStartArray()
+		t.bytes.Get().ForEach(func(__elem1 byte) {
+			w.WriteUint64(uint64(__elem1))
+		})
+		w.WriteEndArray()
+	}
+	w.WriteEndObject()
+}
+func (_ StructMeta_X25519PublicKey) DecodeFields(r FieldDecoder, lookup func(string) int, naming func(string) string) X25519PublicKey {
+	panic("X25519PublicKey has private fields and no `func (x X25519PublicKey) Validate() Try[X25519PublicKey]` method, so it cannot be decoded")
+	var _bytes Array[byte]
+	r.StartObject()
+	for r.HasMoreFields() {
+		key := r.ReadKey()
+		switch lookup(key) {
+		case 0:
+			{
+				var __slice1 []byte
+				r.StartArray()
+				for r.HasMoreElements() {
+					var __elem2 byte
+					__elem2 = byte(r.ReadUintN(8))
+					__slice1 = append(__slice1, __elem2)
+				}
+				r.EndArray()
+				_bytes = ArrayFromSlice(__slice1)
+			}
+		default:
+			r.Skip()
+		}
+	}
+	r.EndObject()
+	return X25519PublicKey{bytes: NewImmutable(_bytes)}
+}
+func (_ StructMeta_X25519PublicKey) FieldIsEmpty(t X25519PublicKey, i int) bool {
+	switch i {
+	case 0:
+		return t.bytes.Get().IsEmpty()
+	}
+	return false
+}
+func (_ StructMeta_X25519PublicKey) Empty() X25519PublicKey {
+	panic("X25519PublicKey has private fields and no `func (x X25519PublicKey) Validate() Try[X25519PublicKey]` method, so it cannot be decoded")
+	return X25519PublicKey{}
 }

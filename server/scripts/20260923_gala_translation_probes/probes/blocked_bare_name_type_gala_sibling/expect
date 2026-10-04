@@ -1,3 +1,0 @@
-KIND=build_fail
-ERR=r.Extra undefined
-NOTE=the layout upstream #616 was filed against: the colliding type is declared in a sibling .gala file, so the misresolution needs no handwritten Go at all. Extra exists only on the local type, so the field read is what exposes the substitution, and the constructor position in main() resolves correctly, which is why only one of the two bindings fails loudly. The sibling's language is not what decides it, so blocked_bare_name_type_position pins the same substitution with a handwritten .go sibling instead.

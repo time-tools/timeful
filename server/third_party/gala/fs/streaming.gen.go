@@ -12,13 +12,28 @@ import (
 	"strings"
 )
 
-//line fs/streaming.gala:20
+//line fs/streaming.gala:17
+
+// Initial scratch size for bufio.Scanner. Matches the stdlib default;
+// the scanner grows up to scannerMaxLineBytes as needed.
 var scannerInitialBufBytes = NewImmutable(64 * 1024)
 
-//line fs/streaming.gala:26
+//line fs/streaming.gala:21
+
+// Hard cap on a single line read by ForEachLine. The bufio default of
+// 64 KiB surprises consumers the moment a log file or generated source
+// has a long line; 1 MiB is large enough for the vast majority of
+// real-world inputs without unbounded memory growth.
 var scannerMaxLineBytes = NewImmutable(1024 * 1024)
 
-//line fs/streaming.gala:34
+//line fs/streaming.gala:27
+
+// ReadLines reads the entire file at `path` into memory and returns
+// its contents split on "\n". Newlines themselves are stripped. If the
+// file ends in a trailing newline, the empty trailing element from the
+// split is discarded — a file with N lines yields N strings, not N+1.
+//
+// For files that don't fit in memory, prefer ForEachLine.
 func ReadLines(path string) Try[Array[string]] {
 	return Try_Map(Try[[]byte]{}.Apply(func() []byte {
 		_v0, _err := os.ReadFile(path)
@@ -31,7 +46,11 @@ func ReadLines(path string) Try[Array[string]] {
 	})
 }
 
-//line fs/streaming.gala:40
+//line fs/streaming.gala:36
+
+// splitLines is ReadLines' pure transform: split file bytes on "\n" and
+// drop the empty trailing element a final newline produces (N lines ->
+// N strings). Kept as a named helper so the return type is explicit.
 func splitLines(data []byte) Array[string] {
 //line fs/streaming.gala:41
 	var parts = NewImmutable(strings.Split(string(data), "\n"))
@@ -47,7 +66,18 @@ func splitLines(data []byte) Array[string] {
 	return ArrayFromSlice(SliceTake(parts.Get(), n.Get()))
 }
 
-//line fs/streaming.gala:56
+//line fs/streaming.gala:45
+
+// ForEachLine streams the file at `path` line by line through the
+// supplied callback. The callback's bool return controls iteration:
+// true continues, false stops (the analogue of `break`). Newlines are
+// stripped from each line before the callback sees it.
+//
+// The underlying bufio.Scanner is configured with a 1 MiB max line
+// length so long lines don't trip bufio.ErrTooLong; the default 64 KiB
+// is too tight for many real inputs.
+// The file handle is released by resource.Using (GALA has no `defer`):
+// Close() is guaranteed on every exit path, including an early stop.
 func ForEachLine(path string, fn func(string) bool) Try[bool] {
 	return Try_FlatMap(Try[*os.File]{}.Apply(func() *os.File {
 		_v0, _err := os.Open(path)
@@ -77,7 +107,12 @@ func ForEachLine(path string, fn func(string) bool) Try[bool] {
 	})
 }
 
-//line fs/streaming.gala:73
+//line fs/streaming.gala:68
+
+// WriteLines writes `lines` to `path` joined by "\n" with a trailing
+// newline appended after the last line. Existing contents at `path`
+// are replaced (atomic in the same sense as os.WriteFile). `mode` is
+// applied if the file is newly created.
 func WriteLines(path string, lines Array[string], mode int) Try[Void] {
 //line fs/streaming.gala:74
 	var joined = NewImmutable(strings.Join(lines.ToGoSlice(), "\n") + "\n")
@@ -85,7 +120,13 @@ func WriteLines(path string, lines Array[string], mode int) Try[Void] {
 	return FromError(os.WriteFile(path, ToBytes(joined.Get()), os.FileMode(mode)))
 }
 
-//line fs/streaming.gala:83
+//line fs/streaming.gala:77
+
+// AppendString appends `contents` to the file at `path`. If the file
+// does not exist it is created with `mode`; otherwise the file is
+// opened with O_APPEND and existing contents are preserved. Both the
+// write and close errors are surfaced — a successful write followed by
+// a failed close still becomes Failure.
 func AppendString(path string, contents string, mode int) Try[Void] {
 	return Try_FlatMap(Try[*os.File]{}.Apply(func() *os.File {
 		_v0, _err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, os.FileMode(mode))
@@ -111,7 +152,10 @@ func AppendString(path string, contents string, mode int) Try[Void] {
 	})
 }
 
-//line fs/streaming.gala:96
+//line fs/streaming.gala:93
+
+// Append is the byte-payload companion to AppendString. Same create-
+// or-append semantics; both write and close errors are reported.
 func Append(path string, data Array[byte], mode int) Try[Void] {
 	return Try_FlatMap(Try[*os.File]{}.Apply(func() *os.File {
 		_v0, _err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, os.FileMode(mode))

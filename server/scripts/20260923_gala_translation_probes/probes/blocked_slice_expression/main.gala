@@ -1,9 +1,0 @@
-package main
-
-import . "martianoff/gala/go_interop"
-
-func main() {
-	var args = SliceOf("x", "y")
-	args = args[1:]
-	Println(args)
-}

@@ -7,32 +7,56 @@ import (
 	"path/filepath"
 )
 
-//line path/path.gala:17
+//line path/path.gala:13
+
+// Join joins any number of path elements into a single path,
+// separating them with the OS-specific separator. Empty elements are
+// ignored.
 func Join(parts ...string) string {
 	return filepath.Join(parts...)
 }
 
-//line path/path.gala:23
+//line path/path.gala:18
+
+// Dir returns all but the last element of p. If p is empty, Dir
+// returns ".". If the path is entirely separators, Dir returns a
+// single separator. The returned path does not end in a separator
+// unless it is the root.
 func Dir(p string) string {
 	return filepath.Dir(p)
 }
 
-//line path/path.gala:29
+//line path/path.gala:24
+
+// Base returns the last element of p. Trailing path separators are
+// removed before extracting the last element. If p is empty, Base
+// returns ".". If p consists entirely of separators, Base returns a
+// single separator.
 func Base(p string) string {
 	return filepath.Base(p)
 }
 
-//line path/path.gala:34
+//line path/path.gala:30
+
+// Ext returns the file name extension used by p. The extension is
+// the suffix beginning at the final dot in the final element of p;
+// it is empty if there is no dot.
 func Ext(p string) string {
 	return filepath.Ext(p)
 }
 
-//line path/path.gala:37
+//line path/path.gala:35
+
+// IsAbs reports whether the path is absolute.
 func IsAbs(p string) bool {
 	return filepath.IsAbs(p)
 }
 
-//line path/path.gala:42
+//line path/path.gala:38
+
+// Abs returns an absolute representation of p. If the path is not
+// absolute it will be joined with the current working directory.
+// Returns Failure if the working directory can't be determined.
 func Abs(p string) Try[string] {
 	return Try[string]{}.Apply(func() string {
 		_v0, _err := filepath.Abs(p)
@@ -43,17 +67,29 @@ func Abs(p string) Try[string] {
 	})
 }
 
-//line path/path.gala:47
+//line path/path.gala:43
+
+// ToSlash returns the result of replacing each separator character in
+// p with a slash ('/'). Multiple separators are replaced by multiple
+// slashes.
 func ToSlash(p string) string {
 	return filepath.ToSlash(p)
 }
 
-//line path/path.gala:52
+//line path/path.gala:48
+
+// FromSlash returns the result of replacing each slash ('/') in p
+// with a separator character. Multiple slashes are replaced by
+// multiple separators.
 func FromSlash(p string) string {
 	return filepath.FromSlash(p)
 }
 
-//line path/path.gala:57
+//line path/path.gala:53
+
+// Clean returns the shortest path name equivalent to p by purely
+// lexical processing. It applies the rules described in
+// path/filepath.Clean.
 func Clean(p string) string {
 	return filepath.Clean(p)
 }

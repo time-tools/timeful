@@ -1,8 +1,0 @@
-package main
-
-import . "martianoff/gala/concurrent"
-
-func main() {
-	val f = FutureOf(42)
-	Println(f.Await().GetOrElse(0))
-}

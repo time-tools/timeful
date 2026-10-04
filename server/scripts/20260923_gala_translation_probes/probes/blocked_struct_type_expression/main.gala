@@ -1,7 +1,0 @@
-package main
-
-type Set[T comparable] map[T]struct{}
-
-func main() {
-	Println("x")
-}

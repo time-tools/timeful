@@ -1,3 +1,0 @@
-KIND=pass
-RUN=yes
-NOTE=GALA-E0033 names three contexts that permit an unannotated lambda parameter: a typed val, a function argument, and a return. All three hold, so the hint is accurate and the constructs.md row claiming the return position is refused was wrong. Only a bare untyped val initializer and a generic type parameter are refused, and both refusals are correct.

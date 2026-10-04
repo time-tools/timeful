@@ -8,13 +8,19 @@ import (
 	. "martianoff/gala/std"
 )
 
-//line collection_mutable/hashmap.gala:24
+//line collection_mutable/hashmap.gala:22
+
+// Initial number of buckets
 var hashMapInitialBuckets Immutable[int] = NewImmutable[int](16)
 
-//line collection_mutable/hashmap.gala:26
+//line collection_mutable/hashmap.gala:24
+
+// Load factor threshold for resizing
 var hashMapLoadFactor Immutable[float64] = NewImmutable[float64](0.75)
 
-//line collection_mutable/hashmap.gala:29
+//line collection_mutable/hashmap.gala:27
+
+// hashMapEntry represents an entry in a bucket.
 type hashMapEntry[K comparable, V any] struct {
 	key      Immutable[K]
 	value    V
@@ -37,7 +43,9 @@ func (_ hashMapEntry[K, V]) IshashMapEntry() bool {
 	return true
 }
 
-//line collection_mutable/hashmap.gala:37
+//line collection_mutable/hashmap.gala:35
+
+// HashMap represents a mutable hash-based map.
 type HashMap[K comparable, V any] struct {
 	buckets    []*hashMapEntry[K, V]
 	size       int
@@ -59,7 +67,9 @@ func (_ HashMap[K, V]) IsHashMap() bool {
 	return true
 }
 
-//line collection_mutable/hashmap.gala:44
+//line collection_mutable/hashmap.gala:42
+
+// EmptyHashMap returns a new empty HashMap.
 func EmptyHashMap[K comparable, V any]() *HashMap[K, V] {
 //line collection_mutable/hashmap.gala:45
 	var buckets = go_interop.SliceWithSize[*hashMapEntry[K, V]](hashMapInitialBuckets.Get())
@@ -67,7 +77,9 @@ func EmptyHashMap[K comparable, V any]() *HashMap[K, V] {
 	return &HashMap[K, V]{buckets: buckets, size: 0, bucketMask: uint32(hashMapInitialBuckets.Get() - 1)}
 }
 
-//line collection_mutable/hashmap.gala:50
+//line collection_mutable/hashmap.gala:48
+
+// hashMapHash computes a hash code for a key.
 func hashMapHash[K comparable](key K) uint32 {
 //line collection_mutable/hashmap.gala:51
 	var v Immutable[any] = NewImmutable[any](key)
@@ -156,33 +168,46 @@ func hashMapHash[K comparable](key K) uint32 {
 	return result.Get()
 }
 
-//line collection_mutable/hashmap.gala:75
+//line collection_mutable/hashmap.gala:73
+
+// hashMapPanicNotHashable panics with a helpful error message.
 func hashMapPanicNotHashable(v any) uint32 {
 //line collection_mutable/hashmap.gala:76
 	panic(fmt.Sprintf("HashMap: type %T must implement std.Hashable interface", v))
 }
 
-//line collection_mutable/hashmap.gala:82
+//line collection_mutable/hashmap.gala:80
+
+// IsEmpty returns true if the map is empty.
 func (m *HashMap[K, V]) IsEmpty() bool {
 	return m.size == 0
 }
 
-//line collection_mutable/hashmap.gala:85
+//line collection_mutable/hashmap.gala:83
+
+// NonEmpty returns true if the map is not empty.
 func (m *HashMap[K, V]) NonEmpty() bool {
 	return m.size > 0
 }
 
-//line collection_mutable/hashmap.gala:88
+//line collection_mutable/hashmap.gala:86
+
+// Size returns the number of entries. O(1).
 func (m *HashMap[K, V]) Size() int {
 	return m.size
 }
 
-//line collection_mutable/hashmap.gala:91
+//line collection_mutable/hashmap.gala:89
+
+// Length is an alias for Size.
 func (m *HashMap[K, V]) Length() int {
 	return m.size
 }
 
-//line collection_mutable/hashmap.gala:97
+//line collection_mutable/hashmap.gala:94
+
+// Put adds or updates a key-value pair. O(1) amortized.
+// Returns true if this is a new key, false if updating existing.
 func (m *HashMap[K, V]) Put(key K, value V) bool {
 //line collection_mutable/hashmap.gala:98
 	var hashCode = NewImmutable(hashMapHash[K](key))
@@ -217,7 +242,9 @@ func (m *HashMap[K, V]) Put(key K, value V) bool {
 	return true
 }
 
-//line collection_mutable/hashmap.gala:125
+//line collection_mutable/hashmap.gala:123
+
+// resize doubles the bucket array and rehashes all entries.
 func (m *HashMap[K, V]) resize() {
 //line collection_mutable/hashmap.gala:126
 	var newSize = len(m.buckets) * 2
@@ -249,7 +276,10 @@ func (m *HashMap[K, V]) resize() {
 	m.bucketMask = newMask
 }
 
-//line collection_mutable/hashmap.gala:148
+//line collection_mutable/hashmap.gala:145
+
+// PutIfAbsent adds a key-value pair only if key is not present.
+// Returns true if the entry was added.
 func (m *HashMap[K, V]) PutIfAbsent(key K, value V) bool {
 //line collection_mutable/hashmap.gala:149
 	if m.Contains(key) {
@@ -262,7 +292,9 @@ func (m *HashMap[K, V]) PutIfAbsent(key K, value V) bool {
 	return true
 }
 
-//line collection_mutable/hashmap.gala:157
+//line collection_mutable/hashmap.gala:155
+
+// GetOrElseUpdate returns the value for a key, or computes and stores it if absent.
 func (m *HashMap[K, V]) GetOrElseUpdate(key K, f func() V) V {
 //line collection_mutable/hashmap.gala:158
 	var existing = NewImmutable(m.Get(key))
@@ -279,7 +311,10 @@ func (m *HashMap[K, V]) GetOrElseUpdate(key K, f func() V) V {
 	return value.Get()
 }
 
-//line collection_mutable/hashmap.gala:169
+//line collection_mutable/hashmap.gala:166
+
+// Update updates the value for a key using a function.
+// Returns true if the key existed and was updated.
 func (m *HashMap[K, V]) Update(key K, f func(V) V) bool {
 //line collection_mutable/hashmap.gala:170
 	var hashCode = NewImmutable(hashMapHash[K](key))
@@ -303,7 +338,10 @@ func (m *HashMap[K, V]) Update(key K, f func(V) V) bool {
 	return false
 }
 
-//line collection_mutable/hashmap.gala:186
+//line collection_mutable/hashmap.gala:183
+
+// Remove removes a key from the map. O(1) amortized.
+// Returns true if the key was removed (was present).
 func (m *HashMap[K, V]) Remove(key K) bool {
 //line collection_mutable/hashmap.gala:187
 	var hashCode = NewImmutable(hashMapHash[K](key))
@@ -339,7 +377,9 @@ func (m *HashMap[K, V]) Remove(key K) bool {
 	return false
 }
 
-//line collection_mutable/hashmap.gala:209
+//line collection_mutable/hashmap.gala:207
+
+// RemoveAllKeys removes all keys from an Array.
 func (m *HashMap[K, V]) RemoveAllKeys(keys *Array[K]) {
 //line collection_mutable/hashmap.gala:210
 	keys.ForEach(func(k K) {
@@ -348,7 +388,9 @@ func (m *HashMap[K, V]) RemoveAllKeys(keys *Array[K]) {
 	})
 }
 
-//line collection_mutable/hashmap.gala:216
+//line collection_mutable/hashmap.gala:214
+
+// Clear removes all entries. O(n) to clear buckets.
 func (m *HashMap[K, V]) Clear() {
 //line collection_mutable/hashmap.gala:217
 	m.buckets = go_interop.SliceWithSize[*hashMapEntry[K, V]](hashMapInitialBuckets.Get())
@@ -358,7 +400,9 @@ func (m *HashMap[K, V]) Clear() {
 	m.bucketMask = uint32(hashMapInitialBuckets.Get() - 1)
 }
 
-//line collection_mutable/hashmap.gala:225
+//line collection_mutable/hashmap.gala:223
+
+// Contains checks if the map contains the given key. O(1) average.
 func (m *HashMap[K, V]) Contains(key K) bool {
 //line collection_mutable/hashmap.gala:226
 	var hashCode = NewImmutable(hashMapHash[K](key))
@@ -380,7 +424,9 @@ func (m *HashMap[K, V]) Contains(key K) bool {
 	return false
 }
 
-//line collection_mutable/hashmap.gala:240
+//line collection_mutable/hashmap.gala:238
+
+// Get returns the value for a key wrapped in Option. O(1) average.
 func (m *HashMap[K, V]) Get(key K) Option[V] {
 //line collection_mutable/hashmap.gala:241
 	var hashCode = NewImmutable(hashMapHash[K](key))
@@ -402,13 +448,17 @@ func (m *HashMap[K, V]) Get(key K) Option[V] {
 	return None[V]{}.Apply()
 }
 
-//line collection_mutable/hashmap.gala:255
+//line collection_mutable/hashmap.gala:253
+
+// GetOrElse returns the value for a key, or the default if not found.
 func (m *HashMap[K, V]) GetOrElse(key K, defaultValue V) V {
 //line collection_mutable/hashmap.gala:256
 	return m.Get(key).GetOrElse(defaultValue)
 }
 
-//line collection_mutable/hashmap.gala:260
+//line collection_mutable/hashmap.gala:258
+
+// Apply returns the value for a key. Panics if key not found.
 func (m *HashMap[K, V]) Apply(key K) V {
 //line collection_mutable/hashmap.gala:261
 	return func(obj Option[V]) V {
@@ -435,7 +485,9 @@ func (m *HashMap[K, V]) Apply(key K) V {
 	}(m.Get(key))
 }
 
-//line collection_mutable/hashmap.gala:268
+//line collection_mutable/hashmap.gala:266
+
+// ContainsAllKeys returns true if the map contains all keys from an Array.
 func (m *HashMap[K, V]) ContainsAllKeys(keys *Array[K]) bool {
 //line collection_mutable/hashmap.gala:269
 	var result = true
@@ -451,7 +503,9 @@ func (m *HashMap[K, V]) ContainsAllKeys(keys *Array[K]) bool {
 	return result
 }
 
-//line collection_mutable/hashmap.gala:281
+//line collection_mutable/hashmap.gala:279
+
+// ForEachKV applies a function to each key-value pair for side effects.
 func (m *HashMap[K, V]) ForEachKV(f func(K, V)) {
 //line collection_mutable/hashmap.gala:282
 	for i := 0; i < len(m.buckets); i++ {
@@ -467,7 +521,9 @@ func (m *HashMap[K, V]) ForEachKV(f func(K, V)) {
 	}
 }
 
-//line collection_mutable/hashmap.gala:292
+//line collection_mutable/hashmap.gala:290
+
+// ForEachKey applies a function to each key for side effects.
 func (m *HashMap[K, V]) ForEachKey(f func(K)) {
 //line collection_mutable/hashmap.gala:293
 	m.ForEachKV(func(k K, v V) {
@@ -476,7 +532,9 @@ func (m *HashMap[K, V]) ForEachKey(f func(K)) {
 	})
 }
 
-//line collection_mutable/hashmap.gala:299
+//line collection_mutable/hashmap.gala:297
+
+// ForEachValue applies a function to each value for side effects.
 func (m *HashMap[K, V]) ForEachValue(f func(V)) {
 //line collection_mutable/hashmap.gala:300
 	m.ForEachKV(func(k K, v V) {
@@ -485,7 +543,9 @@ func (m *HashMap[K, V]) ForEachValue(f func(V)) {
 	})
 }
 
-//line collection_mutable/hashmap.gala:308
+//line collection_mutable/hashmap.gala:306
+
+// Filter returns a new HashMap with only entries that satisfy the predicate.
 func (m *HashMap[K, V]) Filter(p func(K, V) bool) *HashMap[K, V] {
 //line collection_mutable/hashmap.gala:309
 	return HashMap_FoldLeftKV[*HashMap[K, V]](m, EmptyHashMap[K, V](), func(acc *HashMap[K, V], k K, v V) *HashMap[K, V] {
@@ -499,7 +559,9 @@ func (m *HashMap[K, V]) Filter(p func(K, V) bool) *HashMap[K, V] {
 	})
 }
 
-//line collection_mutable/hashmap.gala:318
+//line collection_mutable/hashmap.gala:316
+
+// FilterKeys returns a new HashMap with only entries whose keys satisfy the predicate.
 func (m *HashMap[K, V]) FilterKeys(p func(K) bool) *HashMap[K, V] {
 //line collection_mutable/hashmap.gala:319
 	return HashMap_FoldLeftKV[*HashMap[K, V]](m, EmptyHashMap[K, V](), func(acc *HashMap[K, V], k K, v V) *HashMap[K, V] {
@@ -513,7 +575,9 @@ func (m *HashMap[K, V]) FilterKeys(p func(K) bool) *HashMap[K, V] {
 	})
 }
 
-//line collection_mutable/hashmap.gala:328
+//line collection_mutable/hashmap.gala:326
+
+// FilterValues returns a new HashMap with only entries whose values satisfy the predicate.
 func (m *HashMap[K, V]) FilterValues(p func(V) bool) *HashMap[K, V] {
 //line collection_mutable/hashmap.gala:329
 	return HashMap_FoldLeftKV[*HashMap[K, V]](m, EmptyHashMap[K, V](), func(acc *HashMap[K, V], k K, v V) *HashMap[K, V] {
@@ -527,7 +591,11 @@ func (m *HashMap[K, V]) FilterValues(p func(V) bool) *HashMap[K, V] {
 	})
 }
 
-//line collection_mutable/hashmap.gala:340
+//line collection_mutable/hashmap.gala:336
+
+// Collect applies a partial function to each key-value pair and collects the results.
+// Entries for which the function returns None are filtered out.
+// Returns a mutable Array since the result type may not be suitable for a HashMap.
 func HashMap_Collect[U any, K comparable, V any](m *HashMap[K, V], pf func(K, V) Option[U]) *Array[U] {
 //line collection_mutable/hashmap.gala:341
 	var result = EmptyArray[U]()
@@ -545,7 +613,9 @@ func HashMap_Collect[U any, K comparable, V any](m *HashMap[K, V], pf func(K, V)
 	return result
 }
 
-//line collection_mutable/hashmap.gala:352
+//line collection_mutable/hashmap.gala:350
+
+// FilterNot returns a new HashMap with entries that do not satisfy the predicate.
 func (m *HashMap[K, V]) FilterNot(p func(K, V) bool) *HashMap[K, V] {
 //line collection_mutable/hashmap.gala:353
 	return HashMap_FoldLeftKV[*HashMap[K, V]](m, EmptyHashMap[K, V](), func(acc *HashMap[K, V], k K, v V) *HashMap[K, V] {
@@ -559,7 +629,9 @@ func (m *HashMap[K, V]) FilterNot(p func(K, V) bool) *HashMap[K, V] {
 	})
 }
 
-//line collection_mutable/hashmap.gala:362
+//line collection_mutable/hashmap.gala:360
+
+// MapValues applies a function to each value and returns a new map.
 func HashMap_MapValues[U any, K comparable, V any](m *HashMap[K, V], f func(V) U) *HashMap[K, U] {
 //line collection_mutable/hashmap.gala:363
 	return HashMap_FoldLeftKV[*HashMap[K, U]](m, EmptyHashMap[K, U](), func(acc *HashMap[K, U], k K, v V) *HashMap[K, U] {
@@ -570,7 +642,9 @@ func HashMap_MapValues[U any, K comparable, V any](m *HashMap[K, V], f func(V) U
 	})
 }
 
-//line collection_mutable/hashmap.gala:372
+//line collection_mutable/hashmap.gala:370
+
+// FilterInPlace removes entries that do not satisfy the predicate.
 func (m *HashMap[K, V]) FilterInPlace(p func(K, V) bool) {
 //line collection_mutable/hashmap.gala:373
 	var toRemove = NewImmutable(HashMap_FoldLeftKV[*Array[K]](m, EmptyArray[K](), func(acc *Array[K], k K, v V) *Array[K] {
@@ -586,7 +660,9 @@ func (m *HashMap[K, V]) FilterInPlace(p func(K, V) bool) {
 	m.RemoveAllKeys(toRemove.Get())
 }
 
-//line collection_mutable/hashmap.gala:383
+//line collection_mutable/hashmap.gala:381
+
+// UpdateAll updates all values using a function.
 func (m *HashMap[K, V]) UpdateAll(f func(K, V) V) {
 //line collection_mutable/hashmap.gala:384
 	for i := 0; i < len(m.buckets); i++ {
@@ -602,7 +678,9 @@ func (m *HashMap[K, V]) UpdateAll(f func(K, V) V) {
 	}
 }
 
-//line collection_mutable/hashmap.gala:396
+//line collection_mutable/hashmap.gala:394
+
+// FoldLeftKV applies a binary operator from left to right with key-value pairs.
 func HashMap_FoldLeftKV[U any, K comparable, V any](m *HashMap[K, V], initial U, f func(U, K, V) U) U {
 //line collection_mutable/hashmap.gala:397
 	var acc = initial
@@ -615,7 +693,10 @@ func HashMap_FoldLeftKV[U any, K comparable, V any](m *HashMap[K, V], initial U,
 	return acc
 }
 
-//line collection_mutable/hashmap.gala:408
+//line collection_mutable/hashmap.gala:405
+
+// Exists returns true if any entry satisfies the predicate.
+// Uses early exit for performance.
 func (m *HashMap[K, V]) Exists(p func(K, V) bool) bool {
 //line collection_mutable/hashmap.gala:409
 	for i := 0; i < len(m.buckets); i++ {
@@ -636,7 +717,10 @@ func (m *HashMap[K, V]) Exists(p func(K, V) bool) bool {
 	return false
 }
 
-//line collection_mutable/hashmap.gala:423
+//line collection_mutable/hashmap.gala:420
+
+// ForAll returns true if all entries satisfy the predicate.
+// Uses early exit for performance.
 func (m *HashMap[K, V]) ForAll(p func(K, V) bool) bool {
 //line collection_mutable/hashmap.gala:424
 	for i := 0; i < len(m.buckets); i++ {
@@ -657,7 +741,9 @@ func (m *HashMap[K, V]) ForAll(p func(K, V) bool) bool {
 	return true
 }
 
-//line collection_mutable/hashmap.gala:437
+//line collection_mutable/hashmap.gala:435
+
+// Count returns the number of entries satisfying the predicate.
 func (m *HashMap[K, V]) Count(p func(K, V) bool) int {
 //line collection_mutable/hashmap.gala:438
 	return HashMap_FoldLeftKV[int](m, 0, func(acc int, k K, v V) int {
@@ -671,7 +757,9 @@ func (m *HashMap[K, V]) Count(p func(K, V) bool) int {
 	})
 }
 
-//line collection_mutable/hashmap.gala:449
+//line collection_mutable/hashmap.gala:447
+
+// Keys returns a mutable HashSet of all keys.
 func (m *HashMap[K, V]) Keys() *HashSet[K] {
 //line collection_mutable/hashmap.gala:450
 	return HashMap_FoldLeftKV[*HashSet[K]](m, EmptyHashSet[K](), func(acc *HashSet[K], k K, v V) *HashSet[K] {
@@ -682,7 +770,9 @@ func (m *HashMap[K, V]) Keys() *HashSet[K] {
 	})
 }
 
-//line collection_mutable/hashmap.gala:457
+//line collection_mutable/hashmap.gala:455
+
+// Values returns a mutable List of all values.
 func (m *HashMap[K, V]) Values() *List[V] {
 //line collection_mutable/hashmap.gala:458
 	return HashMap_FoldLeftKV[*List[V]](m, EmptyList[V](), func(acc *List[V], k K, v V) *List[V] {
@@ -693,7 +783,9 @@ func (m *HashMap[K, V]) Values() *List[V] {
 	})
 }
 
-//line collection_mutable/hashmap.gala:465
+//line collection_mutable/hashmap.gala:463
+
+// KeyArray returns an Array of all keys.
 func (m *HashMap[K, V]) KeyArray() *Array[K] {
 //line collection_mutable/hashmap.gala:466
 	return HashMap_FoldLeftKV[*Array[K]](m, EmptyArray[K](), func(acc *Array[K], k K, v V) *Array[K] {
@@ -704,7 +796,9 @@ func (m *HashMap[K, V]) KeyArray() *Array[K] {
 	})
 }
 
-//line collection_mutable/hashmap.gala:473
+//line collection_mutable/hashmap.gala:471
+
+// ValueArray returns an Array of all values.
 func (m *HashMap[K, V]) ValueArray() *Array[V] {
 //line collection_mutable/hashmap.gala:474
 	return HashMap_FoldLeftKV[*Array[V]](m, EmptyArray[V](), func(acc *Array[V], k K, v V) *Array[V] {
@@ -715,7 +809,9 @@ func (m *HashMap[K, V]) ValueArray() *Array[V] {
 	})
 }
 
-//line collection_mutable/hashmap.gala:483
+//line collection_mutable/hashmap.gala:481
+
+// ToGoMap converts the map to a Go map.
 func (m *HashMap[K, V]) ToGoMap() map[K]V {
 //line collection_mutable/hashmap.gala:484
 	var result = go_interop.MapEmpty[K, V]()
@@ -728,7 +824,9 @@ func (m *HashMap[K, V]) ToGoMap() map[K]V {
 	return result
 }
 
-//line collection_mutable/hashmap.gala:492
+//line collection_mutable/hashmap.gala:490
+
+// ToArray converts the map to a mutable Array of tuples.
 func (m *HashMap[K, V]) ToArray() *Array[Tuple[K, V]] {
 //line collection_mutable/hashmap.gala:493
 	return HashMap_FoldLeftKV[*Array[Tuple[K, V]]](m, ArrayWithCapacity[Tuple[K, V]](m.Size()), func(acc *Array[Tuple[K, V]], k K, v V) *Array[Tuple[K, V]] {
@@ -739,7 +837,9 @@ func (m *HashMap[K, V]) ToArray() *Array[Tuple[K, V]] {
 	})
 }
 
-//line collection_mutable/hashmap.gala:500
+//line collection_mutable/hashmap.gala:498
+
+// ToList converts the map to a mutable List of tuples.
 func (m *HashMap[K, V]) ToList() *List[Tuple[K, V]] {
 //line collection_mutable/hashmap.gala:501
 	return HashMap_FoldLeftKV[*List[Tuple[K, V]]](m, EmptyList[Tuple[K, V]](), func(acc *List[Tuple[K, V]], k K, v V) *List[Tuple[K, V]] {
@@ -750,7 +850,9 @@ func (m *HashMap[K, V]) ToList() *List[Tuple[K, V]] {
 	})
 }
 
-//line collection_mutable/hashmap.gala:508
+//line collection_mutable/hashmap.gala:506
+
+// Clone creates a shallow copy of the map.
 func (m *HashMap[K, V]) Clone() *HashMap[K, V] {
 //line collection_mutable/hashmap.gala:509
 	return HashMap_FoldLeftKV[*HashMap[K, V]](m, EmptyHashMap[K, V](), func(acc *HashMap[K, V], k K, v V) *HashMap[K, V] {
@@ -761,7 +863,9 @@ func (m *HashMap[K, V]) Clone() *HashMap[K, V] {
 	})
 }
 
-//line collection_mutable/hashmap.gala:516
+//line collection_mutable/hashmap.gala:514
+
+// String returns a string representation of the map.
 func (m *HashMap[K, V]) String() string {
 //line collection_mutable/hashmap.gala:517
 	if m.Size() == 0 {
@@ -788,7 +892,9 @@ func (m *HashMap[K, V]) String() string {
 	return result + ")"
 }
 
-//line collection_mutable/hashmap.gala:533
+//line collection_mutable/hashmap.gala:531
+
+// MkString joins entries into a string with separator.
 func (m *HashMap[K, V]) MkString(sep string) string {
 //line collection_mutable/hashmap.gala:534
 	if m.Size() == 0 {
@@ -815,29 +921,39 @@ func (m *HashMap[K, V]) MkString(sep string) string {
 	return result
 }
 
-//line collection_mutable/hashmap.gala:550
+//line collection_mutable/hashmap.gala:548
+
+// KeySet returns a mutable HashSet of all keys.
 func (m *HashMap[K, V]) KeySet() *HashSet[K] {
 	return m.Keys()
 }
 
-//line collection_mutable/hashmap.gala:555
+//line collection_mutable/hashmap.gala:553
+
+// Sorted returns a mutable Array of key-value tuples sorted by key in natural order.
 func (m *HashMap[K, V]) Sorted() *Array[Tuple[K, V]] {
 	return Array_SortBy(m.ToArray(), func(entry Tuple[K, V]) K {
 		return entry.V1.Get()
 	})
 }
 
-//line collection_mutable/hashmap.gala:558
+//line collection_mutable/hashmap.gala:556
+
+// SortWith returns a mutable Array of key-value tuples sorted using the given comparison function.
 func (m *HashMap[K, V]) SortWith(less func(Tuple[K, V], Tuple[K, V]) bool) *Array[Tuple[K, V]] {
 	return m.ToArray().SortWith(less)
 }
 
-//line collection_mutable/hashmap.gala:561
+//line collection_mutable/hashmap.gala:559
+
+// SortBy returns a mutable Array of key-value tuples sorted by a key extracted from each entry.
 func HashMap_SortBy[S comparable, K comparable, V any](m *HashMap[K, V], f func(Tuple[K, V]) S) *Array[Tuple[K, V]] {
 	return Array_SortBy(m.ToArray(), f)
 }
 
-//line collection_mutable/hashmap.gala:566
+//line collection_mutable/hashmap.gala:564
+
+// PutFrom adds all entries from another HashMap.
 func (m *HashMap[K, V]) PutFrom(other *HashMap[K, V]) {
 //line collection_mutable/hashmap.gala:567
 	other.ForEachKV(func(k K, v V) {
@@ -846,7 +962,9 @@ func (m *HashMap[K, V]) PutFrom(other *HashMap[K, V]) {
 	})
 }
 
-//line collection_mutable/hashmap.gala:573
+//line collection_mutable/hashmap.gala:571
+
+// Merge merges another map, using a function for duplicate keys.
 func (m *HashMap[K, V]) Merge(other *HashMap[K, V], f func(V, V) V) {
 //line collection_mutable/hashmap.gala:574
 	other.ForEachKV(func(k K, v V) {
@@ -882,7 +1000,9 @@ func (m *HashMap[K, V]) Merge(other *HashMap[K, V], f func(V, V) V) {
 	})
 }
 
-//line collection_mutable/hashmap.gala:583
+//line collection_mutable/hashmap.gala:581
+
+// PutAllEntries adds all entries from an Array of tuples.
 func (m *HashMap[K, V]) PutAllEntries(entries *Array[Tuple[K, V]]) {
 //line collection_mutable/hashmap.gala:584
 	entries.ForEach(func(entry Tuple[K, V]) {
@@ -891,7 +1011,9 @@ func (m *HashMap[K, V]) PutAllEntries(entries *Array[Tuple[K, V]]) {
 	})
 }
 
-//line collection_mutable/hashmap.gala:592
+//line collection_mutable/hashmap.gala:590
+
+// Find returns the first entry satisfying the predicate.
 func (m *HashMap[K, V]) Find(p func(K, V) bool) Option[Tuple[K, V]] {
 //line collection_mutable/hashmap.gala:593
 	return HashMap_FoldLeftKV[Option[Tuple[K, V]]](m, None[Tuple[K, V]]{}.Apply(), func(acc Option[Tuple[K, V]], k K, v V) Option[Tuple[K, V]] {
@@ -905,7 +1027,9 @@ func (m *HashMap[K, V]) Find(p func(K, V) bool) Option[Tuple[K, V]] {
 	})
 }
 
-//line collection_mutable/hashmap.gala:602
+//line collection_mutable/hashmap.gala:600
+
+// Head returns the first entry. Panics if empty.
 func (m *HashMap[K, V]) Head() Tuple[K, V] {
 //line collection_mutable/hashmap.gala:603
 	return func(obj Option[Tuple[K, V]]) Tuple[K, V] {
@@ -932,7 +1056,9 @@ func (m *HashMap[K, V]) Head() Tuple[K, V] {
 	}(m.HeadOption())
 }
 
-//line collection_mutable/hashmap.gala:610
+//line collection_mutable/hashmap.gala:608
+
+// HeadOption returns the first entry as Option.
 func (m *HashMap[K, V]) HeadOption() Option[Tuple[K, V]] {
 //line collection_mutable/hashmap.gala:611
 	if m.IsEmpty() {
@@ -951,7 +1077,9 @@ func (m *HashMap[K, V]) HeadOption() Option[Tuple[K, V]] {
 	})
 }
 
-//line collection_mutable/hashmap.gala:623
+//line collection_mutable/hashmap.gala:621
+
+// Partition partitions the map into two new maps based on predicate.
 func (m *HashMap[K, V]) Partition(p func(K, V) bool) Tuple[*HashMap[K, V], *HashMap[K, V]] {
 //line collection_mutable/hashmap.gala:624
 	var initial = NewImmutable(Tuple[*HashMap[K, V], *HashMap[K, V]]{V1: NewImmutable(EmptyHashMap[K, V]()), V2: NewImmutable(EmptyHashMap[K, V]())})
@@ -970,7 +1098,9 @@ func (m *HashMap[K, V]) Partition(p func(K, V) bool) Tuple[*HashMap[K, V], *Hash
 	})
 }
 
-//line collection_mutable/hashmap.gala:638
+//line collection_mutable/hashmap.gala:636
+
+// HashMapOf creates a HashMap from key-value tuples.
 func HashMapOf[K comparable, V any](entries ...Tuple[K, V]) *HashMap[K, V] {
 //line collection_mutable/hashmap.gala:639
 	var result = EmptyHashMap[K, V]()
@@ -983,7 +1113,9 @@ func HashMapOf[K comparable, V any](entries ...Tuple[K, V]) *HashMap[K, V] {
 	return result
 }
 
-//line collection_mutable/hashmap.gala:647
+//line collection_mutable/hashmap.gala:645
+
+// HashMapFromSlice creates a HashMap from a slice of tuples.
 func HashMapFromSlice[K comparable, V any](entries []Tuple[K, V]) *HashMap[K, V] {
 //line collection_mutable/hashmap.gala:648
 	var result = EmptyHashMap[K, V]()
@@ -996,7 +1128,9 @@ func HashMapFromSlice[K comparable, V any](entries []Tuple[K, V]) *HashMap[K, V]
 	return result
 }
 
-//line collection_mutable/hashmap.gala:656
+//line collection_mutable/hashmap.gala:654
+
+// HashMapFromGoMap creates a HashMap from a Go map.
 func HashMapFromGoMap[K comparable, V any](m map[K]V) *HashMap[K, V] {
 //line collection_mutable/hashmap.gala:657
 	var result = EmptyHashMap[K, V]()

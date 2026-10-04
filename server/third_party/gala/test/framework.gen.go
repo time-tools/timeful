@@ -9,7 +9,10 @@ import (
 	"time"
 )
 
-//line test/framework.gala:10
+//line test/framework.gala:7
+
+// T is the test context, similar to Go's *testing.T.
+// It tracks test state and provides assertion and logging methods.
 type T struct {
 	name    std.Immutable[string]
 	failed  std.Immutable[bool]
@@ -23,46 +26,62 @@ func (s T) Equal(other T) bool {
 	return std.Equal(s.name, other.name) && std.Equal(s.failed, other.failed) && std.Equal(s.skipped, other.skipped)
 }
 
-//line test/framework.gala:17
+//line test/framework.gala:15
+
+// newT creates a new test context with the given name.
 func newT(name string) T {
 //line test/framework.gala:18
 	return T{name: std.NewImmutable(name), failed: std.NewImmutable(false), skipped: std.NewImmutable(false)}
 }
 
-//line test/framework.gala:22
+//line test/framework.gala:20
+
+// Name returns the name of the test.
 func (t T) Name() string {
 	return t.name.Get()
 }
 
-//line test/framework.gala:25
+//line test/framework.gala:23
+
+// Failed returns whether the test has failed.
 func (t T) Failed() bool {
 	return t.failed.Get()
 }
 
-//line test/framework.gala:28
+//line test/framework.gala:26
+
+// Skipped returns whether the test was skipped.
 func (t T) Skipped() bool {
 	return t.skipped.Get()
 }
 
-//line test/framework.gala:31
+//line test/framework.gala:29
+
+// Fail marks the test as failed.
 func (t T) Fail() T {
 //line test/framework.gala:32
 	return T{name: std.NewImmutable(t.name.Get()), failed: std.NewImmutable(true), skipped: std.NewImmutable(t.skipped.Get())}
 }
 
-//line test/framework.gala:36
+//line test/framework.gala:34
+
+// Skip marks the test as skipped.
 func (t T) Skip() T {
 //line test/framework.gala:37
 	return T{name: std.NewImmutable(t.name.Get()), failed: std.NewImmutable(t.failed.Get()), skipped: std.NewImmutable(true)}
 }
 
-//line test/framework.gala:41
+//line test/framework.gala:39
+
+// Log prints a message to the test output.
 func (t T) Log(msg string) {
 //line test/framework.gala:42
 	fmt.Println(fmt.Sprintf("    %s", msg))
 }
 
-//line test/framework.gala:46
+//line test/framework.gala:44
+
+// Error logs an error message and marks the test as failed.
 func (t T) Error(msg string) T {
 //line test/framework.gala:47
 	fmt.Println(fmt.Sprintf("    ERROR: %s", msg))
@@ -70,7 +89,9 @@ func (t T) Error(msg string) T {
 	return T{name: std.NewImmutable(t.name.Get()), failed: std.NewImmutable(true), skipped: std.NewImmutable(t.skipped.Get())}
 }
 
-//line test/framework.gala:52
+//line test/framework.gala:50
+
+// Fatal logs an error message, marks the test as failed, and stops execution.
 func (t T) Fatal(msg string) {
 //line test/framework.gala:53
 	fmt.Println(fmt.Sprintf("    FATAL: %s", msg))
@@ -78,7 +99,11 @@ func (t T) Fatal(msg string) {
 	panic(fmt.Sprintf("Test %s fatal error: %s", t.name.Get(), msg))
 }
 
-//line test/framework.gala:60
+//line test/framework.gala:56
+
+// Run runs a subtest with the given name and function.
+// This enables table-driven testing patterns.
+// Panics in subtests are recovered and reported as failures.
 func (t T) Run(name string, f func(T) T) T {
 //line test/framework.gala:61
 	var subT = std.NewImmutable(newT(t.name.Get() + "/" + name))
@@ -109,7 +134,10 @@ func (t T) Run(name string, f func(T) T) T {
 	}
 }
 
-//line test/framework.gala:82
+//line test/framework.gala:79
+
+// runTest runs a test function with panic recovery.
+// If the function panics, the panic is caught and reported as a test failure.
 func runTest(t T, f func(T) T) T {
 //line test/framework.gala:83
 	var result = std.NewImmutable(std.Try[T]{}.Apply(func() T {
@@ -147,7 +175,9 @@ func runTest(t T, f func(T) T) T {
 	}(result.Get())
 }
 
-//line test/framework.gala:95
+//line test/framework.gala:93
+
+// TestFunc represents a test function that takes a T.
 type TestFunc struct {
 	Name std.Immutable[string]
 	F    std.Immutable[func(T) T]
@@ -169,7 +199,9 @@ func (s TestFunc) Unapply(v any) (std.Immutable[string], std.Immutable[func(T) T
 	return *new(std.Immutable[string]), *new(std.Immutable[func(T) T]), false
 }
 
-//line test/framework.gala:101
+//line test/framework.gala:99
+
+// Run executes the test function and returns the result.
 func (tf TestFunc) Run() T {
 //line test/framework.gala:102
 	var t = std.NewImmutable(newT(tf.Name.Get()))
@@ -196,7 +228,10 @@ func (tf TestFunc) Run() T {
 	return result.Get()
 }
 
-//line test/framework.gala:122
+//line test/framework.gala:119
+
+// RunTests runs all provided test functions and exits with appropriate code.
+// This is the main entry point for running tests.
 func RunTests(tests ...TestFunc) {
 //line test/framework.gala:123
 	var passed = 0
@@ -239,4 +274,76 @@ func RunTests(tests ...TestFunc) {
 	}
 //line test/framework.gala:148
 	fmt.Println("PASS")
+}
+
+type StructMeta_T struct {
+}
+
+func (_ StructMeta_T) NumFields() int {
+	return 3
+}
+func (_ StructMeta_T) FieldName(i int) string {
+	switch i {
+	case 0:
+		return "name"
+	case 1:
+		return "failed"
+	case 2:
+		return "skipped"
+	default:
+		return ""
+	}
+}
+func (_ StructMeta_T) EncodeFields(w std.FieldEncoder, t T, nameFn func(int) string, omitFn func(int) bool, naming func(string) string) {
+	w.WriteStartObject()
+	if !omitFn(0) {
+		w.WriteKey(nameFn(0))
+		w.WriteString(t.name.Get())
+	}
+	if !omitFn(1) {
+		w.WriteKey(nameFn(1))
+		w.WriteBool(t.failed.Get())
+	}
+	if !omitFn(2) {
+		w.WriteKey(nameFn(2))
+		w.WriteBool(t.skipped.Get())
+	}
+	w.WriteEndObject()
+}
+func (_ StructMeta_T) DecodeFields(r std.FieldDecoder, lookup func(string) int, naming func(string) string) T {
+	panic("T has private fields and no `func (t T) Validate() Try[T]` method, so it cannot be decoded")
+	var _name string
+	var _failed bool
+	var _skipped bool
+	r.StartObject()
+	for r.HasMoreFields() {
+		key := r.ReadKey()
+		switch lookup(key) {
+		case 0:
+			_name = r.ReadString()
+		case 1:
+			_failed = r.ReadBool()
+		case 2:
+			_skipped = r.ReadBool()
+		default:
+			r.Skip()
+		}
+	}
+	r.EndObject()
+	return T{name: std.NewImmutable(_name), failed: std.NewImmutable(_failed), skipped: std.NewImmutable(_skipped)}
+}
+func (_ StructMeta_T) FieldIsEmpty(t T, i int) bool {
+	switch i {
+	case 0:
+		return t.name.Get() == ""
+	case 1:
+		return !t.failed.Get()
+	case 2:
+		return !t.skipped.Get()
+	}
+	return false
+}
+func (_ StructMeta_T) Empty() T {
+	panic("T has private fields and no `func (t T) Validate() Try[T]` method, so it cannot be decoded")
+	return T{}
 }

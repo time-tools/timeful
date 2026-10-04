@@ -1,5 +1,6 @@
 // Vendored GALA standard library, flattened into a single Go module.
-// Source: the gala CLI v0.84.1 extraction at ~/.gala/stdlib/v0.84.1.
+// Source: the gala CLI extraction at ~/.gala/stdlib/v0.84.1, built from the
+// flake-locked compiler rev recorded in VENDORED_FROM.
 // Generated Go files are produced by the GALA transpiler; see server/GALA.md.
 module martianoff/gala
 

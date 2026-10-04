@@ -11,7 +11,12 @@ import (
 	"path/filepath"
 )
 
-//line fs/dir_ops.gala:16
+//line fs/dir_ops.gala:11
+
+// WalkEntry pairs a filesystem path with the FileInfo snapshot for the
+// node living at that path. Returned by Walk; the Path is the full
+// path as produced by filepath.WalkDir (i.e. relative paths are kept
+// relative, absolute paths stay absolute).
 type WalkEntry struct {
 	Path Immutable[string]
 	Info Immutable[FileInfo]
@@ -33,7 +38,19 @@ func (s WalkEntry) Unapply(v any) (Immutable[string], Immutable[FileInfo], bool)
 	return *new(Immutable[string]), *new(Immutable[FileInfo]), false
 }
 
-//line fs/dir_ops.gala:32
+//line fs/dir_ops.gala:20
+
+// CopyFile copies a single regular file from src to dst, streaming
+// via io.Copy so the file is never held in memory in full. dst is
+// created (or truncated if it exists) with `mode`. Fails if src
+// cannot be opened or if any IO error occurs along the way.
+//
+// Named CopyFile rather than Copy to avoid colliding with std.Copy,
+// the generic deep-copy helper exported as a prelude symbol.
+//
+// Each handle is released by resource.Using (GALA has no `defer`): the
+// close is guaranteed on every exit path and, being nested, runs LIFO —
+// dst closes before src.
 func CopyFile(src string, dst string, mode int) Try[Void] {
 	return Try_FlatMap(Try[*os.File]{}.Apply(func() *os.File {
 		_v0, _err := os.Open(src)
@@ -66,12 +83,22 @@ func CopyFile(src string, dst string, mode int) Try[Void] {
 	})
 }
 
-//line fs/dir_ops.gala:44
+//line fs/dir_ops.gala:39
+
+// Rename moves src to dst by delegating to os.Rename. Atomic on the
+// same filesystem; will fail across filesystems. Callers that need
+// cross-filesystem moves should compose Copy + RemoveAll explicitly —
+// we deliberately do not paper over that case.
 func Rename(src string, dst string) Try[Void] {
 	return FromError(os.Rename(src, dst))
 }
 
-//line fs/dir_ops.gala:51
+//line fs/dir_ops.gala:46
+
+// Walk returns every entry under `root`, recursively. The walk order
+// is filepath.WalkDir's order (lexical within each directory). The
+// root entry itself is included as the first element. A read error
+// at any level is captured as Failure.
 func Walk(root string) Try[Array[WalkEntry]] {
 //line fs/dir_ops.gala:55
 	var entries = EmptyArray[WalkEntry]()
@@ -102,7 +129,12 @@ func Walk(root string) Try[Array[WalkEntry]] {
 	})
 }
 
-//line fs/dir_ops.gala:69
+//line fs/dir_ops.gala:64
+
+// Glob returns paths matching the shell-style pattern using
+// filepath.Glob semantics (`*`, `?`, `[abc]`). An empty result is
+// Success(empty Array), not Failure — "no matches" is not an error.
+// Failure is reserved for malformed patterns (filepath.ErrBadPattern).
 func Glob(pattern string) Try[Array[string]] {
 	return Try_Map(Try[[]string]{}.Apply(func() []string {
 		_v0, _err := filepath.Glob(pattern)
@@ -113,4 +145,80 @@ func Glob(pattern string) Try[Array[string]] {
 	}), func(matches []string) Array[string] {
 		return ArrayFromSlice(matches)
 	})
+}
+
+type StructMeta_WalkEntry struct {
+}
+
+func (_ StructMeta_WalkEntry) NumFields() int {
+	return 2
+}
+func (_ StructMeta_WalkEntry) FieldName(i int) string {
+	switch i {
+	case 0:
+		return "Path"
+	case 1:
+		return "Info"
+	default:
+		return ""
+	}
+}
+func (_ StructMeta_WalkEntry) EncodeFields(w FieldEncoder, t WalkEntry, nameFn func(int) string, omitFn func(int) bool, naming func(string) string) {
+	w.WriteStartObject()
+	if !omitFn(0) {
+		w.WriteKey(nameFn(0))
+		w.WriteString(t.Path.Get())
+	}
+	if !omitFn(1) {
+		w.WriteKey(nameFn(1))
+		StructMeta_FileInfo{}.EncodeFields(w, t.Info.Get(), func(i int) string {
+			return naming(StructMeta_FileInfo{}.FieldName(i))
+		}, func(i int) bool {
+			_ = i
+			return false
+		}, naming)
+	}
+	w.WriteEndObject()
+}
+func (_ StructMeta_WalkEntry) DecodeFields(r FieldDecoder, lookup func(string) int, naming func(string) string) WalkEntry {
+	var _Path string
+	var _Info FileInfo
+	var __seen1 bool
+	r.StartObject()
+	for r.HasMoreFields() {
+		key := r.ReadKey()
+		switch lookup(key) {
+		case 0:
+			_Path = r.ReadString()
+		case 1:
+			_Info = StructMeta_FileInfo{}.DecodeFields(r, func(key string) int {
+				_meta := StructMeta_FileInfo{}
+				n := _meta.NumFields()
+				for i := 0; i < n; i++ {
+					if naming(_meta.FieldName(i)) == key {
+						return i
+					}
+				}
+				return -1
+			}, naming)
+			__seen1 = true
+		default:
+			r.Skip()
+		}
+	}
+	r.EndObject()
+	if !__seen1 {
+		_Info = StructMeta_FileInfo{}.Empty()
+	}
+	return WalkEntry{Path: NewImmutable(_Path), Info: NewImmutable(_Info)}
+}
+func (_ StructMeta_WalkEntry) FieldIsEmpty(t WalkEntry, i int) bool {
+	switch i {
+	case 0:
+		return t.Path.Get() == ""
+	}
+	return false
+}
+func (_ StructMeta_WalkEntry) Empty() WalkEntry {
+	return WalkEntry{Info: NewImmutable(StructMeta_FileInfo{}.Empty())}
 }

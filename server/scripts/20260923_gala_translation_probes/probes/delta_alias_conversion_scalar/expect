@@ -1,3 +1,0 @@
-KIND=pass
-RUN=yes
-NOTE=PR #529 delta: Millis(v) for `type Millis int64` used to emit Millis{} and drop the argument in 0.81.0, failing `go build`; the fix emits the Go conversion, and this expectation pins the converted value so a regression back to a zero-valued composite literal is caught

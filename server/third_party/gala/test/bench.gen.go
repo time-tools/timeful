@@ -6,7 +6,10 @@ import "fmt"
 import "martianoff/gala/std"
 import "time"
 
-//line test/bench.gala:13
+//line test/bench.gala:10
+
+// B is the benchmark context, similar to Go's *testing.B.
+// The benchmark function should loop b.N times.
 type B struct {
 	N    std.Immutable[int]
 	name std.Immutable[string]
@@ -19,7 +22,9 @@ func (s B) Equal(other B) bool {
 	return std.Equal(s.N, other.N) && std.Equal(s.name, other.name)
 }
 
-//line test/bench.gala:19
+//line test/bench.gala:17
+
+// BenchFunc represents a benchmark function.
 type BenchFunc struct {
 	Name std.Immutable[string]
 	Func std.Immutable[func(B)]
@@ -41,7 +46,11 @@ func (s BenchFunc) Unapply(v any) (std.Immutable[string], std.Immutable[func(B)]
 	return *new(std.Immutable[string]), *new(std.Immutable[func(B)]), false
 }
 
-//line test/bench.gala:27
+//line test/bench.gala:23
+
+// RunBenchmarks runs all provided benchmark functions with auto-calibration.
+// Each benchmark is calibrated by doubling N until the elapsed time >= 1 second,
+// then the final measurement is reported in ns/op format.
 func RunBenchmarks(benchmarks ...BenchFunc) {
 //line test/bench.gala:28
 	fmt.Println("=== STARTING BENCHMARKS ===")
@@ -86,4 +95,65 @@ func runBenchmark(bench BenchFunc) {
 	var nsPerOp = std.NewImmutable(nsTotal / int64(n))
 //line test/bench.gala:54
 	fmt.Println(fmt.Sprintf("%-40s %10d %15d ns/op", bench.Name.Get(), n, nsPerOp.Get()))
+}
+
+type StructMeta_B struct {
+}
+
+func (_ StructMeta_B) NumFields() int {
+	return 2
+}
+func (_ StructMeta_B) FieldName(i int) string {
+	switch i {
+	case 0:
+		return "N"
+	case 1:
+		return "name"
+	default:
+		return ""
+	}
+}
+func (_ StructMeta_B) EncodeFields(w std.FieldEncoder, t B, nameFn func(int) string, omitFn func(int) bool, naming func(string) string) {
+	w.WriteStartObject()
+	if !omitFn(0) {
+		w.WriteKey(nameFn(0))
+		w.WriteInt(t.N.Get())
+	}
+	if !omitFn(1) {
+		w.WriteKey(nameFn(1))
+		w.WriteString(t.name.Get())
+	}
+	w.WriteEndObject()
+}
+func (_ StructMeta_B) DecodeFields(r std.FieldDecoder, lookup func(string) int, naming func(string) string) B {
+	panic("B has private fields and no `func (b B) Validate() Try[B]` method, so it cannot be decoded")
+	var _N int
+	var _name string
+	r.StartObject()
+	for r.HasMoreFields() {
+		key := r.ReadKey()
+		switch lookup(key) {
+		case 0:
+			_N = r.ReadInt()
+		case 1:
+			_name = r.ReadString()
+		default:
+			r.Skip()
+		}
+	}
+	r.EndObject()
+	return B{N: std.NewImmutable(_N), name: std.NewImmutable(_name)}
+}
+func (_ StructMeta_B) FieldIsEmpty(t B, i int) bool {
+	switch i {
+	case 0:
+		return t.N.Get() == 0
+	case 1:
+		return t.name.Get() == ""
+	}
+	return false
+}
+func (_ StructMeta_B) Empty() B {
+	panic("B has private fields and no `func (b B) Validate() Try[B]` method, so it cannot be decoded")
+	return B{}
 }

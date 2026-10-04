@@ -1,3 +1,0 @@
-package main
-
-func Lower(s string) string = strings.ToLower(s)

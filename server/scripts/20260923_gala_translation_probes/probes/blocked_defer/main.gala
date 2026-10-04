@@ -1,7 +1,0 @@
-package main
-
-func Reset() {}
-
-func main() {
-	defer Reset()
-}

@@ -1,5 +1,0 @@
-KIND=emit
-CONTAINS=type PairInstance interface
-CONTAINS=IsPair() bool
-CONTAINS=func (_ Pair[T]) IsPair() bool
-NOTE=generic half of the synthesized-members claim: a generic struct declaration gains an <Name>Instance interface and an Is<Name>() method, which is why a generic GALA struct is not a drop-in Go twin. The markers are the synthesized type name and the method signature, so they survive formatting; the third one separates the method from the interface method it shares a name with. The absence half is emit_plain_struct_no_instance, which declares a non-generic struct of the same shape. Pinned to the GALA release by construction; re-baseline with the procedure in docs/gala-translation.md under "When to revisit"

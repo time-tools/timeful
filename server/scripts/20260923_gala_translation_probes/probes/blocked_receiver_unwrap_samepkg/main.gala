@@ -1,7 +1,0 @@
-package main
-
-func main() {
-	x := NewGreeter("world")
-	x.Rename("there")
-	Println(x.Hello())
-}

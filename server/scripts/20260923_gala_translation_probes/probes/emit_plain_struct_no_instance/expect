@@ -1,4 +1,0 @@
-KIND=emit
-ABSENT=type CoordInstance interface
-ABSENT=IsCoord()
-NOTE=non-generic half of the synthesized-members claim, and the half that qualifies it: Copy, Equal, and Unapply are synthesized on every GALA struct, but the <Name>Instance interface and the Is<Name>() method are added only when the declaration is generic, so the roster's wording stays checked in both directions rather than in one. The markers name what must not be emitted, which is the shape a construct is blocked by, so audit.sh accepts this probe as a gap blocker. Pinned to the GALA release by construction; re-baseline with the procedure in docs/gala-translation.md under "When to revisit"

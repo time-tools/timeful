@@ -1,3 +1,0 @@
-KIND=transpile_fail
-ERR=extraneous input '(' expecting IDENTIFIER
-NOTE=type assertions do not parse; match on the type instead

@@ -2,7 +2,9 @@
 
 package std
 
-//line std/immutable.gala:4
+//line std/immutable.gala:2
+
+// Immutable[T] is a core GALA type that provides immutability wrappers.
 type Immutable[T any] struct {
 	value T
 }
@@ -22,27 +24,41 @@ func (_ Immutable[T]) IsImmutable() bool {
 	return true
 }
 
-//line std/immutable.gala:9
+//line std/immutable.gala:7
+
+// Get returns the underlying value.
 func (i Immutable[T]) Get() T {
 	return i.value
 }
 
-//line std/immutable.gala:13
+//line std/immutable.gala:10
+
+// Ptr returns a pointer to the underlying value.
+// This allows taking the address of immutable values.
 func (i *Immutable[T]) Ptr() *T {
 	return &i.value
 }
 
-//line std/immutable.gala:16
+//line std/immutable.gala:14
+
+// GetAny returns the underlying value as any (for interface-based unwrapping).
 func (i Immutable[T]) GetAny() any {
 	return i.value
 }
 
-//line std/immutable.gala:19
+//line std/immutable.gala:17
+
+// NewImmutable creates a new Immutable wrapper.
 func NewImmutable[T any](v T) Immutable[T] {
 	return Immutable[T]{value: v}
 }
 
-//line std/immutable.gala:25
+//line std/immutable.gala:20
+
+// AddrOfCopy returns a pointer to a fresh copy of v. The transpiler emits it
+// when a pointer-receiver method is called on a value Go cannot address — a
+// val's Get(), a call result, a composite literal — so the method runs on the
+// copy and the original value is left unchanged.
 func AddrOfCopy[T any](v T) *T {
 	return &v
 }

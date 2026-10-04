@@ -1,7 +1,0 @@
-package main
-
-val ExportedAnswer = 99
-
-func main() {
-	Println("gala")
-}

@@ -1,3 +1,0 @@
-KIND=transpile_fail
-CODE=GALA-E0048
-NOTE=`type X Y` stays a Go alias, so it takes no methods of its own and models/datetime.go stays handwritten; 0.81.0 accepted the declaration and emitted Go that failed to build, and 0.84.1 rejects it at transpile time as GALA-E0048 with a hint to declare a wrapping struct or use a plain function

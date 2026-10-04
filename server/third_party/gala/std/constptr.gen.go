@@ -2,7 +2,11 @@
 
 package std
 
-//line std/constptr.gala:6
+//line std/constptr.gala:2
+
+// ConstPtr[T] is a read-only pointer wrapper.
+// It allows reading the pointed-to value but not writing.
+// Used for pointers obtained from taking address of immutable values.
 type ConstPtr[T any] struct {
 	ptr *T
 }
@@ -22,17 +26,23 @@ func (_ ConstPtr[T]) IsConstPtr() bool {
 	return true
 }
 
-//line std/constptr.gala:11
+//line std/constptr.gala:9
+
+// NewConstPtr creates a new read-only pointer wrapper.
 func NewConstPtr[T any](p *T) ConstPtr[T] {
 	return ConstPtr[T]{ptr: p}
 }
 
-//line std/constptr.gala:14
+//line std/constptr.gala:12
+
+// Deref returns the value being pointed to (read-only access).
 func (c ConstPtr[T]) Deref() T {
 	return *c.ptr
 }
 
-//line std/constptr.gala:17
+//line std/constptr.gala:15
+
+// IsNil returns true if the underlying pointer is nil.
 func (c ConstPtr[T]) IsNil() bool {
 	return c.ptr == nil
 }

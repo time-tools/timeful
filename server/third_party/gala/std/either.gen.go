@@ -4,7 +4,10 @@ package std
 
 import "fmt"
 
-//line std/either.gala:7
+//line std/either.gala:4
+
+// Either represents a value of one of two possible types (a disjoint union).
+// An instance of Either is an instance of either Left or Right.
 type Either[A any, B any] struct {
 	LeftValue  Immutable[A]
 	RightValue Immutable[B]
@@ -72,17 +75,23 @@ func (_ Either[A, B]) IsEither() bool {
 	return true
 }
 
-//line std/either.gala:13
+//line std/either.gala:11
+
+// IsLeft returns true if this is a Left, false otherwise.
 func (e Either[A, B]) IsLeft() bool {
 	return e.isLeft()
 }
 
-//line std/either.gala:16
+//line std/either.gala:14
+
+// IsRight returns true if this is a Right, false otherwise.
 func (e Either[A, B]) IsRight() bool {
 	return e.isRight()
 }
 
-//line std/either.gala:19
+//line std/either.gala:17
+
+// isLeft returns true if this is a Left, false otherwise.
 func isLeft(e any) bool {
 	return func(obj any) bool {
 		{
@@ -96,7 +105,9 @@ func isLeft(e any) bool {
 	}(e)
 }
 
-//line std/either.gala:25
+//line std/either.gala:23
+
+// isRight returns true if this is a Right, false otherwise.
 func isRight(e any) bool {
 	return func(obj any) bool {
 		{
@@ -110,7 +121,9 @@ func isRight(e any) bool {
 	}(e)
 }
 
-//line std/either.gala:31
+//line std/either.gala:29
+
+// getLeftValue returns the left value if this is a Left, otherwise it returns nil.
 func getLeftValue(e any) any {
 	return func(obj any) any {
 		{
@@ -124,7 +137,9 @@ func getLeftValue(e any) any {
 	}(e)
 }
 
-//line std/either.gala:37
+//line std/either.gala:35
+
+// getRightValue returns the right value if this is a Right, otherwise it returns nil.
 func getRightValue(e any) any {
 	return func(obj any) any {
 		{
@@ -138,7 +153,9 @@ func getRightValue(e any) any {
 	}(e)
 }
 
-//line std/either.gala:43
+//line std/either.gala:41
+
+// GetLeft returns the left value if this is a Left, otherwise it panics.
 func (e Either[A, B]) GetLeft() A {
 //line std/either.gala:44
 	if e.isRight() {
@@ -149,7 +166,9 @@ func (e Either[A, B]) GetLeft() A {
 	return e.LeftValue.Get()
 }
 
-//line std/either.gala:51
+//line std/either.gala:49
+
+// GetRight returns the right value if this is a Right, otherwise it panics.
 func (e Either[A, B]) GetRight() B {
 //line std/either.gala:52
 	if e.isLeft() {
@@ -160,7 +179,9 @@ func (e Either[A, B]) GetRight() B {
 	return e.RightValue.Get()
 }
 
-//line std/either.gala:59
+//line std/either.gala:57
+
+// Swap returns the left as right and vice versa.
 func Either_Swap[A any, B any](e Either[A, B]) Either[B, A] {
 //line std/either.gala:60
 	if e.isLeft() {
@@ -171,7 +192,10 @@ func Either_Swap[A any, B any](e Either[A, B]) Either[B, A] {
 	return Left[B, A]{}.Apply(e.RightValue.Get())
 }
 
-//line std/either.gala:68
+//line std/either.gala:65
+
+// OnRight executes a callback with the right value if this is a Right,
+// returns the original Either unchanged (for chaining).
 func (e Either[A, B]) OnRight(f func(B)) Either[A, B] {
 //line std/either.gala:69
 	if e.isRight() {
@@ -182,7 +206,10 @@ func (e Either[A, B]) OnRight(f func(B)) Either[A, B] {
 	return e
 }
 
-//line std/either.gala:77
+//line std/either.gala:74
+
+// OnLeft executes a callback with the left value if this is a Left,
+// returns the original Either unchanged (for chaining).
 func (e Either[A, B]) OnLeft(f func(A)) Either[A, B] {
 //line std/either.gala:78
 	if e.isLeft() {
@@ -193,7 +220,9 @@ func (e Either[A, B]) OnLeft(f func(A)) Either[A, B] {
 	return e
 }
 
-//line std/either.gala:85
+//line std/either.gala:83
+
+// Fold applies f1 to the left value or f2 to the right value.
 func Either_Fold[C any, A any, B any](e Either[A, B], f1 func(A) C, f2 func(B) C) C {
 //line std/either.gala:86
 	if e.isLeft() {
@@ -204,7 +233,9 @@ func Either_Fold[C any, A any, B any](e Either[A, B], f1 func(A) C, f2 func(B) C
 	return f2(e.RightValue.Get())
 }
 
-//line std/either.gala:93
+//line std/either.gala:91
+
+// Map applies a function to the right value if this is a Right.
 func Either_Map[C any, A any, B any](e Either[A, B], f func(B) C) Either[A, C] {
 //line std/either.gala:94
 	if e.isLeft() {
@@ -215,7 +246,9 @@ func Either_Map[C any, A any, B any](e Either[A, B], f func(B) C) Either[A, C] {
 	return Right[A, C]{}.Apply(f(e.RightValue.Get()))
 }
 
-//line std/either.gala:101
+//line std/either.gala:99
+
+// FlatMap applies a function to the right value if this is a Right.
 func Either_FlatMap[C any, A any, B any](e Either[A, B], f func(B) Either[A, C]) Either[A, C] {
 //line std/either.gala:102
 	if e.isLeft() {

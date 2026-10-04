@@ -4,7 +4,12 @@ package io
 
 import . "martianoff/gala/std"
 
-//line io/io.gala:9
+//line io/io.gala:4
+
+// IO represents a lazy, composable side-effecting computation.
+// An IO[T] value describes a computation that, when executed, produces a value of type T
+// or fails with an error. IO values are referentially transparent — they can be
+// passed around, composed, and reasoned about without executing any effects.
 type IO[T any] struct {
 	exec func() Try[T]
 }
@@ -24,45 +29,59 @@ func (_ IO[T]) IsIO() bool {
 	return true
 }
 
-//line io/io.gala:14
+//line io/io.gala:12
+
+// Run executes the IO computation and returns a Try[T].
 func (io IO[T]) Run() Try[T] {
 	return io.exec()
 }
 
-//line io/io.gala:17
+//line io/io.gala:15
+
+// UnsafeRun executes the IO and returns the value, panicking on error.
 func (io IO[T]) UnsafeRun() T {
 	return io.exec().Get()
 }
 
-//line io/io.gala:20
+//line io/io.gala:18
+
+// Of creates an IO that succeeds with the given pure value.
 func Of[T any](value T) IO[T] {
 	return IO[T]{exec: func() Try[T] {
 		return Success[T]{}.Apply(value)
 	}}
 }
 
-//line io/io.gala:23
+//line io/io.gala:21
+
+// Fail creates an IO that fails with the given error.
 func Fail[T any](err error) IO[T] {
 	return IO[T]{exec: func() Try[T] {
 		return Failure[T]{}.Apply(err)
 	}}
 }
 
-//line io/io.gala:26
+//line io/io.gala:24
+
+// Suspend creates an IO from a thunk. Panics are caught as Failure.
 func Suspend[T any](f func() T) IO[T] {
 	return IO[T]{exec: func() Try[T] {
 		return TryApply(f)
 	}}
 }
 
-//line io/io.gala:29
+//line io/io.gala:27
+
+// FromTry creates an IO from an existing Try value.
 func FromTry[T any](t Try[T]) IO[T] {
 	return IO[T]{exec: func() Try[T] {
 		return t
 	}}
 }
 
-//line io/io.gala:32
+//line io/io.gala:30
+
+// Map transforms the success value of an IO while preserving type safety.
 func Map[T any, U any](io IO[T], f func(T) U) IO[U] {
 //line io/io.gala:33
 	return IO[U]{exec: func() Try[U] {
@@ -78,7 +97,9 @@ func Map[T any, U any](io IO[T], f func(T) U) IO[U] {
 	}}
 }
 
-//line io/io.gala:43
+//line io/io.gala:41
+
+// FlatMap chains IO computations sequentially.
 func FlatMap[T any, U any](io IO[T], f func(T) IO[U]) IO[U] {
 //line io/io.gala:44
 	return IO[U]{exec: func() Try[U] {
@@ -94,7 +115,9 @@ func FlatMap[T any, U any](io IO[T], f func(T) IO[U]) IO[U] {
 	}}
 }
 
-//line io/io.gala:54
+//line io/io.gala:52
+
+// AndThen sequences two IO computations, discarding the first result.
 func AndThen[T any, U any](first IO[T], second IO[U]) IO[U] {
 //line io/io.gala:55
 	return IO[U]{exec: func() Try[U] {
@@ -110,7 +133,9 @@ func AndThen[T any, U any](first IO[T], second IO[U]) IO[U] {
 	}}
 }
 
-//line io/io.gala:65
+//line io/io.gala:63
+
+// Recover handles errors by providing a fallback value.
 func Recover[T any](io IO[T], f func(error) T) IO[T] {
 //line io/io.gala:66
 	return IO[T]{exec: func() Try[T] {
@@ -126,7 +151,9 @@ func Recover[T any](io IO[T], f func(error) T) IO[T] {
 	}}
 }
 
-//line io/io.gala:76
+//line io/io.gala:74
+
+// RecoverWith handles errors by providing a fallback IO computation.
 func RecoverWith[T any](io IO[T], f func(error) IO[T]) IO[T] {
 //line io/io.gala:77
 	return IO[T]{exec: func() Try[T] {
@@ -142,7 +169,9 @@ func RecoverWith[T any](io IO[T], f func(error) IO[T]) IO[T] {
 	}}
 }
 
-//line io/io.gala:87
+//line io/io.gala:85
+
+// ForEach executes a side-effecting function on the success value.
 func ForEach[T any](io IO[T], f func(T)) IO[T] {
 //line io/io.gala:88
 	return IO[T]{exec: func() Try[T] {
@@ -158,7 +187,9 @@ func ForEach[T any](io IO[T], f func(T)) IO[T] {
 	}}
 }
 
-//line io/io.gala:98
+//line io/io.gala:96
+
+// Effect creates an IO from a void side-effecting function.
 func Effect(f func()) IO[bool] {
 //line io/io.gala:99
 	return IO[bool]{exec: func() Try[bool] {
@@ -169,7 +200,9 @@ func Effect(f func()) IO[bool] {
 	}}
 }
 
-//line io/io.gala:106
+//line io/io.gala:104
+
+// Unit creates an IO that succeeds with no meaningful value.
 func Unit() IO[bool] {
 	return Of(true)
 }

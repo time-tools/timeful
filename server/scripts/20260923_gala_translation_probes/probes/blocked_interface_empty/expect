@@ -1,3 +1,0 @@
-KIND=transpile_fail
-ERR=mismatched input 'interface' expecting
-NOTE=interface{} is not a type expression in 0.81.0; use any or a concrete type

@@ -1,7 +1,0 @@
-package main
-
-func main() {
-	val s = "héllo"
-	Println(s.Size())
-	Println(s.ByteSize())
-}

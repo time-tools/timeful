@@ -1,3 +1,0 @@
-KIND=pass
-RUN=yes
-NOTE=concurrency without channel types: concurrent.FutureOf/Future/Await compiles; a channel type in a signature, field, or local stays handwritten (blocked_channel_type)

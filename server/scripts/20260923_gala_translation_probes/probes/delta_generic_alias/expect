@@ -1,3 +1,0 @@
-KIND=pass
-RUN=yes
-NOTE=PR #529 delta: 0.81.0 emitted IntPair{} for the alias conversion and silently returned zero values; the fix resolves the alias chain and passes the arguments, and this expectation pins the passed value rather than the silent zero result

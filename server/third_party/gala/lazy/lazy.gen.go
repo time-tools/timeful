@@ -5,7 +5,10 @@ package lazy
 import "martianoff/gala/std"
 import "martianoff/gala/go_interop"
 
-//line lazy/lazy.gala:9
+//line lazy/lazy.gala:6
+
+// Lazy[T] defers a computation and caches the result on first access.
+// Thread-safe via go_interop.Once. Pointer-based (*Lazy[T]).
 type Lazy[T any] struct {
 	thunk func() T
 	value T
@@ -28,13 +31,17 @@ func (_ Lazy[T]) IsLazy() bool {
 	return true
 }
 
-//line lazy/lazy.gala:17
+//line lazy/lazy.gala:15
+
+// New creates a Lazy that will evaluate thunk on first Get().
 func New[T any](thunk func() T) *Lazy[T] {
 //line lazy/lazy.gala:18
 	return &Lazy[T]{thunk: thunk, once: go_interop.NewOnce(), done: false}
 }
 
-//line lazy/lazy.gala:22
+//line lazy/lazy.gala:20
+
+// Of creates an already-evaluated Lazy holding value.
 func Of[T any](value T) *Lazy[T] {
 //line lazy/lazy.gala:23
 	var l = std.NewImmutable(&Lazy[T]{value: value, once: go_interop.NewOnce(), done: true})
@@ -45,7 +52,9 @@ func Of[T any](value T) *Lazy[T] {
 	return l.Get()
 }
 
-//line lazy/lazy.gala:29
+//line lazy/lazy.gala:27
+
+// Get returns the computed value, evaluating the thunk on first call.
 func (l *Lazy[T]) Get() T {
 //line lazy/lazy.gala:30
 	l.once.Do(func() {
@@ -60,19 +69,25 @@ func (l *Lazy[T]) Get() T {
 	return l.value
 }
 
-//line lazy/lazy.gala:39
+//line lazy/lazy.gala:37
+
+// IsEvaluated returns true if the thunk has been evaluated.
 func (l *Lazy[T]) IsEvaluated() bool {
 	return l.done
 }
 
-//line lazy/lazy.gala:42
+//line lazy/lazy.gala:40
+
+// Map returns a new Lazy that lazily applies f to this value.
 func Lazy_Map[U any, T any](l *Lazy[T], f func(T) U) *Lazy[U] {
 	return New[U](func() U {
 		return f(l.Get())
 	})
 }
 
-//line lazy/lazy.gala:45
+//line lazy/lazy.gala:43
+
+// FlatMap returns a new Lazy that lazily applies f and flattens.
 func Lazy_FlatMap[U any, T any](l *Lazy[T], f func(T) *Lazy[U]) *Lazy[U] {
 	return New[U](func() U {
 		return f(l.Get()).Get()

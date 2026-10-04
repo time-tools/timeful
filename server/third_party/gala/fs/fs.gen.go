@@ -11,7 +11,11 @@ import (
 	"os"
 )
 
-//line fs/fs.gala:21
+//line fs/fs.gala:17
+
+// FileInfo is the immutable snapshot returned by Stat / ReadDir. It
+// intentionally exposes only fields that the gala_team and similar
+// consumers actually use; the raw os.FileInfo interface is not leaked.
 type FileInfo struct {
 	Name    Immutable[string]
 	Size    Immutable[int64]
@@ -36,12 +40,18 @@ func (s FileInfo) Unapply(v any) (Immutable[string], Immutable[int64], Immutable
 	return *new(Immutable[string]), *new(Immutable[int64]), *new(Immutable[bool]), *new(Immutable[int]), *new(Immutable[time_utils.Instant]), false
 }
 
-//line fs/fs.gala:30
+//line fs/fs.gala:28
+
+// fromGoFileInfo bridges os.FileInfo into our immutable record.
 func fromGoFileInfo(fi os.FileInfo) FileInfo {
 	return FileInfo{Name: NewImmutable(fi.Name()), Size: NewImmutable(fi.Size()), IsDir: NewImmutable(fi.IsDir()), Mode: NewImmutable(int(fi.Mode())), ModTime: NewImmutable(time_utils.FromGoTime(fi.ModTime()))}
 }
 
-//line fs/fs.gala:41
+//line fs/fs.gala:37
+
+// ReadFile reads the named file and returns its contents as Array[byte].
+// On any error (file missing, permission denied, IO failure) the error
+// is captured as Failure.
 func ReadFile(path string) Try[Array[byte]] {
 	return Try_Map(Try[[]byte]{}.Apply(func() []byte {
 		_v0, _err := os.ReadFile(path)
@@ -54,7 +64,10 @@ func ReadFile(path string) Try[Array[byte]] {
 	})
 }
 
-//line fs/fs.gala:46
+//line fs/fs.gala:43
+
+// ReadFileString is a convenience for the common case of reading a
+// text file. Equivalent to ReadFile + decoding the bytes as UTF-8.
 func ReadFileString(path string) Try[string] {
 	return Try_Map(Try[[]byte]{}.Apply(func() []byte {
 		_v0, _err := os.ReadFile(path)
@@ -67,17 +80,25 @@ func ReadFileString(path string) Try[string] {
 	})
 }
 
-//line fs/fs.gala:52
+//line fs/fs.gala:48
+
+// WriteFile writes data to the named file, creating it if necessary.
+// `mode` is a Unix permission mode (e.g. 0o644). On Windows the mode
+// is mostly advisory; only the read-only bit is honored.
 func WriteFile(path string, data Array[byte], mode int) Try[Void] {
 	return FromError(os.WriteFile(path, data.ToGoSlice(), os.FileMode(mode)))
 }
 
-//line fs/fs.gala:56
+//line fs/fs.gala:54
+
+// WriteFileString is the string-content companion to WriteFile.
 func WriteFileString(path string, contents string, mode int) Try[Void] {
 	return FromError(os.WriteFile(path, ToBytes(contents), os.FileMode(mode)))
 }
 
-//line fs/fs.gala:60
+//line fs/fs.gala:58
+
+// Stat returns metadata about the file at `path`.
 func Stat(path string) Try[FileInfo] {
 	return Try_Map(Try[fs.FileInfo]{}.Apply(func() fs.FileInfo {
 		_v0, _err := os.Stat(path)
@@ -90,17 +111,32 @@ func Stat(path string) Try[FileInfo] {
 	})
 }
 
-//line fs/fs.gala:67
+//line fs/fs.gala:62
+
+// Exists is the non-fallible "does this path resolve" check.
+// Returns false on any error (including NotExist, permission denied,
+// or transient IO failure). Callers who care about *why* something is
+// missing should use Stat directly.
 func Exists(path string) bool {
 	return Stat(path).IsSuccess()
 }
 
-//line fs/fs.gala:72
+//line fs/fs.gala:68
+
+// MkdirAll creates `path` along with any necessary parents. It is a
+// no-op if the directory already exists. `mode` is the Unix permission
+// mode applied to newly-created directories.
 func MkdirAll(path string, mode int) Try[Void] {
 	return FromError(os.MkdirAll(path, os.FileMode(mode)))
 }
 
-//line fs/fs.gala:80
+//line fs/fs.gala:74
+
+// MkdirTemp creates a new temporary directory in the directory `dir`
+// and returns the pathname of the new directory. If `dir` is empty
+// the OS default (TMPDIR / GetTempPath) is used. `pattern` is the
+// os.MkdirTemp pattern: a literal name, optionally with a '*' that
+// gets replaced by random characters.
 func MkdirTemp(dir string, pattern string) Try[string] {
 	return Try[string]{}.Apply(func() string {
 		_v0, _err := os.MkdirTemp(dir, pattern)
@@ -111,12 +147,22 @@ func MkdirTemp(dir string, pattern string) Try[string] {
 	})
 }
 
-//line fs/fs.gala:86
+//line fs/fs.gala:81
+
+// RemoveAll removes path and any children it contains. It removes
+// everything it can but returns the first error it encounters. If
+// `path` does not exist, the call returns Success without error
+// (matching os.RemoveAll's convention).
 func RemoveAll(path string) Try[Void] {
 	return FromError(os.RemoveAll(path))
 }
 
-//line fs/fs.gala:93
+//line fs/fs.gala:88
+
+// ReadDir reads the directory named by `path` and returns a snapshot
+// of its entries as FileInfo records. Entries are returned in the
+// order ReadDir yields them (filesystem-dependent — callers that need
+// a stable order should sort).
 func ReadDir(path string) Try[Array[FileInfo]] {
 	return Try_FlatMap(Try[[]fs.DirEntry]{}.Apply(func() []fs.DirEntry {
 		_v0, _err := os.ReadDir(path)
@@ -146,4 +192,113 @@ func ReadDir(path string) Try[Array[FileInfo]] {
 //line fs/fs.gala:107
 		return Success[Array[FileInfo]]{}.Apply(out)
 	})
+}
+
+type StructMeta_FileInfo struct {
+}
+
+func (_ StructMeta_FileInfo) NumFields() int {
+	return 5
+}
+func (_ StructMeta_FileInfo) FieldName(i int) string {
+	switch i {
+	case 0:
+		return "Name"
+	case 1:
+		return "Size"
+	case 2:
+		return "IsDir"
+	case 3:
+		return "Mode"
+	case 4:
+		return "ModTime"
+	default:
+		return ""
+	}
+}
+func (_ StructMeta_FileInfo) EncodeFields(w FieldEncoder, t FileInfo, nameFn func(int) string, omitFn func(int) bool, naming func(string) string) {
+	w.WriteStartObject()
+	if !omitFn(0) {
+		w.WriteKey(nameFn(0))
+		w.WriteString(t.Name.Get())
+	}
+	if !omitFn(1) {
+		w.WriteKey(nameFn(1))
+		w.WriteInt64(t.Size.Get())
+	}
+	if !omitFn(2) {
+		w.WriteKey(nameFn(2))
+		w.WriteBool(t.IsDir.Get())
+	}
+	if !omitFn(3) {
+		w.WriteKey(nameFn(3))
+		w.WriteInt(t.Mode.Get())
+	}
+	if !omitFn(4) {
+		w.WriteKey(nameFn(4))
+		time_utils.StructMeta_Instant{}.EncodeFields(w, t.ModTime.Get(), func(i int) string {
+			return naming(time_utils.StructMeta_Instant{}.FieldName(i))
+		}, func(i int) bool {
+			_ = i
+			return false
+		}, naming)
+	}
+	w.WriteEndObject()
+}
+func (_ StructMeta_FileInfo) DecodeFields(r FieldDecoder, lookup func(string) int, naming func(string) string) FileInfo {
+	var _Name string
+	var _Size int64
+	var _IsDir bool
+	var _Mode int
+	var _ModTime time_utils.Instant
+	var __seen1 bool
+	r.StartObject()
+	for r.HasMoreFields() {
+		key := r.ReadKey()
+		switch lookup(key) {
+		case 0:
+			_Name = r.ReadString()
+		case 1:
+			_Size = r.ReadInt64()
+		case 2:
+			_IsDir = r.ReadBool()
+		case 3:
+			_Mode = r.ReadInt()
+		case 4:
+			_ModTime = time_utils.StructMeta_Instant{}.DecodeFields(r, func(key string) int {
+				_meta := time_utils.StructMeta_Instant{}
+				n := _meta.NumFields()
+				for i := 0; i < n; i++ {
+					if naming(_meta.FieldName(i)) == key {
+						return i
+					}
+				}
+				return -1
+			}, naming)
+			__seen1 = true
+		default:
+			r.Skip()
+		}
+	}
+	r.EndObject()
+	if !__seen1 {
+		_ModTime = time_utils.StructMeta_Instant{}.Empty()
+	}
+	return FileInfo{Name: NewImmutable(_Name), Size: NewImmutable(_Size), IsDir: NewImmutable(_IsDir), Mode: NewImmutable(_Mode), ModTime: NewImmutable(_ModTime)}
+}
+func (_ StructMeta_FileInfo) FieldIsEmpty(t FileInfo, i int) bool {
+	switch i {
+	case 0:
+		return t.Name.Get() == ""
+	case 1:
+		return t.Size.Get() == 0
+	case 2:
+		return !t.IsDir.Get()
+	case 3:
+		return t.Mode.Get() == 0
+	}
+	return false
+}
+func (_ StructMeta_FileInfo) Empty() FileInfo {
+	return FileInfo{ModTime: NewImmutable(time_utils.StructMeta_Instant{}.Empty())}
 }

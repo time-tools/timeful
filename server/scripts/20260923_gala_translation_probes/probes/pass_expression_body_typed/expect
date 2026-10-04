@@ -1,3 +1,0 @@
-KIND=pass
-RUN=yes
-NOTE=the substitute for the omitted-result-type form behind upstream #617: writing the result type out emits the typed Go function. One word of source separates the two, and the transpiler has the return type available in the spelling that works.

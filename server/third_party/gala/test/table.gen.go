@@ -4,7 +4,9 @@ package test
 
 import "martianoff/gala/std"
 
-//line test/table.gala:8
+//line test/table.gala:6
+
+// Case represents a single test case for table-driven tests.
 type Case[In any, Out any] struct {
 	Name     std.Immutable[string]
 	Input    std.Immutable[In]
@@ -35,7 +37,10 @@ func (s Case[In, Out]) Unapply(v any) (std.Immutable[string], std.Immutable[In],
 	return *new(std.Immutable[string]), *new(std.Immutable[In]), *new(std.Immutable[Out]), false
 }
 
-//line test/table.gala:16
+//line test/table.gala:13
+
+// RunCases runs a series of test cases as subtests.
+// Each case is executed via t.Run with the case's Name for proper subtest formatting.
 func RunCases[In any, Out any](t T, f func(T, In, Out) T, cases ...Case[In, Out]) T {
 //line test/table.gala:17
 	var result = t

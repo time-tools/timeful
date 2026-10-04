@@ -1,4 +1,0 @@
-KIND=transpile_fail
-CODE=GALA-E0023
-ERR=undefined: strings
-NOTE=the runner writes a handwritten helper.go that imports strings, so the importing sibling is Go rather than GALA. The diagnostic is identical to blocked_import_omitted_gala_sibling, which is what shows the sibling's language does not decide the outcome.

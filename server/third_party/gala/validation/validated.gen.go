@@ -8,7 +8,15 @@ import (
 	. "martianoff/gala/std"
 )
 
-//line validation/validated.gala:15
+//line validation/validated.gala:7
+
+// Validated[E, A] is an applicative companion to Either that ACCUMULATES errors
+// instead of short-circuiting on the first one. It is the type an `also` group
+// uses to collect every failure: validating three fields with
+// `bind name = ... also email = ... also age = ...` over Validated reports all
+// of the errors, not just the first. See docs/BIND_NOTATION.MD.
+//
+// Errors are held as an Array[E] (a non-empty list by construction of Invalid).
 type Validated[E any, A any] struct {
 	Value    Immutable[A]
 	Errors   Immutable[Array[E]]
@@ -76,12 +84,16 @@ func (_ Validated[E, A]) IsValidated() bool {
 	return true
 }
 
-//line validation/validated.gala:21
+//line validation/validated.gala:19
+
+// InvalidOf builds an Invalid holding a single error.
 func InvalidOf[E any, A any](err E) Validated[E, A] {
 	return Invalid[E, A]{}.Apply(ArrayOf(err))
 }
 
-//line validation/validated.gala:24
+//line validation/validated.gala:22
+
+// IsValid returns true if this is a Valid.
 func (v Validated[E, A]) IsValid() bool {
 	return func(obj Validated[E, A]) bool {
 		{
@@ -112,12 +124,16 @@ func (v Validated[E, A]) IsValid() bool {
 	}(v)
 }
 
-//line validation/validated.gala:30
+//line validation/validated.gala:28
+
+// IsInvalid returns true if this is an Invalid.
 func (v Validated[E, A]) IsInvalid() bool {
 	return !v.IsValid()
 }
 
-//line validation/validated.gala:33
+//line validation/validated.gala:31
+
+// GetOrElse returns the valid value, or defaultValue if invalid.
 func (v Validated[E, A]) GetOrElse(defaultValue A) A {
 	return func(obj Validated[E, A]) A {
 		{
@@ -149,7 +165,9 @@ func (v Validated[E, A]) GetOrElse(defaultValue A) A {
 	}(v)
 }
 
-//line validation/validated.gala:39
+//line validation/validated.gala:37
+
+// Errors returns the accumulated errors, or an empty Array if valid.
 func (v Validated[E, A]) GetErrors() Array[E] {
 	return func(obj Validated[E, A]) Array[E] {
 		{
@@ -181,7 +199,9 @@ func (v Validated[E, A]) GetErrors() Array[E] {
 	}(v)
 }
 
-//line validation/validated.gala:45
+//line validation/validated.gala:43
+
+// Map transforms the valid value; an Invalid passes through unchanged.
 func Validated_Map[B any, E any, A any](v Validated[E, A], f func(A) B) Validated[E, B] {
 	return func(obj Validated[E, A]) Validated[E, B] {
 		{
@@ -214,7 +234,10 @@ func Validated_Map[B any, E any, A any](v Validated[E, A], f func(A) B) Validate
 	}(v)
 }
 
-//line validation/validated.gala:52
+//line validation/validated.gala:49
+
+// FlatMap is the monadic (fail-fast) bind — it does NOT accumulate. Error
+// accumulation is the job of Zip2/Zip3 (reached through `also`).
 func Validated_FlatMap[B any, E any, A any](v Validated[E, A], f func(A) Validated[E, B]) Validated[E, B] {
 	return func(obj Validated[E, A]) Validated[E, B] {
 		{
@@ -472,7 +495,9 @@ func Validated_Zip10[B any, C any, D any, F any, G any, H any, I any, J any, K a
 	return Invalid[E, Tuple10[A, B, C, D, F, G, H, I, J, K]]{}.Apply(errs.Get())
 }
 
-//line validation/validated.gala:181
+//line validation/validated.gala:179
+
+// ToEither converts to Either: Valid → Right, Invalid → Left(errors).
 func (v Validated[E, A]) ToEither() Either[Array[E], A] {
 	return func(obj Validated[E, A]) Either[Array[E], A] {
 		{

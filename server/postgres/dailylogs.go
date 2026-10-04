@@ -78,3 +78,95 @@ LEFT JOIN daily_user_logs l ON l.log_date = d.log_date
 LEFT JOIN daily_user_log_members m ON m.daily_user_log_id = l.id
 LEFT JOIN accounts a ON a.platform_identity_id = m.platform_identity_id
 ORDER BY d.log_date DESC, m.first_seen_position, m.id`
+
+type StructMeta_DailyUserLogMember struct {
+}
+
+func (_ StructMeta_DailyUserLogMember) NumFields() int {
+	return 5
+}
+func (_ StructMeta_DailyUserLogMember) FieldName(i int) string {
+	switch i {
+	case 0:
+		return "PlatformIdentityID"
+	case 1:
+		return "FirstName"
+	case 2:
+		return "LastName"
+	case 3:
+		return "Email"
+	case 4:
+		return "Position"
+	default:
+		return ""
+	}
+}
+func (_ StructMeta_DailyUserLogMember) EncodeFields(w std.FieldEncoder, t DailyUserLogMember, nameFn func(int) string, omitFn func(int) bool, naming func(string) string) {
+	w.WriteStartObject()
+	if !omitFn(0) {
+		w.WriteKey(nameFn(0))
+		w.WriteString(t.PlatformIdentityID)
+	}
+	if !omitFn(1) {
+		w.WriteKey(nameFn(1))
+		w.WriteString(t.FirstName)
+	}
+	if !omitFn(2) {
+		w.WriteKey(nameFn(2))
+		w.WriteString(t.LastName)
+	}
+	if !omitFn(3) {
+		w.WriteKey(nameFn(3))
+		w.WriteString(t.Email)
+	}
+	if !omitFn(4) {
+		w.WriteKey(nameFn(4))
+		w.WriteInt(t.Position)
+	}
+	w.WriteEndObject()
+}
+func (_ StructMeta_DailyUserLogMember) DecodeFields(r std.FieldDecoder, lookup func(string) int, naming func(string) string) DailyUserLogMember {
+	var _PlatformIdentityID string
+	var _FirstName string
+	var _LastName string
+	var _Email string
+	var _Position int
+	r.StartObject()
+	for r.HasMoreFields() {
+		key := r.ReadKey()
+		switch lookup(key) {
+		case 0:
+			_PlatformIdentityID = r.ReadString()
+		case 1:
+			_FirstName = r.ReadString()
+		case 2:
+			_LastName = r.ReadString()
+		case 3:
+			_Email = r.ReadString()
+		case 4:
+			_Position = r.ReadInt()
+		default:
+			r.Skip()
+		}
+	}
+	r.EndObject()
+	return DailyUserLogMember{PlatformIdentityID: _PlatformIdentityID, FirstName: _FirstName, LastName: _LastName, Email: _Email, Position: _Position}
+}
+func (_ StructMeta_DailyUserLogMember) FieldIsEmpty(t DailyUserLogMember, i int) bool {
+	switch i {
+	case 0:
+		return t.PlatformIdentityID == ""
+	case 1:
+		return t.FirstName == ""
+	case 2:
+		return t.LastName == ""
+	case 3:
+		return t.Email == ""
+	case 4:
+		return t.Position == 0
+	}
+	return false
+}
+func (_ StructMeta_DailyUserLogMember) Empty() DailyUserLogMember {
+	return DailyUserLogMember{}
+}

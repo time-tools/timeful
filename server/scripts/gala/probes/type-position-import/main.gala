@@ -1,0 +1,7 @@
+package probe
+
+struct Holder(F Future[int])
+
+var holder Future[int]
+
+func Await2(f Future[int]) int = 1

@@ -1,7 +1,0 @@
-package main
-
-func size(s string) int = len(s)
-
-func main() {
-	Println(size("abc"))
-}

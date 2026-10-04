@@ -1,3 +1,0 @@
-KIND=pass
-RUN=yes
-NOTE=PR #529 delta: 0.81.0 assigned the post statement to the init slot, so it ran once before the loop (`for i++; i < 3;`) and this break-bounded loop printed 1; the fix decides the slot from the `;` separators, and this expectation pins the correct 0

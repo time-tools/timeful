@@ -1,8 +1,0 @@
-package main
-
-struct Person(Name string)
-
-func main() {
-	p := Person{Name: "ada"}
-	Println(p.Name)
-}

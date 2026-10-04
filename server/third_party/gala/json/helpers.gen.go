@@ -5,7 +5,9 @@ package json
 import "martianoff/gala/std"
 import . "martianoff/gala/collection_immutable"
 
-//line json/helpers.gala:8
+//line json/helpers.gala:6
+
+// KeyConfig holds field-level configuration for JSON serialization.
 type KeyConfig struct {
 	NamingStrategy std.Immutable[Naming]
 	Renames        std.Immutable[HashMap[string, string]]
@@ -54,62 +56,192 @@ func (c KeyConfig) WithOmitEmpty(field string) KeyConfig {
 	return KeyConfig{NamingStrategy: std.Copy(c.NamingStrategy), Renames: std.Copy(c.Renames), Omits: std.Copy(c.Omits), OmitEmpties: std.NewImmutable(c.OmitEmpties.Get().Put(field, true))}
 }
 
-//line json/helpers.gala:34
+//line json/helpers.gala:32
+
+// KeysConfig holds the computed per-field encoding plan: Keys(i) is field i's
+// serialized key ("" when the field is omitted), and OmitIfEmpty(i) says
+// whether field i is left out of the output when its value is empty (never
+// true for an omitted field).
 type KeysConfig struct {
 	Keys        std.Immutable[Array[string]]
 	ReverseKeys std.Immutable[HashMap[string, string]]
+	OmitIfEmpty std.Immutable[Array[bool]]
 }
 
 func (s KeysConfig) Copy() KeysConfig {
-	return KeysConfig{Keys: std.Copy(s.Keys), ReverseKeys: std.Copy(s.ReverseKeys)}
+	return KeysConfig{Keys: std.Copy(s.Keys), ReverseKeys: std.Copy(s.ReverseKeys), OmitIfEmpty: std.Copy(s.OmitIfEmpty)}
 }
 func (s KeysConfig) Equal(other KeysConfig) bool {
-	return std.Equal(s.Keys, other.Keys) && std.Equal(s.ReverseKeys, other.ReverseKeys)
+	return std.Equal(s.Keys, other.Keys) && std.Equal(s.ReverseKeys, other.ReverseKeys) && std.Equal(s.OmitIfEmpty, other.OmitIfEmpty)
 }
-func (s KeysConfig) Unapply(v any) (std.Immutable[Array[string]], std.Immutable[HashMap[string, string]], bool) {
+func (s KeysConfig) Unapply(v any) (std.Immutable[Array[string]], std.Immutable[HashMap[string, string]], std.Immutable[Array[bool]], bool) {
 	if p, ok := v.(KeysConfig); ok {
-		return p.Keys, p.ReverseKeys, true
+		return p.Keys, p.ReverseKeys, p.OmitIfEmpty, true
 	}
 	if p, ok := v.(*KeysConfig); ok && p != nil {
-		return p.Keys, p.ReverseKeys, true
+		return p.Keys, p.ReverseKeys, p.OmitIfEmpty, true
 	}
-	return *new(std.Immutable[Array[string]]), *new(std.Immutable[HashMap[string, string]]), false
+	return *new(std.Immutable[Array[string]]), *new(std.Immutable[HashMap[string, string]]), *new(std.Immutable[Array[bool]]), false
 }
 
-//line json/helpers.gala:40
-func BuildKeys(numFields int, fieldName func(int) string, naming Naming, config KeyConfig) KeysConfig {
-//line json/helpers.gala:41
-	var keys = EmptyArray[string]()
 //line json/helpers.gala:42
-	var reverseKeys = EmptyHashMap[string, string]()
-//line json/helpers.gala:43
-	var i = 0
-//line json/helpers.gala:44
-	for i < numFields {
+
+// BuildKeys computes serialization keys from metadata, naming, and config.
+func BuildKeys(numFields int, fieldName func(int) string, naming Naming, config KeyConfig) KeysConfig {
 //line json/helpers.gala:45
-		var name = std.NewImmutable(fieldName(i))
+	var keys = EmptyArray[string]()
 //line json/helpers.gala:46
-		if config.Omits.Get().Contains(name.Get()) {
+	var reverseKeys = EmptyHashMap[string, string]()
 //line json/helpers.gala:47
-			keys = keys.Append("")
-		} else {
+	var omitIfEmpty = EmptyArray[bool]()
+//line json/helpers.gala:48
+	var i = 0
 //line json/helpers.gala:49
-			var renamed = std.NewImmutable(config.Renames.Get().Get(name.Get()))
+	for i < numFields {
 //line json/helpers.gala:50
-			var key = std.NewImmutable(renamed.Get().GetOrElse(ApplyNaming(name.Get(), naming)))
+		var name = std.NewImmutable(fieldName(i))
 //line json/helpers.gala:51
-			keys = keys.Append(key.Get())
+		if config.Omits.Get().Contains(name.Get()) {
 //line json/helpers.gala:52
+			keys = keys.Append("")
+//line json/helpers.gala:53
+			omitIfEmpty = omitIfEmpty.Append(false)
+		} else {
+//line json/helpers.gala:55
+			var renamed = std.NewImmutable(config.Renames.Get().Get(name.Get()))
+//line json/helpers.gala:56
+			var key = std.NewImmutable(renamed.Get().GetOrElse(ApplyNaming(name.Get(), naming)))
+//line json/helpers.gala:57
+			keys = keys.Append(key.Get())
+//line json/helpers.gala:58
 			reverseKeys = reverseKeys.Put(key.Get(), name.Get())
+//line json/helpers.gala:59
+			omitIfEmpty = omitIfEmpty.Append(config.OmitEmpties.Get().Contains(name.Get()))
 		}
-//line json/helpers.gala:54
+//line json/helpers.gala:61
 		i = i + 1
 	}
-//line json/helpers.gala:56
-	return KeysConfig{Keys: std.NewImmutable(keys), ReverseKeys: std.NewImmutable(reverseKeys)}
+//line json/helpers.gala:63
+	return KeysConfig{Keys: std.NewImmutable(keys), ReverseKeys: std.NewImmutable(reverseKeys), OmitIfEmpty: std.NewImmutable(omitIfEmpty)}
 }
 
-//line json/helpers.gala:60
+//line json/helpers.gala:65
+
+// BuildKeysSimple computes keys with a naming strategy and no overrides.
 func BuildKeysSimple(numFields int, fieldName func(int) string, naming Naming) KeysConfig {
 	return BuildKeys(numFields, fieldName, naming, NewKeyConfig())
+}
+
+type StructMeta_KeysConfig struct {
+}
+
+func (_ StructMeta_KeysConfig) NumFields() int {
+	return 3
+}
+func (_ StructMeta_KeysConfig) FieldName(i int) string {
+	switch i {
+	case 0:
+		return "Keys"
+	case 1:
+		return "ReverseKeys"
+	case 2:
+		return "OmitIfEmpty"
+	default:
+		return ""
+	}
+}
+func (_ StructMeta_KeysConfig) EncodeFields(w std.FieldEncoder, t KeysConfig, nameFn func(int) string, omitFn func(int) bool, naming func(string) string) {
+	w.WriteStartObject()
+	if !omitFn(0) {
+		w.WriteKey(nameFn(0))
+		w.WriteStartArray()
+		t.Keys.Get().ForEach(func(__elem1 string) {
+			w.WriteString(__elem1)
+		})
+		w.WriteEndArray()
+	}
+	if !omitFn(1) {
+		w.WriteKey(nameFn(1))
+		w.WriteStartObject()
+		t.ReverseKeys.Get().ForEachKV(func(__k2 string, __v3 string) {
+			w.WriteKey(__k2)
+			w.WriteString(__v3)
+		})
+		w.WriteEndObject()
+	}
+	if !omitFn(2) {
+		w.WriteKey(nameFn(2))
+		w.WriteStartArray()
+		t.OmitIfEmpty.Get().ForEach(func(__elem4 bool) {
+			w.WriteBool(__elem4)
+		})
+		w.WriteEndArray()
+	}
+	w.WriteEndObject()
+}
+func (_ StructMeta_KeysConfig) DecodeFields(r std.FieldDecoder, lookup func(string) int, naming func(string) string) KeysConfig {
+	var _Keys Array[string]
+	var _ReverseKeys HashMap[string, string]
+	var _OmitIfEmpty Array[bool]
+	r.StartObject()
+	for r.HasMoreFields() {
+		key := r.ReadKey()
+		switch lookup(key) {
+		case 0:
+			{
+				var __slice1 []string
+				r.StartArray()
+				for r.HasMoreElements() {
+					var __elem2 string
+					__elem2 = r.ReadString()
+					__slice1 = append(__slice1, __elem2)
+				}
+				r.EndArray()
+				_Keys = ArrayFromSlice(__slice1)
+			}
+		case 1:
+			{
+				__m3 := EmptyHashMap[string, string]()
+				r.StartObject()
+				for r.HasMoreFields() {
+					__k4 := r.ReadKey()
+					var __v5 string
+					__v5 = r.ReadString()
+					__m3 = __m3.Put(__k4, __v5)
+				}
+				r.EndObject()
+				_ReverseKeys = __m3
+			}
+		case 2:
+			{
+				var __slice6 []bool
+				r.StartArray()
+				for r.HasMoreElements() {
+					var __elem7 bool
+					__elem7 = r.ReadBool()
+					__slice6 = append(__slice6, __elem7)
+				}
+				r.EndArray()
+				_OmitIfEmpty = ArrayFromSlice(__slice6)
+			}
+		default:
+			r.Skip()
+		}
+	}
+	r.EndObject()
+	return KeysConfig{Keys: std.NewImmutable(_Keys), ReverseKeys: std.NewImmutable(_ReverseKeys), OmitIfEmpty: std.NewImmutable(_OmitIfEmpty)}
+}
+func (_ StructMeta_KeysConfig) FieldIsEmpty(t KeysConfig, i int) bool {
+	switch i {
+	case 0:
+		return t.Keys.Get().IsEmpty()
+	case 1:
+		return t.ReverseKeys.Get().IsEmpty()
+	case 2:
+		return t.OmitIfEmpty.Get().IsEmpty()
+	}
+	return false
+}
+func (_ StructMeta_KeysConfig) Empty() KeysConfig {
+	return KeysConfig{}
 }

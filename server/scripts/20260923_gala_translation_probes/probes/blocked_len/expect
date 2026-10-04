@@ -1,3 +1,0 @@
-KIND=transpile_fail
-CODE=GALA-E0035
-NOTE=len is a bare Go builtin; use .Size() (characters) or .ByteSize() (bytes)

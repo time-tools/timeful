@@ -8,7 +8,12 @@ import (
 	. "martianoff/gala/time_utils"
 )
 
-//line concurrent/retry.gala:13
+//line concurrent/retry.gala:8
+
+// Retry executes action up to maxAttempts times.
+// Returns the first Success, or the last Failure after all attempts are exhausted.
+// The backoff function receives the attempt number (0-based) and returns the delay
+// before the next attempt.
 func Retry[T any](maxAttempts int, backoff func(int) Duration, action func(int) Try[T]) Try[T] {
 //line concurrent/retry.gala:14
 	var lastResult = Failure[T]{}.Apply(fmt.Errorf("no attempts made"))
@@ -33,14 +38,18 @@ func Retry[T any](maxAttempts int, backoff func(int) Duration, action func(int) 
 	return lastResult
 }
 
-//line concurrent/retry.gala:29
+//line concurrent/retry.gala:27
+
+// ConstantBackoff returns a backoff function that always waits the same duration.
 func ConstantBackoff(d Duration) func(int) Duration {
 	return func(_ int) Duration {
 		return d
 	}
 }
 
-//line concurrent/retry.gala:33
+//line concurrent/retry.gala:31
+
+// ExponentialBackoff returns a backoff function with exponential growth capped at max.
 func ExponentialBackoff(initial Duration, max Duration) func(int) Duration {
 	return func(attempt int) Duration {
 //line concurrent/retry.gala:35
@@ -60,7 +69,9 @@ func ExponentialBackoff(initial Duration, max Duration) func(int) Duration {
 	}
 }
 
-//line concurrent/retry.gala:44
+//line concurrent/retry.gala:42
+
+// NoBackoff returns a backoff function with zero delay.
 func NoBackoff() func(int) Duration {
 	return func(_ int) Duration {
 		return ZeroDuration()

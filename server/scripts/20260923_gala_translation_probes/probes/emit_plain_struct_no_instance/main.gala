@@ -1,8 +1,0 @@
-package main
-
-struct Coord(var X int, var Y int)
-
-func main() {
-	c := Coord{X: 1, Y: 2}
-	Println(c.X)
-}

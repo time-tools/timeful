@@ -24,8 +24,8 @@ import (
 // On success the resolved user and account are published on the Gin context as
 // "authUser" and "authAccount" and the handler chain continues.
 //
-// This documentation lives here rather than in doc.go because the transpiler
-// emits no comments, and doc.go cannot re-declare AuthRequired to attach one.
+// This documentation lives here rather than in doc.go so it stays with the
+// declaration it documents.
 func AuthRequired() gin.HandlerFunc = (c *gin.Context) => {
 	var platformIdentityID = sessions.Default(c).Get("userId") match {
 		case s: string => s

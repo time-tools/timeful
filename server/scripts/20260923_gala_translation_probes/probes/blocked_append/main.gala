@@ -1,7 +1,0 @@
-package main
-
-func main() {
-	var xs []int
-	xs = append(xs, 1)
-	Println(xs)
-}

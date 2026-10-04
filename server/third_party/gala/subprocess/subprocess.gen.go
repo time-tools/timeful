@@ -12,7 +12,14 @@ import (
 	"os/exec"
 )
 
-//line subprocess/subprocess.gala:19
+//line subprocess/subprocess.gala:12
+
+// SpawnOpts is the bag of inputs to Spawn.
+//
+// Cmd  - executable name (looked up on PATH unless absolute).
+// Args - arguments, NOT including argv[0].
+// Env  - extra "KEY=VAL" entries appended to os.Environ; pass empty to inherit.
+// Dir  - working directory; empty inherits the parent's cwd.
 type SpawnOpts struct {
 	Cmd  Immutable[string]
 	Args Immutable[[]string]
@@ -36,7 +43,10 @@ func (s SpawnOpts) Unapply(v any) (Immutable[string], Immutable[[]string], Immut
 	return *new(Immutable[string]), *new(Immutable[[]string]), *new(Immutable[[]string]), *new(Immutable[string]), false
 }
 
-//line subprocess/subprocess.gala:28
+//line subprocess/subprocess.gala:25
+
+// processState carries every mutable bit of a running child. Unexported so
+// GALA users only ever see the Process handle.
 type processState struct {
 	cmd        *exec.Cmd
 	stdin      io.WriteCloser
@@ -56,7 +66,13 @@ func (s processState) Equal(other processState) bool {
 	return Equal(s.cmd, other.cmd) && Equal(s.stdin, other.stdin) && Equal(s.stdoutScan, other.stdoutScan) && Equal(s.stderrScan, other.stderrScan) && Equal(s.stdinMu, other.stdinMu) && Equal(s.waitOnce, other.waitOnce) && Equal(s.waitDone, other.waitDone) && Equal(s.waitErr, other.waitErr) && Equal(s.exitCode, other.exitCode)
 }
 
-//line subprocess/subprocess.gala:45
+//line subprocess/subprocess.gala:39
+
+// Process is a running child plus its IO pipes. Value-type handle wrapping a
+// pointer to mutable state — copies share the same underlying child (mirrors
+// concurrent.Future[T]). Methods are safe to call from multiple goroutines
+// (Kill / Wait from one, ReadLine from another) but each ReadLine /
+// WriteLine call itself is sequential — the caller serialises reads.
 type Process struct {
 	state *processState
 }
@@ -68,7 +84,12 @@ func (s Process) Equal(other Process) bool {
 	return Equal(s.state, other.state)
 }
 
-//line subprocess/subprocess.gala:53
+//line subprocess/subprocess.gala:48
+
+// Spawn launches the child process described by opts and returns Try[Process].
+// On success the process is running and its stdin/stdout/stderr pipes are
+// connected. The returned Process is reaped only when Wait or Kill is called —
+// long-running consumers MUST call Wait or Kill exactly once when done.
 func Spawn(opts SpawnOpts) Try[Process] {
 //line subprocess/subprocess.gala:54
 	if opts.Cmd.Get() == "" {
@@ -120,7 +141,14 @@ func Spawn(opts SpawnOpts) Try[Process] {
 	})
 }
 
-//line subprocess/subprocess.gala:90
+//line subprocess/subprocess.gala:83
+
+// WriteLine writes s + "\n" to the child's stdin, flushing immediately.
+// Concurrent callers are serialised so two writers can't interleave bytes.
+//
+// Returns Success on a clean write. A failed write usually means the child
+// closed stdin or exited; Failure carries the underlying io error. The success
+// value is Void — there is nothing to report beyond "it went through".
 func (p Process) WriteLine(s string) Try[Void] {
 //line subprocess/subprocess.gala:91
 	var st = NewImmutable(p.state)
@@ -128,9 +156,8 @@ func (p Process) WriteLine(s string) Try[Void] {
 	return WithLock(st.Get().stdinMu, func() Try[Void] {
 //line subprocess/subprocess.gala:93
 		var (
-			_tmp_1, _tmp_2 = io.WriteString(st.Get().stdin, s)
-			_              = NewImmutable(_tmp_1)
-			e1             = NewImmutable(_tmp_2)
+			_, _tmp_1 = io.WriteString(st.Get().stdin, s)
+			e1        = NewImmutable(_tmp_1)
 		)
 //line subprocess/subprocess.gala:94
 		if e1.Get() != nil {
@@ -139,9 +166,8 @@ func (p Process) WriteLine(s string) Try[Void] {
 		}
 //line subprocess/subprocess.gala:95
 		var (
-			_tmp_3, _tmp_4 = io.WriteString(st.Get().stdin, "\n")
-			_              = NewImmutable(_tmp_3)
-			e2             = NewImmutable(_tmp_4)
+			_, _tmp_2 = io.WriteString(st.Get().stdin, "\n")
+			e2        = NewImmutable(_tmp_2)
 		)
 //line subprocess/subprocess.gala:96
 		if e2.Get() != nil {
@@ -153,7 +179,18 @@ func (p Process) WriteLine(s string) Try[Void] {
 	})
 }
 
-//line subprocess/subprocess.gala:111
+//line subprocess/subprocess.gala:100
+
+// CloseStdin closes the child's stdin pipe. Required for children
+// like `claude --print` that read stdin to EOF before producing
+// any output — without an explicit close, the child waits forever
+// for more input and the orchestrator's read pump times out.
+//
+// Idempotent: a Close error from a pipe that was already closed
+// (os.ErrClosed on Linux/macOS, ERROR_BROKEN_PIPE on Windows) is
+// swallowed — the caller wanted "stdin should be closed", and it
+// is. Concurrent with WriteLine: serialised through the stdin
+// mutex so a write in flight isn't truncated.
 func (p Process) CloseStdin() Try[Void] {
 //line subprocess/subprocess.gala:112
 	var st = NewImmutable(p.state)
@@ -166,7 +203,12 @@ func (p Process) CloseStdin() Try[Void] {
 	})
 }
 
-//line subprocess/subprocess.gala:123
+//line subprocess/subprocess.gala:118
+
+// ReadLine blocks until the child writes a complete line on stdout, then
+// returns it without the trailing newline. EOF (the child closed stdout, or
+// exited) returns Failure(io.EOF) — callers can recognise this via the std
+// Try API (e.g. .Recover) and treat it as "stream done", not as an error.
 func (p Process) ReadLine() Try[string] {
 //line subprocess/subprocess.gala:124
 	if !p.state.stdoutScan.Scan() {
@@ -184,7 +226,9 @@ func (p Process) ReadLine() Try[string] {
 	return Success[string]{}.Apply(p.state.stdoutScan.Text())
 }
 
-//line subprocess/subprocess.gala:133
+//line subprocess/subprocess.gala:131
+
+// ReadStderrLine is the stderr counterpart to ReadLine. Same EOF semantics.
 func (p Process) ReadStderrLine() Try[string] {
 //line subprocess/subprocess.gala:134
 	if !p.state.stderrScan.Scan() {
@@ -202,7 +246,15 @@ func (p Process) ReadStderrLine() Try[string] {
 	return Success[string]{}.Apply(p.state.stderrScan.Text())
 }
 
-//line subprocess/subprocess.gala:149
+//line subprocess/subprocess.gala:141
+
+// Wait blocks until the child exits and returns its exit code. Idempotent —
+// the underlying *exec.Cmd.Wait is called at most once. Subsequent Wait calls
+// return the cached result.
+//
+// Note: ReadLine / ReadStderrLine on the same Process should drain to EOF
+// before Wait, otherwise the child may block writing to a full pipe. The
+// scanner returning EOF naturally signals "you can Wait now".
 func (p Process) Wait() Try[int] {
 //line subprocess/subprocess.gala:150
 	var st = NewImmutable(p.state)
@@ -219,9 +271,9 @@ func (p Process) Wait() Try[int] {
 		} else {
 //line subprocess/subprocess.gala:162
 			var (
-				_tmp_5, _tmp_6 = exitCodeFromError(err.Get())
-				code           = NewImmutable(_tmp_5)
-				residualErr    = NewImmutable(_tmp_6)
+				_tmp_3, _tmp_4 = exitCodeFromError(err.Get())
+				code           = NewImmutable(_tmp_3)
+				residualErr    = NewImmutable(_tmp_4)
 			)
 //line subprocess/subprocess.gala:163
 			st.Get().exitCode = code.Get()
@@ -242,7 +294,12 @@ func (p Process) Wait() Try[int] {
 	return Success[int]{}.Apply(st.Get().exitCode)
 }
 
-//line subprocess/subprocess.gala:177
+//line subprocess/subprocess.gala:172
+
+// Kill terminates the child immediately (SIGKILL on Unix, TerminateProcess on
+// Windows — exec.Cmd handles the platform difference). Idempotent against an
+// already-exited process: a kill after Wait returns Success without error.
+// Caller is still responsible for invoking Wait afterwards to reap.
 func (p Process) Kill() Try[Void] {
 //line subprocess/subprocess.gala:178
 	if !p.IsAlive() {
@@ -265,7 +322,10 @@ func (p Process) Kill() Try[Void] {
 	return Success[Void]{}.Apply(Void{})
 }
 
-//line subprocess/subprocess.gala:193
+//line subprocess/subprocess.gala:190
+
+// IsAlive returns true if the child is still running. Non-blocking; consults
+// the cached Wait result first, then falls back to a process-state poll.
 func (p Process) IsAlive() bool {
 //line subprocess/subprocess.gala:196
 	if go_interop.WaitSignalTimeout(p.state.waitDone, 0) {
@@ -281,7 +341,9 @@ func (p Process) IsAlive() bool {
 	return true
 }
 
-//line subprocess/subprocess.gala:206
+//line subprocess/subprocess.gala:204
+
+// Pid returns the OS process id; -1 if the child failed to start.
 func (p Process) Pid() int {
 //line subprocess/subprocess.gala:207
 	if p.state.cmd.Process == nil {
@@ -292,5 +354,9 @@ func (p Process) Pid() int {
 	return p.state.cmd.Process.Pid
 }
 
-//line subprocess/subprocess.gala:216
+//line subprocess/subprocess.gala:212
+
+// errProcessFinished is the os/exec sentinel for "you tried to kill an
+// already-exited process". Used by isProcessFinished to recognise the race
+// between IsAlive and Kill.
 var errProcessFinished = errors.New("os: process already finished")

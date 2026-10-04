@@ -4,12 +4,37 @@ package std
 
 import "fmt"
 
-//line std/ordered.gala:26
+//line std/ordered.gala:3
+
+// Ordered is an interface that types can implement to provide custom ordering.
+// Used by TreeSet and TreeMap for sorted collections.
+//
+// Primitive types (int, string, float64, etc.) are handled automatically via Go's cmp.Ordered.
+// Custom types should implement this interface for use in tree-based collections.
+//
+// The Compare method must return:
+//   - negative if receiver < other
+//   - zero if receiver == other
+//   - positive if receiver > other
+//
+// Example:
+//
+//	type Person struct {
+//	    Name string
+//	    Age  int
+//	}
+//	func (p Person) Compare(other Person) int {
+//	    if p.Age < other.Age { return -1 }
+//	    if p.Age > other.Age { return 1 }
+//	    return 0
+//	}
 type Ordered[T any] interface {
 	Compare(other T) int
 }
 
-//line std/ordered.gala:31
+//line std/ordered.gala:29
+
+// CompareInt compares two int64 values.
 func CompareInt(a int64, b int64) int {
 //line std/ordered.gala:32
 	if a < b {
@@ -25,7 +50,9 @@ func CompareInt(a int64, b int64) int {
 	return 0
 }
 
-//line std/ordered.gala:42
+//line std/ordered.gala:40
+
+// CompareUint compares two uint64 values.
 func CompareUint(a uint64, b uint64) int {
 //line std/ordered.gala:43
 	if a < b {
@@ -41,7 +68,9 @@ func CompareUint(a uint64, b uint64) int {
 	return 0
 }
 
-//line std/ordered.gala:53
+//line std/ordered.gala:51
+
+// CompareFloat compares two float64 values.
 func CompareFloat(a float64, b float64) int {
 //line std/ordered.gala:54
 	if a < b {
@@ -57,7 +86,9 @@ func CompareFloat(a float64, b float64) int {
 	return 0
 }
 
-//line std/ordered.gala:64
+//line std/ordered.gala:62
+
+// CompareString compares two strings lexicographically.
 func CompareString(a string, b string) int {
 //line std/ordered.gala:65
 	if a < b {
@@ -73,7 +104,11 @@ func CompareString(a string, b string) int {
 	return 0
 }
 
-//line std/ordered.gala:77
+//line std/ordered.gala:73
+
+// CompareValues compares two values of the same type for natural ordering.
+// Handles all primitive types automatically. Custom types must implement Ordered[T].
+// Panics if the type does not support ordering.
 func CompareValues[T any](a T, b T) int {
 //line std/ordered.gala:78
 	var va Immutable[any] = NewImmutable[any](a)

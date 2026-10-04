@@ -1,7 +1,0 @@
-package main
-
-const Answer = 42
-
-func main() {
-	Println(Answer)
-}

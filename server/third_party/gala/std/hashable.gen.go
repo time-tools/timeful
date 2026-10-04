@@ -2,12 +2,30 @@
 
 package std
 
-//line std/hashable.gala:17
+//line std/hashable.gala:1
+
+// Hashable is an interface that types can implement to provide custom hash functions.
+// Used by HashSet and HashMap for efficient hashing.
+//
+// Primitive types (int, string, bool, etc.) are handled automatically.
+// Custom types should implement this interface for use in hash-based collections.
+//
+// Example:
+//
+//	type Person struct {
+//	    Name string
+//	    Age  int
+//	}
+//	func (p Person) Hash() uint32 {
+//	    return HashCombine(HashString(p.Name), HashInt(int64(p.Age)))
+//	}
 type Hashable interface {
 	Hash() uint32
 }
 
-//line std/hashable.gala:22
+//line std/hashable.gala:20
+
+// HashInt hashes an int64 value using FNV-1a bit mixing.
 func HashInt(n int64) uint32 {
 //line std/hashable.gala:23
 	var h uint32 = 2166136261
@@ -47,7 +65,9 @@ func HashInt(n int64) uint32 {
 	return h
 }
 
-//line std/hashable.gala:44
+//line std/hashable.gala:42
+
+// HashUint hashes a uint64 value using FNV-1a bit mixing.
 func HashUint(n uint64) uint32 {
 //line std/hashable.gala:45
 	var h uint32 = 2166136261
@@ -87,7 +107,9 @@ func HashUint(n uint64) uint32 {
 	return h
 }
 
-//line std/hashable.gala:66
+//line std/hashable.gala:64
+
+// HashString hashes a string value using FNV-1a.
 func HashString(s string) uint32 {
 //line std/hashable.gala:67
 	var h uint32 = 2166136261
@@ -102,7 +124,9 @@ func HashString(s string) uint32 {
 	return h
 }
 
-//line std/hashable.gala:76
+//line std/hashable.gala:74
+
+// HashBool hashes a boolean value.
 func HashBool(b bool) uint32 {
 //line std/hashable.gala:77
 	if b {
@@ -113,7 +137,11 @@ func HashBool(b bool) uint32 {
 	return 1237
 }
 
-//line std/hashable.gala:86
+//line std/hashable.gala:82
+
+// HashCombine combines two hash values into one.
+// Useful for hashing structs with multiple fields.
+// Example: HashCombine(HashString(name), HashInt(age))
 func HashCombine(h1 uint32, h2 uint32) uint32 {
 //line std/hashable.gala:88
 	return h1 ^ (h2 + 2654435769 + (h1 << 6) + (h1 >> 2))

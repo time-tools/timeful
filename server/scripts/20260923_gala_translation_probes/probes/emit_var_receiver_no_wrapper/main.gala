@@ -1,7 +1,0 @@
-package main
-
-func main() {
-	var x = NewGreeter("world")
-	x.Rename("there")
-	Println(x.Hello())
-}

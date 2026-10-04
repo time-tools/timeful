@@ -1,5 +1,0 @@
-package main
-
-func main() {
-	Println(Future(2))
-}

@@ -1,3 +1,0 @@
-KIND=pass
-RUN=yes
-NOTE=generic declarations carry `any`/`comparable` constraints; a union constraint or a blocked underlying shape such as map[T]struct{} stays handwritten

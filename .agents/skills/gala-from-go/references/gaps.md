@@ -66,26 +66,23 @@ A construct reaches this section only if it has no substitute at all.
 | Construct | What happens | What a fix needs |
 | --------- | ------------ | ---------------- |
 | `const`   | parse error; the keyword is not in the grammar | a const declaration whose value stays a Go compile-time constant |
-| a comment on a declaration | the transpiler emits no comments, so a doc comment or a `swag` annotation written in the `.gala` source is absent from the emitted Go | a comment-preserving emit, or an interop escape hatch letting a generated file carry a Go-facing comment |
 
 `const` is the one construct here with nothing standing in for it.
 `var` and `val` cover every use except a value that has to remain a Go compile-time constant, which is the whole of the gap, and it is a small one.
 A file whose only `const` is a named number transliterates cleanly; report it only when a constant has to stay constant for a Go reader or a wire format.
+The minimal case is a `.gala` file declaring a package-level `const`, which the parser rejects without a diagnostic code.
+The `const` entry is deliberately unfiled, because a value that has to stay a Go compile-time constant is a rare shape and the row above already names the substitute for every other use.
 
-A comment on a declaration is the second entry, and it is a boundary gap rather than a defect because both places it hurts are on the Go side of the boundary, which a transpiler cannot change.
-The two places are far apart.
-A doc comment on an exported declaration disappears from `go doc`, and it cannot be rescued by a handwritten sibling, because the only spelling is a bodiless re-declaration and that is a Go error.
-A `swag` annotation disappears from the generated OpenAPI document, and it cannot be rescued either, because an annotation has to sit immediately above its declaration; a file that loses one silently drops a documented endpoint from the contract.
+A comment on a declaration is a gap only on a compiler that drops comments from the emitted Go.
+The compiler this skill was last measured against emits a comment attached to a declaration and the package comment, and drops comments inside a function body, so verify by transpiling a declaration comment and reading the emitted Go rather than trusting either behavior.
+Where a compiler drops one, both places it hurts are on the Go side of the boundary: a doc comment disappears from `go doc`, and a `swag` annotation disappears from the generated OpenAPI document, silently dropping a documented endpoint from the contract.
 The substitute is to keep the comment in the `.gala` source, which is where it stays readable to whoever edits that source and invisible to every Go tool.
-A *package* comment is the one exception to "unrescuable", because it needs no adjacency: a handwritten `doc.go` carries it and `go doc` picks it up.
-Filed as upstream [#619](https://github.com/martianoff/gala/issues/619), after the maintainer named it in #528 as one of two genuinely missing capabilities.
-
-Only the comment entry has been filed, as upstream [#619](https://github.com/martianoff/gala/issues/619); the `const` entry is deliberately unfiled, because a value that has to stay a Go compile-time constant is a rare shape and the row above already names the substitute for every other use.
-Both entries were reproduced on a two-file minimal case, and the reproductions live in this repository's probe corpus rather than here: [`blocked_annotation_drop`](../../../server/scripts/20260923_gala_translation_probes/probes/blocked_annotation_drop/) pins the dropped annotation and [`blocked_const`](../../../server/scripts/20260923_gala_translation_probes/probes/blocked_const/) pins the parse error.
+A handwritten sibling cannot supply a lost declaration comment, because the only spelling is a bodiless re-declaration and that is a Go error; a *package* comment is the exception, because it needs no adjacency, so a handwritten `doc.go` carries it and `go doc` picks it up.
+That dropped-comment shape was filed as upstream [#619](https://github.com/martianoff/gala/issues/619), and its reproduction was a two-file minimal case whose emitted Go was asserted to lack the annotation.
 
 ## Constructs That Were Never Gaps
 
-These are listed because each one was recorded as blocked before it was checked against the language or the corpus, and the reasoning is what stops them coming back.
+These are listed because each one was recorded as blocked before it was checked against the language or a probe, and the reasoning is what stops them coming back.
 
 A Go function literal inside a composite literal is a parse error in the Go spelling only.
 A GALA lambda in that position transpiles and builds, so the construct was never missing and there was nothing to file.
@@ -118,7 +115,7 @@ A receiver whose type is *written out* resolves even across packages, and the in
 return go_interop.SliceFrom(logs, 0).Size()   // builds; emits len(go_interop.SliceFrom(logs, 0))
 ```
 
-The substitute allocates nothing, and what establishes that is a source line rather than a benchmark: the vendored helper is a one-line reslice at [`go_interop/types.go:116`](../../../server/third_party/gala/go_interop/types.go), whose own doc comment calls it `O(1)`, so the earlier reading of it as a whole-slice copy was wrong.
+The substitute allocates nothing, and what establishes that is a source line rather than a benchmark: the `go_interop.SliceFrom` helper is a one-line reslice whose own doc comment calls it `O(1)`, so the earlier reading of it as a whole-slice copy was wrong.
 A multi-value binding still takes no type annotation, because the grammar's single `(type)?` slot sits after the whole name list, but a single-value binding does take one, so the annotation is not the only door.
 The lowering defect itself is a report, filed as upstream [#613](https://github.com/martianoff/gala/issues/613); what is not a report is the conclusion that the element count cannot be read.
 
@@ -140,7 +137,7 @@ A reader who has not seen your code can then check the claim against the compile
 Choose your assertion to match the claim, and notice that the two directions are not interchangeable.
 A check that a marker is *present* pins a shape the compiler produced, so it cannot back a claim that a construct is blocked; a check that a marker is *absent* pins the shape's absence, and a construct is blocked exactly when the thing it needs is not emitted.
 The same asymmetry is why a program that prints the right answer proves nothing about whether a wrapper is there.
-And a report needs a probe that fails for the construct it names: a construct the corpus cannot reproduce is a claim about a compiler you no longer have.
+And a report needs a probe that fails for the construct it names: a construct a probe cannot reproduce is a claim about a compiler you no longer have.
 
 **`fallthrough` inside a `match` arm produces an internal error instead of a diagnostic.** [#611](https://github.com/martianoff/gala/issues/611).
 A bare `fallthrough` statement is correctly rejected as a forbidden statement keyword, but the same word inside a `match` arm passes the parser, reaches codegen, and produces Go that does not parse, so the transpiler reports an internal transpile error.
@@ -154,7 +151,7 @@ Report both spellings, because the contrast is what makes the bug legible.
 **`.Size()` on a field of a struct declared in a handwritten Go sibling does not build.** [#613](https://github.com/martianoff/gala/issues/613), filed as a documentation and diagnostics gap rather than a bug.
 The transpiler cannot know the field's type, so it emits a method call on a plain Go type that has no such method.
 The same call on a GALA-declared struct lowers correctly, so the trigger is a mixed package rather than the construct itself, and it holds for a plain `string` field as much as for a slice.
-Three facts since the filing, all checked on 0.84.1: `.ByteSize()` fails on the same shapes, so both documented replacements break together; the failure also fires for a **local binding** whose type came from a same-package Go function, not only for field access; and `go_interop.SliceFrom(x, 0).Size()` builds and runs on every shape except a `string`, at zero allocations.
+Three facts since the filing, each checked by transpiling the shape on the compiler this skill was last measured against: `.ByteSize()` fails on the same shapes, so both documented replacements break together; the failure also fires for a **local binding** whose type came from a same-package Go function, not only for field access; and `go_interop.SliceFrom(x, 0).Size()` builds and runs on every shape except a `string`, at zero allocations.
 So the price is that the substitute is written down nowhere, not that the length cannot be read.
 It is also worth knowing as a limitation when deciding whether a member can move into a `.gala` file beside a `.go` sibling.
 
@@ -221,7 +218,7 @@ Fill every field; a field you could not fill is itself information, so write `un
 
 <one or two lines: what it is, and where it appears in real code rather than only in a repro>
 
-**Classification:** language gap | boundary gap
+**Classification:** language gap | boundary gap | defect
 
 **What I tried**
 
@@ -271,7 +268,7 @@ The first four are the ones that look like walls and are not; each has already b
 - A construct with a `semantic` row there, such as assigning to a `:=` binding.
 - A construct whose `gala explain GALA-Exxxx` page already states the fix, which is a documented answer rather than a gap.
 - A construct re-derived on the compiler you have and found working, which this file lists under [Constructs That Were Never Gaps](#constructs-that-were-never-gaps): a block-bodied lambda in a typed return position, and `go_interop.MapPut` type-argument inference.
-- A receiver typed from a Go call, whose substitute costs nothing because the vendored `go_interop.SliceFrom` is a one-line reslice; report the lowering defect instead, and the defect is filed.
+- A receiver typed from a Go call, whose substitute costs nothing because the `go_interop.SliceFrom` helper is a one-line reslice; report the lowering defect instead, and the defect is filed.
 
 Then the ones that are not about a construct at all:
 

@@ -9,7 +9,18 @@ import (
 	. "martianoff/gala/time_utils"
 )
 
-//line subprocess/async.gala:37
+//line subprocess/async.gala:26
+
+// ReadLineAsync reads the next stdout line off the calling goroutine, returning
+// a Future that completes with the same Try[string] a direct ReadLine() would
+// produce.
+//
+// The Future carries the inner Try as its success value: a normal line is
+// Success(Success(line)); end-of-stream is Success(Failure(io.EOF)) — EOF is
+// information about the stream, not a Future failure, so callers unwrap it via
+// the std Try API exactly as they would with the synchronous ReadLine. The
+// Future itself only fails if the read goroutine panics, in which case the
+// panic is surfaced as the Future's Failure.
 func (p Process) ReadLineAsync() concurrent.Future[Try[string]] {
 //line subprocess/async.gala:38
 	var promise = NewImmutable(concurrent.NewPromise[Try[string]](nil))
@@ -29,7 +40,13 @@ func (p Process) ReadLineAsync() concurrent.Future[Try[string]] {
 	return promise.Get().Future()
 }
 
-//line subprocess/async.gala:50
+//line subprocess/async.gala:44
+
+// ReadStderrLineAsync is the stderr counterpart to ReadLineAsync, reading the
+// next stderr line off the calling goroutine. Same completion semantics: the
+// resulting Try[string] (including a Failure(io.EOF) at end-of-stream) is the
+// success value of the returned Future; only a panic in the read goroutine
+// fails the Future itself.
 func (p Process) ReadStderrLineAsync() concurrent.Future[Try[string]] {
 //line subprocess/async.gala:51
 	var promise = NewImmutable(concurrent.NewPromise[Try[string]](nil))
@@ -49,7 +66,14 @@ func (p Process) ReadStderrLineAsync() concurrent.Future[Try[string]] {
 	return promise.Get().Future()
 }
 
-//line subprocess/async.gala:64
+//line subprocess/async.gala:57
+
+// WriteLineAsync writes s + "\n" to the child's stdin off the calling
+// goroutine, returning a Future that completes with the same Try[Void] a direct
+// WriteLine() would produce: Success on a clean write, or the inner Try carrying
+// the io error if the child closed stdin or exited. Like WriteLine it serialises
+// against concurrent writers through the stdin mutex. Only a panic in the write
+// goroutine fails the Future itself.
 func (p Process) WriteLineAsync(s string) concurrent.Future[Try[Void]] {
 //line subprocess/async.gala:65
 	var promise = NewImmutable(concurrent.NewPromise[Try[Void]](nil))
@@ -69,7 +93,12 @@ func (p Process) WriteLineAsync(s string) concurrent.Future[Try[Void]] {
 	return promise.Get().Future()
 }
 
-//line subprocess/async.gala:76
+//line subprocess/async.gala:71
+
+// CloseStdinAsync closes the child's stdin off the calling goroutine, returning
+// a Future that completes with the same Try[Void] a direct CloseStdin() would
+// produce (Success; idempotent, serialised against WriteLine through the stdin
+// mutex). Only a panic in the close goroutine fails the Future itself.
 func (p Process) CloseStdinAsync() concurrent.Future[Try[Void]] {
 //line subprocess/async.gala:77
 	var promise = NewImmutable(concurrent.NewPromise[Try[Void]](nil))
@@ -89,7 +118,11 @@ func (p Process) CloseStdinAsync() concurrent.Future[Try[Void]] {
 	return promise.Get().Future()
 }
 
-//line subprocess/async.gala:87
+//line subprocess/async.gala:83
+
+// KillTimer is the cancellation handle returned by KillAfter. Its single
+// operation, Cancel, aborts the pending kill. Once the timer has fired or been
+// cancelled the child is left to run to completion on its own.
 type KillTimer struct {
 	signal Immutable[go_interop.Signal]
 }
@@ -101,13 +134,33 @@ func (s KillTimer) Equal(other KillTimer) bool {
 	return Equal(s.signal, other.signal)
 }
 
-//line subprocess/async.gala:95
+//line subprocess/async.gala:88
+
+// Cancel aborts a pending KillAfter timer by closing its signal, so the timer
+// goroutine wakes and exits without killing the child. Call it at most once
+// (it closes the underlying signal, and closing an already-closed signal
+// panics, mirroring go_interop.CloseSignal). A Cancel that races a timer that
+// has already fired is harmless — the kill has run and the goroutine has
+// already exited, so closing the signal just tidies up.
 func (k KillTimer) Cancel() {
 //line subprocess/async.gala:96
 	go_interop.CloseSignal(k.signal.Get())
 }
 
-//line subprocess/async.gala:111
+//line subprocess/async.gala:98
+
+// KillAfter arranges for the child to be killed if it is still running after d.
+// It returns immediately with a KillTimer handle; a background goroutine waits
+// up to d on a cancellation signal and, ONLY if that wait times out (i.e.
+// Cancel was not called in time), invokes p.Kill(). Because Kill is idempotent
+// and alive-checked, a late fire after the child has already exited is a safe
+// no-op — the caller is still responsible for calling Wait to reap.
+//
+// Capturing the Process handle into the timer goroutine is safe for the same
+// reason ReadLineAsync's capture is: this package owns the handle's
+// goroutine-safety invariant, so the goroutine is dispatched with
+// go_interop.Spawn rather than a Sendable Future boundary. Call Cancel on the
+// returned handle to abort the pending kill and let the goroutine exit promptly.
 func (p Process) KillAfter(d Duration) KillTimer {
 //line subprocess/async.gala:112
 	var signal = NewImmutable(go_interop.NewSignal())

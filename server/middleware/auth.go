@@ -12,7 +12,24 @@ import (
 	"timeful/server/responses"
 )
 
-//line auth.gala:29
+//line auth.gala:12
+
+// AuthRequired rejects a request that carries no usable session identity.
+//
+// The session carries the account's platform identity UUID. A session value
+// that is absent, is not a string, or is the empty string is treated the same
+// way, because only a non-empty platform identity can be resolved.
+//
+// The authoritative account is then resolved from PostgreSQL, and the calendar
+// connections, provider tokens, sub-calendars, and preferences are
+// PostgreSQL-authoritative and loaded through the accounts boundary rather
+// than from the session.
+//
+// On success the resolved user and account are published on the Gin context as
+// "authUser" and "authAccount" and the handler chain continues.
+//
+// This documentation lives here rather than in doc.go so it stays with the
+// declaration it documents.
 func AuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
 //line auth.gala:30

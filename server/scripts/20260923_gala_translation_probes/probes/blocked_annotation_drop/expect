@@ -1,4 +1,0 @@
-KIND=emit
-ABSENT=@Router
-ABSENT=@Summary
-NOTE=the transpiler emits no comments, so an annotation written above a declaration in the .gala source is absent from the generated Go. ABSENT rather than CONTAINS is the point: a presence assertion cannot distinguish "the annotation is dropped" from "the annotation is not in the source", and the marker is the annotation's own directive name rather than any layout, so gofmt cannot reintroduce it. The consequence is that swag init loses the endpoint from the OpenAPI document, and a handwritten sibling cannot supply an annotation because it has to sit immediately above its declaration. This is a boundary gap rather than a defect: the comment is expressible in the GALA source, and what breaks is a Go tool on the other side. Pinned to the GALA release by construction; re-baseline with the procedure in docs/gala-translation.md under "When to revisit"

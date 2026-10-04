@@ -8,22 +8,38 @@ import (
 	"unicode/utf8"
 )
 
-//line redact.gala:10
+//line redact.gala:8
+
+// redactedValue replaces every credential-bearing capture group.
 var redactedValue = "[REDACTED]"
 
-//line redact.gala:13
+//line redact.gala:11
+
+// urlUserInfoPattern matches URL userinfo, for example https://user:password@host/path.
 var urlUserInfoPattern = regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9+.\-]*://)([^/@\s]+)@`)
 
-//line redact.gala:16
+//line redact.gala:14
+
+// schemeCredentialPattern matches Bearer and Basic scheme credentials.
 var schemeCredentialPattern = regexp.MustCompile(`(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=\-]{6,}`)
 
-//line redact.gala:20
+//line redact.gala:17
+
+// credentialFieldPattern matches credential-bearing headers and fields, including
+// JSON forms. Unquoted values stop at a query separator so following parameters survive.
 var credentialFieldPattern = regexp.MustCompile(`(?i)\b(authorization|proxy-authorization|cookie|set-cookie|x-api-key|api[-_]?key|password|passwd|secret|token|access_token|refresh_token|id_token|edit_token|editToken|owner_token)\b("?)(\s*[:=]\s*)("[^"]*"|'[^']*'|[^&\n]+)`)
 
-//line redact.gala:23
+//line redact.gala:21
+
+// sensitiveQueryPattern matches token, secret, credential, and OAuth-code query parameters.
 var sensitiveQueryPattern = regexp.MustCompile(`(?i)([?&][^=&\s#]*(?:token|secret|password|passwd|api[-_]?key|credential|auth|code|otp)[^=&\s#]*=)[^&#\s]*`)
 
-//line redact.gala:29
+//line redact.gala:24
+
+// Redact removes credentials, secrets, and token-bearing URLs and headers from
+// a diagnostic string. Structured records never carry raw requests, so this is
+// the defense-in-depth pass over error context that originated in a handler.
+// value: the diagnostic string to redact.
 func Redact(value string) string {
 //line redact.gala:30
 	if value == "" {
@@ -42,7 +58,14 @@ func Redact(value string) string {
 	return redacted
 }
 
-//line redact.gala:46
+//line redact.gala:39
+
+// truncate bounds a redacted value so a single record can never grow without
+// limit from captured error context. The result is always valid UTF-8, because
+// an invalid string attribute makes protobuf marshalling fail for the whole
+// export batch.
+// value: the string to bound.
+// limit: the maximum byte length of the result.
 func truncate(value string, limit int) string {
 //line redact.gala:47
 	value = strings.ToValidUTF8(value, "\uFFFD")

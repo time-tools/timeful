@@ -1,5 +1,0 @@
-package main
-
-import . "martianoff/gala/concurrent"
-
-func Seed() = FutureOf(1)

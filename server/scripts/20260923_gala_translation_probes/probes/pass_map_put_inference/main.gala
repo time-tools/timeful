@@ -1,9 +1,0 @@
-package main
-
-import . "martianoff/gala/go_interop"
-
-func main() {
-	var m = MapEmpty[string, any]()
-	var m2 = MapPut(m, "stepSize", 1)
-	Println(MapLen(m2))
-}

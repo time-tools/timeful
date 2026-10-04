@@ -1,7 +1,0 @@
-package main
-
-func usageLen(c Command) int = c.Usage.Size()
-
-func main() {
-	Println(usageLen(Command{Usage: "abc"}))
-}

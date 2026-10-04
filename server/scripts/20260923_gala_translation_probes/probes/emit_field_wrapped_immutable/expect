@@ -1,4 +1,0 @@
-KIND=emit
-CONTAINS=std.Immutable[string]
-CONTAINS=Name.Get()
-NOTE=presence half of the field-wrapping claim: a non-`var` struct field is emitted as std.Immutable[T], so a GALA struct is not a drop-in Go twin and a Go caller has to call .Get() on the field. The markers are the wrapper's type name and a method call on the field, which is what the catalog's "declare `var` fields for Go-shaped access" rule turns on; neither is layout, so gofmt cannot move them. The absence half is emit_var_field_plain, the same struct declared with a `var` field. Pinned to the GALA release by construction; re-baseline with the procedure in docs/gala-translation.md under "When to revisit"

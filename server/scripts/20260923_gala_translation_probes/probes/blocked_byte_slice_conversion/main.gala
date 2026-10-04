@@ -1,7 +1,0 @@
-package main
-
-func main() {
-	val s = "hi"
-	var b = []byte(s)
-	Println(b)
-}

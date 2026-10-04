@@ -101,9 +101,9 @@ Work one construct at a time, in this order, and transpile to a scratch path aft
 4. Bodies and calls.
    Translate the calls, choosing the helper or the GALA-native form by which container type the value actually is, not by how the file is styled.
 5. Comments.
-   The transpiler emits no comments at all, so package and declaration comments belong in a handwritten `doc.go`.
-   Only the package comment can move there: a declaration comment and a `swag` annotation have to sit immediately above their declaration, and the only spelling in another file is a bodiless re-declaration, which does not compile.
-   An annotated handler therefore has to stay handwritten, which is filed upstream as [#619](https://github.com/martianoff/gala/issues/619).
+   Transpile a declaration comment and read the emitted Go before deciding where comments live, because compilers differ: the compiler this skill was last measured against emits a comment attached to a declaration and the package comment, and drops comments inside a function body.
+   Where a compiler drops a declaration comment, the `doc.go` route recovers only the package comment, because a declaration comment and a `swag` annotation have to sit immediately above their declaration and the only spelling in another file is a bodiless re-declaration, which does not compile.
+   An annotated handler then has to stay handwritten, which is a boundary gap rather than a defect in the file.
 
 Stop at the first construct whose row is not `direct` and apply the triage verdicts again for the member rather than the file, because a member GALA cannot carry is a split, not a failure.
 A `workaround` or an `answered` row is not that case: the row already names the spelling to use, so take it and keep going.

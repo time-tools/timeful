@@ -1,9 +1,0 @@
-package main
-
-func makeAdder() func(int) int = (x) => { return x + 1 }
-
-func apply(f func(int) int, n int) int = f(n)
-
-func main() {
-	Println(apply(makeAdder(), 41))
-}

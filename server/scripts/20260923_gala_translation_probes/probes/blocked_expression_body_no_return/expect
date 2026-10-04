@@ -1,3 +1,0 @@
-KIND=build_fail
-ERR=too many return values
-NOTE=upstream #617: func F() = <expr> never infers a return type, so the emitted Go function is void and its body returns a value. The transpile is clean, so the failure is a Go error against generated code. func F() T = <expr> with the type written out is correct and unaffected.
