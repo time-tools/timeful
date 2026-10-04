@@ -1851,17 +1851,11 @@ func (m *TreeMap[K, V]) Merge(other *TreeMap[K, V], f func(V, V) V) {
 				_ = _tmp_34
 				e := _tmp_34
 				if _tmp_33 {
-					{
-						m.Put(k, f(e, v))
-						return
-					}
+					m.Put(k, f(e, v))
 				} else {
 					_tmp_35 := None[V]{}.Unapply(obj)
 					if _tmp_35 {
-						{
-							m.Put(k, v)
-							return
-						}
+						m.Put(k, v)
 					} else {
 						panic("unreachable")
 					}

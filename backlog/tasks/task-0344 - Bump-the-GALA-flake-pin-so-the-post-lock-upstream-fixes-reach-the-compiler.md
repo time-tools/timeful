@@ -1,11 +1,11 @@
 ---
 id: TASK-0344
 title: Bump the GALA flake pin so the post-lock upstream fixes reach the compiler
-status: To Do
+status: Done
 assignee:
   - '@opencode'
 created_date: '2026-10-04 12:56'
-updated_date: '2026-10-04 15:59'
+updated_date: '2026-10-04 19:38'
 labels:
   - gala
   - tooling
@@ -28,7 +28,6 @@ references:
 documentation:
   - server/GALA.md
   - server/README.md
-  - server/scripts/gala/probes/type-position-import/notes.md
 modified_files:
   - flake.lock
   - server/GALA.md
@@ -47,24 +46,24 @@ Two upstream GALA fixes are closed but missing from the pinned compiler: #648 (a
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The `gala` input in `flake.lock` is bumped to a rev at or after the upstream fix for #648 (and the #621 fix if it is included in the same rev), and the new rev is recorded in the task notes
-- [ ] #2 The sync iteration follows the corrected re-vendor procedure in `server/GALA.md` from TASK-0343: extraction refresh or verification first, then re-vendor, `verify.sh --write`, per-twin diff review, `go build ./...` in `server/`, and the canonical backend test sequence from `server/README.md`
-- [ ] #3 The repro at `server/scripts/gala/probes/type-position-import/` is re-run on the new compiler; the #648 probe and its open-findings row are retired with recorded evidence if it stops reproducing, or retained with the new rev and diagnosis if it still reproduces
-- [ ] #4 The #621 finding is re-checked on the new compiler and retired or retained with recorded evidence
-- [ ] #5 `server/third_party/gala/VENDORED_FROM` records the new compiler version, flake rev, source path, extraction provenance, and date, and `server/GALA.md`'s upstream report index reflects the new state
-- [ ] #6 Evidence is recorded in the task: probe output, `verify.sh` result, per-twin diff review, `go build ./...`, and the canonical backend test result
+- [x] #1 The `gala` input in `flake.lock` is bumped to a rev at or after the upstream fix for #648 (and the #621 fix if it is included in the same rev), and the new rev is recorded in the task notes
+- [x] #2 The sync iteration follows the corrected re-vendor procedure in `server/GALA.md` from TASK-0343: extraction refresh or verification first, then re-vendor, `verify.sh --write`, per-twin diff review, `go build ./...` in `server/`, and the canonical backend test sequence from `server/README.md`
+- [x] #3 The repro at `server/scripts/gala/probes/type-position-import/` is re-run on the new compiler; the #648 probe and its open-findings row are retired with recorded evidence if it stops reproducing, or retained with the new rev and diagnosis if it still reproduces
+- [x] #4 The #621 finding is re-checked on the new compiler and retired or retained with recorded evidence
+- [x] #5 `server/third_party/gala/VENDORED_FROM` records the new compiler version, flake rev, source path, extraction provenance, and date, and `server/GALA.md`'s upstream report index reflects the new state
+- [x] #6 Evidence is recorded in the task: probe output, `verify.sh` result, per-twin diff review, `go build ./...`, and the canonical backend test result
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 All acceptance criteria are satisfied
-- [ ] #2 All required unit tests pass. Documentation-only changes are exempt unless the user requests unit tests
-- [ ] #3 All required e2e tests pass. Documentation-only changes are exempt unless the user requests e2e tests
-- [ ] #4 Changed Markdown files are formatted with npm run format:markdown
-- [ ] #5 Swagger annotations changed: run `swag init` from `server/` and `npm run gen:api` from `frontend/`
-- [ ] #6 Code changed: run `codebase-memory-mcp cli index_repository --repo-path .` to refresh the code knowledge graph
-- [ ] #7 `scripts/` or `prettier/` changed: run root `npm run fmt:check`
-- [ ] #8 Contract-affecting changes update their documents. This includes `docs/environments.md`; `PLUGIN_API_README.md`; and migration and rollout notes
+- [x] #1 All acceptance criteria are satisfied
+- [x] #2 All required unit tests pass. Documentation-only changes are exempt unless the user requests unit tests
+- [x] #3 All required e2e tests pass. Documentation-only changes are exempt unless the user requests e2e tests
+- [x] #4 Changed Markdown files are formatted with npm run format:markdown
+- [x] #5 Swagger annotations changed: run `swag init` from `server/` and `npm run gen:api` from `frontend/`
+- [x] #6 Code changed: run `codebase-memory-mcp cli index_repository --repo-path .` to refresh the code knowledge graph
+- [x] #7 `scripts/` or `prettier/` changed: run root `npm run fmt:check`
+- [x] #8 Contract-affecting changes update their documents. This includes `docs/environments.md`; `PLUGIN_API_README.md`; and migration and rollout notes
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -95,6 +94,8 @@ The task stays open pending an upstream rev whose `gala-local` builds.
 Retry plan (2026-10-04, user request): upstream HEAD moved from the blocked 2ecf1f0d to 31f75cfe (3 commits: #672, #673, #677, none touching nix/gala.nix or cmd/gala_bootstrap/main.go). Bump flake.lock to HEAD, test whether gala-local builds, and if the bootstrap regression persists, file the upstream report at HEAD, record the issue URL, and restore the working lock; if it builds, run the full sync iteration.
 
 Retry outcome (2026-10-04): the bug persisted at HEAD 31f75cfe and is filed upstream as #678; flake.lock was restored to e2e28c31 so the dev shell keeps working; the task remains To Do pending an upstream rev whose gala-local builds.
+
+Resume (2026-10-04): upstream PR #680 is merged (merge commit 9e10906830dfecc4af354ef0432f9c2514af2f60, fixing #678 by giving each batch file its package siblings). Bump the `gala` input in flake.lock to HEAD, confirm `gala-local` builds, then run the full corrected re-vendor sync iteration (ACs #1-#6).
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
@@ -167,4 +168,25 @@ Upstream HEAD moved from `2ecf1f0d39c92596be0f85c61cd62e0989418d6d` to `31f75cfe
 The regression persists unchanged at HEAD, so it was reported upstream: https://github.com/martianoff/gala/issues/678 (filed 2026-10-04, label bug), with the reproduction, the control (`.#gala` builds), the root-cause lines (`cmd/gala_bootstrap/main.go:123`, `internal/transpiler/analyzer/analyzer.go:555`), and the candidate fixes.
 `flake.lock` was restored to `e2e28c318ff1eb606f7f607199b629d93b78ab1f`; the failed sandbox build did not touch `~/.gala/stdlib/v0.84.1/.stdlib-extracted` (still `0.84.1 4df6252b73c34f06e045502457f9d486ac2fb3078330280038e096967c4bebf2`), and `nix develop --command server/scripts/gala/verify.sh` is green: `verify.sh: OK (15 twins)` with matching provenance.
 No repo file changed except this task record. The task stays To Do, blocked on #678: once a rev whose `gala-local` builds is reachable, complete ACs #1-#6 and retire #621/#648 with the already-recorded HEAD-analyzer baseline.
+
+## Sync iteration (2026-10-04): bump to HEAD 9beea5d (0.85.0)
+
+`nix flake update gala` locked `9beea5dc350ab566e2e1e31add863afd7d95d29f` (2026-10-04), three commits past the #680 merge (`9e109068`): the #680 sibling fix, the 0.85.0 version bump (`b85b2f31`, merge `39a1801e`), and CI-only #693 (`9beea5dc`). `nix develop --command gala version` now prints `GALA version 0.85.0` from `/nix/store/gy8vz739ilig9h1k1blbiavkkr2g3339-gala-0.85.0/bin/gala`, so `gala-local` builds and the #678 blocker is gone. All subsequent commands run under `nix develop`.
+
+## Sync evidence (2026-10-04)
+
+- Flake bump: `nix flake update gala` locked `9beea5dc350ab566e2e1e31add863afd7d95d29f` (upstream HEAD; #680 merge `9e109068`, 0.85.0 version bump `b85b2f31`/`39a1801e`, CI-only #693 `9beea5dc`). `nix develop --command gala version` reports `GALA version 0.85.0` from `/nix/store/gy8vz739ilig9h1k1blbiavkkr2g3339-gala-0.85.0/bin/gala`, so `gala-local` builds and the #678 blocker is retired. `flake.lock` diff is only the `gala` node rev/narHash/lastModified.
+- Extraction refresh: deleted `~/.gala/stdlib/v0.85.0/.stdlib-extracted` (new version directory), transpiled `server/eventid/eventid.gala` to `/tmp/sync-eventid.go` with the dev-shell compiler, and recorded the marker `0.85.0 09598ebbda9039d6b30c16c4c84e67a0d67b5febc6ece8fd0ea51b22d42d3b90`.
+- Re-vendor: copied `~/.gala/stdlib/v0.85.0/` over `server/third_party/gala/`, deleted the 21 per-package `go.mod` files and the marker, kept `LICENSE`, and rewrote the root `go.mod` (`go 1.24`, matching every snapshot package's directive; previously `go 1.22`). `go build ./...` inside the vendored tree is green. 17 upstream runtime files changed (collections, concurrent, json, yaml, std) plus `go.mod`/`VENDORED_FROM`; the `.gala` edits are `var` parameters and the `.gen.go` edits are redundant-block/return cleanups, consistent with the upstream 0.84.1->0.85.0 commits.
+- `verify.sh --write` under the dev shell: no `WRITE`, `DRIFT`, `GOFMT`, or `ORPHAN` lines; `verify.sh: OK (15 twins)`. All 15 twins regenerate byte-identically on the new compiler, so no twin was re-baselined and no regression was papered over.
+- #648 probe: from `server/scripts/gala/probes/type-position-import/`, `gala transpile -i main.gala -o /tmp/gala-648/main.go` now exits 1 with `error[GALA-E0023]: undefined: Future --> main.gala:3:17` and a hint naming `timeful/server/third_party/gala/concurrent`. Finding fixed; probe directory retired and the open-findings row removed from `server/GALA.md`.
+- #621 repro: `opaque type UserID int64` with `func (u UserID) Next() UserID = UserID(int64(u) + 1)` transpiles with exit 0, emitting `type UserID int64` with `Hash`, `Compare`, and `Next` methods; `go build ./...` in a scratch module replacing `martianoff/gala` with the vendored runtime is green. Finding fixed and its open-findings row removed.
+- Ledger: `server/GALA.md` now records 0.85.0 and `9beea5d` in the compiler table, drops the #621/#648 rows, marks both `fixed (verified here)` in the report index, and adds #678 (closed, fixed here) and PR #680 (merged before the lock, included). `server/third_party/gala/VENDORED_FROM` records the 0.85.0 compiler, new rev, `~/.gala/stdlib/v0.85.0`, the marker, and the date.
+- Verification: `cd server && go build ./...` green; canonical backend sequence `docker compose --env-file .env.test -f compose.yaml -f compose.test.yaml run --rm server-route-test` (`go test ./... -count=1`, compiled live from the mounted `./server`) reports `ok` for every test package; `npm run format:markdown` ran on `server/GALA.md` and `npm run format:markdown:check` is clean; `codebase-memory-mcp cli index_repository --repo-path .` refreshed the graph (11323 nodes, 46333 edges). No frontend or browser surface changed, so e2e was not required.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Bumped the GALA flake pin from `e2e28c31` (0.84.1) to `9beea5dc350ab566e2e1e31add863afd7d95d29f` (upstream HEAD at implementation time), which carries the #648 type-position check, the #621 opaque-type/newtype fix, the #680 local-bootstrap sibling fix for #678, and the 0.85.0 version bump. Followed the corrected re-vendor procedure from server/GALA.md and committed the result.\n\nDelivered:\n- `flake.lock` gala node bumped; `nix develop` and `gala-local` build; `gala version` now reports 0.85.0.\n- `server/third_party/gala/` re-vendored from a fresh compiler-written extraction (`0.85.0 09598ebb...`), per-package go.mod/marker removed, root `go.mod` rewritten (`go 1.24`), vendored tree and `server/` both `go build ./...` green.\n- All 15 twins regenerate byte-identically; `verify.sh --write` printed only `OK (15 twins)` with no WRITE/DRIFT/GOFMT/ORPHAN lines.\n- `server/GALA.md` compiler table, open findings, and report index updated; `server/third_party/gala/VENDORED_FROM` records the new provenance.\n- #648 and #621 are retired with recorded probe evidence; `server/scripts/gala/probes/type-position-import/` removed.\n- Canonical backend Compose suite passed for every test package; Markdown format check clean; code graph refreshed.
+<!-- SECTION:FINAL_SUMMARY:END -->

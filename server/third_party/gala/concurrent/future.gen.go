@@ -615,10 +615,7 @@ func (f Future[T]) OnSuccess(callback func(T)) {
 				_ = _tmp_3
 				v := _tmp_3
 				if _tmp_2 {
-					{
-						callback(v)
-						return
-					}
+					callback(v)
 				} else {
 					_tmp_4 := Failure[T]{}.Unapply(obj)
 					_tmp_5 := _tmp_4.IsDefined()
@@ -665,10 +662,7 @@ func (f Future[T]) OnFailure(callback func(error)) {
 					_ = _tmp_12
 					e := _tmp_12
 					if _tmp_11 {
-						{
-							callback(e)
-							return
-						}
+						callback(e)
 					} else {
 						panic("unreachable")
 					}
@@ -733,13 +727,10 @@ func Future_FlatMap[U any, T any](f Future[T], fn func(T) Future[U]) Future[U] {
 				_ = _tmp_15
 				v := _tmp_15
 				if _tmp_14 {
-					{
-						fn(v).OnComplete(func(innerResult Try[U]) {
+					fn(v).OnComplete(func(innerResult Try[U]) {
 //line concurrent/future.gala:366
-							p.Complete(innerResult)
-						})
-						return
-					}
+						p.Complete(innerResult)
+					})
 				} else {
 					_tmp_16 := Failure[T]{}.Unapply(obj)
 					_tmp_17 := _tmp_16.IsDefined()
@@ -750,10 +741,7 @@ func Future_FlatMap[U any, T any](f Future[T], fn func(T) Future[U]) Future[U] {
 					_ = _tmp_18
 					e := _tmp_18
 					if _tmp_17 {
-						{
-							p.Failure(e)
-							return
-						}
+						p.Failure(e)
 					} else {
 						panic("unreachable")
 					}
@@ -808,10 +796,7 @@ func (f Future[T]) RecoverWith(pf func(error) Future[T]) Future[T] {
 				_ = _tmp_21
 				v := _tmp_21
 				if _tmp_20 {
-					{
-						p.Success(v)
-						return
-					}
+					p.Success(v)
 				} else {
 					_tmp_22 := Failure[T]{}.Unapply(obj)
 					_tmp_23 := _tmp_22.IsDefined()
@@ -822,13 +807,10 @@ func (f Future[T]) RecoverWith(pf func(error) Future[T]) Future[T] {
 					_ = _tmp_24
 					e := _tmp_24
 					if _tmp_23 {
-						{
-							pf(e).OnComplete(func(recovered Try[T]) {
+						pf(e).OnComplete(func(recovered Try[T]) {
 //line concurrent/future.gala:394
-								p.Complete(recovered)
-							})
-							return
-						}
+							p.Complete(recovered)
+						})
 					} else {
 						panic("unreachable")
 					}
@@ -856,10 +838,7 @@ func Future_Transform[U any, T any](f Future[T], s func(T) Try[U], fn func(error
 				_ = _tmp_27
 				v := _tmp_27
 				if _tmp_26 {
-					{
-						p.Complete(s(v))
-						return
-					}
+					p.Complete(s(v))
 				} else {
 					_tmp_28 := Failure[T]{}.Unapply(obj)
 					_tmp_29 := _tmp_28.IsDefined()
@@ -870,10 +849,7 @@ func Future_Transform[U any, T any](f Future[T], s func(T) Try[U], fn func(error
 					_ = _tmp_30
 					e := _tmp_30
 					if _tmp_29 {
-						{
-							p.Complete(fn(e))
-							return
-						}
+						p.Complete(fn(e))
 					} else {
 						panic("unreachable")
 					}
@@ -901,13 +877,10 @@ func Future_TransformWith[U any, T any](f Future[T], s func(T) Future[U], fn fun
 				_ = _tmp_33
 				v := _tmp_33
 				if _tmp_32 {
-					{
-						s(v).OnComplete(func(res Try[U]) {
+					s(v).OnComplete(func(res Try[U]) {
 //line concurrent/future.gala:415
-							p.Complete(res)
-						})
-						return
-					}
+						p.Complete(res)
+					})
 				} else {
 					_tmp_34 := Failure[T]{}.Unapply(obj)
 					_tmp_35 := _tmp_34.IsDefined()
@@ -918,13 +891,10 @@ func Future_TransformWith[U any, T any](f Future[T], s func(T) Future[U], fn fun
 					_ = _tmp_36
 					e := _tmp_36
 					if _tmp_35 {
-						{
-							fn(e).OnComplete(func(res Try[U]) {
+						fn(e).OnComplete(func(res Try[U]) {
 //line concurrent/future.gala:418
-								p.Complete(res)
-							})
-							return
-						}
+							p.Complete(res)
+						})
 					} else {
 						panic("unreachable")
 					}

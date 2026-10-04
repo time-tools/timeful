@@ -1,5 +1,5 @@
-compiler: GALA version 0.84.1
-flake_rev: e2e28c318ff1eb606f7f607199b629d93b78ab1f
-source: ~/.gala/stdlib/v0.84.1
-extraction: 0.84.1 4df6252b73c34f06e045502457f9d486ac2fb3078330280038e096967c4bebf2
+compiler: GALA version 0.85.0
+flake_rev: 9beea5dc350ab566e2e1e31add863afd7d95d29f
+source: ~/.gala/stdlib/v0.85.0
+extraction: 0.85.0 09598ebbda9039d6b30c16c4c84e67a0d67b5febc6ece8fd0ea51b22d42d3b90
 date: 2026-10-04

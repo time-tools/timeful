@@ -11,9 +11,12 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf16"
+	"unicode/utf8"
 )
 
-//line json/codec.gala:15
+//line json/codec.gala:18
 
 // JsonEncoderImpl writes JSON bytes via the typed FieldEncoder interface.
 // Produced by NewJsonEncoder(); consumed by _StructMeta_T.EncodeFields.
@@ -30,136 +33,175 @@ func (s JsonEncoderImpl) Equal(other JsonEncoderImpl) bool {
 	return Equal(s.buf, other.buf) && Equal(s.needsComma, other.needsComma) && Equal(s.keyPending, other.keyPending)
 }
 
-//line json/codec.gala:24
+//line json/codec.gala:27
 func NewJsonEncoder() *JsonEncoderImpl {
 	return &JsonEncoderImpl{}
 }
 
-//line json/codec.gala:26
-func (e *JsonEncoderImpl) WriteStartObject() {
-//line json/codec.gala:27
-	e.writeCommaIfNeeded()
-//line json/codec.gala:28
-	e.buf.WriteByte('{')
 //line json/codec.gala:29
-	e.needsComma = false
-}
-
+func (e *JsonEncoderImpl) WriteStartObject() {
+//line json/codec.gala:30
+	e.writeCommaIfNeeded()
+//line json/codec.gala:31
+	e.buf.WriteByte('{')
 //line json/codec.gala:32
+	e.needsComma = false
+}
+
+//line json/codec.gala:35
 func (e *JsonEncoderImpl) WriteEndObject() {
-//line json/codec.gala:33
+//line json/codec.gala:36
 	e.buf.WriteByte('}')
-//line json/codec.gala:34
-	e.needsComma = true
-}
-
 //line json/codec.gala:37
-func (e *JsonEncoderImpl) WriteStartArray() {
-//line json/codec.gala:38
-	e.writeCommaIfNeeded()
-//line json/codec.gala:39
-	e.buf.WriteByte('[')
+	e.needsComma = true
+}
+
 //line json/codec.gala:40
-	e.needsComma = false
-}
-
+func (e *JsonEncoderImpl) WriteStartArray() {
+//line json/codec.gala:41
+	e.writeCommaIfNeeded()
+//line json/codec.gala:42
+	e.buf.WriteByte('[')
 //line json/codec.gala:43
-func (e *JsonEncoderImpl) WriteEndArray() {
-//line json/codec.gala:44
-	e.buf.WriteByte(']')
-//line json/codec.gala:45
-	e.needsComma = true
-}
-
-//line json/codec.gala:48
-func (e *JsonEncoderImpl) WriteKey(name string) {
-//line json/codec.gala:49
-	e.writeCommaIfNeeded()
-//line json/codec.gala:50
-	e.writeEscapedJsonString(name)
-//line json/codec.gala:51
-	e.buf.WriteByte(':')
-//line json/codec.gala:52
 	e.needsComma = false
 }
 
+//line json/codec.gala:46
+func (e *JsonEncoderImpl) WriteEndArray() {
+//line json/codec.gala:47
+	e.buf.WriteByte(']')
+//line json/codec.gala:48
+	e.needsComma = true
+}
+
+//line json/codec.gala:51
+func (e *JsonEncoderImpl) WriteKey(name string) {
+//line json/codec.gala:52
+	e.writeCommaIfNeeded()
+//line json/codec.gala:53
+	e.writeEscapedJsonString(name)
+//line json/codec.gala:54
+	e.buf.WriteByte(':')
 //line json/codec.gala:55
-func (e *JsonEncoderImpl) WriteString(v string) {
-//line json/codec.gala:56
-	e.writeCommaIfNeeded()
-//line json/codec.gala:57
-	e.writeEscapedJsonString(v)
+	e.needsComma = false
+}
+
 //line json/codec.gala:58
-	e.needsComma = true
-}
-
+func (e *JsonEncoderImpl) WriteString(v string) {
+//line json/codec.gala:59
+	e.writeCommaIfNeeded()
+//line json/codec.gala:60
+	e.writeEscapedJsonString(v)
 //line json/codec.gala:61
-func (e *JsonEncoderImpl) WriteInt(v int) {
-//line json/codec.gala:62
-	e.writeCommaIfNeeded()
-//line json/codec.gala:63
-	e.buf.WriteString(strconv.Itoa(v))
+	e.needsComma = true
+}
+
 //line json/codec.gala:64
-	e.needsComma = true
-}
-
+func (e *JsonEncoderImpl) WriteInt(v int) {
+//line json/codec.gala:65
+	e.writeCommaIfNeeded()
+//line json/codec.gala:66
+	e.buf.WriteString(strconv.Itoa(v))
 //line json/codec.gala:67
-func (e *JsonEncoderImpl) WriteInt64(v int64) {
-//line json/codec.gala:68
-	e.writeCommaIfNeeded()
-//line json/codec.gala:69
-	e.buf.WriteString(strconv.FormatInt(v, 10))
+	e.needsComma = true
+}
+
 //line json/codec.gala:70
-	e.needsComma = true
-}
-
-//line json/codec.gala:73
-func (e *JsonEncoderImpl) WriteUint64(v uint64) {
-//line json/codec.gala:74
+func (e *JsonEncoderImpl) WriteInt64(v int64) {
+//line json/codec.gala:71
 	e.writeCommaIfNeeded()
-//line json/codec.gala:75
-	e.buf.WriteString(strconv.FormatUint(v, 10))
-//line json/codec.gala:76
+//line json/codec.gala:72
+	e.buf.WriteString(strconv.FormatInt(v, 10))
+//line json/codec.gala:73
 	e.needsComma = true
 }
 
+//line json/codec.gala:76
+func (e *JsonEncoderImpl) WriteUint64(v uint64) {
+//line json/codec.gala:77
+	e.writeCommaIfNeeded()
+//line json/codec.gala:78
+	e.buf.WriteString(strconv.FormatUint(v, 10))
 //line json/codec.gala:79
+	e.needsComma = true
+}
+
+//line json/codec.gala:82
 func (e *JsonEncoderImpl) WriteFloat64(v float64) {
-//line json/codec.gala:80
+//line json/codec.gala:83
 	e.writeFloat(v, 64)
 }
 
-//line json/codec.gala:83
+//line json/codec.gala:86
 func (e *JsonEncoderImpl) WriteFloat32(v float32) {
-//line json/codec.gala:84
+//line json/codec.gala:87
 	e.writeFloat(float64(v), 32)
 }
 
-//line json/codec.gala:86
+//line json/codec.gala:89
 
 // writeFloat renders v in the shortest decimal form that parses back to the
 // same value at bitSize. JSON has no spelling for NaN or the infinities, so
 // they fail the encode (the Encode Try becomes a Failure) instead of
 // producing a document no JSON parser accepts.
 func (e *JsonEncoderImpl) writeFloat(v float64, bitSize int) {
-//line json/codec.gala:92
+//line json/codec.gala:95
 	if math.IsNaN(v) || math.IsInf(v, 0) {
-//line json/codec.gala:93
+//line json/codec.gala:96
 		panic(fmt.Sprintf("json: unsupported float value %s: JSON has no NaN or Infinity", strconv.FormatFloat(v, 'g', -1, 64)))
 	}
-//line json/codec.gala:95
+//line json/codec.gala:98
 	e.writeCommaIfNeeded()
-//line json/codec.gala:96
-	e.buf.WriteString(strconv.FormatFloat(v, 'f', -1, bitSize))
-//line json/codec.gala:97
+//line json/codec.gala:99
+	e.buf.WriteString(formatJsonFloat(v, bitSize))
+//line json/codec.gala:100
 	e.needsComma = true
 }
 
-//line json/codec.gala:100
-func (e *JsonEncoderImpl) WriteBool(v bool) {
-//line json/codec.gala:101
-	e.writeCommaIfNeeded()
 //line json/codec.gala:102
+
+// formatJsonFloat spells a finite float as encoding/json does: the shortest
+// digits that parse back to v at bitSize, in plain notation for
+// 1e-6 <= |v| < 1e21 and in exponent notation outside it, so 1e300 is not a
+// 301-digit literal. A one-digit negative exponent drops its leading zero
+// (1e-7, not 1e-07); a positive exponent here is always at least 21. yaml's
+// formatYamlFloat keeps the same rule in Go.
+func formatJsonFloat(v float64, bitSize int) string {
+	return func() string {
+		if useExponent(math.Abs(v), bitSize) {
+			return strings.Replace(strconv.FormatFloat(v, 'e', -1, bitSize), "e-0", "e-", 1)
+		} else {
+			return strconv.FormatFloat(v, 'f', -1, bitSize)
+		}
+	}()
+}
+
+//line json/codec.gala:112
+
+// useExponent reports whether abs lies outside the plain-notation range. The
+// range test runs at the value's own precision: float32(1e-6) is just below
+// the float64 1e-6, yet it is written plainly.
+func useExponent(abs float64, bitSize int) bool {
+	return func() bool {
+		if abs == 0 {
+			return false
+		} else {
+			return func() bool {
+				if bitSize == 32 {
+					return float32(abs) < 1e-6 || float32(abs) >= 1e21
+				} else {
+					return abs < 1e-6 || abs >= 1e21
+				}
+			}()
+		}
+	}()
+}
+
+//line json/codec.gala:121
+func (e *JsonEncoderImpl) WriteBool(v bool) {
+//line json/codec.gala:122
+	e.writeCommaIfNeeded()
+//line json/codec.gala:123
 	e.buf.WriteString(func() string {
 		if v {
 			return "true"
@@ -167,100 +209,162 @@ func (e *JsonEncoderImpl) WriteBool(v bool) {
 			return "false"
 		}
 	}())
-//line json/codec.gala:103
+//line json/codec.gala:124
 	e.needsComma = true
 }
 
-//line json/codec.gala:106
+//line json/codec.gala:127
 func (e *JsonEncoderImpl) WriteRune(v rune) {
-//line json/codec.gala:107
+//line json/codec.gala:128
 	e.writeCommaIfNeeded()
-//line json/codec.gala:108
+//line json/codec.gala:129
 	e.writeEscapedJsonString(RuneToString(v))
-//line json/codec.gala:109
+//line json/codec.gala:130
 	e.needsComma = true
 }
 
-//line json/codec.gala:112
+//line json/codec.gala:133
 func (e *JsonEncoderImpl) WriteNull() {
-//line json/codec.gala:113
+//line json/codec.gala:134
 	e.writeCommaIfNeeded()
-//line json/codec.gala:114
+//line json/codec.gala:135
 	e.buf.WriteString("null")
-//line json/codec.gala:115
+//line json/codec.gala:136
 	e.needsComma = true
 }
 
-//line json/codec.gala:118
+//line json/codec.gala:139
 func (e *JsonEncoderImpl) String() string {
 	return e.buf.String()
 }
 
-//line json/codec.gala:120
+//line json/codec.gala:141
 func (e *JsonEncoderImpl) writeCommaIfNeeded() {
-//line json/codec.gala:121
+//line json/codec.gala:142
 	if e.needsComma {
-//line json/codec.gala:122
+//line json/codec.gala:143
 		e.buf.WriteByte(',')
-//line json/codec.gala:123
+//line json/codec.gala:144
 		e.needsComma = false
 	}
 }
 
-//line json/codec.gala:127
+//line json/codec.gala:148
 func (e *JsonEncoderImpl) writeEscapedJsonString(s string) {
-//line json/codec.gala:128
+//line json/codec.gala:149
 	e.buf.WriteByte('"')
-//line json/codec.gala:132
-	for i := 0; i < len(s); i++ {
-//line json/codec.gala:133
+//line json/codec.gala:155
+	var start = 0
+//line json/codec.gala:156
+	var i = 0
+//line json/codec.gala:157
+	for i < len(s) {
+//line json/codec.gala:158
 		var c = NewImmutable(s[i])
-//line json/codec.gala:134
-		if c.Get() == '"' {
-//line json/codec.gala:135
-			e.buf.WriteString("\\\"")
-		} else if c.Get() == '\\' {
-//line json/codec.gala:137
-			e.buf.WriteString("\\\\")
-		} else if c.Get() == '\n' {
-//line json/codec.gala:139
-			e.buf.WriteString("\\n")
-		} else if c.Get() == '\r' {
-//line json/codec.gala:141
-			e.buf.WriteString("\\r")
-		} else if c.Get() == '\t' {
-//line json/codec.gala:143
-			e.buf.WriteString("\\t")
-		} else if c.Get() < 32 {
-//line json/codec.gala:145
-			e.buf.WriteString(fmt.Sprintf("\\u%04x", c.Get()))
+//line json/codec.gala:159
+		if c.Get() >= utf8.RuneSelf {
+//line json/codec.gala:162
+			var (
+				_tmp_1, _tmp_2 = decodeRuneAt(s, i)
+				r              = NewImmutable(_tmp_1)
+				size           = NewImmutable(_tmp_2)
+			)
+//line json/codec.gala:163
+			if r.Get() == utf8.RuneError && size.Get() == 1 {
+//line json/codec.gala:164
+				e.buf.WriteString(substring(s, start, i))
+//line json/codec.gala:165
+				e.buf.WriteString("\\ufffd")
+//line json/codec.gala:166
+				start = i + 1
+			}
+//line json/codec.gala:168
+			i = i + size.Get()
+		} else if c.Get() < 32 || c.Get() == '"' || c.Get() == '\\' {
+//line json/codec.gala:170
+			e.buf.WriteString(substring(s, start, i))
+//line json/codec.gala:171
+			e.writeEscape(c.Get())
+//line json/codec.gala:172
+			i = i + 1
+//line json/codec.gala:173
+			start = i
 		} else {
-//line json/codec.gala:147
-			e.buf.WriteByte(c.Get())
+//line json/codec.gala:175
+			i = i + 1
 		}
 	}
-//line json/codec.gala:150
+//line json/codec.gala:178
+	e.buf.WriteString(substring(s, start, i))
+//line json/codec.gala:179
 	e.buf.WriteByte('"')
 }
 
-//line json/codec.gala:152
+//line json/codec.gala:181
+
+// writeEscape writes the JSON escape for a quote, a backslash or a control
+// character.
+func (e *JsonEncoderImpl) writeEscape(c byte) {
+//line json/codec.gala:185
+	func(obj byte) {
+		if obj == '"' {
+//line json/codec.gala:186
+			{
+				e.buf.WriteString("\\\"")
+				return
+			}
+		} else if obj == '\\' {
+//line json/codec.gala:187
+			{
+				e.buf.WriteString("\\\\")
+				return
+			}
+		} else if obj == '\n' {
+//line json/codec.gala:188
+			{
+				e.buf.WriteString("\\n")
+				return
+			}
+		} else if obj == '\r' {
+//line json/codec.gala:189
+			{
+				e.buf.WriteString("\\r")
+				return
+			}
+		} else if obj == '\t' {
+//line json/codec.gala:190
+			{
+				e.buf.WriteString("\\t")
+				return
+			}
+		} else {
+//line json/codec.gala:191
+			{
+				e.buf.WriteString(fmt.Sprintf("\\u%04x", c))
+				return
+			}
+		}
+	}(c)
+}
+
+//line json/codec.gala:194
 
 // PrettyIndent re-indents a compact JSON string.
 func PrettyIndent(compact string, indent string) Try[string] {
-//line json/codec.gala:155
+//line json/codec.gala:197
 	var out bytes.Buffer
-//line json/codec.gala:156
+//line json/codec.gala:198
 	var err = NewImmutable(json.Indent(&out, toBytes(compact), "", indent))
-//line json/codec.gala:157
+//line json/codec.gala:199
 	if err.Get() != nil {
-//line json/codec.gala:158
+//line json/codec.gala:200
 		return Failure[string]{}.Apply(err.Get())
 	}
-//line json/codec.gala:160
+//line json/codec.gala:202
 	return Success[string]{}.Apply(out.String())
 }
 
-//line json/codec.gala:164
+//line json/codec.gala:206
 
 // JsonDecoderImpl is a pull-style JSON parser. Unlike the legacy Reader it
 // exposes plain primitive returns from its Read* methods — errors are
@@ -282,370 +386,370 @@ func (s JsonDecoderImpl) Equal(other JsonDecoderImpl) bool {
 	return Equal(s.data, other.data) && Equal(s.pos, other.pos) && Equal(s.stack, other.stack) && Equal(s.firstConsumed, other.firstConsumed) && Equal(s.pendingKey, other.pendingKey) && Equal(s.hasPendingKey, other.hasPendingKey)
 }
 
-//line json/codec.gala:178
+//line json/codec.gala:220
 func NewJsonDecoder(s string) *JsonDecoderImpl {
 	return &JsonDecoderImpl{data: toBytes(s), pos: 0}
 }
 
-//line json/codec.gala:180
+//line json/codec.gala:222
 func (d *JsonDecoderImpl) StartObject() {
-//line json/codec.gala:185
+//line json/codec.gala:227
 	d.consumeElemComma()
-//line json/codec.gala:186
+//line json/codec.gala:228
 	d.skipWs()
-//line json/codec.gala:187
+//line json/codec.gala:229
 	if d.pos >= len(d.data) || d.data[d.pos] != '{' {
-//line json/codec.gala:188
+//line json/codec.gala:230
 		panic(fmt.Sprintf("json at pos %d: expected '{'", d.pos))
 	}
-//line json/codec.gala:190
+//line json/codec.gala:232
 	d.pos = d.pos + 1
-//line json/codec.gala:191
+//line json/codec.gala:233
 	d.stack = go_interop.SliceAppend(d.stack, 'o')
-//line json/codec.gala:192
+//line json/codec.gala:234
 	d.firstConsumed = go_interop.SliceAppend(d.firstConsumed, false)
 }
 
-//line json/codec.gala:195
+//line json/codec.gala:237
 func (d *JsonDecoderImpl) EndObject() {
-//line json/codec.gala:196
+//line json/codec.gala:238
 	d.skipWs()
-//line json/codec.gala:197
+//line json/codec.gala:239
 	if d.pos >= len(d.data) || d.data[d.pos] != '}' {
-//line json/codec.gala:198
+//line json/codec.gala:240
 		panic(fmt.Sprintf("json at pos %d: expected '}'", d.pos))
 	}
-//line json/codec.gala:200
+//line json/codec.gala:242
 	d.pos = d.pos + 1
-//line json/codec.gala:201
+//line json/codec.gala:243
 	d.stack = TruncateBytes(d.stack, len(d.stack)-1)
-//line json/codec.gala:202
+//line json/codec.gala:244
 	d.firstConsumed = TruncateBools(d.firstConsumed, len(d.firstConsumed)-1)
 }
 
-//line json/codec.gala:205
+//line json/codec.gala:247
 func (d *JsonDecoderImpl) StartArray() {
-//line json/codec.gala:208
+//line json/codec.gala:250
 	d.consumeElemComma()
-//line json/codec.gala:209
+//line json/codec.gala:251
 	d.skipWs()
-//line json/codec.gala:210
+//line json/codec.gala:252
 	if d.pos >= len(d.data) || d.data[d.pos] != '[' {
-//line json/codec.gala:211
+//line json/codec.gala:253
 		panic(fmt.Sprintf("json at pos %d: expected '['", d.pos))
 	}
-//line json/codec.gala:213
+//line json/codec.gala:255
 	d.pos = d.pos + 1
-//line json/codec.gala:214
-	d.stack = go_interop.SliceAppend(d.stack, 'a')
-//line json/codec.gala:215
-	d.firstConsumed = go_interop.SliceAppend(d.firstConsumed, false)
-}
-
-//line json/codec.gala:218
-func (d *JsonDecoderImpl) EndArray() {
-//line json/codec.gala:219
-	d.skipWs()
-//line json/codec.gala:220
-	if d.pos >= len(d.data) || d.data[d.pos] != ']' {
-//line json/codec.gala:221
-		panic(fmt.Sprintf("json at pos %d: expected ']'", d.pos))
-	}
-//line json/codec.gala:223
-	d.pos = d.pos + 1
-//line json/codec.gala:224
-	d.stack = TruncateBytes(d.stack, len(d.stack)-1)
-//line json/codec.gala:225
-	d.firstConsumed = TruncateBools(d.firstConsumed, len(d.firstConsumed)-1)
-}
-
-//line json/codec.gala:228
-func (d *JsonDecoderImpl) HasMoreFields() bool {
-//line json/codec.gala:229
-	d.skipWs()
-//line json/codec.gala:230
-	if d.pos >= len(d.data) {
-//line json/codec.gala:230
-		return false
-	}
-//line json/codec.gala:231
-	return d.data[d.pos] != '}'
-}
-
-//line json/codec.gala:234
-func (d *JsonDecoderImpl) HasMoreElements() bool {
-//line json/codec.gala:235
-	d.skipWs()
-//line json/codec.gala:236
-	if d.pos >= len(d.data) {
-//line json/codec.gala:236
-		return false
-	}
-//line json/codec.gala:237
-	return d.data[d.pos] != ']'
-}
-
-//line json/codec.gala:240
-func (d *JsonDecoderImpl) ReadKey() string {
-//line json/codec.gala:241
-	d.skipWs()
-//line json/codec.gala:242
-	var depth = NewImmutable(len(d.firstConsumed) - 1)
-//line json/codec.gala:243
-	if depth.Get() >= 0 && d.firstConsumed[depth.Get()] {
-//line json/codec.gala:244
-		if d.pos < len(d.data) && d.data[d.pos] == ',' {
-//line json/codec.gala:245
-			d.pos = d.pos + 1
-//line json/codec.gala:246
-			d.skipWs()
-		}
-	}
-//line json/codec.gala:249
-	if depth.Get() >= 0 {
-//line json/codec.gala:249
-		d.firstConsumed[depth.Get()] = true
-	}
-//line json/codec.gala:251
-	var key = NewImmutable(d.readJsonString())
-//line json/codec.gala:252
-	d.skipWs()
-//line json/codec.gala:253
-	if d.pos >= len(d.data) || d.data[d.pos] != ':' {
-//line json/codec.gala:254
-		panic(fmt.Sprintf("json at pos %d: expected ':'", d.pos))
-	}
 //line json/codec.gala:256
-	d.pos = d.pos + 1
+	d.stack = go_interop.SliceAppend(d.stack, 'a')
 //line json/codec.gala:257
-	return key.Get()
+	d.firstConsumed = go_interop.SliceAppend(d.firstConsumed, false)
 }
 
 //line json/codec.gala:260
-func (d *JsonDecoderImpl) ReadString() string {
+func (d *JsonDecoderImpl) EndArray() {
 //line json/codec.gala:261
-	d.consumeElemComma()
-//line json/codec.gala:262
 	d.skipWs()
+//line json/codec.gala:262
+	if d.pos >= len(d.data) || d.data[d.pos] != ']' {
 //line json/codec.gala:263
+		panic(fmt.Sprintf("json at pos %d: expected ']'", d.pos))
+	}
+//line json/codec.gala:265
+	d.pos = d.pos + 1
+//line json/codec.gala:266
+	d.stack = TruncateBytes(d.stack, len(d.stack)-1)
+//line json/codec.gala:267
+	d.firstConsumed = TruncateBools(d.firstConsumed, len(d.firstConsumed)-1)
+}
+
+//line json/codec.gala:270
+func (d *JsonDecoderImpl) HasMoreFields() bool {
+//line json/codec.gala:271
+	d.skipWs()
+//line json/codec.gala:272
+	if d.pos >= len(d.data) {
+//line json/codec.gala:272
+		return false
+	}
+//line json/codec.gala:273
+	return d.data[d.pos] != '}'
+}
+
+//line json/codec.gala:276
+func (d *JsonDecoderImpl) HasMoreElements() bool {
+//line json/codec.gala:277
+	d.skipWs()
+//line json/codec.gala:278
+	if d.pos >= len(d.data) {
+//line json/codec.gala:278
+		return false
+	}
+//line json/codec.gala:279
+	return d.data[d.pos] != ']'
+}
+
+//line json/codec.gala:282
+func (d *JsonDecoderImpl) ReadKey() string {
+//line json/codec.gala:283
+	d.skipWs()
+//line json/codec.gala:284
+	var depth = NewImmutable(len(d.firstConsumed) - 1)
+//line json/codec.gala:285
+	if depth.Get() >= 0 && d.firstConsumed[depth.Get()] {
+//line json/codec.gala:286
+		if d.pos < len(d.data) && d.data[d.pos] == ',' {
+//line json/codec.gala:287
+			d.pos = d.pos + 1
+//line json/codec.gala:288
+			d.skipWs()
+		}
+	}
+//line json/codec.gala:291
+	if depth.Get() >= 0 {
+//line json/codec.gala:291
+		d.firstConsumed[depth.Get()] = true
+	}
+//line json/codec.gala:293
+	var key = NewImmutable(d.readJsonString())
+//line json/codec.gala:294
+	d.skipWs()
+//line json/codec.gala:295
+	if d.pos >= len(d.data) || d.data[d.pos] != ':' {
+//line json/codec.gala:296
+		panic(fmt.Sprintf("json at pos %d: expected ':'", d.pos))
+	}
+//line json/codec.gala:298
+	d.pos = d.pos + 1
+//line json/codec.gala:299
+	return key.Get()
+}
+
+//line json/codec.gala:302
+func (d *JsonDecoderImpl) ReadString() string {
+//line json/codec.gala:303
+	d.consumeElemComma()
+//line json/codec.gala:304
+	d.skipWs()
+//line json/codec.gala:305
 	return d.readJsonString()
 }
 
-//line json/codec.gala:266
+//line json/codec.gala:308
 func (d *JsonDecoderImpl) ReadInt() int {
 	return int(d.ReadIntN(0))
 }
 
-//line json/codec.gala:268
+//line json/codec.gala:310
 func (d *JsonDecoderImpl) ReadInt64() int64 {
 	return d.ReadIntN(64)
 }
 
-//line json/codec.gala:269
+//line json/codec.gala:311
 
 // ReadIntN reads a signed integer that must fit in bitSize bits (0 is the
 // platform int size). A value outside the range is a decode error, never a
 // silent wrap.
 func (d *JsonDecoderImpl) ReadIntN(bitSize int) int64 {
-//line json/codec.gala:274
+//line json/codec.gala:316
 	var s = NewImmutable(d.numberToken())
-//line json/codec.gala:275
+//line json/codec.gala:317
 	var (
-		_tmp_1, _tmp_2 = strconv.ParseInt(s.Get(), 10, bitSize)
-		v              = NewImmutable(_tmp_1)
-		err            = NewImmutable(_tmp_2)
+		_tmp_3, _tmp_4 = strconv.ParseInt(s.Get(), 10, bitSize)
+		v              = NewImmutable(_tmp_3)
+		err            = NewImmutable(_tmp_4)
 	)
-//line json/codec.gala:276
+//line json/codec.gala:318
 	if err.Get() != nil {
-//line json/codec.gala:277
+//line json/codec.gala:319
 		panic(fmt.Sprintf("json at pos %d: invalid %s %q", d.pos, intKindName("int", bitSize), s.Get()))
 	}
-//line json/codec.gala:279
+//line json/codec.gala:321
 	return v.Get()
 }
 
-//line json/codec.gala:281
+//line json/codec.gala:323
 
 // ReadUintN reads an unsigned integer that must fit in bitSize bits (0 is
 // the platform uint size). Negative and out-of-range values are errors.
 func (d *JsonDecoderImpl) ReadUintN(bitSize int) uint64 {
-//line json/codec.gala:285
+//line json/codec.gala:327
 	var s = NewImmutable(d.numberToken())
-//line json/codec.gala:286
+//line json/codec.gala:328
 	var (
-		_tmp_3, _tmp_4 = strconv.ParseUint(s.Get(), 10, bitSize)
-		v              = NewImmutable(_tmp_3)
-		err            = NewImmutable(_tmp_4)
+		_tmp_5, _tmp_6 = strconv.ParseUint(s.Get(), 10, bitSize)
+		v              = NewImmutable(_tmp_5)
+		err            = NewImmutable(_tmp_6)
 	)
-//line json/codec.gala:287
+//line json/codec.gala:329
 	if err.Get() != nil {
-//line json/codec.gala:288
+//line json/codec.gala:330
 		panic(fmt.Sprintf("json at pos %d: invalid %s %q", d.pos, intKindName("uint", bitSize), s.Get()))
 	}
-//line json/codec.gala:290
+//line json/codec.gala:332
 	return v.Get()
 }
 
-//line json/codec.gala:292
+//line json/codec.gala:334
 
 // ReadFloat32 reads a float that fits a finite float32; a literal that
 // overflows it is an error rather than a silent infinity.
 func (d *JsonDecoderImpl) ReadFloat32() float32 {
-//line json/codec.gala:296
+//line json/codec.gala:338
 	var s = NewImmutable(d.numberToken())
-//line json/codec.gala:297
+//line json/codec.gala:339
 	var (
-		_tmp_5, _tmp_6 = strconv.ParseFloat(s.Get(), 32)
-		v              = NewImmutable(_tmp_5)
-		err            = NewImmutable(_tmp_6)
-	)
-//line json/codec.gala:298
-	if err.Get() != nil {
-//line json/codec.gala:299
-		panic(fmt.Sprintf("json at pos %d: invalid float32 %q", d.pos, s.Get()))
-	}
-//line json/codec.gala:301
-	return float32(v.Get())
-}
-
-//line json/codec.gala:304
-func (d *JsonDecoderImpl) ReadFloat64() float64 {
-//line json/codec.gala:305
-	var s = NewImmutable(d.numberToken())
-//line json/codec.gala:306
-	var (
-		_tmp_7, _tmp_8 = strconv.ParseFloat(s.Get(), 64)
+		_tmp_7, _tmp_8 = strconv.ParseFloat(s.Get(), 32)
 		v              = NewImmutable(_tmp_7)
 		err            = NewImmutable(_tmp_8)
 	)
-//line json/codec.gala:307
+//line json/codec.gala:340
 	if err.Get() != nil {
-//line json/codec.gala:308
+//line json/codec.gala:341
+		panic(fmt.Sprintf("json at pos %d: invalid float32 %q", d.pos, s.Get()))
+	}
+//line json/codec.gala:343
+	return float32(v.Get())
+}
+
+//line json/codec.gala:346
+func (d *JsonDecoderImpl) ReadFloat64() float64 {
+//line json/codec.gala:347
+	var s = NewImmutable(d.numberToken())
+//line json/codec.gala:348
+	var (
+		_tmp_9, _tmp_10 = strconv.ParseFloat(s.Get(), 64)
+		v               = NewImmutable(_tmp_9)
+		err             = NewImmutable(_tmp_10)
+	)
+//line json/codec.gala:349
+	if err.Get() != nil {
+//line json/codec.gala:350
 		panic(fmt.Sprintf("json at pos %d: invalid float %q", d.pos, s.Get()))
 	}
-//line json/codec.gala:310
+//line json/codec.gala:352
 	return v.Get()
 }
 
-//line json/codec.gala:313
+//line json/codec.gala:355
 func (d *JsonDecoderImpl) ReadBool() bool {
-//line json/codec.gala:314
+//line json/codec.gala:356
 	d.consumeElemComma()
-//line json/codec.gala:315
+//line json/codec.gala:357
 	d.skipWs()
-//line json/codec.gala:316
+//line json/codec.gala:358
 	if d.pos+4 <= len(d.data) && BytesToString(d.data, d.pos, d.pos+4) == "true" {
-//line json/codec.gala:317
+//line json/codec.gala:359
 		d.pos = d.pos + 4
-//line json/codec.gala:318
+//line json/codec.gala:360
 		return true
 	}
-//line json/codec.gala:320
+//line json/codec.gala:362
 	if d.pos+5 <= len(d.data) && BytesToString(d.data, d.pos, d.pos+5) == "false" {
-//line json/codec.gala:321
+//line json/codec.gala:363
 		d.pos = d.pos + 5
-//line json/codec.gala:322
+//line json/codec.gala:364
 		return false
 	}
-//line json/codec.gala:324
+//line json/codec.gala:366
 	panic(fmt.Sprintf("json at pos %d: expected boolean", d.pos))
 }
 
-//line json/codec.gala:327
+//line json/codec.gala:369
 func (d *JsonDecoderImpl) ReadRune() rune {
-//line json/codec.gala:328
+//line json/codec.gala:370
 	var s = NewImmutable(d.ReadString())
-//line json/codec.gala:329
+//line json/codec.gala:371
 	var rs = NewImmutable(go_interop.ToRunes(s.Get()))
-//line json/codec.gala:330
+//line json/codec.gala:372
 	if len(rs.Get()) == 0 {
-//line json/codec.gala:331
+//line json/codec.gala:373
 		return rune(0)
 	}
-//line json/codec.gala:333
+//line json/codec.gala:375
 	return rs.Get()[0]
 }
 
-//line json/codec.gala:336
+//line json/codec.gala:378
 func (d *JsonDecoderImpl) IsNull() bool {
-//line json/codec.gala:342
+//line json/codec.gala:384
 	d.consumeElemComma()
-//line json/codec.gala:343
+//line json/codec.gala:385
 	d.skipWs()
-//line json/codec.gala:344
+//line json/codec.gala:386
 	return d.pos+4 <= len(d.data) && BytesToString(d.data, d.pos, d.pos+4) == "null"
 }
 
-//line json/codec.gala:347
+//line json/codec.gala:389
 func (d *JsonDecoderImpl) ReadNull() {
-//line json/codec.gala:348
+//line json/codec.gala:390
 	d.consumeElemComma()
-//line json/codec.gala:349
+//line json/codec.gala:391
 	d.skipWs()
-//line json/codec.gala:350
+//line json/codec.gala:392
 	if d.pos+4 <= len(d.data) && BytesToString(d.data, d.pos, d.pos+4) == "null" {
-//line json/codec.gala:351
+//line json/codec.gala:393
 		d.pos = d.pos + 4
-//line json/codec.gala:352
+//line json/codec.gala:394
 		return
 	}
-//line json/codec.gala:354
+//line json/codec.gala:396
 	panic(fmt.Sprintf("json at pos %d: expected null", d.pos))
 }
 
-//line json/codec.gala:357
+//line json/codec.gala:399
 func (d *JsonDecoderImpl) Skip() {
-//line json/codec.gala:358
+//line json/codec.gala:400
 	d.consumeElemComma()
-//line json/codec.gala:359
+//line json/codec.gala:401
 	d.skipWs()
-//line json/codec.gala:360
+//line json/codec.gala:402
 	if d.pos >= len(d.data) {
-//line json/codec.gala:360
+//line json/codec.gala:402
 		return
 	}
-//line json/codec.gala:361
+//line json/codec.gala:403
 	var c = NewImmutable(d.data[d.pos])
-//line json/codec.gala:362
+//line json/codec.gala:404
 	func(obj byte) {
 		if obj == '"' {
-//line json/codec.gala:363
+//line json/codec.gala:405
 			{
 				d.readJsonString()
 				return
 			}
 		} else if obj == '{' {
-//line json/codec.gala:364
+//line json/codec.gala:406
 			{
 				d.skipBetween('{', '}')
 				return
 			}
 		} else if obj == '[' {
-//line json/codec.gala:365
+//line json/codec.gala:407
 			{
 				d.skipBetween('[', ']')
 				return
 			}
 		} else if obj == 't' {
-//line json/codec.gala:366
+//line json/codec.gala:408
 			{
 				d.ReadBool()
 				return
 			}
 		} else if obj == 'f' {
-//line json/codec.gala:367
+//line json/codec.gala:409
 			{
 				d.ReadBool()
 				return
 			}
 		} else if obj == 'n' {
-//line json/codec.gala:368
+//line json/codec.gala:410
 			{
 				d.ReadNull()
 				return
 			}
 		} else {
-//line json/codec.gala:369
+//line json/codec.gala:411
 			{
 				d.readNumberStr()
 				return
@@ -654,179 +758,280 @@ func (d *JsonDecoderImpl) Skip() {
 	}(c.Get())
 }
 
-//line json/codec.gala:372
+//line json/codec.gala:414
 
 // End checks that only whitespace follows the decoded value: a document is
 // one value, so `42 43` or `[1]]` is malformed rather than a prefix to keep.
 func (d *JsonDecoderImpl) End() {
-//line json/codec.gala:376
+//line json/codec.gala:418
 	d.skipWs()
-//line json/codec.gala:377
+//line json/codec.gala:419
 	if d.pos < len(d.data) {
-//line json/codec.gala:378
+//line json/codec.gala:420
 		panic(fmt.Sprintf("json at pos %d: unexpected content after the document", d.pos))
 	}
 }
 
-//line json/codec.gala:384
+//line json/codec.gala:426
 func (d *JsonDecoderImpl) skipWs() {
-//line json/codec.gala:385
+//line json/codec.gala:427
 	for d.pos < len(d.data) {
-//line json/codec.gala:386
+//line json/codec.gala:428
 		var c = NewImmutable(d.data[d.pos])
-//line json/codec.gala:387
+//line json/codec.gala:429
 		if c.Get() == ' ' || c.Get() == '\t' || c.Get() == '\n' || c.Get() == '\r' {
-//line json/codec.gala:388
+//line json/codec.gala:430
 			d.pos = d.pos + 1
 		} else {
-//line json/codec.gala:390
+//line json/codec.gala:432
 			return
 		}
 	}
 }
 
-//line json/codec.gala:395
+//line json/codec.gala:437
 func (d *JsonDecoderImpl) consumeElemComma() {
-//line json/codec.gala:396
+//line json/codec.gala:438
 	var depth = NewImmutable(len(d.firstConsumed) - 1)
-//line json/codec.gala:397
+//line json/codec.gala:439
 	if depth.Get() >= 0 && len(d.stack) > 0 && d.stack[depth.Get()] == 'a' && d.firstConsumed[depth.Get()] {
-//line json/codec.gala:398
+//line json/codec.gala:440
 		d.skipWs()
-//line json/codec.gala:399
+//line json/codec.gala:441
 		if d.pos < len(d.data) && d.data[d.pos] == ',' {
-//line json/codec.gala:400
+//line json/codec.gala:442
 			d.pos = d.pos + 1
 		}
 	}
-//line json/codec.gala:403
+//line json/codec.gala:445
 	if depth.Get() >= 0 && len(d.stack) > 0 && d.stack[depth.Get()] == 'a' {
-//line json/codec.gala:404
+//line json/codec.gala:446
 		d.firstConsumed[depth.Get()] = true
 	}
 }
 
-//line json/codec.gala:408
+//line json/codec.gala:450
 func (d *JsonDecoderImpl) readJsonString() string {
-//line json/codec.gala:409
+//line json/codec.gala:451
 	d.skipWs()
-//line json/codec.gala:410
+//line json/codec.gala:452
 	if d.pos >= len(d.data) || d.data[d.pos] != '"' {
-//line json/codec.gala:411
+//line json/codec.gala:453
 		panic(fmt.Sprintf("json at pos %d: expected '\"'", d.pos))
 	}
-//line json/codec.gala:413
+//line json/codec.gala:455
 	d.pos = d.pos + 1
-//line json/codec.gala:415
+//line json/codec.gala:457
 	var sb strings.Builder
-//line json/codec.gala:416
+//line json/codec.gala:458
 	for d.pos < len(d.data) {
-//line json/codec.gala:417
+//line json/codec.gala:459
 		var c = NewImmutable(d.data[d.pos])
-//line json/codec.gala:418
+//line json/codec.gala:460
 		if c.Get() == '"' {
-//line json/codec.gala:419
+//line json/codec.gala:461
 			d.pos = d.pos + 1
-//line json/codec.gala:420
+//line json/codec.gala:462
 			return sb.String()
 		}
-//line json/codec.gala:422
+//line json/codec.gala:464
 		if c.Get() == '\\' {
-//line json/codec.gala:423
+//line json/codec.gala:465
 			d.pos = d.pos + 1
-//line json/codec.gala:424
+//line json/codec.gala:466
 			if d.pos >= len(d.data) {
-//line json/codec.gala:425
+//line json/codec.gala:467
 				panic("json: unexpected end of escape")
 			}
-//line json/codec.gala:427
+//line json/codec.gala:469
 			var esc = NewImmutable(d.data[d.pos])
-//line json/codec.gala:428
+//line json/codec.gala:470
 			d.pos = d.pos + 1
-//line json/codec.gala:429
+//line json/codec.gala:471
 			func(obj byte) {
 				if obj == '"' {
-//line json/codec.gala:430
+//line json/codec.gala:472
 					{
 						sb.WriteByte('"')
 						return
 					}
 				} else if obj == '\\' {
-//line json/codec.gala:431
+//line json/codec.gala:473
 					{
 						sb.WriteByte('\\')
 						return
 					}
 				} else if obj == '/' {
-//line json/codec.gala:432
+//line json/codec.gala:474
 					{
 						sb.WriteByte('/')
 						return
 					}
 				} else if obj == 'n' {
-//line json/codec.gala:433
+//line json/codec.gala:475
 					{
 						sb.WriteByte('\n')
 						return
 					}
 				} else if obj == 'r' {
-//line json/codec.gala:434
+//line json/codec.gala:476
 					{
 						sb.WriteByte('\r')
 						return
 					}
 				} else if obj == 't' {
-//line json/codec.gala:435
+//line json/codec.gala:477
 					{
 						sb.WriteByte('\t')
 						return
 					}
-				} else if obj == 'u' {
-//line json/codec.gala:437
-					if d.pos+4 > len(d.data) {
-//line json/codec.gala:438
-						panic("json: incomplete unicode escape")
-					}
-//line json/codec.gala:440
-					var hexStr = NewImmutable(BytesToString(d.data, d.pos, d.pos+4))
-//line json/codec.gala:441
-					d.pos = d.pos + 4
-//line json/codec.gala:442
-					var (
-						_tmp_9, _tmp_10 = strconv.ParseUint(hexStr.Get(), 16, 32)
-						cp              = NewImmutable(_tmp_9)
-						hexErr          = NewImmutable(_tmp_10)
-					)
-//line json/codec.gala:443
-					if hexErr.Get() != nil {
-//line json/codec.gala:444
-						panic("json: invalid unicode escape")
-					}
-//line json/codec.gala:446
+				} else if obj == 'b' {
+//line json/codec.gala:478
 					{
-						sb.WriteString(RuneToString(rune(cp.Get())))
+						sb.WriteByte('\b')
+						return
+					}
+				} else if obj == 'f' {
+//line json/codec.gala:479
+					{
+						sb.WriteByte('\f')
+						return
+					}
+				} else if obj == 'u' {
+//line json/codec.gala:481
+					{
+						func(obj Option[rune]) {
+							{
+								_tmp_11 := Some[rune]{}.Unapply(obj)
+								_tmp_12 := _tmp_11.IsDefined()
+								var _tmp_13 rune
+								if _tmp_12 {
+									_tmp_13 = _tmp_11.Get()
+								}
+								_ = _tmp_13
+								r := _tmp_13
+								if _tmp_12 {
+//line json/codec.gala:483
+									d.pos = d.pos + 4
+//line json/codec.gala:484
+									{
+										sb.WriteRune(d.completeSurrogate(r))
+										return
+									}
+								} else {
+									_tmp_14 := None[rune]{}.Unapply(obj)
+									if _tmp_14 {
+//line json/codec.gala:486
+										panic("json: invalid unicode escape")
+									} else {
+										panic("unreachable")
+									}
+								}
+							}
+						}(d.hex4At(d.pos))
 						return
 					}
 				} else {
-//line json/codec.gala:448
+//line json/codec.gala:489
 					{
 						panic("json: invalid escape sequence")
 						return
 					}
 				}
 			}(esc.Get())
-		} else {
-//line json/codec.gala:451
+		} else if c.Get() < utf8.RuneSelf {
+//line json/codec.gala:492
 			sb.WriteByte(c.Get())
-//line json/codec.gala:452
+//line json/codec.gala:493
 			d.pos = d.pos + 1
+		} else {
+//line json/codec.gala:497
+			var (
+				_tmp_15, _tmp_16 = decodeRuneAtBytes(d.data, d.pos)
+				r                = NewImmutable(_tmp_15)
+				size             = NewImmutable(_tmp_16)
+			)
+//line json/codec.gala:498
+			sb.WriteRune(r.Get())
+//line json/codec.gala:499
+			d.pos = d.pos + size.Get()
 		}
 	}
-//line json/codec.gala:455
+//line json/codec.gala:502
 	panic("json: unterminated string")
 }
 
-//line json/codec.gala:457
+//line json/codec.gala:504
+
+// hex4At reads the code unit named by the four hex digits of a \u escape
+// starting at pos; None when there are not four hex digits there.
+func (d *JsonDecoderImpl) hex4At(pos int) Option[rune] {
+	return func() Option[rune] {
+		if pos+4 > len(d.data) {
+			return None[rune]{}.Apply()
+		} else {
+			return Option_Map(GoTry(strconv.ParseUint(BytesToString(d.data, pos, pos+4), 16, 32)).ToOption(), func(cp uint64) rune {
+				return rune(cp)
+			})
+		}
+	}()
+}
+
+//line json/codec.gala:510
+
+// completeSurrogate finishes a \u escape whose code unit is r. A high
+// surrogate followed by an escaped low surrogate is JSON's spelling of one
+// character above U+FFFF, so the second escape is consumed too; any other
+// surrogate is unpaired and reads as U+FFFD, as in encoding/json.
+func (d *JsonDecoderImpl) completeSurrogate(r rune) rune {
+//line json/codec.gala:516
+	if !utf16.IsSurrogate(r) {
+//line json/codec.gala:517
+		return r
+	}
+//line json/codec.gala:519
+	var nextIsEscape = NewImmutable(d.pos+2 <= len(d.data) && d.data[d.pos] == '\\' && d.data[d.pos+1] == 'u')
+//line json/codec.gala:520
+	var pair = NewImmutable(Option_Map((func() Option[rune] {
+		if nextIsEscape.Get() {
+			return d.hex4At(d.pos + 2)
+		} else {
+			return None[rune]{}.Apply()
+		}
+	}()), func(low rune) rune {
+		return utf16.DecodeRune(r, low)
+	}).Filter(func(p rune) bool {
+		return p != unicode.ReplacementChar
+	}))
+//line json/codec.gala:523
+	return func(obj Option[rune]) rune {
+		{
+			_tmp_17 := Some[rune]{}.Unapply(obj)
+			_tmp_18 := _tmp_17.IsDefined()
+			var _tmp_19 rune
+			if _tmp_18 {
+				_tmp_19 = _tmp_17.Get()
+			}
+			_ = _tmp_19
+			p := _tmp_19
+			if _tmp_18 {
+//line json/codec.gala:525
+				d.pos = d.pos + 6
+//line json/codec.gala:526
+				return p
+			} else {
+				_tmp_20 := None[rune]{}.Unapply(obj)
+				if _tmp_20 {
+					return unicode.ReplacementChar
+				} else {
+					panic("unreachable")
+				}
+			}
+		}
+	}(pair.Get())
+}
+
+//line json/codec.gala:531
 
 // intKindName names the Go integer kind a strconv bit size stands for; 0 is
 // the platform-sized int or uint.
@@ -840,86 +1045,86 @@ func intKindName(prefix string, bitSize int) string {
 	}()
 }
 
-//line json/codec.gala:462
+//line json/codec.gala:536
 
 // numberToken steps over an array element separator and whitespace, then
 // returns the number literal that follows.
 func (d *JsonDecoderImpl) numberToken() string {
-//line json/codec.gala:466
+//line json/codec.gala:540
 	d.consumeElemComma()
-//line json/codec.gala:467
+//line json/codec.gala:541
 	d.skipWs()
-//line json/codec.gala:468
+//line json/codec.gala:542
 	return d.readNumberStr()
 }
 
-//line json/codec.gala:471
+//line json/codec.gala:545
 func (d *JsonDecoderImpl) readNumberStr() string {
-//line json/codec.gala:472
+//line json/codec.gala:546
 	var start = NewImmutable(d.pos)
-//line json/codec.gala:473
+//line json/codec.gala:547
 	for d.pos < len(d.data) {
-//line json/codec.gala:474
+//line json/codec.gala:548
 		var c = NewImmutable(d.data[d.pos])
-//line json/codec.gala:475
+//line json/codec.gala:549
 		if (c.Get() >= '0' && c.Get() <= '9') || c.Get() == '-' || c.Get() == '+' || c.Get() == '.' || c.Get() == 'e' || c.Get() == 'E' {
-//line json/codec.gala:476
+//line json/codec.gala:550
 			d.pos = d.pos + 1
 		} else {
-//line json/codec.gala:478
+//line json/codec.gala:552
 			break
 		}
 	}
-//line json/codec.gala:481
+//line json/codec.gala:555
 	return BytesToString(d.data, start.Get(), d.pos)
 }
 
-//line json/codec.gala:484
+//line json/codec.gala:558
 func (d *JsonDecoderImpl) skipBetween(open byte, close byte) {
-//line json/codec.gala:485
+//line json/codec.gala:559
 	if d.pos >= len(d.data) || d.data[d.pos] != open {
-//line json/codec.gala:486
+//line json/codec.gala:560
 		panic("json: expected container start")
 	}
-//line json/codec.gala:488
+//line json/codec.gala:562
 	d.pos = d.pos + 1
-//line json/codec.gala:489
+//line json/codec.gala:563
 	var depth = 1
-//line json/codec.gala:490
+//line json/codec.gala:564
 	var inString = false
-//line json/codec.gala:491
+//line json/codec.gala:565
 	for d.pos < len(d.data) && depth > 0 {
-//line json/codec.gala:492
+//line json/codec.gala:566
 		var c = NewImmutable(d.data[d.pos])
-//line json/codec.gala:493
+//line json/codec.gala:567
 		if inString {
-//line json/codec.gala:494
+//line json/codec.gala:568
 			if c.Get() == '\\' {
-//line json/codec.gala:495
+//line json/codec.gala:569
 				d.pos = d.pos + 1
 			} else if c.Get() == '"' {
-//line json/codec.gala:497
+//line json/codec.gala:571
 				inString = false
 			}
 		} else {
-//line json/codec.gala:500
+//line json/codec.gala:574
 			if c.Get() == '"' {
-//line json/codec.gala:500
+//line json/codec.gala:574
 				inString = true
 			} else if c.Get() == open {
-//line json/codec.gala:501
+//line json/codec.gala:575
 				depth = depth + 1
 			} else if c.Get() == close {
-//line json/codec.gala:502
+//line json/codec.gala:576
 				depth = depth - 1
 			}
 		}
-//line json/codec.gala:504
+//line json/codec.gala:578
 		d.pos = d.pos + 1
 	}
-//line json/codec.gala:506
+//line json/codec.gala:580
 	if depth != 0 {
-//line json/codec.gala:507
+//line json/codec.gala:581
 		panic("json: unterminated container")
 	}
 }

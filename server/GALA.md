@@ -24,12 +24,12 @@ Read the emitted Go before committing a new twin, because a wrapper the program 
 ## Compiler and runtime
 
 The translation target is the `gala` compiler the dev shell puts on `PATH`, and the vendored runtime under `third_party/gala/` is always re-vendored to match it before translating.
-The compiler is the flake-locked commit, and `gala version` reports `0.84.1` for it because the version string has not rolled.
+The compiler is the flake-locked commit; `gala version` now reports `0.85.0`, because the release bump landed in the same lock that carried the #648 and #621 fixes.
 
 | Item             | Value                                                                                                                      |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `gala version`   | `GALA version 0.84.1`                                                                                                      |
-| flake rev        | `e2e28c318ff1eb606f7f607199b629d93b78ab1f` (`jq -r '.nodes.gala.locked.rev' flake.lock`)                                   |
+| `gala version`   | `GALA version 0.85.0`                                                                                                      |
+| flake rev        | `9beea5dc350ab566e2e1e31add863afd7d95d29f` (`jq -r '.nodes.gala.locked.rev' flake.lock`)                                   |
 | vendored runtime | [`third_party/gala/`](third_party/gala/), provenance in [`third_party/gala/VENDORED_FROM`](third_party/gala/VENDORED_FROM) |
 | pinned tools     | `nix develop` provides `gala` and the Go toolchain from `flake.lock`                                                       |
 
@@ -48,7 +48,7 @@ The vendored runtime is one flattened Go module named `martianoff/gala`.
 The Apache-2.0 `LICENSE` is copied from the upstream source checkout; the CLI extraction does not ship one.
 
 When the flake rev and `VENDORED_FROM` disagree, stop translating and run a sync iteration first.
-The version string alone cannot identify the compiler, because `gala version` reads `0.84.1` across commits, so the extraction is proved by the fingerprint in its `.stdlib-extracted` marker.
+The version string alone cannot identify the compiler, because several commits share one version string, so the extraction is proved by the fingerprint in its `.stdlib-extracted` marker.
 
 1. Enter `nix develop` so `gala` is the flake-locked compiler, and record `gala version`, `which gala`, and `jq -r '.nodes.gala.locked.rev' flake.lock`.
 2. Force the pinned compiler to write its own extraction: delete `~/.gala/stdlib/v<version>/.stdlib-extracted`, then run one transpile from a package directory, for example `cd server/eventid && gala transpile -i eventid.gala -o /tmp/eventid.go`.
@@ -94,19 +94,17 @@ Adding a twin means adding its registry row here and passing `verify.sh`.
 These keep the cursor's candidates handwritten or split, and each is classified against [`references/gaps.md`](../.agents/skills/gala-from-go/references/gaps.md).
 A finding gains a committed repro under `scripts/gala/probes/<slug>/` when the loop first reaches a candidate it blocks, and the probe is removed when the finding closes.
 
-| Finding                                          | Class        | Workaround                                                                                        | Upstream                                                                     | Probe                                                               |
-| ------------------------------------------------ | ------------ | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Go-style multi-value return signature            | boundary gap | split the member into a handwritten sibling, or return `Tuple[T, error]` to GALA-internal callers | none filed                                                                   | —                                                                   |
-| Struct tags that define a wire shape             | boundary gap | keep the tagged struct handwritten; `Codec` changes the wire shape                                | [#528](https://github.com/martianoff/gala/issues/528)                        | —                                                                   |
-| Anonymous struct types                           | boundary gap | declare a named struct, which changes the type identity                                           | [#528](https://github.com/martianoff/gala/issues/528)                        | —                                                                   |
-| `struct{}` as a type expression                  | boundary gap | declare a named empty struct, which changes the element type identity                             | [#528](https://github.com/martianoff/gala/issues/528)                        | —                                                                   |
-| A channel type that crosses the package boundary | boundary gap | `concurrent.Future`/`go_interop` only when no channel type crosses                                | none filed                                                                   | —                                                                   |
-| Embedded fields                                  | language gap | flatten by hand and lose promotion                                                                | none filed                                                                   | —                                                                   |
-| Fixed-size array types such as `[16]byte`        | language gap | a slice or a struct, which changes the semantics                                                  | [#528](https://github.com/martianoff/gala/issues/528)                        | —                                                                   |
-| `select`                                         | language gap | none; the repository's uses pair it with `chan` and `make`                                        | none filed                                                                   | —                                                                   |
-| In-place `recover`                               | language gap | `Try` captures a panic as a value but cannot resume in place                                      | none filed                                                                   | —                                                                   |
-| A method on a defined non-struct type            | language gap | none; wrapping the scalar in a struct changes the exported API                                    | [#621](https://github.com/martianoff/gala/issues/621)                        | —                                                                   |
-| An unimported bare type name in a type position  | defect       | declare the type's package import in the file; the transpiler does not check or diagnose it       | [#648](https://github.com/martianoff/gala/issues/648), reported as TASK-0342 | [`type-position-import`](scripts/gala/probes/type-position-import/) |
+| Finding                                          | Class        | Workaround                                                                                        | Upstream                                              | Probe |
+| ------------------------------------------------ | ------------ | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ----- |
+| Go-style multi-value return signature            | boundary gap | split the member into a handwritten sibling, or return `Tuple[T, error]` to GALA-internal callers | none filed                                            | —     |
+| Struct tags that define a wire shape             | boundary gap | keep the tagged struct handwritten; `Codec` changes the wire shape                                | [#528](https://github.com/martianoff/gala/issues/528) | —     |
+| Anonymous struct types                           | boundary gap | declare a named struct, which changes the type identity                                           | [#528](https://github.com/martianoff/gala/issues/528) | —     |
+| `struct{}` as a type expression                  | boundary gap | declare a named empty struct, which changes the element type identity                             | [#528](https://github.com/martianoff/gala/issues/528) | —     |
+| A channel type that crosses the package boundary | boundary gap | `concurrent.Future`/`go_interop` only when no channel type crosses                                | none filed                                            | —     |
+| Embedded fields                                  | language gap | flatten by hand and lose promotion                                                                | none filed                                            | —     |
+| Fixed-size array types such as `[16]byte`        | language gap | a slice or a struct, which changes the semantics                                                  | [#528](https://github.com/martianoff/gala/issues/528) | —     |
+| `select`                                         | language gap | none; the repository's uses pair it with `chan` and `make`                                        | none filed                                            | —     |
+| In-place `recover`                               | language gap | `Try` captures a panic as a value but cannot resume in place                                      | none filed                                            | —     |
 
 Declaration comments and `swag` annotations are no longer a finding: the pinned compiler emits them, so `routes/users.go` is unblocked (see the report index for [#619](https://github.com/martianoff/gala/issues/619)).
 Fixed-size arrays and anonymous or empty struct types remain the reason `models/uuid.go`, `models/event.go`, and `models/set.go` stay handwritten.
@@ -116,22 +114,24 @@ Fixed-size arrays and anonymous or empty struct types remain the reason `models/
 Reports this repository filed, and their state on the pinned compiler rev.
 A report closed after the flake lock is fixed upstream but not yet in the pinned compiler, so its finding stays open until the next sync.
 
-| #                                                      | Title                                     | Upstream state        | On the pinned rev                 |
-| ------------------------------------------------------ | ----------------------------------------- | --------------------- | --------------------------------- |
-| [#528](https://github.com/martianoff/gala/issues/528)  | Triage language limitations               | open                  | open                              |
-| [PR #529](https://github.com/martianoff/gala/pull/529) | Multi-value define and alias fixes        | merged in 0.84.1      | included                          |
-| [#611](https://github.com/martianoff/gala/issues/611)  | `fallthrough` in a `match` arm            | closed                | fixed (closure predates the lock) |
-| [#612](https://github.com/martianoff/gala/issues/612)  | `match` on `var` fields emits an unwrap   | closed                | fixed (closure predates the lock) |
-| [#613](https://github.com/martianoff/gala/issues/613)  | `.Size()` on a Go-declared receiver       | closed                | fixed (closure predates the lock) |
-| [#614](https://github.com/martianoff/gala/issues/614)  | Method call on a `:=`/`val` binding       | closed                | fixed (closure predates the lock) |
-| [#615](https://github.com/martianoff/gala/issues/615)  | False `GALA-E0044` for a sibling method   | closed                | fixed (closure predates the lock) |
-| [#616](https://github.com/martianoff/gala/issues/616)  | Bare name in a declared-type position     | closed                | fixed (closure predates the lock) |
-| [#617](https://github.com/martianoff/gala/issues/617)  | `func F() = <expr>` loses its result type | closed                | fixed (verified here)             |
-| [#618](https://github.com/martianoff/gala/issues/618)  | `resource.Using` over a Go sibling type   | closed                | fixed (closure predates the lock) |
-| [#619](https://github.com/martianoff/gala/issues/619)  | Comments dropped from generated Go        | closed                | fixed (verified here)             |
-| [#620](https://github.com/martianoff/gala/issues/620)  | `var (a, b) = <tuple>` panics             | closed                | fixed (closure predates the lock) |
-| [#621](https://github.com/martianoff/gala/issues/621)  | No newtype for non-struct types           | closed after the lock | not fixed (verified here)         |
-| [#648](https://github.com/martianoff/gala/issues/648)  | Type-position import name is not checked  | closed after the lock | not fixed (verified here)         |
+| #                                                      | Title                                                    | Upstream state         | On the pinned rev                 |
+| ------------------------------------------------------ | -------------------------------------------------------- | ---------------------- | --------------------------------- |
+| [#528](https://github.com/martianoff/gala/issues/528)  | Triage language limitations                              | open                   | open                              |
+| [PR #529](https://github.com/martianoff/gala/pull/529) | Multi-value define and alias fixes                       | merged in 0.84.1       | included                          |
+| [#611](https://github.com/martianoff/gala/issues/611)  | `fallthrough` in a `match` arm                           | closed                 | fixed (closure predates the lock) |
+| [#612](https://github.com/martianoff/gala/issues/612)  | `match` on `var` fields emits an unwrap                  | closed                 | fixed (closure predates the lock) |
+| [#613](https://github.com/martianoff/gala/issues/613)  | `.Size()` on a Go-declared receiver                      | closed                 | fixed (closure predates the lock) |
+| [#614](https://github.com/martianoff/gala/issues/614)  | Method call on a `:=`/`val` binding                      | closed                 | fixed (closure predates the lock) |
+| [#615](https://github.com/martianoff/gala/issues/615)  | False `GALA-E0044` for a sibling method                  | closed                 | fixed (closure predates the lock) |
+| [#616](https://github.com/martianoff/gala/issues/616)  | Bare name in a declared-type position                    | closed                 | fixed (closure predates the lock) |
+| [#617](https://github.com/martianoff/gala/issues/617)  | `func F() = <expr>` loses its result type                | closed                 | fixed (verified here)             |
+| [#618](https://github.com/martianoff/gala/issues/618)  | `resource.Using` over a Go sibling type                  | closed                 | fixed (closure predates the lock) |
+| [#619](https://github.com/martianoff/gala/issues/619)  | Comments dropped from generated Go                       | closed                 | fixed (verified here)             |
+| [#620](https://github.com/martianoff/gala/issues/620)  | `var (a, b) = <tuple>` panics                            | closed                 | fixed (closure predates the lock) |
+| [#621](https://github.com/martianoff/gala/issues/621)  | No newtype for non-struct types                          | closed                 | fixed (verified here)             |
+| [#648](https://github.com/martianoff/gala/issues/648)  | Type-position import name is not checked                 | closed                 | fixed (verified here)             |
+| [#678](https://github.com/martianoff/gala/issues/678)  | `gala-local` refused the stdlib `test` package           | closed                 | fixed (verified here)             |
+| [PR #680](https://github.com/martianoff/gala/pull/680) | Local bootstrap gives batch files their package siblings | merged before the lock | included                          |
 
 The loop re-checks a report's finding on the pinned compiler before relying on it, because "closed" and "in the pinned rev" are different claims.
 

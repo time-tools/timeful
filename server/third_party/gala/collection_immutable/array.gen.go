@@ -1460,10 +1460,7 @@ func Array_PartitionMap[A any, B any, T any](a Array[T], f func(T) Either[A, B])
 				_ = _tmp_3
 				l := _tmp_3
 				if _tmp_2 {
-					{
-						leftBuilder.Add(l)
-						return
-					}
+					leftBuilder.Add(l)
 				} else {
 					_tmp_4 := Right[A, B]{}.Unapply(obj)
 					_tmp_5 := _tmp_4.IsDefined()
@@ -1474,10 +1471,7 @@ func Array_PartitionMap[A any, B any, T any](a Array[T], f func(T) Either[A, B])
 					_ = _tmp_6
 					r := _tmp_6
 					if _tmp_5 {
-						{
-							rightBuilder.Add(r)
-							return
-						}
+						rightBuilder.Add(r)
 					} else {
 						panic("unreachable")
 					}

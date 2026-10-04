@@ -980,17 +980,11 @@ func (m *HashMap[K, V]) Merge(other *HashMap[K, V], f func(V, V) V) {
 				_ = _tmp_22
 				e := _tmp_22
 				if _tmp_21 {
-					{
-						m.Put(k, f(e, v))
-						return
-					}
+					m.Put(k, f(e, v))
 				} else {
 					_tmp_23 := None[V]{}.Unapply(obj)
 					if _tmp_23 {
-						{
-							m.Put(k, v)
-							return
-						}
+						m.Put(k, v)
 					} else {
 						panic("unreachable")
 					}
