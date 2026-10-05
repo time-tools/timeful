@@ -1,0 +1,5 @@
+package probe
+
+// The Go type this stands for is models.Location in server/models/location.go:
+// every field carries a JSON tag that defines the wire shape.
+struct Location(var CountryCode string `json:"country_code"`)

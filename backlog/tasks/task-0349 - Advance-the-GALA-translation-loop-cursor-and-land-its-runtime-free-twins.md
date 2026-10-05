@@ -4,7 +4,7 @@ title: Advance the GALA translation loop cursor and land its runtime-free twins
 status: In Progress
 assignee: []
 created_date: '2026-10-05 08:44'
-updated_date: '2026-10-05 09:13'
+updated_date: '2026-10-05 09:26'
 labels: []
 dependencies: []
 references:
@@ -130,4 +130,20 @@ Run the `gala-loop` skill one iteration at a time, taking the next entry from th
 **Ledger:** registry count 17 -> 18 with the new row; cursor entry 1 removed and the list renumbered to 1-8. No finding changed; the existing imported-handwritten-slice `len` row already covers the count helpers.
 
 **Next:** cursor entry 1 is now the `models/` group; the loop owes it a construct re-check on 0.85.0 before any verdict.
+
+## Iteration 4 — models group blockers documented (2026-10-05)
+
+**Provenance:** `gala` `0.85.0` at `/nix/store/ydla797gibrgplg2kwn0mwy8vhvj7mip-gala-0.85.0/bin/gala`; flake rev `a888e824ff53adb653bbd48dcc83f67788eeced4`; extraction marker matches `server/GALA_COMPILER`, so no sync. Iteration 3 was committed in `0bda519e`, so the tree held only the pre-existing `backlog/backlog.md` edit.
+
+**Re-derived rows (pinned-compiler probes):** the `models/` group stays handwritten. Struct tags, `[16]byte`, and `map[T]struct{}` are parse errors as recorded; `type DateTime int64` plus a method is refused `GALA-E0048`, and the hinted substitute `opaque type DateTime int64` transpiles but unconditionally emits `Hash`/`Compare` through `martianoff/gala/std`, so it cannot enter a runtime-free twin. No twin landed; the candidate stays in the cursor.
+
+**Committed probes:** `server/scripts/gala/probes/models-defined-scalar-methods`, `models-struct-tag`, `models-fixed-array`, and `models-empty-struct`, each with `main.gala` and `notes.md`; generated Go was written only to `/tmp/opencode` scratch paths.
+
+**Upstream:** `#528` (Triage language limitations) is closed upstream as of 2026-10-04, so the report index's `open` was wrong and is corrected; `#621` is closed and its `opaque type` fix is runtime-bound. No specific follow-up issue exists for tags, arrays, or `struct{}` (searched 2026-10-05).
+
+**Ledger:** the open findings table gained the `Method on a defined scalar type` row (documented answer; `opaque type` runtime-bound) and probe paths on the tags, `struct{}`, and fixed-size-array rows; the report index `#528` and `#621` rows were corrected; cursor entry 1 keeps the models group with a probe pointer.
+
+**Handoff:** TASK-0350 was created for the decision to comment upstream with the runtime-free `opaque type` evidence or record the wall as permanent.
+
+**Evidence:** no runtime file changed; `server/scripts/gala/verify.sh` excludes `scripts/gala/probes/` and stays green, and `go build ./...` is unaffected. The tree was left uncommitted only for the probes and ledger until the iteration commit.
 <!-- SECTION:NOTES:END -->

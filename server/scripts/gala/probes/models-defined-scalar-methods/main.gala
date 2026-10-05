@@ -1,0 +1,14 @@
+package probe
+
+import "time"
+
+// The Go type this stands for is models.DateTime in server/models/datetime.go,
+// which carries Time, IsZero, MarshalJSON, and a pointer-receiver
+// UnmarshalJSON. GALA refuses a method on `type DateTime int64` with
+// GALA-E0048 and names `opaque type` as the substitute; this probe is that
+// substitute.
+opaque type DateTime int64
+
+func (d DateTime) Time() time.Time = time.UnixMilli(int64(d))
+
+func (d DateTime) IsZero() bool = d == 0
