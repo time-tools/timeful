@@ -4,7 +4,7 @@ title: Advance the GALA translation loop cursor and land its runtime-free twins
 status: In Progress
 assignee: []
 created_date: '2026-10-05 08:44'
-updated_date: '2026-10-05 09:37'
+updated_date: '2026-10-05 10:07'
 labels: []
 dependencies: []
 references:
@@ -25,6 +25,14 @@ modified_files:
   - server/discord_bot/commands/active_users.gala
   - server/discord_bot/commands/active_users.go
   - server/discord_bot/commands/active_users_extra.go
+  - server/slackbot/commands/active_users.gala
+  - server/slackbot/commands/active_users.go
+  - server/slackbot/commands/active_users_extra.go
+  - server/slackbot/commands/utils.go
+  - server/models/datetime.gala
+  - server/models/datetime.go
+  - server/models/datetime_extra.go
+  - server/scripts/gala/probes/models-defined-scalar-methods/notes.md
 priority: medium
 type: enhancement
 ordinal: 353005
@@ -146,6 +154,22 @@ Run the `gala-loop` skill one iteration at a time, taking the next entry from th
 **Handoff:** TASK-0350 was created for the decision to comment upstream with the runtime-free `opaque type` evidence or record the wall as permanent.
 
 **Evidence:** no runtime file changed; `server/scripts/gala/verify.sh` excludes `scripts/gala/probes/` and stays green, and `go build ./...` is unaffected. The tree was left uncommitted only for the probes and ledger until the iteration commit.
+
+## Iteration 5 — models/datetime (2026-10-05)
+
+**Provenance:** `gala` `0.85.0` at `/nix/store/ydla797gibrgplg2kwn0mwy8vhvj7mip-gala-0.85.0/bin/gala`; flake rev `a888e824ff53adb653bbd48dcc83f67788eeced4`; extraction marker `0.85.0 7a42d3c6ef6edde23cbbc9d44ed6aade21fc563cce0cc9d41bceaecff070184c` matches `server/GALA_COMPILER`, so no sync needed. Iteration 4's probes and ledger were committed in `c7b3bd0a`, so the tree held only the pre-existing `backlog/backlog.md` edit.
+
+**Re-derived rows (pinned compiler, `/tmp/opencode` scratch):** `opaque type DateTime int64` plus `Time`/`IsZero` methods and the `NewDateTimeFromTime` expression function transpile runtime-free only when a same-package `.go` sibling declares `Hash`/`Compare`; without the sibling the emitted Go imports `martianoff/gala/std`. Transpiling with the superseded handwritten `datetime.go` still present silently defeated the suppression, so the old file has to be moved aside before the transpile.
+
+**Landed:** `server/models/datetime.gala` -> generated `datetime.go` (runtime-free: `opaque type DateTime int64`, `Time`, `IsZero`, `NewDateTimeFromTime`), plus handwritten `datetime_extra.go` (`Hash`/`Compare` suppression mirroring the runtime's FNV-1a int64 mixing and compare, and the Go-style `MarshalJSON`/pointer-receiver `UnmarshalJSON`). The two exported methods are the cost TASK-0350 left to this iteration; the repository accepted it.
+
+**Evidence:** scratch and real transpiles are byte-identical on repeat and `gofmt -l` clean; no `martianoff/gala` import; `go doc` shows the original API plus `Hash`/`Compare`. `server/scripts/gala/verify.sh` OK (19 twins) including `go build ./...`; `go test ./models/...` and `go vet ./models/...` clean. Canonical Compose backend sequence green across every package; `timeful/server/routes` 2.466s and `timeful/server/postgres` 5.868s.
+
+**Ledger:** registry count 18 -> 19 with the new `models` row; cursor entry 1 now lists the four remaining files; the defined-scalar finding row records the accepted cost and the move-aside-before-transpile requirement, and the prose below the table was updated; probe notes gained a Status section.
+
+**Next:** cursor entry 1 is now `models/uuid.go`, `models/set.go`, `models/location.go`, `models/event.go`; uuid carries the defined-type path plus fixed-size `[16]byte` helpers, and the other three stay tagged/empty-struct blocked.
+
+**State:** Changes are in the worktree, not committed: the three `server/models/datetime.*` files, the `server/GALA.md` updates, the probe-note Status section, and this task's notes. The pre-existing unrelated `backlog/backlog.md` modification was left untouched.
 <!-- SECTION:NOTES:END -->
 
 ## Comments

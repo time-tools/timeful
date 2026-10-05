@@ -124,3 +124,10 @@ No upstream comment or new report is needed, because upstream already documents 
 - flake rev: `a888e824ff53adb653bbd48dcc83f67788eeced4`
 - extraction: `0.85.0 7a42d3c6ef6edde23cbbc9d44ed6aade21fc563cce0cc9d41bceaecff070184c`
 - date: 2026-10-05
+
+## Status (2026-10-05)
+
+The repository accepted the two-added-methods cost for `models/datetime.go`, which landed as `models/datetime.gala` plus `models/datetime_extra.go` (`Hash`/`Compare` and the multi-value `MarshalJSON`/pointer-receiver `UnmarshalJSON`).
+One transpile-order requirement showed up while landing it: the suppression only takes effect when the superseded handwritten file is absent at analysis time.
+Transpiling `datetime.gala` while the old `datetime.go` still declared `DateTime` emitted `martianoff/gala/std`-backed `Hash`/`Compare`, while moving the old file aside first produced the runtime-free output above.
+`models/uuid.go` remains handwritten pending its fixed-size `[16]byte` split, so this probe stays.
