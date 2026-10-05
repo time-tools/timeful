@@ -30,7 +30,7 @@ var CommandMap = map[string]Command{
 	numUsers.Name:    numUsers,
 }
 
-// newResponse exists for num_users.gala: the transpiler resolves a bare
+// newResponse exists for the .gala sources: the transpiler resolves a bare
 // Response literal to postgres.Response, so the GALA source calls this helper
 // instead of naming the local type.
 func newResponse(responseType string, text string) *Response {

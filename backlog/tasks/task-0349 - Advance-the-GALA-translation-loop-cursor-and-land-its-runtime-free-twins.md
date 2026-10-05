@@ -4,7 +4,7 @@ title: Advance the GALA translation loop cursor and land its runtime-free twins
 status: In Progress
 assignee: []
 created_date: '2026-10-05 08:44'
-updated_date: '2026-10-05 09:02'
+updated_date: '2026-10-05 09:13'
 labels: []
 dependencies: []
 references:
@@ -113,4 +113,21 @@ Run the `gala-loop` skill one iteration at a time, taking the next entry from th
 **Ledger:** registry count 16 -> 17 with the new row; cursor entry 1 keeps only the slackbot files; added the `len` on an imported handwritten slice row (workaround, sibling helper) and corrected the #613 report-index note to "fixed for same-package declarations".
 
 **Next:** cursor entry 1 is `slackbot/commands/active_users.go` and `slackbot/commands/utils.go`; the same split is expected, with `.Size()` count helpers and a blocks-aware response constructor in the sibling.
+
+## Iteration 3 — slackbot/commands/active_users (2026-10-05)
+
+**Provenance:** `gala` `0.85.0` at `/nix/store/ydla797gibrgplg2kwn0mwy8vhvj7mip-gala-0.85.0/bin/gala`; flake rev `a888e824ff53adb653bbd48dcc83f67788eeced4`; extraction marker `0.85.0 7a42d3c6ef6edde23cbbc9d44ed6aade21fc563cce0cc9d41bceaecff070184c` matches `server/GALA_COMPILER`, so no sync needed. Iteration 2's files were committed in `df626fae`, so the tree held only the pre-existing `backlog/backlog.md` edit.
+
+**Re-derived rows (pinned compiler):** the candidate mirrors the landed `discord_bot/commands` twin; the slackbot-specific construct is the `Response` literal pair, and `newResponse` was already pinned in this package by `num_users.gala`, so a real-file scratch transpile settled the triage on the first pass.
+
+**Landed:** `server/slackbot/commands/active_users.gala` -> generated `active_users.go` (runtime-free), plus handwritten `active_users_extra.go` (weekday slice, empty labels/data, label/count append, chart map, and chart-response constructor). Local changes only: the inline `Execute` closure moved to the named `executeActiveUsers`, `err` split into `repoErr`/`logsErr` as in iteration 2 because a multi-value binding cannot be redeclared, and body comments are dropped by the generator. The `utils.go` `newResponse` comment was generalized to the `.gala` sources.
+
+**Evidence:**
+- Double transpile byte-identical (`diff` clean) and `gofmt -l` clean; no `martianoff/gala` import and no `.Size()` left unlowered.
+- `server/scripts/gala/verify.sh` OK (18 twins) including `go build ./...`.
+- Canonical Compose backend sequence green across every package; `timeful/server/routes` 2.310s and `timeful/server/postgres` 5.957s.
+
+**Ledger:** registry count 17 -> 18 with the new row; cursor entry 1 removed and the list renumbered to 1-8. No finding changed; the existing imported-handwritten-slice `len` row already covers the count helpers.
+
+**Next:** cursor entry 1 is now the `models/` group; the loop owes it a construct re-check on 0.85.0 before any verdict.
 <!-- SECTION:NOTES:END -->

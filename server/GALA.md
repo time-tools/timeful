@@ -62,28 +62,29 @@ A rev mismatch is resolved by a bump iteration and never by translating across i
 
 ## Twin registry
 
-Seventeen `.gala` sources across thirteen packages carry a committed twin.
+Eighteen `.gala` sources across thirteen packages carry a committed twin.
 Every row regenerates with `cd server/<dir> && gala transpile -i <name>.gala -o <name>.go`; a handwritten sibling has no command because it is not generated.
 
-| Package                   | GALA source                                   | Generated Go                                | Handwritten sibling                                                                                                                              | Style        |
-| ------------------------- | --------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------ |
-| `eventid`                 | `eventid/eventid.gala`                        | `eventid/eventid.go`                        | —                                                                                                                                                | runtime-free |
-| `observability`           | `observability/redact.gala`                   | `observability/redact.go`                   | —                                                                                                                                                | runtime-free |
-| `logger`                  | `logger/logger.gala`                          | `logger/logger.go`                          | —                                                                                                                                                | runtime-free |
-| `appenv`                  | `appenv/appenv.gala`                          | `appenv/appenv.go`                          | `appenv/appenv_port.go` (`ResolvePort`)                                                                                                          | runtime-free |
-| `utils`                   | `utils/array_utils.gala`                      | `utils/array_utils.go`                      | `utils/array_utils_extra.go` (`ArrayToSet`, `ElementWithIndex`, `FindAddedRemovedKept`)                                                          | runtime-free |
-| `utils`                   | `utils/request_utils.gala`                    | `utils/request_utils.go`                    | —                                                                                                                                                | runtime-free |
-| `services`                | `services/services.gala`                      | `services/services.go`                      | —                                                                                                                                                | runtime-free |
-| `services/providerconfig` | `services/providerconfig/providerconfig.gala` | `services/providerconfig/providerconfig.go` | `services/providerconfig/doc.go` (package comment)                                                                                               | runtime-free |
-| `routes`                  | `routes/guest_response_ownership.gala`        | `routes/guest_response_ownership.go`        | —                                                                                                                                                | runtime-free |
-| `routes`                  | `routes/users.gala`                           | `routes/users.go`                           | —                                                                                                                                                | runtime-free |
-| `discord_bot/commands`    | `discord_bot/commands/help.gala`              | `discord_bot/commands/help.go`              | —                                                                                                                                                | runtime-free |
-| `discord_bot/commands`    | `discord_bot/commands/num_users.gala`         | `discord_bot/commands/num_users.go`         | —                                                                                                                                                | runtime-free |
-| `discord_bot/commands`    | `discord_bot/commands/active_users.gala`      | `discord_bot/commands/active_users.go`      | `discord_bot/commands/active_users_extra.go` (slice, map, and count helpers)                                                                     | runtime-free |
-| `discord_bot`             | `discord_bot/init.gala`                       | `discord_bot/init.go`                       | `discord_bot/interop.go` (`newCommandMap`, `argsFrom`)                                                                                           | runtime-free |
-| `slackbot/commands`       | `slackbot/commands/num_users.gala`            | `slackbot/commands/num_users.go`            | `slackbot/commands/utils.go` (`newResponse`)                                                                                                     | runtime-free |
-| `middleware`              | `middleware/auth.gala`                        | `middleware/auth.go`                        | `middleware/doc.go` (package comment), `middleware/auth_session.go` (`sessionIdentityID`)                                                        | runtime-free |
-| `postgres`                | `postgres/dailylogs.gala`                     | `postgres/dailylogs.go`                     | `postgres/dailylogs_methods.go` (the four `*Repository` daily-log methods), `postgres/dailylogs_types.go` (`DailyUserLog`, `DailyUserLogMember`) | runtime-free |
+| Package                   | GALA source                                   | Generated Go                                | Handwritten sibling                                                                                                                                         | Style        |
+| ------------------------- | --------------------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| `eventid`                 | `eventid/eventid.gala`                        | `eventid/eventid.go`                        | —                                                                                                                                                           | runtime-free |
+| `observability`           | `observability/redact.gala`                   | `observability/redact.go`                   | —                                                                                                                                                           | runtime-free |
+| `logger`                  | `logger/logger.gala`                          | `logger/logger.go`                          | —                                                                                                                                                           | runtime-free |
+| `appenv`                  | `appenv/appenv.gala`                          | `appenv/appenv.go`                          | `appenv/appenv_port.go` (`ResolvePort`)                                                                                                                     | runtime-free |
+| `utils`                   | `utils/array_utils.gala`                      | `utils/array_utils.go`                      | `utils/array_utils_extra.go` (`ArrayToSet`, `ElementWithIndex`, `FindAddedRemovedKept`)                                                                     | runtime-free |
+| `utils`                   | `utils/request_utils.gala`                    | `utils/request_utils.go`                    | —                                                                                                                                                           | runtime-free |
+| `services`                | `services/services.gala`                      | `services/services.go`                      | —                                                                                                                                                           | runtime-free |
+| `services/providerconfig` | `services/providerconfig/providerconfig.gala` | `services/providerconfig/providerconfig.go` | `services/providerconfig/doc.go` (package comment)                                                                                                          | runtime-free |
+| `routes`                  | `routes/guest_response_ownership.gala`        | `routes/guest_response_ownership.go`        | —                                                                                                                                                           | runtime-free |
+| `routes`                  | `routes/users.gala`                           | `routes/users.go`                           | —                                                                                                                                                           | runtime-free |
+| `discord_bot/commands`    | `discord_bot/commands/help.gala`              | `discord_bot/commands/help.go`              | —                                                                                                                                                           | runtime-free |
+| `discord_bot/commands`    | `discord_bot/commands/num_users.gala`         | `discord_bot/commands/num_users.go`         | —                                                                                                                                                           | runtime-free |
+| `discord_bot/commands`    | `discord_bot/commands/active_users.gala`      | `discord_bot/commands/active_users.go`      | `discord_bot/commands/active_users_extra.go` (slice, map, and count helpers)                                                                                | runtime-free |
+| `discord_bot`             | `discord_bot/init.gala`                       | `discord_bot/init.go`                       | `discord_bot/interop.go` (`newCommandMap`, `argsFrom`)                                                                                                      | runtime-free |
+| `slackbot/commands`       | `slackbot/commands/num_users.gala`            | `slackbot/commands/num_users.go`            | `slackbot/commands/utils.go` (`newResponse`)                                                                                                                | runtime-free |
+| `slackbot/commands`       | `slackbot/commands/active_users.gala`         | `slackbot/commands/active_users.go`         | `slackbot/commands/active_users_extra.go` (slice, map, count, and chart-response helpers), `slackbot/commands/utils.go` (`newResponse`, `splitLongMessage`) | runtime-free |
+| `middleware`              | `middleware/auth.gala`                        | `middleware/auth.go`                        | `middleware/doc.go` (package comment), `middleware/auth_session.go` (`sessionIdentityID`)                                                                   | runtime-free |
+| `postgres`                | `postgres/dailylogs.gala`                     | `postgres/dailylogs.go`                     | `postgres/dailylogs_methods.go` (the four `*Repository` daily-log methods), `postgres/dailylogs_types.go` (`DailyUserLog`, `DailyUserLogMember`)            | runtime-free |
 
 `scripts/gala/verify.sh` checks that every one of them regenerates byte-identically, stays free of the GALA runtime, is `gofmt`-clean, and keeps `go build ./...` green.
 Adding a twin means adding its registry row here and passing `verify.sh`.
@@ -147,15 +148,14 @@ The loop re-checks a report's finding on the pinned compiler before relying on i
 The cursor is ordered, and the loop takes the next entry and re-checks its constructs on the pinned compiler before translating.
 A fixed blocker moves the candidate forward; a persistent blocker with no workaround becomes a Backlog task and a probe, and the candidate stays.
 
-1. `slackbot/commands/active_users.go`, `slackbot/commands/utils.go` — the same `active_users` split as `discord_bot/commands`; `.Size()` takes sibling count helpers and the chart/response literals take a sibling constructor in `slackbot/commands/utils.go`.
-2. `models/datetime.go`, `models/uuid.go`, `models/set.go`, `models/location.go`, `models/event.go` — defined-type methods, tags, fixed-size arrays, and `struct{}`.
-3. `errs/errors.go` — tags and `interface{}`.
-4. `routes/respondent_identity.go`, `routes/group.go`.
-5. `postgres/` — the `Repository` declarations-only split; the sibling-method defect is closed before the lock.
-6. `main.go`.
-7. `observability/provider.go`, `observability/readiness.go`, `observability/transport.go`.
-8. `services/auth`, `services/calendar`, `services/contacts`, `services/listmonk`, `services/microsoftgraph`.
-9. `mockprovider`, `services/gcloud/tasks.go`.
+1. `models/datetime.go`, `models/uuid.go`, `models/set.go`, `models/location.go`, `models/event.go` — defined-type methods, tags, fixed-size arrays, and `struct{}`.
+2. `errs/errors.go` — tags and `interface{}`.
+3. `routes/respondent_identity.go`, `routes/group.go`.
+4. `postgres/` — the `Repository` declarations-only split; the sibling-method defect is closed before the lock.
+5. `main.go`.
+6. `observability/provider.go`, `observability/readiness.go`, `observability/transport.go`.
+7. `services/auth`, `services/calendar`, `services/contacts`, `services/listmonk`, `services/microsoftgraph`.
+8. `mockprovider`, `services/gcloud/tasks.go`.
 
 ## Stop conditions
 
