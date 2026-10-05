@@ -4,7 +4,7 @@ title: Advance the GALA translation loop cursor and land its runtime-free twins
 status: In Progress
 assignee: []
 created_date: '2026-10-05 08:44'
-updated_date: '2026-10-05 08:45'
+updated_date: '2026-10-05 09:02'
 labels: []
 dependencies: []
 references:
@@ -22,6 +22,9 @@ modified_files:
   - server/GALA.md
   - server/routes/users.gala
   - server/routes/users.go
+  - server/discord_bot/commands/active_users.gala
+  - server/discord_bot/commands/active_users.go
+  - server/discord_bot/commands/active_users_extra.go
 priority: medium
 type: enhancement
 ordinal: 353005
@@ -93,4 +96,21 @@ Run the `gala-loop` skill one iteration at a time, taking the next entry from th
 **State:** changes are in the worktree, not committed. The pre-existing unrelated `backlog/backlog.md` modification was left untouched.
 
 **Next:** cursor entry 1 is now `discord_bot/commands/active_users.go`, `slackbot/commands/active_users.go`, `slackbot/commands/utils.go`. TASK-0336 recorded these blocked on `.Size()` over a Go-returned slice, but the ledger says the inferred-receiver and bare-name type-position defects were closed before the current lock; re-check the constructs on 0.85.0 before translating.
+
+## Iteration 2 — discord_bot/commands/active_users (2026-10-05)
+
+**Provenance:** `gala` `0.85.0` at `/nix/store/ydla797gibrgplg2kwn0mwy8vhvj7mip-gala-0.85.0/bin/gala`; flake rev `a888e824ff53adb653bbd48dcc83f67788eeced4`; extraction marker `0.85.0 7a42d3c6ef6edde23cbbc9d44ed6aade21fc563cce0cc9d41bceaecff070184c` matches, so no sync. Iteration 1's four staged files were committed first (`150e5a03`) so both halves of every twin are committed and the tree held only the pre-existing `backlog/backlog.md` edit.
+
+**Re-derived rows (pinned-compiler probes in `/tmp` scratch):** Go slice literal `GALA-E0007`, map literal `GALA-E0008`, `make` parse error, and `append` `GALA-E0035`; every substitute names a runtime package, so the mixed-package sibling owns them. `var a, b = f()`, `var b, _ = f()`, `&T{...}`, and assignment to existing vars are direct. `.Size()` lowers to `len` on a same-package handwritten sibling receiver but passes through on a receiver whose type is declared in an imported handwritten `.go` file, so the first generated file did not build until the counts moved behind sibling helpers.
+
+**Landed:** `server/discord_bot/commands/active_users.gala` -> generated `active_users.go` (runtime-free), plus handwritten `active_users_extra.go` (weekday slice, empty labels/data, label/count append, chart map, and the two count helpers). Local changes only: `err` split into `repoErr`/`logsErr` because a multi-value binding cannot be redeclared, and body comments are dropped in the generated file as recorded.
+
+**Evidence:**
+- Double transpile byte-identical (`diff` clean) and `gofmt -l` clean; no `martianoff/gala` import and no `.Size()` left unlowered.
+- `server/scripts/gala/verify.sh` OK (17 twins) including `go build ./...`; `go vet ./discord_bot/...` clean.
+- Canonical Compose backend sequence green across every package; `timeful/server/routes` 2.216s and `timeful/server/postgres` 5.882s.
+
+**Ledger:** registry count 16 -> 17 with the new row; cursor entry 1 keeps only the slackbot files; added the `len` on an imported handwritten slice row (workaround, sibling helper) and corrected the #613 report-index note to "fixed for same-package declarations".
+
+**Next:** cursor entry 1 is `slackbot/commands/active_users.go` and `slackbot/commands/utils.go`; the same split is expected, with `.Size()` count helpers and a blocks-aware response constructor in the sibling.
 <!-- SECTION:NOTES:END -->
