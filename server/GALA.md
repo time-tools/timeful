@@ -26,13 +26,13 @@ Read the emitted Go before committing a new twin and confirm it names no runtime
 ## Compiler
 
 The translation target is the `gala` compiler the dev shell puts on `PATH`, and every committed twin regenerates byte-identically under it.
-The compiler is the flake-locked commit; `gala version` reports `0.85.0`, and the current rev `ddbe839b` adds the fixes [#699](https://github.com/martianoff/gala/issues/699), [#705](https://github.com/martianoff/gala/issues/705), [#706](https://github.com/martianoff/gala/issues/706), [#707](https://github.com/martianoff/gala/issues/707), [#708](https://github.com/martianoff/gala/issues/708), [#709](https://github.com/martianoff/gala/issues/709), and [#710](https://github.com/martianoff/gala/issues/710) on top of the rev that carried the post-0.85.0 [#691](https://github.com/martianoff/gala/issues/691), [#692](https://github.com/martianoff/gala/issues/692), [#695](https://github.com/martianoff/gala/issues/695), and [#702](https://github.com/martianoff/gala/issues/702) fixes and [GO_INTEROP.MD](https://github.com/martianoff/gala/blob/master/docs/GO_INTEROP.MD).
+The compiler is the flake-locked commit; `gala version` reports `0.85.0`, and the current rev `a888e824` adds [#712](https://github.com/martianoff/gala/pull/712), which makes Go's `encoding/json`, YAML, and `fmt` see a `std.Immutable`'s value rather than `{}` (closes [#687](https://github.com/martianoff/gala/issues/687)), on top of the rev that carried [#699](https://github.com/martianoff/gala/issues/699), [#705](https://github.com/martianoff/gala/issues/705), [#706](https://github.com/martianoff/gala/issues/706), [#707](https://github.com/martianoff/gala/issues/707), [#708](https://github.com/martianoff/gala/issues/708), [#709](https://github.com/martianoff/gala/issues/709), and [#710](https://github.com/martianoff/gala/issues/710) on top of the rev that carried the post-0.85.0 [#691](https://github.com/martianoff/gala/issues/691), [#692](https://github.com/martianoff/gala/issues/692), [#695](https://github.com/martianoff/gala/issues/695), and [#702](https://github.com/martianoff/gala/issues/702) fixes and [GO_INTEROP.MD](https://github.com/martianoff/gala/blob/master/docs/GO_INTEROP.MD).
 
 | Item           | Value                                                                                                         |
 | -------------- | ------------------------------------------------------------------------------------------------------------- |
 | `gala version` | `GALA version 0.85.0`                                                                                         |
-| flake rev      | `ddbe839b5d038ef3445e1dac93f09e624144012f` (`jq -r '.nodes.gala.locked.rev' flake.lock`)                      |
-| extraction     | `0.85.0 8206b230308f8892c8c41dbb1fdf034c2010acc5b120f7f766c29edcfe9faebd` in [`GALA_COMPILER`](GALA_COMPILER) |
+| flake rev      | `a888e824ff53adb653bbd48dcc83f67788eeced4` (`jq -r '.nodes.gala.locked.rev' flake.lock`)                      |
+| extraction     | `0.85.0 7a42d3c6ef6edde23cbbc9d44ed6aade21fc563cce0cc9d41bceaecff070184c` in [`GALA_COMPILER`](GALA_COMPILER) |
 | pinned tools   | `nix develop` provides `gala` and the Go toolchain from `flake.lock`                                          |
 
 Record the provenance before any iteration:

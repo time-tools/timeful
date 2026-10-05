@@ -1,4 +1,4 @@
 compiler: GALA version 0.85.0
-flake_rev: ddbe839b5d038ef3445e1dac93f09e624144012f
-extraction: 0.85.0 8206b230308f8892c8c41dbb1fdf034c2010acc5b120f7f766c29edcfe9faebd
+flake_rev: a888e824ff53adb653bbd48dcc83f67788eeced4
+extraction: 0.85.0 7a42d3c6ef6edde23cbbc9d44ed6aade21fc563cce0cc9d41bceaecff070184c
 date: 2026-10-05

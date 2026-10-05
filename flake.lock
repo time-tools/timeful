@@ -110,11 +110,11 @@
         "nixpkgs": "nixpkgs_2"
       },
       "locked": {
-        "lastModified": 1791172670,
-        "narHash": "sha256-Fwc2T+dCE0i5evIWZL6/f30s7UHx0tFsGlhKE3Aqyok=",
+        "lastModified": 1791179377,
+        "narHash": "sha256-x6gc0MyjSoLkdiEivV8bxIvKaZ0SHg7sDnL6nT7W5wA=",
         "owner": "martianoff",
         "repo": "gala",
-        "rev": "ddbe839b5d038ef3445e1dac93f09e624144012f",
+        "rev": "a888e824ff53adb653bbd48dcc83f67788eeced4",
         "type": "github"
       },
       "original": {
