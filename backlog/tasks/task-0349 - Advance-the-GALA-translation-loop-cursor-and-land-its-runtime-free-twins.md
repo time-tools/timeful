@@ -4,7 +4,7 @@ title: Advance the GALA translation loop cursor and land its runtime-free twins
 status: In Progress
 assignee: []
 created_date: '2026-10-05 08:44'
-updated_date: '2026-10-05 10:07'
+updated_date: '2026-10-05 10:35'
 labels: []
 dependencies: []
 references:
@@ -32,7 +32,11 @@ modified_files:
   - server/models/datetime.gala
   - server/models/datetime.go
   - server/models/datetime_extra.go
+  - server/models/uuid.gala
+  - server/models/uuid.go
+  - server/models/uuid_extra.go
   - server/scripts/gala/probes/models-defined-scalar-methods/notes.md
+  - server/scripts/gala/probes/models-fixed-array/notes.md
 priority: medium
 type: enhancement
 ordinal: 353005
@@ -170,6 +174,25 @@ Run the `gala-loop` skill one iteration at a time, taking the next entry from th
 **Next:** cursor entry 1 is now `models/uuid.go`, `models/set.go`, `models/location.go`, `models/event.go`; uuid carries the defined-type path plus fixed-size `[16]byte` helpers, and the other three stay tagged/empty-struct blocked.
 
 **State:** Changes are in the worktree, not committed: the three `server/models/datetime.*` files, the `server/GALA.md` updates, the probe-note Status section, and this task's notes. The pre-existing unrelated `backlog/backlog.md` modification was left untouched.
+
+## Iteration 6 — models/uuid (2026-10-05)
+
+**Provenance:** `gala` `0.85.0` at `/nix/store/ydla797gibrgplg2kwn0mwy8vhvj7mip-gala-0.85.0/bin/gala`; flake rev `a888e824ff53adb653bbd48dcc83f67788eeced4`; extraction marker `0.85.0 7a42d3c6ef6edde23cbbc9d44ed6aade21fc563cce0cc9d41bceaecff070184c` matches `server/GALA_COMPILER`, so no sync needed. Iteration 5's files were committed in `51250af5`, so the tree held only the pre-existing `backlog/backlog.md` edit.
+
+**Re-derived rows (pinned compiler):** `opaque type UUID string` is the documented `opaque type` answer for the defined-scalar method, and the file splits at the fixed-size `[16]byte` helpers (`NewUUID`/`formatUUID`); the UUID spelling of the suppression path was already pinned in scratch during iteration 5, and the real-file transpile settled the rest on the first pass.
+
+**Landed:** `server/models/uuid.gala` -> generated `uuid.go` (runtime-free: `opaque type UUID string`, `ZeroUUID`, `String`, `IsZero`), plus handwritten `uuid_extra.go` (`Hash`/`Compare` suppression, `ParseUUID`, `isLowerHex`, `NewUUID`, `formatUUID`, and the JSON/text marshalers). The old `uuid.go` was moved aside before the transpile, per the datetime requirement; the exported API adds only `Hash`/`Compare`, the cost TASK-0350 accepted.
+
+**Evidence:**
+- Double transpile byte-identical (`diff` clean) and `gofmt -l` clean; no `martianoff/gala` import.
+- `server/scripts/gala/verify.sh` OK (20 twins) including `go build ./...`; `go test ./models/...` and `go vet ./models/...` clean; `go doc` shows the original API plus `Hash`/`Compare`.
+- Canonical Compose backend sequence green across every package; `timeful/server/routes` 2.830s and `timeful/server/postgres` 7.227s.
+
+**Ledger:** registry count 19 -> 20 with the new row; cursor entry 1 now lists `models/set.go`, `models/location.go`, `models/event.go`; the defined-scalar row and the models prose record uuid; the fixed-array row and both probe notes record that the array helpers moved to the sibling.
+
+**Next:** cursor entry 1 is `models/set.go`, `models/location.go`, `models/event.go`, all blocked on struct tags and `struct{}` with probes at `scripts/gala/probes/models-*`.
+
+**State:** changes are in the worktree, not committed: the three `server/models/uuid.*` files, the `server/GALA.md` updates, the two probe-note updates, and this task's notes. The pre-existing unrelated `backlog/backlog.md` modification was left untouched.
 <!-- SECTION:NOTES:END -->
 
 ## Comments

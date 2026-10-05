@@ -127,7 +127,7 @@ No upstream comment or new report is needed, because upstream already documents 
 
 ## Status (2026-10-05)
 
-The repository accepted the two-added-methods cost for `models/datetime.go`, which landed as `models/datetime.gala` plus `models/datetime_extra.go` (`Hash`/`Compare` and the multi-value `MarshalJSON`/pointer-receiver `UnmarshalJSON`).
-One transpile-order requirement showed up while landing it: the suppression only takes effect when the superseded handwritten file is absent at analysis time.
+The repository accepted the two-added-methods cost for `models/datetime.go` and `models/uuid.go`, which landed as `datetime.gala`/`datetime_extra.go` and `uuid.gala`/`uuid_extra.go`.
+One transpile-order requirement showed up while landing them: the suppression only takes effect when the superseded handwritten file is absent at analysis time.
 Transpiling `datetime.gala` while the old `datetime.go` still declared `DateTime` emitted `martianoff/gala/std`-backed `Hash`/`Compare`, while moving the old file aside first produced the runtime-free output above.
-`models/uuid.go` remains handwritten pending its fixed-size `[16]byte` split, so this probe stays.
+The uuid split keeps `ParseUUID`, `NewUUID`, `formatUUID`, and the marshalers in `uuid_extra.go`; this probe stays because it is the committed repro for the suppression path.
