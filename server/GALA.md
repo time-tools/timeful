@@ -24,12 +24,12 @@ Read the emitted Go before committing a new twin, because a wrapper the program 
 ## Compiler and runtime
 
 The translation target is the `gala` compiler the dev shell puts on `PATH`, and the vendored runtime under `third_party/gala/` is always re-vendored to match it before translating.
-The compiler is the flake-locked commit; `gala version` now reports `0.85.0`, because the release bump landed in the same lock that carried the #648 and #621 fixes.
+The compiler is the flake-locked commit; `gala version` reports `0.85.0`, and the current rev `d38fadb` adds the post-release fixes [#691](https://github.com/martianoff/gala/issues/691), [#692](https://github.com/martianoff/gala/issues/692), [#695](https://github.com/martianoff/gala/issues/695), and [#702](https://github.com/martianoff/gala/issues/702) on top of the release that carried the #648 and #621 fixes.
 
 | Item             | Value                                                                                                                      |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `gala version`   | `GALA version 0.85.0`                                                                                                      |
-| flake rev        | `9beea5dc350ab566e2e1e31add863afd7d95d29f` (`jq -r '.nodes.gala.locked.rev' flake.lock`)                                   |
+| flake rev        | `d38fadb844f0849c6c6ac8a47e8f91e025eace6b` (`jq -r '.nodes.gala.locked.rev' flake.lock`)                                   |
 | vendored runtime | [`third_party/gala/`](third_party/gala/), provenance in [`third_party/gala/VENDORED_FROM`](third_party/gala/VENDORED_FROM) |
 | pinned tools     | `nix develop` provides `gala` and the Go toolchain from `flake.lock`                                                       |
 
@@ -108,6 +108,7 @@ A finding gains a committed repro under `scripts/gala/probes/<slug>/` when the l
 | In-place `recover`                               | language gap | `Try` captures a panic as a value but cannot resume in place                                      | none filed                                            | —     |
 
 Declaration comments and `swag` annotations are no longer a finding: the pinned compiler emits them, so `routes/users.go` is unblocked (see the report index for [#619](https://github.com/martianoff/gala/issues/619)).
+The post-release [#695](https://github.com/martianoff/gala/issues/695) makes a Go method's several results one `Try`/`Tuple` value like a Go function's, but a GALA function still cannot declare a Go-style multi-value signature (a transpile parse error), so the Go-style multi-value return signature row stays.
 Fixed-size arrays and anonymous or empty struct types remain the reason `models/uuid.go`, `models/event.go`, and `models/set.go` stay handwritten.
 
 ## Upstream report index
@@ -133,6 +134,9 @@ A report closed after the flake lock is fixed upstream but not yet in the pinned
 | [#648](https://github.com/martianoff/gala/issues/648)  | Type-position import name is not checked                 | closed                 | fixed (verified here)             |
 | [#678](https://github.com/martianoff/gala/issues/678)  | `gala-local` refused the stdlib `test` package           | closed                 | fixed (verified here)             |
 | [PR #680](https://github.com/martianoff/gala/pull/680) | Local bootstrap gives batch files their package siblings | merged before the lock | included                          |
+| [#691](https://github.com/martianoff/gala/issues/691)  | Lowercase sealed variants count for exhaustiveness       | closed                 | fixed (verified here)             |
+| [#692](https://github.com/martianoff/gala/issues/692)  | Strict JSON decoder; YAML escapes                        | closed                 | fixed (verified here)             |
+| [#695](https://github.com/martianoff/gala/issues/695)  | Go method multi-results lifted to `Try`/`Tuple`          | closed                 | fixed (verified here)             |
 | [#698](https://github.com/martianoff/gala/issues/698)  | Publish the transpiled stdlib as a release asset         | open                   | n/a (packaging request)           |
 
 The loop re-checks a report's finding on the pinned compiler before relying on it, because "closed" and "in the pinned rev" are different claims.
