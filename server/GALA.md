@@ -62,7 +62,7 @@ A rev mismatch is resolved by a bump iteration and never by translating across i
 
 ## Twin registry
 
-Fifteen `.gala` sources across thirteen packages carry a committed twin.
+Sixteen `.gala` sources across thirteen packages carry a committed twin.
 Every row regenerates with `cd server/<dir> && gala transpile -i <name>.gala -o <name>.go`; a handwritten sibling has no command because it is not generated.
 
 | Package                   | GALA source                                   | Generated Go                                | Handwritten sibling                                                                                                                              | Style        |
@@ -76,6 +76,7 @@ Every row regenerates with `cd server/<dir> && gala transpile -i <name>.gala -o 
 | `services`                | `services/services.gala`                      | `services/services.go`                      | —                                                                                                                                                | runtime-free |
 | `services/providerconfig` | `services/providerconfig/providerconfig.gala` | `services/providerconfig/providerconfig.go` | `services/providerconfig/doc.go` (package comment)                                                                                               | runtime-free |
 | `routes`                  | `routes/guest_response_ownership.gala`        | `routes/guest_response_ownership.go`        | —                                                                                                                                                | runtime-free |
+| `routes`                  | `routes/users.gala`                           | `routes/users.go`                           | —                                                                                                                                                | runtime-free |
 | `discord_bot/commands`    | `discord_bot/commands/help.gala`              | `discord_bot/commands/help.go`              | —                                                                                                                                                | runtime-free |
 | `discord_bot/commands`    | `discord_bot/commands/num_users.gala`         | `discord_bot/commands/num_users.go`         | —                                                                                                                                                | runtime-free |
 | `discord_bot`             | `discord_bot/init.gala`                       | `discord_bot/init.go`                       | `discord_bot/interop.go` (`newCommandMap`, `argsFrom`)                                                                                           | runtime-free |
@@ -103,7 +104,8 @@ A finding gains a committed repro under `scripts/gala/probes/<slug>/` when the l
 | `select`                                         | language gap | none; the repository's uses pair it with `chan` and `make`                                        | none filed                                            | —     |
 | In-place `recover`                               | language gap | `Try` captures a panic as a value but cannot resume in place                                      | none filed                                            | —     |
 
-Declaration comments and `swag` annotations are no longer a finding: the pinned compiler emits them, so `routes/users.go` is unblocked (see the report index for [#619](https://github.com/martianoff/gala/issues/619)).
+Declaration comments and `swag` annotations are no longer a finding: the pinned compiler emits them, so `routes/users.gala` keeps its `@Router` block and `swag init --parseDependency` regenerates `server/docs` byte-identically (see the report index for [#619](https://github.com/martianoff/gala/issues/619)).
+A comment inside a function body is still dropped, so the `InitUsers` route-ordering note lives only in `routes/users.gala`.
 The post-release [#695](https://github.com/martianoff/gala/issues/695) makes a Go method's several results one `Try`/`Tuple` value like a Go function's, but a GALA function still cannot declare a Go-style multi-value signature (a transpile parse error), so the Go-style multi-value return signature row stays.
 Fixed-size arrays and anonymous or empty struct types remain the reason `models/uuid.go`, `models/event.go`, and `models/set.go` stay handwritten.
 A workaround that names a runtime construct (`go_interop`, `Try`) is no longer available in a committed twin and belongs in a handwritten Go sibling.
@@ -143,16 +145,15 @@ The loop re-checks a report's finding on the pinned compiler before relying on i
 The cursor is ordered, and the loop takes the next entry and re-checks its constructs on the pinned compiler before translating.
 A fixed blocker moves the candidate forward; a persistent blocker with no workaround becomes a Backlog task and a probe, and the candidate stays.
 
-1. `routes/users.go` — unblocked by the comment emit; verify the `@Router` block survives and `swag init` still emits the endpoints.
-2. `discord_bot/commands/active_users.go`, `slackbot/commands/active_users.go`, `slackbot/commands/utils.go` — previously blocked by the inferred-receiver `.Size()` and bare-name type-position defects, both closed before the lock.
-3. `models/datetime.go`, `models/uuid.go`, `models/set.go`, `models/location.go`, `models/event.go` — defined-type methods, tags, fixed-size arrays, and `struct{}`.
-4. `errs/errors.go` — tags and `interface{}`.
-5. `routes/respondent_identity.go`, `routes/group.go`.
-6. `postgres/` — the `Repository` declarations-only split; the sibling-method defect is closed before the lock.
-7. `main.go`.
-8. `observability/provider.go`, `observability/readiness.go`, `observability/transport.go`.
-9. `services/auth`, `services/calendar`, `services/contacts`, `services/listmonk`, `services/microsoftgraph`.
-10. `mockprovider`, `services/gcloud/tasks.go`.
+1. `discord_bot/commands/active_users.go`, `slackbot/commands/active_users.go`, `slackbot/commands/utils.go` — previously blocked by the inferred-receiver `.Size()` and bare-name type-position defects, both closed before the lock.
+2. `models/datetime.go`, `models/uuid.go`, `models/set.go`, `models/location.go`, `models/event.go` — defined-type methods, tags, fixed-size arrays, and `struct{}`.
+3. `errs/errors.go` — tags and `interface{}`.
+4. `routes/respondent_identity.go`, `routes/group.go`.
+5. `postgres/` — the `Repository` declarations-only split; the sibling-method defect is closed before the lock.
+6. `main.go`.
+7. `observability/provider.go`, `observability/readiness.go`, `observability/transport.go`.
+8. `services/auth`, `services/calendar`, `services/contacts`, `services/listmonk`, `services/microsoftgraph`.
+9. `mockprovider`, `services/gcloud/tasks.go`.
 
 ## Stop conditions
 
