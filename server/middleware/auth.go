@@ -2,9 +2,7 @@
 
 package middleware
 
-import "martianoff/gala/std"
 import (
-	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"timeful/server/accounts"
@@ -12,7 +10,7 @@ import (
 	"timeful/server/responses"
 )
 
-//line auth.gala:12
+//line auth.gala:11
 
 // AuthRequired rejects a request that carries no usable session identity.
 //
@@ -32,53 +30,44 @@ import (
 // declaration it documents.
 func AuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
+//line auth.gala:29
+		var platformIdentityID = sessionIdentityID(c)
 //line auth.gala:30
-		var platformIdentityID = func(obj any) string {
-			{
-				s, _tmp_1 := std.As[string](obj)
-				if _tmp_1 {
-					return s
-				} else {
-					return ""
-				}
-			}
-		}(sessions.Default(c).Get("userId"))
-//line auth.gala:34
 		if platformIdentityID == "" {
-//line auth.gala:35
+//line auth.gala:31
 			c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.NotSignedIn})
+//line auth.gala:32
+			c.Abort()
+//line auth.gala:33
+			return
+		}
 //line auth.gala:36
-			c.Abort()
-//line auth.gala:37
-			return
-		}
-//line auth.gala:40
 		var account, err = accounts.Resolve(c.Request.Context(), platformIdentityID)
-//line auth.gala:41
+//line auth.gala:37
 		if err != nil {
-//line auth.gala:42
+//line auth.gala:38
 			c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
+//line auth.gala:39
+			c.Abort()
+//line auth.gala:40
+			return
+		}
 //line auth.gala:43
-			c.Abort()
-//line auth.gala:44
-			return
-		}
-//line auth.gala:47
 		var user, loadErr = accounts.LoadSessionUser(c.Request.Context(), account)
-//line auth.gala:48
+//line auth.gala:44
 		if loadErr != nil {
-//line auth.gala:49
+//line auth.gala:45
 			c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed to load account integration data"})
-//line auth.gala:50
+//line auth.gala:46
 			c.Abort()
-//line auth.gala:51
+//line auth.gala:47
 			return
 		}
-//line auth.gala:54
+//line auth.gala:50
 		c.Set("authUser", user)
-//line auth.gala:55
+//line auth.gala:51
 		c.Set("authAccount", account)
-//line auth.gala:56
+//line auth.gala:52
 		c.Next()
 	}
 }

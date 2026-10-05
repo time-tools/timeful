@@ -3,7 +3,6 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"timeful/server/accounts"
 	"timeful/server/errs"
@@ -27,10 +26,7 @@ import (
 // This documentation lives here rather than in doc.go so it stays with the
 // declaration it documents.
 func AuthRequired() gin.HandlerFunc = (c *gin.Context) => {
-	var platformIdentityID = sessions.Default(c).Get("userId") match {
-		case s: string => s
-		case _ => ""
-	}
+	var platformIdentityID = sessionIdentityID(c)
 	if platformIdentityID == "" {
 		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.NotSignedIn})
 		c.Abort()

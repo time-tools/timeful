@@ -2,10 +2,6 @@ package postgres
 
 import "time"
 
-struct DailyUserLog(var ID string, var LogDate time.Time, var Members []DailyUserLogMember)
-
-struct DailyUserLogMember(var PlatformIdentityID string, var FirstName string, var LastName string, var Email string, var Position int)
-
 func dailyLogDate(now time.Time, timezoneOffset int) time.Time {
 	var adjusted = now.Add(time.Duration(timezoneOffset) * time.Minute).UTC()
 	return time.Date(adjusted.Year(), adjusted.Month(), adjusted.Day(), 0, 0, 0, 0, time.UTC)

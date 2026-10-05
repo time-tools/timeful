@@ -4,7 +4,6 @@ package discord_bot
 
 import (
 	"github.com/bwmarrin/discordgo"
-	"martianoff/gala/go_interop"
 	"os"
 	"regexp"
 	"timeful/server/discord_bot/commands"
@@ -12,125 +11,125 @@ import (
 	"timeful/server/utils"
 )
 
-//line init.gala:14
+//line init.gala:13
 var BotId string
 
-//line init.gala:15
+//line init.gala:14
 var bot *discordgo.Session
 
-//line init.gala:16
+//line init.gala:15
 var listeningChannel *discordgo.Channel
 
-//line init.gala:17
-var commandMap = go_interop.MapEmpty[string, commands.Command]()
+//line init.gala:16
+var commandMap = newCommandMap()
 
-//line init.gala:19
+//line init.gala:18
 func listeningChannelName() string {
-//line init.gala:20
+//line init.gala:19
 	var configuredChannel = os.Getenv("DISCORD_BOT_CHANNEL")
-//line init.gala:21
+//line init.gala:20
 	if configuredChannel != "" {
-//line init.gala:22
+//line init.gala:21
 		return configuredChannel
 	}
-//line init.gala:24
+//line init.gala:23
 	if utils.IsRelease() {
-//line init.gala:25
+//line init.gala:24
 		return "timeful-bot"
 	}
-//line init.gala:27
+//line init.gala:26
 	return "timeful-bot-dev"
 }
 
-//line init.gala:30
+//line init.gala:29
 func Init() {
-//line init.gala:31
+//line init.gala:30
 	var token = os.Getenv("DISCORD_BOT_TOKEN")
-//line init.gala:32
+//line init.gala:31
 	var guildId = os.Getenv("GUILD_ID")
-//line init.gala:33
+//line init.gala:32
 	var botSession, err = discordgo.New("Bot " + token)
-//line init.gala:34
+//line init.gala:33
 	bot = botSession
-//line init.gala:35
+//line init.gala:34
 	if err != nil {
-//line init.gala:36
+//line init.gala:35
 		logger.StdErr.Panicln(err)
 	}
-//line init.gala:39
+//line init.gala:38
 	var u, userErr = bot.User("@me")
-//line init.gala:40
+//line init.gala:39
 	if userErr != nil {
-//line init.gala:41
+//line init.gala:40
 		logger.StdErr.Panicln(userErr)
 	}
-//line init.gala:43
+//line init.gala:42
 	BotId = u.ID
-//line init.gala:45
+//line init.gala:44
 	err = bot.Open()
-//line init.gala:46
+//line init.gala:45
 	if err != nil {
-//line init.gala:47
+//line init.gala:46
 		logger.StdErr.Panicln(err)
 	}
-//line init.gala:49
+//line init.gala:48
 	logger.StdOut.Println("Discord bot initialized")
-//line init.gala:51
+//line init.gala:50
 	var channelName = listeningChannelName()
-//line init.gala:52
+//line init.gala:51
 	var channels, _ = bot.GuildChannels(guildId)
-//line init.gala:53
+//line init.gala:52
 	for _, channel := range channels {
-//line init.gala:54
+//line init.gala:53
 		if channel.Name == channelName {
-//line init.gala:55
+//line init.gala:54
 			listeningChannel = channel
-//line init.gala:56
+//line init.gala:55
 			break
 		}
 	}
-//line init.gala:60
+//line init.gala:59
 	commands.Init()
-//line init.gala:61
+//line init.gala:60
 	for _, command := range commands.Commands {
-//line init.gala:62
+//line init.gala:61
 		commandMap[command.Name] = command
 	}
-//line init.gala:65
+//line init.gala:64
 	bot.AddHandler(messageHandler)
 }
 
-//line init.gala:68
+//line init.gala:67
 func SendMessage(message string) {
-//line init.gala:69
+//line init.gala:68
 	_, _ = bot.ChannelMessageSend(listeningChannel.ID, message)
 }
 
-//line init.gala:72
+//line init.gala:71
 func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
-//line init.gala:73
+//line init.gala:72
 	if m.ChannelID != listeningChannel.ID {
-//line init.gala:74
+//line init.gala:73
 		return
 	}
-//line init.gala:76
+//line init.gala:75
 	if m.Author.ID == BotId {
-//line init.gala:77
+//line init.gala:76
 		return
 	}
-//line init.gala:80
+//line init.gala:79
 	var re = regexp.MustCompile(" +")
-//line init.gala:81
+//line init.gala:80
 	var args = re.Split(m.Content, -1)
-//line init.gala:82
+//line init.gala:81
 	var commandName = args[0]
-//line init.gala:83
-	args = go_interop.SliceFrom(args, 1)
-//line init.gala:85
+//line init.gala:82
+	args = argsFrom(args, 1)
+//line init.gala:84
 	var command, ok = commandMap[commandName]
-//line init.gala:86
+//line init.gala:85
 	if ok {
-//line init.gala:87
+//line init.gala:86
 		command.Execute(s, m, args)
 	}
 }

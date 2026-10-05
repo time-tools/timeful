@@ -21,7 +21,7 @@ Direct server execution and `server/.env` are unsupported.
 
 Generated Go files are committed because the Go build never invokes GALA.
 Each one has a `.gala` source beside it, and some packages also have a handwritten sibling for members GALA cannot express.
-[`GALA.md`](GALA.md) is the ledger: the twin registry, the compiler and runtime provenance, the open findings, and the candidate cursor for the next translation.
+[`GALA.md`](GALA.md) is the ledger: the twin registry, the compiler provenance, the open findings, and the candidate cursor for the next translation.
 The loop for translating another file is the [`gala-loop`](../.agents/skills/gala-loop/SKILL.md) skill, which loads the project-independent [`gala-from-go`](../.agents/skills/gala-from-go/SKILL.md) reference for the construct rules.
 Regenerate and verify every twin with [`scripts/gala/verify.sh`](scripts/gala/verify.sh):
 
@@ -30,7 +30,7 @@ server/scripts/gala/verify.sh          # drift detection
 server/scripts/gala/verify.sh --write  # regenerate the committed twins in place
 ```
 
-The script prints the compiler and vendored-runtime provenance, requires every twin to regenerate byte-identically, checks `gofmt`, and runs `go build ./...`.
+The script prints the compiler provenance recorded in `GALA_COMPILER`, requires every twin to regenerate byte-identically and stay free of the GALA runtime, checks `gofmt`, and runs `go build ./...`.
 Transpile from the package directory when working by hand, because the emitted `//line` directives name the path the transpiler was given, and never hand-edit a generated file.
 A handwritten sibling is not generated and has no regeneration command; `GALA.md` lists them.
 A file carrying `swag` annotations can be translated when its compiler emits declaration comments, which the pinned compiler does.

@@ -8,9 +8,9 @@ import (
 
 // Handwritten sibling beside the generated dailylogs.go.
 //
-// The declarations it needs — DailyUserLog, DailyUserLogMember, dailyLogDate,
-// recordDailyUserLogMembershipQuery, and listActiveUserDaysQuery — are
-// transpiled from dailylogs.gala. The methods stay here because each one
+// dailyLogDate, recordDailyUserLogMembershipQuery, and listActiveUserDaysQuery
+// are transpiled from dailylogs.gala; DailyUserLog and DailyUserLogMember are
+// declared in dailylogs_types.go. The methods stay here because each one
 // returns two values or calls a Repository method, and a Repository method
 // declared in a handwritten file is not resolvable from a .gala source.
 

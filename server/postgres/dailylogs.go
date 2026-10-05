@@ -2,71 +2,22 @@
 
 package postgres
 
-import "martianoff/gala/std"
 import "time"
 
 //line dailylogs.gala:5
-type DailyUserLog struct {
-	ID      string
-	LogDate time.Time
-	Members []DailyUserLogMember
-}
-
-func (s DailyUserLog) Copy() DailyUserLog {
-	return DailyUserLog{ID: std.Copy(s.ID), LogDate: std.Copy(s.LogDate), Members: std.Copy(s.Members)}
-}
-func (s DailyUserLog) Equal(other DailyUserLog) bool {
-	return std.Equal(s.ID, other.ID) && std.Equal(s.LogDate, other.LogDate) && std.Equal(s.Members, other.Members)
-}
-func (s DailyUserLog) Unapply(v any) (string, time.Time, []DailyUserLogMember, bool) {
-	if p, ok := v.(DailyUserLog); ok {
-		return p.ID, p.LogDate, p.Members, true
-	}
-	if p, ok := v.(*DailyUserLog); ok && p != nil {
-		return p.ID, p.LogDate, p.Members, true
-	}
-	return *new(string), *new(time.Time), *new([]DailyUserLogMember), false
-}
-
-//line dailylogs.gala:7
-type DailyUserLogMember struct {
-	PlatformIdentityID string
-	FirstName          string
-	LastName           string
-	Email              string
-	Position           int
-}
-
-func (s DailyUserLogMember) Copy() DailyUserLogMember {
-	return DailyUserLogMember{PlatformIdentityID: std.Copy(s.PlatformIdentityID), FirstName: std.Copy(s.FirstName), LastName: std.Copy(s.LastName), Email: std.Copy(s.Email), Position: std.Copy(s.Position)}
-}
-func (s DailyUserLogMember) Equal(other DailyUserLogMember) bool {
-	return std.Equal(s.PlatformIdentityID, other.PlatformIdentityID) && std.Equal(s.FirstName, other.FirstName) && std.Equal(s.LastName, other.LastName) && std.Equal(s.Email, other.Email) && std.Equal(s.Position, other.Position)
-}
-func (s DailyUserLogMember) Unapply(v any) (string, string, string, string, int, bool) {
-	if p, ok := v.(DailyUserLogMember); ok {
-		return p.PlatformIdentityID, p.FirstName, p.LastName, p.Email, p.Position, true
-	}
-	if p, ok := v.(*DailyUserLogMember); ok && p != nil {
-		return p.PlatformIdentityID, p.FirstName, p.LastName, p.Email, p.Position, true
-	}
-	return *new(string), *new(string), *new(string), *new(string), *new(int), false
-}
-
-//line dailylogs.gala:9
 func dailyLogDate(now time.Time, timezoneOffset int) time.Time {
-//line dailylogs.gala:10
+//line dailylogs.gala:6
 	var adjusted = now.Add(time.Duration(timezoneOffset) * time.Minute).UTC()
-//line dailylogs.gala:11
+//line dailylogs.gala:7
 	return time.Date(adjusted.Year(), adjusted.Month(), adjusted.Day(), 0, 0, 0, 0, time.UTC)
 }
 
-//line dailylogs.gala:14
+//line dailylogs.gala:10
 var recordDailyUserLogMembershipQuery = `INSERT INTO daily_user_log_members (daily_user_log_id, platform_identity_id, first_seen_position)
 VALUES ($1, $2, COALESCE((SELECT MAX(first_seen_position) + 1 FROM daily_user_log_members WHERE daily_user_log_id = $1), 0))
 ON CONFLICT (daily_user_log_id, platform_identity_id) DO NOTHING`
 
-//line dailylogs.gala:18
+//line dailylogs.gala:14
 var listActiveUserDaysQuery = `WITH reporting_days AS (
     SELECT generate_series($1::date, $2::date, interval '1 day')::date AS log_date
     UNION
@@ -78,95 +29,3 @@ LEFT JOIN daily_user_logs l ON l.log_date = d.log_date
 LEFT JOIN daily_user_log_members m ON m.daily_user_log_id = l.id
 LEFT JOIN accounts a ON a.platform_identity_id = m.platform_identity_id
 ORDER BY d.log_date DESC, m.first_seen_position, m.id`
-
-type StructMeta_DailyUserLogMember struct {
-}
-
-func (_ StructMeta_DailyUserLogMember) NumFields() int {
-	return 5
-}
-func (_ StructMeta_DailyUserLogMember) FieldName(i int) string {
-	switch i {
-	case 0:
-		return "PlatformIdentityID"
-	case 1:
-		return "FirstName"
-	case 2:
-		return "LastName"
-	case 3:
-		return "Email"
-	case 4:
-		return "Position"
-	default:
-		return ""
-	}
-}
-func (_ StructMeta_DailyUserLogMember) EncodeFields(w std.FieldEncoder, t DailyUserLogMember, nameFn func(int) string, omitFn func(int) bool, naming func(string) string) {
-	w.WriteStartObject()
-	if !omitFn(0) {
-		w.WriteKey(nameFn(0))
-		w.WriteString(t.PlatformIdentityID)
-	}
-	if !omitFn(1) {
-		w.WriteKey(nameFn(1))
-		w.WriteString(t.FirstName)
-	}
-	if !omitFn(2) {
-		w.WriteKey(nameFn(2))
-		w.WriteString(t.LastName)
-	}
-	if !omitFn(3) {
-		w.WriteKey(nameFn(3))
-		w.WriteString(t.Email)
-	}
-	if !omitFn(4) {
-		w.WriteKey(nameFn(4))
-		w.WriteInt(t.Position)
-	}
-	w.WriteEndObject()
-}
-func (_ StructMeta_DailyUserLogMember) DecodeFields(r std.FieldDecoder, lookup func(string) int, naming func(string) string) DailyUserLogMember {
-	var _PlatformIdentityID string
-	var _FirstName string
-	var _LastName string
-	var _Email string
-	var _Position int
-	r.StartObject()
-	for r.HasMoreFields() {
-		key := r.ReadKey()
-		switch lookup(key) {
-		case 0:
-			_PlatformIdentityID = r.ReadString()
-		case 1:
-			_FirstName = r.ReadString()
-		case 2:
-			_LastName = r.ReadString()
-		case 3:
-			_Email = r.ReadString()
-		case 4:
-			_Position = r.ReadInt()
-		default:
-			r.Skip()
-		}
-	}
-	r.EndObject()
-	return DailyUserLogMember{PlatformIdentityID: _PlatformIdentityID, FirstName: _FirstName, LastName: _LastName, Email: _Email, Position: _Position}
-}
-func (_ StructMeta_DailyUserLogMember) FieldIsEmpty(t DailyUserLogMember, i int) bool {
-	switch i {
-	case 0:
-		return t.PlatformIdentityID == ""
-	case 1:
-		return t.FirstName == ""
-	case 2:
-		return t.LastName == ""
-	case 3:
-		return t.Email == ""
-	case 4:
-		return t.Position == 0
-	}
-	return false
-}
-func (_ StructMeta_DailyUserLogMember) Empty() DailyUserLogMember {
-	return DailyUserLogMember{}
-}

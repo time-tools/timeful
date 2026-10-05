@@ -5,7 +5,6 @@ import (
 	"regexp"
 
 	"github.com/bwmarrin/discordgo"
-	"martianoff/gala/go_interop"
 	"timeful/server/discord_bot/commands"
 	"timeful/server/logger"
 	"timeful/server/utils"
@@ -14,7 +13,7 @@ import (
 var BotId string
 var bot *discordgo.Session
 var listeningChannel *discordgo.Channel
-var commandMap = go_interop.MapEmpty[string, commands.Command]()
+var commandMap = newCommandMap()
 
 func listeningChannelName() string {
 	var configuredChannel = os.Getenv("DISCORD_BOT_CHANNEL")
@@ -80,7 +79,7 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 	var re = regexp.MustCompile(" +")
 	var args = re.Split(m.Content, -1)
 	var commandName = args[0]
-	args = go_interop.SliceFrom(args, 1)
+	args = argsFrom(args, 1)
 
 	var command, ok = commandMap[commandName]
 	if ok {
