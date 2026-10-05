@@ -4,7 +4,7 @@ title: Advance the GALA translation loop cursor and land its runtime-free twins
 status: In Progress
 assignee: []
 created_date: '2026-10-05 08:44'
-updated_date: '2026-10-05 09:26'
+updated_date: '2026-10-05 09:37'
 labels: []
 dependencies: []
 references:
@@ -147,3 +147,13 @@ Run the `gala-loop` skill one iteration at a time, taking the next entry from th
 
 **Evidence:** no runtime file changed; `server/scripts/gala/verify.sh` excludes `scripts/gala/probes/` and stays green, and `go build ./...` is unaffected. The tree was left uncommitted only for the probes and ledger until the iteration commit.
 <!-- SECTION:NOTES:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: TASK-0350
+created: 2026-10-05 09:37
+---
+TASK-0350 resolved 2026-10-05 with no upstream report: the `opaque type` runtime binding is suppressible. A same-package `.go` sibling declaring `Hash`/`Compare` keeps the generated Go free of `martianoff/gala` (verified on the pinned rev), at the cost of two added exported methods. `server/GALA.md` cursor entry 1 and the defined-scalar finding row now record that path, and the probe notes carry the repro; upstream PR #665 documents the suppression, so no comment on #528/#621 was needed. Struct tags, fixed-size arrays, and `struct{}` stay handwritten under `gaps.md`'s "What Not To File".
+---
+<!-- COMMENTS:END -->
