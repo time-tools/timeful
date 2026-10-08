@@ -23,7 +23,7 @@
     <div class="tw:relative tw:flex tw:min-h-0 tw:flex-1 tw:flex-col">
       <v-card-text
         ref="cardText"
-        class="tw:relative tw:flex-1 tw:overflow-auto tw:px-4 tw:py-1 tw:sm:px-8"
+        class="tw:relative tw:flex-1 tw:overflow-auto tw:px-4 tw:pt-3 tw:pb-1 tw:sm:px-8"
       >
         <v-form
           ref="formRef"
