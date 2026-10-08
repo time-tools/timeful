@@ -1,8 +1,11 @@
 import "@/test/regressionTestSetup"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { Temporal } from "temporal-polyfill"
 import { eventTypes, UTC } from "@/constants"
-import { epochMs } from "@/test/regressionHarness"
+import {
+  restoreFakeTemporalNow,
+  setFakeTemporalNow,
+} from "@/test/fakeTemporalNow"
 import { createLocalStorageMock } from "@/test/localStorage"
 import {
   doesDstExist,
@@ -17,7 +20,10 @@ import {
 describe("timezoneDateRules", () => {
   beforeEach(() => {
     vi.unstubAllGlobals()
-    vi.useRealTimers()
+  })
+
+  afterEach(() => {
+    restoreFakeTemporalNow()
   })
 
   it("reconstructs edit-flow dates from the saved named timezone boundary", () => {
@@ -55,8 +61,7 @@ describe("timezoneDateRules", () => {
   })
 
   it("uses the rendered week when deriving weekly schedule offsets", () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(epochMs("2026-03-18T12:00:00Z"))
+    setFakeTemporalNow("2026-03-18T12:00:00Z")
 
     const result = getScheduleTimezoneOffset(
       {
