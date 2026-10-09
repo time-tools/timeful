@@ -4,7 +4,7 @@ title: Advance the GALA translation loop cursor and land its runtime-free twins
 status: In Progress
 assignee: []
 created_date: '2026-10-05 08:44'
-updated_date: '2026-10-05 10:35'
+updated_date: '2026-10-09 08:40'
 labels: []
 dependencies: []
 references:
@@ -38,7 +38,6 @@ modified_files:
   - server/scripts/gala/probes/models-defined-scalar-methods/notes.md
   - server/scripts/gala/probes/models-fixed-array/notes.md
 priority: medium
-type: enhancement
 ordinal: 353005
 ---
 
@@ -60,18 +59,6 @@ This task tracks that loop across the several iterations planned for it: each it
 - [ ] #6 Each iteration's finding changes are recorded in `server/GALA.md` per the loop, and a no-workaround blocker gets a committed probe under `server/scripts/gala/probes/` plus a Backlog handoff task.
 - [ ] #7 The registry and the cursor stay consistent after each iteration: a landed twin has a registry row and no cursor entry, and a blocked candidate stays in the cursor with its finding.
 <!-- AC:END -->
-
-## Definition of Done
-<!-- DOD:BEGIN -->
-- [ ] #1 All acceptance criteria are satisfied
-- [ ] #2 All required unit tests pass. Documentation-only changes are exempt unless the user requests unit tests
-- [ ] #3 All required e2e tests pass. Documentation-only changes are exempt unless the user requests e2e tests
-- [ ] #4 Changed Markdown files are formatted with npm run format:markdown
-- [ ] #5 Swagger annotations changed: run `swag init` from `server/` and `npm run gen:api` from `frontend/`
-- [ ] #6 Code changed: run `codebase-memory-mcp cli index_repository --repo-path .` to refresh the code knowledge graph
-- [ ] #7 `scripts/` or `prettier/` changed: run root `npm run fmt:check`
-- [ ] #8 Contract-affecting changes update their documents. This includes `docs/environments.md`; `PLUGIN_API_README.md`; and migration and rollout notes
-<!-- DOD:END -->
 
 ## Implementation Plan
 
@@ -193,7 +180,38 @@ Run the `gala-loop` skill one iteration at a time, taking the next entry from th
 **Next:** cursor entry 1 is `models/set.go`, `models/location.go`, `models/event.go`, all blocked on struct tags and `struct{}` with probes at `scripts/gala/probes/models-*`.
 
 **State:** changes are in the worktree, not committed: the three `server/models/uuid.*` files, the `server/GALA.md` updates, the two probe-note updates, and this task's notes. The pre-existing unrelated `backlog/backlog.md` modification was left untouched.
+
+## Iteration 7 — compiler bump 0.85.0 -> 0.87.1 (2026-10-09)
+
+**Provenance:** `nix flake update gala` moved the lock from `a888e824ff53adb653bbd48dcc83f67788eeced4` (`0.85.0`) to `669c958cfb1f0ef2fe69ecb8e199b33c88456664`; `gala version` reports `GALA version 0.87.1` at `/nix/store/sy03nzcg76p7429jkrkgkpgj73fhzvrm-gala-0.87.1/bin/gala`. After deleting `~/.gala/stdlib/v0.87.1/.stdlib-extracted` and transpiling `server/eventid/eventid.gala` to a scratch path, the marker reads `0.87.1 7b1dd2080a304c06a04eeb7240937109fd3d3f02e19b103f4755be79fb71d7fa`, which is now in `server/GALA_COMPILER`. Bump-only iteration; no translation. The tree held only the pre-existing `backlog/backlog.md` edit and untracked `TODO.md`.
+
+**Evidence:**
+- `server/scripts/gala/verify.sh --write` then `verify.sh`: OK (20 twins), with no diff to any generated twin, so the bump changed no twin shape.
+- Canonical Compose backend sequence green across every package (`routes` 2.380s, `postgres` 5.322s). The README's `docker volume create timeful-test-go-build-cache timeful-test-go-mod-cache` fails on this Docker version (`requires at most 1 argument`), so the volumes were created one at a time. The existing `.env.test` (one local line beyond the example) was kept rather than overwritten by `cp`.
+- The four `scripts/gala/probes/models-*` probes reproduced their recorded diagnostics and output unchanged.
+
+**Upstream between revs (22 commits):** PR #722 (Go result lists on GALA functions and lambdas), #731/#732 (`gala stdlib export`, `gala export`, and the Go module `go.gala.fyi/stdlib`, which closed #698 on 2026-10-09), and the #697 fix, plus match/interface fixes.
+
+**Finding change:** a scratch transpile showed that `func ParsePort(s string) (int, error) = strconv.Atoi(s)` emits a plain `return strconv.Atoi(s)` with no runtime import, while a `Success`/`Failure` body emits `std.Try` and imports `martianoff/gala/std`. The "Go-style multi-value return signature" row moves from boundary gap to workaround, and the `gala-from-go` construct row is updated to match (no longer a parse error). The #698 row in the report index is now closed.
+
+**Ledger:** the `server/GALA.md` compiler paragraph, table, and #698 prose; the findings row and prose; the report index; and the probe re-verification line. Formatted with `npm run format:markdown`.
+
+**Next:** cursor entry 1 is unchanged (`models/set.go`, `models/location.go`, `models/event.go`, still blocked on struct tags and `struct{}`).
+
+**State:** changes are in the worktree, not committed: `flake.lock`, `server/GALA_COMPILER`, `server/GALA.md`, `.agents/skills/gala-from-go/references/constructs.md`, and this task's notes.
 <!-- SECTION:NOTES:END -->
+
+## Definition of Done
+<!-- DOD:BEGIN -->
+- [ ] #1 All acceptance criteria are satisfied
+- [ ] #2 All required unit tests pass. Documentation-only changes are exempt unless the user requests unit tests
+- [ ] #3 All required e2e tests pass. Documentation-only changes are exempt unless the user requests e2e tests
+- [ ] #4 Changed Markdown files are formatted with npm run format:markdown
+- [ ] #5 Swagger annotations changed: run `swag init` from `server/` and `npm run gen:api` from `frontend/`
+- [ ] #6 Code changed: run `codebase-memory-mcp cli index_repository --repo-path .` to refresh the code knowledge graph
+- [ ] #7 `scripts/` or `prettier/` changed: run root `npm run fmt:check`
+- [ ] #8 Contract-affecting changes update their documents. This includes `docs/environments.md`; `PLUGIN_API_README.md`; and migration and rollout notes
+<!-- DOD:END -->
 
 ## Comments
 
