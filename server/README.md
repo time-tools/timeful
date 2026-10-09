@@ -44,7 +44,8 @@ This is the canonical command sequence for backend tests; `docs/environments.md`
 
 ```sh
 cp .env.test.example .env.test
-docker volume create timeful-test-go-build-cache timeful-test-go-mod-cache
+docker volume create timeful-test-go-build-cache
+docker volume create timeful-test-go-mod-cache
 docker compose --env-file .env.test -f compose.yaml -f compose.test.yaml up -d postgres-test postgres-test-bootstrap postgres-test-migrate
 docker compose --env-file .env.test -f compose.yaml -f compose.test.yaml run --rm server-route-test
 ```
