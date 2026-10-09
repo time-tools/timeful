@@ -4,7 +4,7 @@ title: Advance the GALA translation loop cursor and land its runtime-free twins
 status: In Progress
 assignee: []
 created_date: '2026-10-05 08:44'
-updated_date: '2026-10-09 08:40'
+updated_date: '2026-10-09 09:13'
 labels: []
 dependencies: []
 references:
@@ -199,6 +199,28 @@ Run the `gala-loop` skill one iteration at a time, taking the next entry from th
 **Next:** cursor entry 1 is unchanged (`models/set.go`, `models/location.go`, `models/event.go`, still blocked on struct tags and `struct{}`).
 
 **State:** changes are in the worktree, not committed: `flake.lock`, `server/GALA_COMPILER`, `server/GALA.md`, `.agents/skills/gala-from-go/references/constructs.md`, and this task's notes.
+
+## Iteration 8 — `errs/errors.go` split (2026-10-09)
+
+**Provenance:** `gala version` `GALA version 0.87.1` at `/nix/store/sy03nzcg76p7429jkrkgkpgj73fhzvrm-gala-0.87.1/bin/gala`; flake rev `669c958cfb1f0ef2fe69ecb8e199b33c88456664` matches `server/GALA_COMPILER`, so no bump. The tree held only the pre-existing `backlog/backlog.md` edit and untracked `TODO.md`, both left untouched.
+
+**Candidate:** cursor entry 1 (`models/set.go`, `models/location.go`, `models/event.go`) stays blocked on struct tags and `struct{}`; its probes reproduced on this rev in iteration 7, so the loop took entry 2, `errs/errors.go`.
+
+**Triage:** split. `GoogleAPIError` carries `json` tags that define its wire shape (boundary gap), so it and its pointer-receiver `Error` method move unchanged to the handwritten sibling `server/errs/google_api_error.go`. The 15 error-code strings become `errs/errors.gala` via the `const` row's `var` substitute, the same path `appenv` took; the two untyped consts stay untyped `var X = ...` (inferred `string`) and the typed block stays `var X string = ...`. The old `errors.go` was moved aside to scratch before the transpile.
+
+**API cost:** the names become assignable package vars rather than compile-time constants. `grep` found no caller using any `errs.*` name in a constant expression, array length, or `const` declaration; `go doc ./errs` lists the same 15 names plus `GoogleAPIError`, and the `Errors enum` declaration comment survives on `NotSignedIn`.
+
+**Evidence:**
+- Double transpile byte-identical, `gofmt -l` clean, no `martianoff/gala` import, `go vet ./errs/` clean.
+- `server/scripts/gala/verify.sh`: OK (21 twins), including `go build ./...`.
+- Canonical Compose backend sequence green across every package (`routes` 2.059s, `postgres` 5.274s; `errs` has no test files). Existing `.env.test` kept; volumes created one per command.
+- `server/docs` names nothing from `errs`, so no swag regeneration was needed.
+
+**Ledger:** registry count 20 -> 21 (fifteen packages) with the `errs` row; cursor entry 2 removed and the rest renumbered; new open-findings row for `const` declarations that a Go caller reads (language gap, `var` workaround, deliberately unfiled); prose records the split. Formatted with `npm run format:markdown`.
+
+**Next:** cursor entry 1 is still blocked; entry 2 is now `routes/respondent_identity.go`, `routes/group.go`.
+
+**State:** changes are in the worktree, not committed: `server/errs/errors.gala`, `server/errs/errors.go`, `server/errs/google_api_error.go`, `server/GALA.md`, and this task's notes.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
