@@ -70,7 +70,7 @@ A rev mismatch is resolved by a bump iteration and never by translating across i
 
 ## Twin registry
 
-Twenty-one `.gala` sources across fifteen packages carry a committed twin.
+Twenty-two `.gala` sources across fifteen packages carry a committed twin.
 Every row regenerates with `cd server/<dir> && gala transpile -i <name>.gala -o <name>.go`; a handwritten sibling has no command because it is not generated.
 
 | Package                   | GALA source                                   | Generated Go                                | Handwritten sibling                                                                                                                                         | Style        |
@@ -86,6 +86,7 @@ Every row regenerates with `cd server/<dir> && gala transpile -i <name>.gala -o 
 | `services/providerconfig` | `services/providerconfig/providerconfig.gala` | `services/providerconfig/providerconfig.go` | `services/providerconfig/doc.go` (package comment)                                                                                                          | runtime-free |
 | `routes`                  | `routes/guest_response_ownership.gala`        | `routes/guest_response_ownership.go`        | —                                                                                                                                                           | runtime-free |
 | `routes`                  | `routes/users.gala`                           | `routes/users.go`                           | —                                                                                                                                                           | runtime-free |
+| `routes`                  | `routes/respondent_identity.gala`             | `routes/respondent_identity.go`             | `routes/respondent_identity_extra.go` (`populateSignUpResponsePayloadIdentity`)                                                                             | runtime-free |
 | `discord_bot/commands`    | `discord_bot/commands/help.gala`              | `discord_bot/commands/help.go`              | —                                                                                                                                                           | runtime-free |
 | `discord_bot/commands`    | `discord_bot/commands/num_users.gala`         | `discord_bot/commands/num_users.go`         | —                                                                                                                                                           | runtime-free |
 | `discord_bot/commands`    | `discord_bot/commands/active_users.gala`      | `discord_bot/commands/active_users.go`      | `discord_bot/commands/active_users_extra.go` (slice, map, and count helpers)                                                                                | runtime-free |
@@ -132,6 +133,7 @@ The suppression only took effect once the superseded handwritten file was moved 
 On 2026-10-09 the twins were rewritten with the runtime-free idioms above: `match` dispatch in `appenv`, `if` expressions in `providerconfig` and `discord_bot`, a boolean expression body in `routes/guest_response_ownership`, and interpolation in the bot commands and `services`, with every observable output unchanged.
 The same pass found that `type Environment string` had emitted `type Environment = string` since the first `appenv` translation, because GALA's `type X Y` is an alias, so `appenv.Environment` had silently become interchangeable with `string`; it is an `opaque type` again with its `Hash`/`Compare` in `appenv/appenv_environment.go`, and `appenv/appenv_type_test.go` guards the defined type.
 `errs/errors.go` landed on 2026-10-09 as a split: its error-code strings moved to `errs/errors.gala` through the `const` row's `var` substitute, and the tagged `GoogleAPIError` with its `Error` method stays handwritten in `errs/google_api_error.go` for the struct-tag reason.
+`routes/respondent_identity.go` landed on 2026-10-09 as a split: its four single-result helpers moved to `routes/respondent_identity.gala`, and `populateSignUpResponsePayloadIdentity` stays handwritten in `routes/respondent_identity_extra.go` under the multi-value return row, because its body builds its `(string, bool)` results and a scratch transpile emitted `std.Tuple`; its comma-ok map read emitted plain Go and is not a blocker.
 Fixed-size arrays, struct tags that define a wire shape, and anonymous or empty struct types remain the reason `models/location.go`, `models/event.go`, and `models/set.go` stay handwritten, and the fixed-size `[16]byte` helpers stay in `models/uuid_extra.go`.
 The models group's blockers were re-verified on 0.85.0 on 2026-10-05 and gained committed probes at `scripts/gala/probes/models-*`; on 0.87.1 on 2026-10-09 every probe reproduced its recorded diagnostic or output unchanged.
 The runtime-free `opaque type` suppression path was re-verified on the same compiler on 2026-10-05.
@@ -175,7 +177,7 @@ The cursor is ordered, and the loop takes the next entry and re-checks its const
 A fixed blocker moves the candidate forward; a persistent blocker with no workaround becomes a Backlog task and a probe, and the candidate stays.
 
 1. `models/set.go`, `models/location.go`, `models/event.go` — tags and `struct{}`; blockers re-verified on 0.85.0 with probes at `scripts/gala/probes/models-*`; `models/datetime.go` and `models/uuid.go` landed through the sibling-declared `Hash`/`Compare` path, with uuid's fixed-size `[16]byte` helpers in `models/uuid_extra.go`.
-2. `routes/respondent_identity.go`, `routes/group.go`.
+2. `routes/group.go`.
 3. `postgres/` — the `Repository` declarations-only split; the sibling-method defect is closed before the lock.
 4. `main.go`.
 5. `observability/provider.go`, `observability/readiness.go`, `observability/transport.go`.

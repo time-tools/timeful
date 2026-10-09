@@ -4,7 +4,7 @@ title: Advance the GALA translation loop cursor and land its runtime-free twins
 status: In Progress
 assignee: []
 created_date: '2026-10-05 08:44'
-updated_date: '2026-10-09 09:13'
+updated_date: '2026-10-09 10:04'
 labels: []
 dependencies: []
 references:
@@ -221,6 +221,26 @@ Run the `gala-loop` skill one iteration at a time, taking the next entry from th
 **Next:** cursor entry 1 is still blocked; entry 2 is now `routes/respondent_identity.go`, `routes/group.go`.
 
 **State:** changes are in the worktree, not committed: `server/errs/errors.gala`, `server/errs/errors.go`, `server/errs/google_api_error.go`, `server/GALA.md`, and this task's notes.
+
+## Iteration 9 — `routes/respondent_identity.go` split (2026-10-09)
+
+**Provenance:** `gala version` `GALA version 0.87.1` at `/nix/store/sy03nzcg76p7429jkrkgkpgj73fhzvrm-gala-0.87.1/bin/gala`; flake rev `669c958cfb1f0ef2fe69ecb8e199b33c88456664` matches `server/GALA_COMPILER`, so no bump. Iteration 8 was committed (`21335f08`, then `9af76d44`); the tree held only the pre-existing `backlog/backlog.md` edit and untracked `TODO.md`, both left untouched.
+
+**Candidate:** cursor entry 1 stays blocked: `scripts/gala/probes/models-struct-tag` and `models-empty-struct` re-run on this rev reproduce their recorded parse errors. The loop took entry 2's first file, `routes/respondent_identity.go`.
+
+**Triage:** split. A whole-file scratch transpile (old file moved aside to scratch first) showed the four single-result helpers emit plain Go: `var clone = *user; return &clone`, the three-value `var firstName, lastName, _ = ...`, field assignment through the pointer, an `if` expression in `canonicalGuestName`, and a `match` over qualified `respondents.GuestName*` constants that lowers to `obj == respondents.X`. `populateSignUpResponsePayloadIdentity` returns `(string, bool)` from a built body, so under the multi-value return row it emitted `std.Tuple` and imported `martianoff/gala/std`; it moves verbatim, with its doc comment, to the handwritten sibling `server/routes/respondent_identity_extra.go`. Its comma-ok map read `var v, ok = m[k]` emitted plain Go and is not a blocker. All five names are unexported and every caller is in `routes`, so no Go-facing signature changed.
+
+**Evidence:**
+- Double transpile byte-identical, `gofmt -l` clean on both files, no `martianoff` import and zero `std.` references, relative `//line` directives, `go build ./...` and `go vet ./routes` clean.
+- `server/scripts/gala/verify.sh`: OK (22 twins), including `go build ./...`.
+- Canonical Compose backend sequence green across every package (`routes` 2.061s, `postgres` 5.969s); `routes/guest_response_ownership_test.go` calls `canonicalGuestName` and `guestNameValidationErrorMessage` directly. Existing `.env.test` kept.
+- No swag annotations in the file, so no `server/docs` regeneration. `codebase-memory-mcp` is not on `PATH`, so the index refresh was not run.
+
+**Ledger:** registry count 21 -> 22 (still fifteen packages) with the `routes/respondent_identity` row; cursor entry 2 is now `routes/group.go` alone; prose records the split. No finding changed, because the multi-value return workaround row already covers the sibling. Formatted with `npm run format:markdown`.
+
+**Next:** cursor entry 1 is still blocked; entry 2 is `routes/group.go` (785 lines).
+
+**State:** changes are in the worktree, not committed: `server/routes/respondent_identity.gala`, `server/routes/respondent_identity.go`, `server/routes/respondent_identity_extra.go`, `server/GALA.md`, and this task's notes.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done

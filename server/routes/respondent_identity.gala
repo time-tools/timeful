@@ -1,0 +1,41 @@
+package routes
+
+import (
+	"timeful/server/models"
+	"timeful/server/respondents"
+)
+
+func cloneUser(user *models.User) *models.User {
+	if (user == nil) {
+		return nil
+	}
+
+	var clone = *user
+	return &clone
+}
+
+func sanitizedResponseUser(user *models.User) *models.User {
+	var sanitized = cloneUser(user)
+	if (sanitized == nil) {
+		return nil
+	}
+
+	var firstName, lastName, _ = respondents.SanitizeUserDisplayName(sanitized)
+	sanitized.FirstName = firstName
+	sanitized.LastName = lastName
+
+	return sanitized
+}
+
+func canonicalGuestName(name string) string {
+	var validation = respondents.ValidateGuestName(name)
+	return if (validation.Code != respondents.GuestNameValid) { "" } else { validation.Name }
+}
+
+func guestNameValidationErrorMessage(code respondents.GuestNameValidationCode) string = code match {
+	case respondents.GuestNameRequired => "Guest name is required"
+	case respondents.GuestNameInvalidFormatting => "Guest name contains only unsupported formatting characters"
+	case respondents.GuestNameAccountIDLike => "Guest name cannot look like an account ID"
+	case respondents.GuestNameTooLong => "Guest name must be 100 characters or fewer"
+	case _ => "Guest name is invalid"
+}
