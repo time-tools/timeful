@@ -28,108 +28,110 @@ func listeningChannelName() string {
 //line init.gala:19
 	var configuredChannel = os.Getenv("DISCORD_BOT_CHANNEL")
 //line init.gala:20
-	if configuredChannel != "" {
-//line init.gala:21
-		return configuredChannel
-	}
-//line init.gala:23
-	if utils.IsRelease() {
-//line init.gala:24
-		return "timeful-bot"
-	}
-//line init.gala:26
-	return "timeful-bot-dev"
+	return func() string {
+		if configuredChannel != "" {
+			return configuredChannel
+		} else {
+			return func() string {
+				if utils.IsRelease() {
+					return "timeful-bot"
+				} else {
+					return "timeful-bot-dev"
+				}
+			}()
+		}
+	}()
 }
 
-//line init.gala:29
+//line init.gala:25
 func Init() {
-//line init.gala:30
+//line init.gala:26
 	var token = os.Getenv("DISCORD_BOT_TOKEN")
-//line init.gala:31
+//line init.gala:27
 	var guildId = os.Getenv("GUILD_ID")
-//line init.gala:32
+//line init.gala:28
 	var botSession, err = discordgo.New("Bot " + token)
-//line init.gala:33
+//line init.gala:29
 	bot = botSession
-//line init.gala:34
+//line init.gala:30
 	if err != nil {
-//line init.gala:35
+//line init.gala:31
 		logger.StdErr.Panicln(err)
 	}
-//line init.gala:38
+//line init.gala:34
 	var u, userErr = bot.User("@me")
-//line init.gala:39
+//line init.gala:35
 	if userErr != nil {
-//line init.gala:40
+//line init.gala:36
 		logger.StdErr.Panicln(userErr)
 	}
-//line init.gala:42
+//line init.gala:38
 	BotId = u.ID
-//line init.gala:44
+//line init.gala:40
 	err = bot.Open()
-//line init.gala:45
+//line init.gala:41
 	if err != nil {
-//line init.gala:46
+//line init.gala:42
 		logger.StdErr.Panicln(err)
 	}
-//line init.gala:48
+//line init.gala:44
 	logger.StdOut.Println("Discord bot initialized")
-//line init.gala:50
+//line init.gala:46
 	var channelName = listeningChannelName()
-//line init.gala:51
+//line init.gala:47
 	var channels, _ = bot.GuildChannels(guildId)
-//line init.gala:52
+//line init.gala:48
 	for _, channel := range channels {
-//line init.gala:53
+//line init.gala:49
 		if channel.Name == channelName {
-//line init.gala:54
+//line init.gala:50
 			listeningChannel = channel
-//line init.gala:55
+//line init.gala:51
 			break
 		}
 	}
-//line init.gala:59
+//line init.gala:55
 	commands.Init()
-//line init.gala:60
+//line init.gala:56
 	for _, command := range commands.Commands {
-//line init.gala:61
+//line init.gala:57
 		commandMap[command.Name] = command
 	}
-//line init.gala:64
+//line init.gala:60
 	bot.AddHandler(messageHandler)
 }
 
-//line init.gala:67
+//line init.gala:63
 func SendMessage(message string) {
-//line init.gala:68
+//line init.gala:64
 	_, _ = bot.ChannelMessageSend(listeningChannel.ID, message)
 }
 
-//line init.gala:71
+//line init.gala:67
 func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
-//line init.gala:72
+//line init.gala:68
 	if m.ChannelID != listeningChannel.ID {
-//line init.gala:73
+//line init.gala:69
+		return
+	}
+//line init.gala:71
+	if m.Author.ID == BotId {
+//line init.gala:72
 		return
 	}
 //line init.gala:75
-	if m.Author.ID == BotId {
-//line init.gala:76
-		return
-	}
-//line init.gala:79
 	var re = regexp.MustCompile(" +")
-//line init.gala:80
+//line init.gala:76
 	var args = re.Split(m.Content, -1)
-//line init.gala:81
+//line init.gala:77
 	var commandName = args[0]
-//line init.gala:82
+//line init.gala:78
 	args = argsFrom(args, 1)
-//line init.gala:84
+//line init.gala:80
 	var command, ok = commandMap[commandName]
-//line init.gala:85
+//line init.gala:81
 	if ok {
-//line init.gala:86
+//line init.gala:82
 		command.Execute(s, m, args)
 	}
 }

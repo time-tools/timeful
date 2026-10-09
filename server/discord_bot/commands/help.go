@@ -2,28 +2,26 @@
 
 package commands
 
-import (
-	"fmt"
-	"github.com/bwmarrin/discordgo"
-)
+import "fmt"
+import "github.com/bwmarrin/discordgo"
 
-//line help.gala:9
+//line help.gala:5
 func executeHelp(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
-//line help.gala:10
+//line help.gala:6
 	var message string
-//line help.gala:11
+//line help.gala:7
 	for _, command := range Commands {
-//line help.gala:12
-		message += fmt.Sprintf("\n\n`%s`: %s ", command.Name, command.Description)
-//line help.gala:13
+//line help.gala:8
+		message += fmt.Sprintf("\n\n`%v`: %v ", command.Name, command.Description)
+//line help.gala:9
 		if command.Usage != "" {
-//line help.gala:14
-			message += fmt.Sprintf("Usage: `%s`", command.Usage)
+//line help.gala:10
+			message += fmt.Sprintf("Usage: `%v`", command.Usage)
 		}
 	}
-//line help.gala:18
+//line help.gala:14
 	sendMessage(s, m, message)
 }
 
-//line help.gala:21
+//line help.gala:17
 var help Command = Command{Name: "!help", Description: "Displays this help message", Execute: executeHelp}

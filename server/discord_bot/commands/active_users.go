@@ -2,10 +2,10 @@
 
 package commands
 
+import "fmt"
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"github.com/bwmarrin/discordgo"
 	"net/url"
 	"strconv"
@@ -15,117 +15,117 @@ import (
 	"timeful/server/utils"
 )
 
-//line active_users.gala:17
+//line active_users.gala:16
 func executeActiveUsers(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
-//line active_users.gala:18
+//line active_users.gala:17
 	var err error
-//line active_users.gala:21
+//line active_users.gala:20
 	var list = false
-//line active_users.gala:22
+//line active_users.gala:21
 	var days = 7
-//line active_users.gala:23
+//line active_users.gala:22
 	if len(args) >= 1 {
-//line active_users.gala:24
+//line active_users.gala:23
 		if args[0] == "true" {
-//line active_users.gala:25
+//line active_users.gala:24
 			list = true
 		} else if args[0] == "false" {
-//line active_users.gala:27
+//line active_users.gala:26
 			list = false
 		} else {
-//line active_users.gala:29
+//line active_users.gala:28
 			sendMessage(s, m, fmt.Sprintf("LIST=%s is not a valid boolean!", args[0]))
-//line active_users.gala:30
+//line active_users.gala:29
 			return
 		}
 	}
-//line active_users.gala:33
+//line active_users.gala:32
 	if len(args) >= 2 {
-//line active_users.gala:34
+//line active_users.gala:33
 		days, err = strconv.Atoi(args[1])
-//line active_users.gala:35
+//line active_users.gala:34
 		if err != nil {
-//line active_users.gala:36
+//line active_users.gala:35
 			sendMessage(s, m, fmt.Sprintf("DAYS=%s is not a valid number!", args[1]))
-//line active_users.gala:37
+//line active_users.gala:36
 			return
 		}
 	}
-//line active_users.gala:44
+//line active_users.gala:43
 	var startDate = time.Now().AddDate(0, 0, -days)
-//line active_users.gala:45
+//line active_users.gala:44
 	startDate = utils.GetDateAtTime(startDate, "00:00:00")
-//line active_users.gala:47
+//line active_users.gala:46
 	var repository, repoErr = pgstore.DefaultRepository()
-//line active_users.gala:48
+//line active_users.gala:47
 	if repoErr != nil {
-//line active_users.gala:49
+//line active_users.gala:48
 		logger.StdErr.Panicln(repoErr)
 	}
-//line active_users.gala:51
+//line active_users.gala:50
 	var logs, logsErr = repository.ListActiveUserDays(context.Background(), startDate, time.Now())
-//line active_users.gala:52
+//line active_users.gala:51
 	if logsErr != nil {
-//line active_users.gala:53
+//line active_users.gala:52
 		logger.StdErr.Panicln(logsErr)
 	}
-//line active_users.gala:57
+//line active_users.gala:56
 	var dayStrings = activeUsersDayStrings()
-//line active_users.gala:59
+//line active_users.gala:58
 	if list {
-//line active_users.gala:61
+//line active_users.gala:60
 		sendMessage(s, m, "Active Users:\n")
-//line active_users.gala:62
+//line active_users.gala:61
 		var message = ""
-//line active_users.gala:63
+//line active_users.gala:62
 		for _, log := range logs {
-//line active_users.gala:64
+//line active_users.gala:63
 			var date = log.LogDate
-//line active_users.gala:65
+//line active_users.gala:64
 			message += dayStrings[date.Weekday()] + " "
-//line active_users.gala:66
+//line active_users.gala:65
 			message += utils.GetDateString(date) + " | "
-//line active_users.gala:67
+//line active_users.gala:66
 			message += fmt.Sprintf("Count: %d\n", activeUsersMembersCount(log))
-//line active_users.gala:69
+//line active_users.gala:68
 			for _, user := range log.Members {
-//line active_users.gala:70
-				message += fmt.Sprintf("\t- %s %s (%s)\n", user.FirstName, user.LastName, user.Email)
+//line active_users.gala:69
+				message += fmt.Sprintf("\t- %v %v (%v)\n", user.FirstName, user.LastName, user.Email)
 			}
 		}
-//line active_users.gala:74
+//line active_users.gala:73
 		for _, msg := range splitLongMessage(message, "```") {
-//line active_users.gala:75
+//line active_users.gala:74
 			sendMessage(s, m, msg)
 		}
 	} else {
-//line active_users.gala:81
+//line active_users.gala:80
 		var labels = activeUsersEmptyLabels()
-//line active_users.gala:82
+//line active_users.gala:81
 		var data = activeUsersEmptyData()
-//line active_users.gala:83
+//line active_users.gala:82
 		for i := activeUsersLogsCount(logs) - 1; i >= 0; i-- {
-//line active_users.gala:84
+//line active_users.gala:83
 			labels = activeUsersAppendLabel(labels, utils.GetDateString(logs[i].LogDate))
-//line active_users.gala:85
+//line active_users.gala:84
 			data = activeUsersAppendCount(data, activeUsersMembersCount(logs[i]))
 		}
-//line active_users.gala:89
+//line active_users.gala:88
 		var chart = activeUsersChart(labels, data)
-//line active_users.gala:90
+//line active_users.gala:89
 		var jsonStr, _ = json.Marshal(chart)
-//line active_users.gala:92
+//line active_users.gala:91
 		var encodedChart = url.PathEscape(string(jsonStr))
+//line active_users.gala:92
+		var chartUrl = fmt.Sprintf("https://quickchart.io/chart?c=%s&backgroundColor=white", encodedChart)
 //line active_users.gala:93
-		var chartUrl = fmt.Sprintf(`https://quickchart.io/chart?c=%s&backgroundColor=white`, encodedChart)
-//line active_users.gala:94
 		var chartEmbed = &discordgo.MessageEmbed{Title: "Active Users", Image: &discordgo.MessageEmbedImage{URL: chartUrl}}
-//line active_users.gala:101
+//line active_users.gala:100
 		sendEmbed(s, m, chartEmbed)
 	}
 }
 
-//line active_users.gala:105
+//line active_users.gala:104
 var activeUsers Command = Command{Name: "!active_users", Description: `Gets the number of active users in the database, based on last sign in date. 
   - if LIST is true, it will list the name/email of all users, otherwise, it will show a bar graph
   - DAYS is the amount of days since last sign in

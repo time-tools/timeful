@@ -2,33 +2,33 @@
 
 package commands
 
+import "fmt"
 import (
 	"context"
-	"fmt"
 	"github.com/bwmarrin/discordgo"
 	"timeful/server/logger"
 	pgstore "timeful/server/postgres"
 )
 
-//line num_users.gala:12
+//line num_users.gala:11
 func executeNumUsers(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
-//line num_users.gala:13
+//line num_users.gala:12
 	var repository, err = pgstore.DefaultRepository()
-//line num_users.gala:14
+//line num_users.gala:13
 	if err != nil {
-//line num_users.gala:15
+//line num_users.gala:14
 		logger.StdErr.Panicln(err)
 	}
-//line num_users.gala:17
+//line num_users.gala:16
 	var n, countErr = repository.CountAccounts(context.Background())
-//line num_users.gala:18
+//line num_users.gala:17
 	if countErr != nil {
-//line num_users.gala:19
+//line num_users.gala:18
 		logger.StdErr.Panicln(countErr)
 	}
-//line num_users.gala:22
+//line num_users.gala:21
 	sendMessage(s, m, fmt.Sprintf("Number of currently signed up users: %v", n))
 }
 
-//line num_users.gala:25
+//line num_users.gala:24
 var numUsers Command = Command{Name: "!num_users", Description: "Returns the number of signed up users", Execute: executeNumUsers}

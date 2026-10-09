@@ -3,7 +3,6 @@ package services
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"timeful/server/logger"
@@ -16,23 +15,18 @@ func CallApi(user *models.User, calendarAuth *models.OAuth2CalendarAuth, method 
 		auth.RefreshUserTokenIfNecessary(user, nil)
 	}
 
-	var bodyBuffer *bytes.Buffer
-	if body != nil {
-		var bodyBytes, _ = json.Marshal(body)
-		bodyBuffer = bytes.NewBuffer(bodyBytes)
-	} else {
-		bodyBuffer = nil
-	}
-
+	// Pass a literal nil body rather than a nil *bytes.Buffer, which would be a
+	// non-nil io.Reader.
 	var req *http.Request
-	if bodyBuffer != nil {
-		var created, _ = http.NewRequest(method, url, bodyBuffer)
+	if (body != nil) {
+		var bodyBytes, _ = json.Marshal(body)
+		var created, _ = http.NewRequest(method, url, bytes.NewBuffer(bodyBytes))
 		req = created
 	} else {
 		var created, _ = http.NewRequest(method, url, nil)
 		req = created
 	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", calendarAuth.AccessToken))
+	req.Header.Set("Authorization", s"Bearer ${calendarAuth.AccessToken}")
 
 	var response, err = http.DefaultClient.Do(req)
 	if err != nil {

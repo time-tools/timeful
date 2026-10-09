@@ -26,6 +26,5 @@ func ParseArrayQueryParam(s string) []string {
 
 //line request_utils.gala:20
 func GetOrigin(c *gin.Context) string {
-//line request_utils.gala:21
 	return c.Request.Header.Get("Origin")
 }

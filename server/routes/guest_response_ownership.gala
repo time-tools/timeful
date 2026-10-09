@@ -7,18 +7,9 @@ import (
 
 var guestOwnershipModeToken = "token"
 
-func hasValidGuestName(name string) bool {
-	return respondents.HasValidGuestName(name)
-}
+func hasValidGuestName(name string) bool = respondents.HasValidGuestName(name)
 
-func shouldExposeGuestSignUpResponsePayload(_ string, response *models.SignUpResponse) bool {
-	if response == nil {
-		return true
-	}
-
-	if !response.UserId.IsZero() {
-		return true
-	}
-
-	return hasValidGuestName(response.Name)
-}
+// A nil response, or one owned by an account, is always exposed; a guest
+// response is exposed only when it carries a valid guest name.
+func shouldExposeGuestSignUpResponsePayload(_ string, response *models.SignUpResponse) bool =
+	response == nil || !response.UserId.IsZero() || hasValidGuestName(response.Name)

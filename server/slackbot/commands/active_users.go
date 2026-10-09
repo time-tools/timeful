@@ -2,10 +2,10 @@
 
 package commands
 
+import "fmt"
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/url"
 	"strconv"
 	"time"
@@ -14,115 +14,115 @@ import (
 	"timeful/server/utils"
 )
 
-//line active_users.gala:16
+//line active_users.gala:15
 func executeActiveUsers(args []string, webhookUrl string) {
-//line active_users.gala:17
+//line active_users.gala:16
 	var err error
-//line active_users.gala:20
+//line active_users.gala:19
 	var list = false
-//line active_users.gala:21
+//line active_users.gala:20
 	var days = 7
-//line active_users.gala:22
+//line active_users.gala:21
 	if len(args) >= 1 {
-//line active_users.gala:23
+//line active_users.gala:22
 		if args[0] == "true" {
-//line active_users.gala:24
+//line active_users.gala:23
 			list = true
 		} else if args[0] == "false" {
-//line active_users.gala:26
+//line active_users.gala:25
 			list = false
 		} else {
-//line active_users.gala:28
+//line active_users.gala:27
 			SendRawMessage(newResponse("ephemeral", fmt.Sprintf("LIST=%s is not a valid boolean!", args[0])), webhookUrl)
-//line active_users.gala:29
+//line active_users.gala:28
 			return
 		}
 	}
-//line active_users.gala:32
+//line active_users.gala:31
 	if len(args) >= 2 {
-//line active_users.gala:33
+//line active_users.gala:32
 		days, err = strconv.Atoi(args[1])
-//line active_users.gala:34
+//line active_users.gala:33
 		if err != nil {
-//line active_users.gala:35
+//line active_users.gala:34
 			SendRawMessage(newResponse("ephemeral", fmt.Sprintf("DAYS=%s is not a valid number!", args[1])), webhookUrl)
-//line active_users.gala:36
+//line active_users.gala:35
 			return
 		}
 	}
-//line active_users.gala:43
+//line active_users.gala:42
 	var startDate = time.Now().AddDate(0, 0, -days)
-//line active_users.gala:44
+//line active_users.gala:43
 	startDate = utils.GetDateAtTime(startDate, "00:00:00")
-//line active_users.gala:46
+//line active_users.gala:45
 	var repository, repoErr = pgstore.DefaultRepository()
-//line active_users.gala:47
+//line active_users.gala:46
 	if repoErr != nil {
-//line active_users.gala:48
+//line active_users.gala:47
 		logger.StdErr.Panicln(repoErr)
 	}
-//line active_users.gala:50
+//line active_users.gala:49
 	var logs, logsErr = repository.ListActiveUserDays(context.Background(), startDate, time.Now())
-//line active_users.gala:51
+//line active_users.gala:50
 	if logsErr != nil {
-//line active_users.gala:52
+//line active_users.gala:51
 		logger.StdErr.Panicln(logsErr)
 	}
-//line active_users.gala:56
+//line active_users.gala:55
 	var dayStrings = activeUsersDayStrings()
-//line active_users.gala:58
+//line active_users.gala:57
 	if list {
-//line active_users.gala:60
+//line active_users.gala:59
 		SendRawMessage(newResponse("in_channel", "Active Users:\n"), webhookUrl)
-//line active_users.gala:61
+//line active_users.gala:60
 		var message = ""
-//line active_users.gala:62
+//line active_users.gala:61
 		for _, log := range logs {
-//line active_users.gala:63
+//line active_users.gala:62
 			var date = log.LogDate
-//line active_users.gala:64
+//line active_users.gala:63
 			message += dayStrings[date.Weekday()] + " "
-//line active_users.gala:65
+//line active_users.gala:64
 			message += utils.GetDateString(date) + " | "
-//line active_users.gala:66
+//line active_users.gala:65
 			message += fmt.Sprintf("Count: %d\n", activeUsersMembersCount(log))
-//line active_users.gala:68
+//line active_users.gala:67
 			for _, user := range log.Members {
-//line active_users.gala:69
-				message += fmt.Sprintf("\t- %s %s (%s)\n", user.FirstName, user.LastName, user.Email)
+//line active_users.gala:68
+				message += fmt.Sprintf("\t- %v %v (%v)\n", user.FirstName, user.LastName, user.Email)
 			}
 		}
-//line active_users.gala:73
+//line active_users.gala:72
 		for _, msg := range splitLongMessage(message, "```") {
-//line active_users.gala:74
+//line active_users.gala:73
 			SendRawMessage(newResponse("in_channel", msg), webhookUrl)
 		}
 	} else {
-//line active_users.gala:80
+//line active_users.gala:79
 		var labels = activeUsersEmptyLabels()
-//line active_users.gala:81
+//line active_users.gala:80
 		var data = activeUsersEmptyData()
-//line active_users.gala:82
+//line active_users.gala:81
 		for i := activeUsersLogsCount(logs) - 1; i >= 0; i-- {
-//line active_users.gala:83
+//line active_users.gala:82
 			labels = activeUsersAppendLabel(labels, utils.GetDateString(logs[i].LogDate))
-//line active_users.gala:84
+//line active_users.gala:83
 			data = activeUsersAppendCount(data, activeUsersMembersCount(logs[i]))
 		}
-//line active_users.gala:88
+//line active_users.gala:87
 		var chart = activeUsersChart(labels, data)
-//line active_users.gala:89
+//line active_users.gala:88
 		var jsonStr, _ = json.Marshal(chart)
-//line active_users.gala:91
+//line active_users.gala:90
 		var encodedChart = url.PathEscape(string(jsonStr))
-//line active_users.gala:92
-		var chartUrl = fmt.Sprintf(`https://quickchart.io/chart?c=%s&backgroundColor=white`, encodedChart)
-//line active_users.gala:94
+//line active_users.gala:91
+		var chartUrl = fmt.Sprintf("https://quickchart.io/chart?c=%s&backgroundColor=white", encodedChart)
+//line active_users.gala:93
 		SendRawMessage(activeUsersChartResponse(chartUrl), webhookUrl)
 	}
 }
 
-//line active_users.gala:98
+//line active_users.gala:97
 var activeUsers Command = Command{Name: "/active_users", Description: `Gets the number of active users in the database, based on last sign in date. 
   - if LIST is true, it will list the name/email of all users, otherwise, it will show a bar graph
   - DAYS is the amount of days since last sign in

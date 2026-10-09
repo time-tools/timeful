@@ -17,6 +17,4 @@ func ParseArrayQueryParam(s string) []string {
 	return arr
 }
 
-func GetOrigin(c *gin.Context) string {
-	return c.Request.Header.Get("Origin")
-}
+func GetOrigin(c *gin.Context) string = c.Request.Header.Get("Origin")

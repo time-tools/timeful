@@ -3,7 +3,6 @@ package commands
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/url"
 	"strconv"
 	"time"
@@ -26,14 +25,14 @@ func executeActiveUsers(s *discordgo.Session, m *discordgo.MessageCreate, args [
 		} else if args[0] == "false" {
 			list = false
 		} else {
-			sendMessage(s, m, fmt.Sprintf("LIST=%s is not a valid boolean!", args[0]))
+			sendMessage(s, m, s"LIST=${args[0]} is not a valid boolean!")
 			return
 		}
 	}
 	if args.Size() >= 2 {
 		days, err = strconv.Atoi(args[1])
 		if err != nil {
-			sendMessage(s, m, fmt.Sprintf("DAYS=%s is not a valid number!", args[1]))
+			sendMessage(s, m, s"DAYS=${args[1]} is not a valid number!")
 			return
 		}
 	}
@@ -64,10 +63,10 @@ func executeActiveUsers(s *discordgo.Session, m *discordgo.MessageCreate, args [
 			var date = log.LogDate
 			message += dayStrings[date.Weekday()] + " "
 			message += utils.GetDateString(date) + " | "
-			message += fmt.Sprintf("Count: %d\n", activeUsersMembersCount(log))
+			message += s"Count: ${activeUsersMembersCount(log)}\n"
 
 			for _, user := range log.Members {
-				message += fmt.Sprintf("\t- %s %s (%s)\n", user.FirstName, user.LastName, user.Email)
+				message += s"\t- ${user.FirstName} ${user.LastName} (${user.Email})\n"
 			}
 		}
 
@@ -90,7 +89,7 @@ func executeActiveUsers(s *discordgo.Session, m *discordgo.MessageCreate, args [
 		var jsonStr, _ = json.Marshal(chart)
 
 		var encodedChart = url.PathEscape(string(jsonStr))
-		var chartUrl = fmt.Sprintf(`https://quickchart.io/chart?c=%s&backgroundColor=white`, encodedChart)
+		var chartUrl = s"https://quickchart.io/chart?c=$encodedChart&backgroundColor=white"
 		var chartEmbed = &discordgo.MessageEmbed{
 			Title: "Active Users",
 			Image: &discordgo.MessageEmbedImage{

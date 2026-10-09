@@ -17,30 +17,21 @@ var realMicrosoftGraphAPIBaseURL = "https://graph.microsoft.com/v1.0"
 
 func overrideOrDefault(envName string, fallback string) string {
 	var value = strings.TrimSpace(os.Getenv(envName))
-	if value != "" {
-		return value
-	}
-	return fallback
+	if (value != "") value else fallback
 }
 
-func GoogleOAuthTokenEndpoint() string {
-	return overrideOrDefault(TestGoogleOAuthTokenEndpoint, realGoogleOAuthTokenEndpoint)
-}
+func GoogleOAuthTokenEndpoint() string =
+	overrideOrDefault(TestGoogleOAuthTokenEndpoint, realGoogleOAuthTokenEndpoint)
 
-func GoogleCalendarAPIBaseURL() string {
-	return strings.TrimRight(
-		overrideOrDefault(TestGoogleCalendarAPIBaseURL, realGoogleCalendarAPIBaseURL),
-		"/",
-	)
-}
+func GoogleCalendarAPIBaseURL() string = strings.TrimRight(
+	overrideOrDefault(TestGoogleCalendarAPIBaseURL, realGoogleCalendarAPIBaseURL),
+	"/",
+)
 
-func MicrosoftOAuthTokenEndpoint() string {
-	return overrideOrDefault(TestMicrosoftOAuthTokenEndpoint, realMicrosoftOAuthTokenEndpoint)
-}
+func MicrosoftOAuthTokenEndpoint() string =
+	overrideOrDefault(TestMicrosoftOAuthTokenEndpoint, realMicrosoftOAuthTokenEndpoint)
 
-func MicrosoftGraphAPIBaseURL() string {
-	return strings.TrimRight(
-		overrideOrDefault(TestMicrosoftGraphAPIBaseURL, realMicrosoftGraphAPIBaseURL),
-		"/",
-	)
-}
+func MicrosoftGraphAPIBaseURL() string = strings.TrimRight(
+	overrideOrDefault(TestMicrosoftGraphAPIBaseURL, realMicrosoftGraphAPIBaseURL),
+	"/",
+)

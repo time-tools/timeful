@@ -2,7 +2,6 @@ package commands
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/bwmarrin/discordgo"
 	"timeful/server/logger"
@@ -19,7 +18,7 @@ func executeNumUsers(s *discordgo.Session, m *discordgo.MessageCreate, args []st
 		logger.StdErr.Panicln(countErr)
 	}
 
-	sendMessage(s, m, fmt.Sprintf("Number of currently signed up users: %v", n))
+	sendMessage(s, m, s"Number of currently signed up users: $n")
 }
 
 var numUsers Command = Command{

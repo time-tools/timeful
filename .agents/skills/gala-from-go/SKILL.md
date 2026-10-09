@@ -203,6 +203,12 @@ Each of these is a way the translation goes wrong without producing an error at 
 - **A struct pattern over `var` fields transpiles and then fails to build.**
   A `match` on a struct calls its synthesized `Unapply`, and the emitted read of a `var` field carries a `.Get()` that the plain Go field does not have; the same match over non-`var` fields builds.
   Check both field kinds rather than assuming they behave alike, and if it reproduces, report it as a defect: the two field kinds differ only in their wrapper, and the transpiler unwraps the wrong one.
+- **`type X Y` is an alias, not a defined type.**
+  It emits `type X = Y`, so a Go `type Environment string` translated with the same spelling silently becomes interchangeable with every `string`, and every caller still builds.
+  Use `opaque type X Y` for a distinct type, and check the emitted declaration for the absence of `=` rather than trusting a green build.
+- **`|` in a pattern is bitwise OR, not an alternative.**
+  GALA has no alternative pattern, so `case 1 | 2` is an expression pattern that emits `obj == 1|2` and matches only `3`; it builds and runs, while the string form `case "a" | "b"` fails `go build`.
+  Spell several values as a guard or as one arm per value.
 - **A `match` needs a default case unless the scrutinee is a sealed type.**
   A match over a struct that looks exhaustive is still rejected, while an exhaustive match over a sealed type is not.
 - **`++` and `--` work, but only on a mutable binding.**

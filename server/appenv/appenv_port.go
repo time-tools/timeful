@@ -6,8 +6,9 @@ import (
 	"strings"
 )
 
-// ResolvePort stays handwritten beside the generated appenv.go because GALA has
-// no two-value return syntax.
+// ResolvePort stays handwritten beside the generated appenv.go because a GALA
+// function that builds a Go result list, rather than returning a Go call's
+// results, lowers through std.Try and would import the GALA runtime.
 func ResolvePort(env Environment, override string) (string, error) {
 	value := strings.TrimSpace(override)
 	if value == "" {

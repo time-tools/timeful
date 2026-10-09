@@ -2,58 +2,48 @@
 
 package services
 
+import "fmt"
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"timeful/server/logger"
 	"timeful/server/models"
 	"timeful/server/services/auth"
 )
 
-//line services.gala:14
+//line services.gala:13
 func CallApi(user *models.User, calendarAuth *models.OAuth2CalendarAuth, method string, url string, body *map[string]any) *http.Response {
-//line services.gala:15
+//line services.gala:14
 	if user != nil {
-//line services.gala:16
+//line services.gala:15
 		auth.RefreshUserTokenIfNecessary(user, nil)
 	}
-//line services.gala:19
-	var bodyBuffer *bytes.Buffer
 //line services.gala:20
-	if body != nil {
-//line services.gala:21
-		var bodyBytes, _ = json.Marshal(body)
-//line services.gala:22
-		bodyBuffer = bytes.NewBuffer(bodyBytes)
-	} else {
-//line services.gala:24
-		bodyBuffer = nil
-	}
-//line services.gala:27
 	var req *http.Request
-//line services.gala:28
-	if bodyBuffer != nil {
-//line services.gala:29
-		var created, _ = http.NewRequest(method, url, bodyBuffer)
-//line services.gala:30
+//line services.gala:21
+	if body != nil {
+//line services.gala:22
+		var bodyBytes, _ = json.Marshal(body)
+//line services.gala:23
+		var created, _ = http.NewRequest(method, url, bytes.NewBuffer(bodyBytes))
+//line services.gala:24
 		req = created
 	} else {
-//line services.gala:32
+//line services.gala:26
 		var created, _ = http.NewRequest(method, url, nil)
-//line services.gala:33
+//line services.gala:27
 		req = created
 	}
-//line services.gala:35
+//line services.gala:29
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", calendarAuth.AccessToken))
-//line services.gala:37
+//line services.gala:31
 	var response, err = http.DefaultClient.Do(req)
-//line services.gala:38
+//line services.gala:32
 	if err != nil {
-//line services.gala:39
+//line services.gala:33
 		logger.StdErr.Panicln(err)
 	}
-//line services.gala:42
+//line services.gala:36
 	return response
 }

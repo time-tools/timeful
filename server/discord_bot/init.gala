@@ -17,13 +17,9 @@ var commandMap = newCommandMap()
 
 func listeningChannelName() string {
 	var configuredChannel = os.Getenv("DISCORD_BOT_CHANNEL")
-	if configuredChannel != "" {
-		return configuredChannel
-	}
-	if utils.IsRelease() {
-		return "timeful-bot"
-	}
-	return "timeful-bot-dev"
+	if (configuredChannel != "") configuredChannel
+	else if (utils.IsRelease()) "timeful-bot"
+	else "timeful-bot-dev"
 }
 
 func Init() {

@@ -12,22 +12,13 @@ var guestOwnershipModeToken = "token"
 
 //line guest_response_ownership.gala:10
 func hasValidGuestName(name string) bool {
-//line guest_response_ownership.gala:11
 	return respondents.HasValidGuestName(name)
 }
 
-//line guest_response_ownership.gala:14
+//line guest_response_ownership.gala:11
+
+// A nil response, or one owned by an account, is always exposed; a guest
+// response is exposed only when it carries a valid guest name.
 func shouldExposeGuestSignUpResponsePayload(_ string, response *models.SignUpResponse) bool {
-//line guest_response_ownership.gala:15
-	if response == nil {
-//line guest_response_ownership.gala:16
-		return true
-	}
-//line guest_response_ownership.gala:19
-	if !response.UserId.IsZero() {
-//line guest_response_ownership.gala:20
-		return true
-	}
-//line guest_response_ownership.gala:23
-	return hasValidGuestName(response.Name)
+	return response == nil || !response.UserId.IsZero() || hasValidGuestName(response.Name)
 }

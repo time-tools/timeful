@@ -36,34 +36,31 @@ func overrideOrDefault(envName string, fallback string) string {
 //line providerconfig.gala:19
 	var value = strings.TrimSpace(os.Getenv(envName))
 //line providerconfig.gala:20
-	if value != "" {
-//line providerconfig.gala:21
-		return value
-	}
-//line providerconfig.gala:23
-	return fallback
+	return func() string {
+		if value != "" {
+			return value
+		} else {
+			return fallback
+		}
+	}()
 }
 
-//line providerconfig.gala:26
+//line providerconfig.gala:23
 func GoogleOAuthTokenEndpoint() string {
-//line providerconfig.gala:27
 	return overrideOrDefault(TestGoogleOAuthTokenEndpoint, realGoogleOAuthTokenEndpoint)
 }
 
-//line providerconfig.gala:30
+//line providerconfig.gala:26
 func GoogleCalendarAPIBaseURL() string {
-//line providerconfig.gala:31
 	return strings.TrimRight(overrideOrDefault(TestGoogleCalendarAPIBaseURL, realGoogleCalendarAPIBaseURL), "/")
 }
 
-//line providerconfig.gala:37
+//line providerconfig.gala:31
 func MicrosoftOAuthTokenEndpoint() string {
-//line providerconfig.gala:38
 	return overrideOrDefault(TestMicrosoftOAuthTokenEndpoint, realMicrosoftOAuthTokenEndpoint)
 }
 
-//line providerconfig.gala:41
+//line providerconfig.gala:34
 func MicrosoftGraphAPIBaseURL() string {
-//line providerconfig.gala:42
 	return strings.TrimRight(overrideOrDefault(TestMicrosoftGraphAPIBaseURL, realMicrosoftGraphAPIBaseURL), "/")
 }

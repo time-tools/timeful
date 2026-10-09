@@ -3,7 +3,6 @@ package commands
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/url"
 	"strconv"
 	"time"
@@ -25,14 +24,14 @@ func executeActiveUsers(args []string, webhookUrl string) {
 		} else if args[0] == "false" {
 			list = false
 		} else {
-			SendRawMessage(newResponse("ephemeral", fmt.Sprintf("LIST=%s is not a valid boolean!", args[0])), webhookUrl)
+			SendRawMessage(newResponse("ephemeral", s"LIST=${args[0]} is not a valid boolean!"), webhookUrl)
 			return
 		}
 	}
 	if args.Size() >= 2 {
 		days, err = strconv.Atoi(args[1])
 		if err != nil {
-			SendRawMessage(newResponse("ephemeral", fmt.Sprintf("DAYS=%s is not a valid number!", args[1])), webhookUrl)
+			SendRawMessage(newResponse("ephemeral", s"DAYS=${args[1]} is not a valid number!"), webhookUrl)
 			return
 		}
 	}
@@ -63,10 +62,10 @@ func executeActiveUsers(args []string, webhookUrl string) {
 			var date = log.LogDate
 			message += dayStrings[date.Weekday()] + " "
 			message += utils.GetDateString(date) + " | "
-			message += fmt.Sprintf("Count: %d\n", activeUsersMembersCount(log))
+			message += s"Count: ${activeUsersMembersCount(log)}\n"
 
 			for _, user := range log.Members {
-				message += fmt.Sprintf("\t- %s %s (%s)\n", user.FirstName, user.LastName, user.Email)
+				message += s"\t- ${user.FirstName} ${user.LastName} (${user.Email})\n"
 			}
 		}
 
@@ -89,7 +88,7 @@ func executeActiveUsers(args []string, webhookUrl string) {
 		var jsonStr, _ = json.Marshal(chart)
 
 		var encodedChart = url.PathEscape(string(jsonStr))
-		var chartUrl = fmt.Sprintf(`https://quickchart.io/chart?c=%s&backgroundColor=white`, encodedChart)
+		var chartUrl = s"https://quickchart.io/chart?c=$encodedChart&backgroundColor=white"
 
 		SendRawMessage(activeUsersChartResponse(chartUrl), webhookUrl)
 	}

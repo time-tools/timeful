@@ -2,7 +2,6 @@ package commands
 
 import (
 	"context"
-	"fmt"
 
 	"timeful/server/logger"
 	pgstore "timeful/server/postgres"
@@ -18,7 +17,7 @@ func executeNumUsers(args []string, webhookUrl string) {
 		logger.StdErr.Panicln(countErr)
 	}
 
-	SendRawMessage(newResponse("in_channel", fmt.Sprintf("Number of currently signed up users: %v", n)), webhookUrl)
+	SendRawMessage(newResponse("in_channel", s"Number of currently signed up users: $n"), webhookUrl)
 }
 
 var numUsers Command = Command{

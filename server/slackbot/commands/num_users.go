@@ -2,32 +2,32 @@
 
 package commands
 
+import "fmt"
 import (
 	"context"
-	"fmt"
 	"timeful/server/logger"
 	pgstore "timeful/server/postgres"
 )
 
-//line num_users.gala:11
+//line num_users.gala:10
 func executeNumUsers(args []string, webhookUrl string) {
-//line num_users.gala:12
+//line num_users.gala:11
 	var repository, err = pgstore.DefaultRepository()
-//line num_users.gala:13
+//line num_users.gala:12
 	if err != nil {
-//line num_users.gala:14
+//line num_users.gala:13
 		logger.StdErr.Panicln(err)
 	}
-//line num_users.gala:16
+//line num_users.gala:15
 	var n, countErr = repository.CountAccounts(context.Background())
-//line num_users.gala:17
+//line num_users.gala:16
 	if countErr != nil {
-//line num_users.gala:18
+//line num_users.gala:17
 		logger.StdErr.Panicln(countErr)
 	}
-//line num_users.gala:21
+//line num_users.gala:20
 	SendRawMessage(newResponse("in_channel", fmt.Sprintf("Number of currently signed up users: %v", n)), webhookUrl)
 }
 
-//line num_users.gala:24
+//line num_users.gala:23
 var numUsers Command = Command{Name: "/num_users", Description: "Returns the number of signed up users", Execute: executeNumUsers}
