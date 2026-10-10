@@ -99,7 +99,8 @@ Read the hint, then run the case the hint names, before calling any of them a de
 
 `go_interop.MapPut` infers its type arguments from the map argument.
 `go_interop.MapPut(m, "stepSize", 1)` over a `map[string]any` transpiles, builds and runs, and so do `map[string]string`, `map[any]any`, a map-typed parameter, a map returned from a Go sibling, a Go-declared struct field, and both binding keywords.
-The explicit `MapPut[K, V](m, k, v)` form also builds, so it is optional rather than required, and a helper that documents no inference rule is not a report.
+The explicit `MapPut[K, V](m, k, v)` form also builds, and inference has one edge the earlier probe missed because `1` is an untyped constant: a *typed* value of a concrete type, such as a `string` variable into a `map[string]any`, fails Go's inference with `type string of x does not match inferred type any for V`, so the explicit form is required there.
+A helper that documents no inference rule is not a report, and this one documents it.
 
 `.Size()` on a receiver whose type was inferred from a Go call has a substitute, so it is a workaround rather than a gap.
 The transpiler types a receiver from the `.gala` file's own text and does not read a Go sibling's signature, so the call is emitted against a type it never resolved:

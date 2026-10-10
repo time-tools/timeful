@@ -52,6 +52,7 @@ Verify the rows your translation depends on rather than trusting this file, and 
 | type arguments            | `MapEmpty[string, int]()`                       | comma-separated, never inferred where nothing pins them          | direct     | —          | transpile and read the emitted type arguments                            |
 
 The `var` versus `val` and `var` versus `:=` distinctions are shape rules, not preferences, and they are the first thing to get right in a file that Go code outside the package can see.
+A `struct` declaration's fields are all required at construction unless a field declares a default (`var added []string = nil`); an omitted field is `GALA-E0045` even when the equivalent Go keyed literal may omit it.
 `references/gaps.md` and the traps section of `SKILL.md` say what each one costs.
 
 A rejection without a code is still a rejection: some checks report a plain error rather than a `GALA-Exxxx` page, so read the message rather than assuming a code is always there.
@@ -133,7 +134,7 @@ The `:=` in a `for` init slot is the exception that reads as inconsistent, becau
 | `recover`                | `recover()`           | `Try(...)` captures the panic as a value but cannot resume in place | answered | `GALA-E0035` | transpile `recover`                                                      |
 | `[]byte(s)`              | `[]byte(s)`           | `go_interop.ToBytes(s)`; `string(b)` needs no helper            | workaround | `GALA-E0040` | `gala explain GALA-E0040`, then transpile both directions               |
 | slice expression         | `args[from:to]`       | `go_interop.Slice`, `SliceFrom`, `SliceTo`, `SliceTake`, `SliceDrop` | workaround | parse error | transpile one slice expression, then the helper for its arity         |
-| string truncation        | `value[:n]`           | a rune-accumulating loop, which counts characters rather than bytes | workaround | parse error | transpile `value[:n]`; then decide which count the original meant before writing the loop |
+| string truncation        | `value[:n]`           | `string(go_interop.SliceTake(go_interop.ToBytes(s), n))` for a byte count, or a rune-accumulating loop for a character count | workaround | parse error | transpile `value[:n]`; then decide which count the original meant: the `ToBytes`/`SliceTake` form copies bytes exactly, while `out += string(s[i])` re-encodes a byte at or above 0x80 rather than copying it |
 | map index                | `m[k]`                | `m[k]` on a Go map; `m.Get(k)` on a `HashMap`                   | direct     | —          | transpile an index on each container type                                |
 | type assertion           | `s, ok := v.(string)` | `v match { case s: string => s; case _ => "" }`, which emits `std.As` and imports the runtime | workaround | parse error | transpile the assertion, then the type-pattern `match`, and grep the import block |
 | function-type field read | `h.Execute()`         | the same, when the struct is a GALA declaration                 | direct     | —          | transpile; a struct declared in a handwritten sibling behaves differently |

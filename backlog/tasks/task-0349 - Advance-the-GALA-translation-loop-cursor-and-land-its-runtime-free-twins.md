@@ -260,6 +260,30 @@ Run the `gala-loop` skill one iteration at a time, taking the next entry from th
 **State:** changes are in the worktree, not committed: `flake.lock`, `server/GALA_COMPILER`, `server/GALA.md`, `server/scripts/gala/verify.sh`, `.agents/skills/gala-from-go/SKILL.md`, `.agents/skills/gala-from-go/references/constructs.md`.
 
 **Handoff (2026-10-10):** TASK-0353 (`Decide whether server GALA twins adopt the go.gala.fyi/stdlib module`) was created for the runtime-free-contract decision raised by iteration 10. The loop keeps the current contract until TASK-0353 decides otherwise; do not start consuming `--stdlib-module` from the cursor.
+
+## Iteration 11 — routes/group split (2026-10-10)
+
+**Provenance:** `gala version` `GALA version 0.87.1` at `/nix/store/mib0p8skl8rh79alw3hp2nza8qbvhdwd-gala-0.87.1/bin/gala`; flake rev `cd2fdcb50cf1bc988ed03c3f6cdc0c485403576c` matches `server/GALA_COMPILER`, so no bump. The tree held only the pre-existing `backlog/backlog.md` edit, left untouched.
+
+**Candidate:** cursor entry 1 (`models/set.go`, `models/location.go`, `models/event.go`) stays blocked: `scripts/gala/probes/models-struct-tag` and `models-empty-struct` re-ran on this rev and reproduced their recorded parse errors. The loop took entry 2, `routes/group.go` (785 lines), on its 2026-10-10 pre-triage.
+
+**Triage:** split. `eventInput` (embedded `models.Event` promotion plus tag), `groupAttendeePayload` (`json` tags) with `groupAttendeePayloads`, and `getCalendarAvailabilities` (`chan`, `go`, in-place `recover`) moved unchanged to the handwritten sibling `server/routes/group_extra.go`. `declineInvite`'s anonymous tagged body became the sibling's named `declineBody`, and `guestForbidden`/`guestNameError` construction moved behind the sibling helpers `newGuestForbidden`/`newGuestNameError`, so all of `declineInvite` and `mutateGroupResponse` stayed in the `.gala` file. The old `group.go` was moved aside before the transpile.
+
+**Re-derived rows (pinned compiler, `/tmp/opencode` scratch):** a Go result list with a built body must return `Success(...)`/`Failure(...)` values; a tuple `return (v, err)` in an error-result body emits `std.Try[T]` with `std.Tuple` values and does not build, while `(T, bool, error)` lowers through `Try[Tuple[T, bool]]` and builds. A closure passed to a Go function carries an explicitly annotated parameter list and may assign to a captured outer `var`. A struct's fields are all required at construction unless the declaration gives a default (`GALA-E0045`), and only `var` fields stay plain Go fields. A sibling-declared struct works as a `var` type with `&input`, field reads, and `*input.Field`. The byte truncation is `string(go_interop.SliceTake(go_interop.ToBytes(s), n))`; the recorded `out += string(s[i])` loop re-encodes bytes at or above 0x80. `go_interop.MapPut` needs both type arguments for a typed value into a `map[string]any`. A standalone `import "martianoff/gala/go_interop"` declaration is required for the emitted block to be `gofmt`-clean under `--stdlib-module`, because the rewrite makes its path sort before `io` while the transpiler sorts by source path.
+
+**Landed:** `server/routes/group.gala` -> generated `server/routes/group.go` (stdlib: `applyGroupAttendeeEdits`'s `(groupEmailPlan, error)` Try lowering, `mutateGroupResponse` with its transaction lambda, the `groupManualAvailability` alias, both parse/merge helpers, and `declineInvite`), plus handwritten `server/routes/group_extra.go`.
+
+**Evidence:**
+- Double transpile byte-identical (`diff` clean) and `gofmt -l` clean on both files; no `martianoff` import.
+- `server/scripts/gala/verify.sh`: OK (23 twins), including `go build ./...`; `go vet ./...` clean.
+- Canonical Compose backend sequence green across every package (`routes` 2.636s, `postgres` 6.080s); `swag init --parseDependency` (v1.16.6) regenerated `server/docs` byte-identically.
+- The only caller of `applyGroupAttendeeEdits` (`routes/event_routes.go:746`) discards the plan on error, so the Try lowering's zero-value-on-failure path preserves behavior; `group_test.go` reads `groupInviteEmailTemplate` as a plain int, so both template ids stayed `var`.
+
+**Ledger:** registry count 22 -> 23 (fifteen packages) with the `routes` group row; cursor entry 2 removed and the list renumbered; the group prose and the embedded/channel/recover/anonymous-struct rows point at `group_extra.go`; the multi-value return row gained the `Success`/`Failure` caveat; two workaround rows added (`MapPut` explicit type arguments, standalone runtime import for `gofmt`); `gaps.md`'s `MapPut` paragraph and `constructs.md`'s truncation row and struct-default note corrected. Formatted with `npm run format:markdown`.
+
+**Next:** cursor entry 1 is still `models/set.go`, `models/location.go`, `models/event.go`; entry 2 is now `postgres/`.
+
+**State:** changes are in the worktree, not committed: `server/routes/group.gala`, `server/routes/group.go`, `server/routes/group_extra.go`, `server/GALA.md`, the two `.agents` references, and this task's notes. The pre-existing unrelated `backlog/backlog.md` modification was left untouched.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
