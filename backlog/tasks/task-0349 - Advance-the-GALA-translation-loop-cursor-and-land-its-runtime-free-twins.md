@@ -4,7 +4,7 @@ title: Advance the GALA translation loop cursor and land its runtime-free twins
 status: In Progress
 assignee: []
 created_date: '2026-10-05 08:44'
-updated_date: '2026-10-10 16:47'
+updated_date: '2026-10-10 17:47'
 labels: []
 dependencies: []
 references:
@@ -45,6 +45,14 @@ modified_files:
   - server/postgres/codec.go
   - server/postgres/pool.gala
   - server/postgres/pool.go
+  - server/postgres/tracing.gala
+  - server/postgres/tracing.go
+  - server/main.gala
+  - server/main.go
+  - server/main_run.go
+  - server/observability/provider.gala
+  - server/observability/provider.go
+  - server/observability/provider_recorder.go
   - .agents/skills/gala-from-go/SKILL.md
   - .agents/skills/gala-from-go/references/constructs.md
 priority: medium
@@ -376,6 +384,62 @@ Run the `gala-loop` skill one iteration at a time, taking the next entry from th
 **Next:** cursor entry 1 stays blocked; entry 2 is `postgres/tracing.go`.
 
 **State:** changes are in the worktree, not committed: `server/postgres/pool.gala`, `server/postgres/pool.go`, `server/GALA.md`, the two `.agents` references, and this task's notes. The pre-existing unrelated `backlog/backlog.md` modification was left untouched.
+
+## Iteration 15 — postgres/tracing whole-file twin (2026-10-10)
+
+**Provenance:** `gala` `GALA version 0.87.1` at `/nix/store/mib0p8skl8rh79alw3hp2nza8qbvhdwd-gala-0.87.1/bin/gala`; flake rev `cd2fdcb50cf1bc988ed03c3f6cdc0c485403576c` and extraction marker match `server/GALA_COMPILER`, so no bump. The tree held only the pre-existing `backlog/backlog.md` edit, left untouched.
+
+**Candidate:** cursor entry 1 (`models/set.go`, `models/location.go`, `models/event.go`) stays blocked (blockers last re-verified on this rev with the `models-*` probes); the loop took the postgres entry's remaining candidate, `tracing.go`.
+
+**Triage:** rewrite whole. `postgresInstrumentationName` is read by `tracing_test.go`, so it is a package `var`; `queryTracer` is a `struct` whose `var tracer trace.Tracer` field keeps the test's keyed literal; its two value-receiver methods stay methods. Re-derived rows: a reassigned parameter is refused (`cannot assign to immutable variable`), so `newQueryTracer` copies it to a `var`; a declared Go result list cannot name its results (`func ConnectionStats() (used int, idle int, max int)` is a parse error) while the unnamed `(int, int, int)` lowers through `std.Tuple3`; `.Size()` on a Go slice and tuple returns `return (a, b, c)` work as recorded.
+
+**Landed:** `server/postgres/tracing.gala` -> generated `server/postgres/tracing.go`, whole-file, no handwritten sibling. Signatures, span attributes, error strings, and status codes unchanged.
+
+**Evidence:** double transpile byte-identical, `gofmt -l` clean, generated imports `go.gala.fyi/stdlib/std` and `go.gala.fyi/stdlib/go_interop`, no `martianoff/gala`; `server/scripts/gala/verify.sh` OK (27 twins) including a clean `go build ./...`; `go test ./postgres/ -run 'TestQueryOperation|TestQueryTracer|TestNewQueryTracer|TestConnectionStats'` passes; canonical Compose backend sequence green across every package (`postgres` 7.528s, `routes` 3.337s).
+
+**Ledger:** registry 26 -> 27 with the `postgres/tracing` row; cursor entry 2 removed and the list renumbered (`main.go` became entry 2); prose records the landing. `gala-from-go` gained a parameter-reassignment row and the named-results note.
+
+**Next:** cursor entry 1 stays blocked; entry 2 is `main.go`.
+
+**State:** changes are in the worktree, not committed: `server/postgres/tracing.gala`, `server/postgres/tracing.go`, `server/GALA.md`, `.agents/skills/gala-from-go/references/constructs.md`, and this task's notes.
+
+## Iteration 16 — main.go split (2026-10-10)
+
+**Provenance:** pinned `gala`/flake rev as iteration 15; the tree held only the pre-existing `backlog/backlog.md` edit.
+
+**Candidate:** cursor entry 2 `main.go`.
+
+**Triage:** split. `main()` stays handwritten in the new sibling `server/main_run.go` because its local `chan error`, `go`, and `select` run loop has no substitute; `main.gala` carries `defaultLogPath` (the `const` row's `var`), `postgresPing` (a typed plain `var` because `main_test.go` assigns it), the swag general-info block, `init`, `initHealthRoute`, `shouldRunInReleaseMode`, `openLogFile`, `configureRuntime`, `validateSessionSecret`, `eventPageHandler`, and `noRouteHandler`.
+
+**Re-derived rows:** a floating package-level comment is dropped, so the `@title`/`@version`/`@description`/`@host` block had to sit contiguously above `init`; all four annotations survive in generated `main.go` and `swag init --parseDependency` regenerated `server/docs` byte-identically afterwards; `len(secret)` became `secret.ByteSize()` to keep the 32 a byte count; the health handler's `defer cancel()` moved through `resource.Bracket` with an explicit `return true` body (a void body cannot infer `A`, and a trailing bare `c.JSON(...)` is auto-returned as `return c.JSON(...)`, which Go rejects); `func init()` and return-position typed closures (`= (c) => {...}`) work as recorded.
+
+**Landed:** `server/main.gala` -> generated `server/main.go`, plus handwritten `server/main_run.go` (`main()` verbatim); `main_test.go` passes unchanged.
+
+**Evidence:** double transpile byte-identical, `gofmt -l` clean on both files, `go build ./...`, `go vet .`, `go test .` green; `swag init --parseDependency` (v1.16.6) regenerated `server/docs` byte-identically; `verify.sh` OK (28 twins); canonical Compose sequence green across every package.
+
+**Ledger:** registry 27 -> 28 (sixteen packages) with the `main` row; cursor entry 2 removed and renumbered; prose records the split, the swag comment requirement, and the Bracket-body rule. `constructs.md` gained the `Bracket` void-body note.
+
+**Next:** cursor entry 2 is the observability group (`provider.go`, `readiness.go`, `transport.go`).
+
+**State:** changes are in the worktree, not committed: `server/main.gala`, `server/main.go`, `server/main_run.go`, `server/GALA.md`, `.agents/skills/gala-from-go/references/constructs.md`, and this task's notes.
+
+## Iteration 17 — observability/provider split (2026-10-10)
+
+**Provenance:** pinned `gala`/flake rev as iteration 15; the tree held only the pre-existing `backlog/backlog.md` edit.
+
+**Candidate:** cursor entry 2's first file, `observability/provider.go`.
+
+**Triage:** split. `Recorder` and its ten provider methods stay handwritten in the new sibling `server/observability/provider_recorder.go` because the receiver's methods are also declared in `metrics.go` and `transport.go` and the receiver has to stay in one language; `provider.gala` carries the const block as package vars, the package comment, `Start`, `newRecorder`, `newResource`, and `ReportExportError`. Re-derived rows: exporter header maps use `go_interop.MapEmpty`/`MapPut` with both type arguments; the shared resource uses `SliceOf`/`SliceAppend` and a spread; a Go brace-literal key that resolves to a local binding is rewritten with the binding's read, so the SDK provider locals must be `var`s (the `val` emission was `&Recorder{logProvider.Get(): ...}`, which fails `go build`).
+
+**Landed:** `server/observability/provider.gala` -> generated `server/observability/provider.go` (package comment emitted), plus `provider_recorder.go`. `Start`'s and `newRecorder`'s signatures, error strings, exporter options, and the `DefaultShutdownTimeout` value are unchanged; `DefaultShutdownTimeout` is a `var` because `const` has no GALA spelling and nothing reads it in a constant expression.
+
+**Evidence:** double transpile byte-identical, `gofmt -l` clean on both files, `go build ./...`, `go vet ./observability/`, `go test ./observability/` green; `verify.sh` OK (29 twins); canonical Compose sequence green (`observability` 0.330s, `postgres` 7.097s, `routes` 3.415s).
+
+**Ledger:** registry 28 -> 29 with the `observability/provider` row; cursor entry 2 rewritten to `readiness.go` then `transport.go` with the `*Recorder` method boundary; the receiver-methods finding row records the observability instance; prose records the split and the brace-key trap.
+
+**Next:** cursor entry 2 is `observability/readiness.go` then `observability/transport.go`.
+
+**State:** changes are in the worktree, not committed: `server/observability/provider.gala`, `provider.go`, `provider_recorder.go`, `server/GALA.md`, `.agents/skills/gala-from-go/references/constructs.md`, and this task's notes.
 <!-- SECTION:NOTES:END -->
 
 ## Comments
