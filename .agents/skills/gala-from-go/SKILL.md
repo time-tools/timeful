@@ -76,7 +76,7 @@ The spellings that remain boundary-changing for a Go-facing surface are: an expo
 ### The Mixed Package
 
 Verdict 2 creates a package that holds a `.gala` file beside a handwritten `.go` sibling, and that is where the transpiler stops being a function of the file you are translating.
-Three rules belong to the package rather than to the file; the first is loud at the transpile, and the other two fail somewhere other than it, which is what makes them expensive:
+Four rules belong to the package rather than to the file; the first is loud at the transpile, and the others fail somewhere other than it, which is what makes them expensive:
 
 - Every `.gala` file imports everything it uses, including a package a sibling file already imports.
   Import resolution is per file, so an import one file omits is refused at transpile time with `GALA-E0023` rather than carried into the generated file for `go build` to find.
@@ -84,6 +84,9 @@ Three rules belong to the package rather than to the file; the first is loud at 
   An unqualified GALA-runtime name is the same rule from the other side, and its hint names the package that declares the name and both spellings of the fix.
 - A declaration in a handwritten sibling is visible to the `.gala` file as a name but is not a GALA declaration, so the transpiler emits calls against a type whose members it never saw.
   [`references/gaps.md`](references/gaps.md) records the case known to fail and why a repro in isolation settles nothing either way.
+- One receiver's methods have to stay in one language across the package.
+  A method declared on a receiver in a `.gala` file becomes that receiver's whole method set for every *importer* of the package, because the importer resolves the type from the package's GALA index and never merges the methods its handwritten `.go` siblings declare; the importer's call to a sibling-declared method is then refused with a false `GALA-E0044` (checked 2026-10-10 on rev `cd2fdcb5`, where a `repository.gala` carrying eighteen methods broke five committed twins until they moved back to a handwritten sibling).
+  Translate the methods into `.gala` only when the receiver's methods all move with them, and keep the declaration split's methods handwritten otherwise.
 - A bare name that both a translated file and an imported package export is contested rather than settled: on the compiler this skill was measured against, the local declaration wins, and a report of the opposite is a fact about the reporter's compiler rather than about the language.
   Do not depend on the outcome either way: never name such a type in a `.gala` file, and call a handwritten constructor in the sibling instead, so the ambiguity never gets a chance to arise.
 

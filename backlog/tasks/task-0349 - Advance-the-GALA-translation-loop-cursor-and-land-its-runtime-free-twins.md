@@ -4,7 +4,7 @@ title: Advance the GALA translation loop cursor and land its runtime-free twins
 status: In Progress
 assignee: []
 created_date: '2026-10-05 08:44'
-updated_date: '2026-10-10 10:17'
+updated_date: '2026-10-10 15:22'
 labels: []
 dependencies: []
 references:
@@ -37,6 +37,12 @@ modified_files:
   - server/models/uuid_extra.go
   - server/scripts/gala/probes/models-defined-scalar-methods/notes.md
   - server/scripts/gala/probes/models-fixed-array/notes.md
+  - server/postgres/repository.gala
+  - server/postgres/repository.go
+  - server/postgres/repository_methods.go
+  - server/postgres/repository_types.go
+  - .agents/skills/gala-from-go/SKILL.md
+  - .agents/skills/gala-from-go/references/constructs.md
 priority: medium
 ordinal: 353005
 ---
@@ -59,6 +65,18 @@ This task tracks that loop across the several iterations planned for it: each it
 - [ ] #6 Each iteration's finding changes are recorded in `server/GALA.md` per the loop, and a no-workaround blocker gets a committed probe under `server/scripts/gala/probes/` plus a Backlog handoff task.
 - [ ] #7 The registry and the cursor stay consistent after each iteration: a landed twin has a registry row and no cursor entry, and a blocked candidate stays in the cursor with its finding.
 <!-- AC:END -->
+
+## Definition of Done
+<!-- DOD:BEGIN -->
+- [ ] #1 All acceptance criteria are satisfied
+- [ ] #2 All required unit tests pass. Documentation-only changes are exempt unless the user requests unit tests
+- [ ] #3 All required e2e tests pass. Documentation-only changes are exempt unless the user requests e2e tests
+- [ ] #4 Changed Markdown files are formatted with npm run format:markdown
+- [ ] #5 Swagger annotations changed: run `swag init` from `server/` and `npm run gen:api` from `frontend/`
+- [ ] #6 Code changed: run `codebase-memory-mcp cli index_repository --repo-path .` to refresh the code knowledge graph
+- [ ] #7 `scripts/` or `prettier/` changed: run root `npm run fmt:check`
+- [ ] #8 Contract-affecting changes update their documents. This includes `docs/environments.md`; `PLUGIN_API_README.md`; and migration and rollout notes
+<!-- DOD:END -->
 
 ## Implementation Plan
 
@@ -284,19 +302,29 @@ Run the `gala-loop` skill one iteration at a time, taking the next entry from th
 **Next:** cursor entry 1 is still `models/set.go`, `models/location.go`, `models/event.go`; entry 2 is now `postgres/`.
 
 **State:** changes are in the worktree, not committed: `server/routes/group.gala`, `server/routes/group.go`, `server/routes/group_extra.go`, `server/GALA.md`, the two `.agents` references, and this task's notes. The pre-existing unrelated `backlog/backlog.md` modification was left untouched.
-<!-- SECTION:NOTES:END -->
 
-## Definition of Done
-<!-- DOD:BEGIN -->
-- [ ] #1 All acceptance criteria are satisfied
-- [ ] #2 All required unit tests pass. Documentation-only changes are exempt unless the user requests unit tests
-- [ ] #3 All required e2e tests pass. Documentation-only changes are exempt unless the user requests e2e tests
-- [ ] #4 Changed Markdown files are formatted with npm run format:markdown
-- [ ] #5 Swagger annotations changed: run `swag init` from `server/` and `npm run gen:api` from `frontend/`
-- [ ] #6 Code changed: run `codebase-memory-mcp cli index_repository --repo-path .` to refresh the code knowledge graph
-- [ ] #7 `scripts/` or `prettier/` changed: run root `npm run fmt:check`
-- [ ] #8 Contract-affecting changes update their documents. This includes `docs/environments.md`; `PLUGIN_API_README.md`; and migration and rollout notes
-<!-- DOD:END -->
+## Iteration 12 — postgres/repository declarations-only split (2026-10-10)
+
+**Provenance:** `gala` `GALA version 0.87.1` at `/nix/store/mib0p8skl8rh79alw3hp2nza8qbvhdwd-gala-0.87.1/bin/gala`; flake rev `cd2fdcb50cf1bc988ed03c3f6cdc0c485403576c` and extraction marker match `server/GALA_COMPILER`, so no bump. The tree held the pre-existing `backlog/backlog.md` edit (left untouched) and a concurrent TASK-0355 session that committed `c3682df7` (docs-only: #749/#750 filed, the fixed `len` finding retired) mid-iteration; this iteration builds on that HEAD and leaves TASK-0355's files alone.
+
+**Candidate:** cursor entry 1 (`models/set.go`, `models/location.go`, `models/event.go`) stays blocked: `scripts/gala/probes/models-empty-struct` and `models-struct-tag` re-ran on the pinned rev and reproduced their recorded parse errors. The loop took entry 2, `postgres/`, and the sibling-method note re-checked: a `.gala` file can call methods declared in a handwritten sibling (the F8 wall is closed on this rev, probe `caller.gala` calling `r.WithTransaction`).
+
+**Re-derived rows (pinned compiler):** `type dbtx interface` with unnamed parameters panics the transformer (`GALA-E0017`); naming the parameters emits the same interface. An anonymous `interface{ Scan(...any) error }` parameter is a parse error; a named unexported interface with the same method set is the substitute (`rowScanner`). Integer literal separators (`4_000_000_000`) are a parse error; plain digits work. `std.As[T](v)` is callable directly with `import "martianoff/gala/std"` and emits the same `std.As` a typed-pattern match lowers to, which is the comma-ok substitute the match row does not cover. A typed-pattern match over a sibling struct's field whose type is declared only in the `.gala` file is refused with `cannot infer type of matched expression`; `std.As` needs no inference. `resource.Bracket[pgx.Tx, error]` with a `FromError(tx.Rollback(ctx))` release is the `defer tx.Rollback(ctx)` substitute.
+
+**The wall this iteration found:** a first draft carried all eighteen `*Repository` methods in `repository.gala`; that makes the package's GALA index the receiver's whole method set for every importer, so `discord_bot/commands`, `slackbot/commands`, and `routes/group` were refused with a false `GALA-E0044` on methods their handwritten siblings declare (`ListActiveUserDays` among them). `verify.sh` caught it as five non-transpiling twins. The fix is the declarations-only split: no `.gala` file declares a `*Repository` method.
+
+**Landed:** `server/postgres/repository.gala` -> generated `server/postgres/repository.go` (stdlib; declarations and free functions: `crockfordBase32`, `ErrPoolUninitialized`, `rowScanner`, `NewRepository`, `NewRepositoryFromTx`, `DefaultRepository`, `WithTransaction`, `GenerateShortID`, `GenerateEventShortID`, `GenerateTransferCode`, `formatTransferCode`, `encodeCrockford`, `eventColumns`, `scanEvent`, `listResponsesQuery`, `isUniqueViolation`, `IsUniqueViolation`), plus handwritten `server/postgres/repository_types.go` (`Repository`, `dbtx` verbatim) and `server/postgres/repository_methods.go` (all eighteen `*Repository` methods verbatim, extracted from the original). The two local random buffers became `go_interop.SliceWithSize[byte]`; `scanEvent` takes the named `rowScanner`; every Go-facing name, signature, tag, and behavior is unchanged, and the methods kept their `defer` and comments because they stayed handwritten.
+
+**Evidence:** double transpile byte-identical, `gofmt -l` clean, generated imports only `go.gala.fyi/stdlib/...`; `server/scripts/gala/verify.sh` OK (24 twins) including `go build ./...`; the canonical Compose backend sequence green across every package (`postgres` 10.384s, `routes` 6.703s); the five previously broken importers transpile again.
+
+**Ledger:** registry 23 -> 24 with the `postgres/repository` row; cursor entry 2 rewritten (remaining `postgres` candidates are the free-function files `codec.go`, `pool.go`, `tracing.go`; `*Repository` methods stay handwritten); three open-findings rows added (`*Repository` methods in a `.gala` file hide sibling methods from importers, anonymous interface type, unnamed interface parameters) and the fixed-array row extended with the local-buffer substitute; the `#615` report-index note records the unmerged imported-package direction; prose below the table records the split. `gala-from-go`'s `SKILL.md` Mixed Package section gained the one-receiver-one-language rule and `constructs.md` gained the interface/separator rows, the `std.As` spelling, and the packages-table row plus prose for the importer direction and the match inference.
+
+**Next:** cursor entry 1 stays blocked; entry 2 offers `postgres/codec.go`, `postgres/pool.go`, and `postgres/tracing.go` as free-function candidates, with every `*Repository` method staying handwritten.
+
+**State:** changes are in the worktree, not committed, at the time of this note; the pre-existing unrelated `backlog/backlog.md` modification was left untouched.
+
+**Iteration 12 addendum — stale `.gala` cache (2026-10-10):** a later full `verify.sh` run reported `middleware/auth.go` drift (its transitive `models`/`postgres` standalone imports swapped order) after the v1 experiment's cache entries survived the `repository.gala` replacement; deleting `server/.gala/` and re-running regenerated the committed byte-identical file, and two further full runs report OK (24 twins). The ledger's contract section now records the remedy, and the committed `middleware/auth.go` is unchanged.
+<!-- SECTION:NOTES:END -->
 
 ## Comments
 
