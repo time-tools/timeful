@@ -195,8 +195,9 @@ Each of these is a way the translation goes wrong without producing an error at 
   A `HashMap` bound with `val` and read with `Get` emits `m.Get().Get(k)`: the outer call unwraps the binding and the inner one is the lookup.
   It builds and returns the right value, so nothing reports it until a Go caller or a sibling reads the name it is bound to.
 - **A struct declared in a handwritten sibling is not a GALA struct.**
-  Constructing it positionally, calling `.Size()` or `.ByteSize()` on one of its fields, or calling a method on it can transpile and then fail to build, because the transpiler emits a call on a type it does not know.
-  A method call on such a type passes through and Go resolves it, so the failure is about the *type's* origin, not the call's; `go_interop.SliceFrom(x, 0).Size()` reaches a length the direct spelling cannot, and it is a view rather than a copy.
+  Constructing it positionally or calling a method on it can transpile and then fail to build, because the transpiler emits a call on a type it does not know.
+  A method call on such a type passes through and Go resolves it, so the failure is about the *type's* origin, not the call's.
+  The `.Size()`/`.ByteSize()` lowering over such a receiver, and over one inferred from a Go call, was the defect filed as [#613](https://github.com/martianoff/gala/issues/613) and is fixed on the compiler this skill was last measured against; run the corresponding row's check rather than assuming either behavior.
   The mirror direction is worse: a type declared in the `.gala` file whose method is declared in the sibling is *refused* with `GALA-E0044` and a hint that claims the type declares no methods, although Go accepts the program ([#615](https://github.com/martianoff/gala/issues/615)).
   This is a mixed-package effect and does not reproduce in a package with no handwritten sibling, so a repro in isolation proves nothing either way.
 - **A bare name in a declared-type position can resolve to an import.**

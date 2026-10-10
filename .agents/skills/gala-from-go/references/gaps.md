@@ -102,23 +102,10 @@ Read the hint, then run the case the hint names, before calling any of them a de
 The explicit `MapPut[K, V](m, k, v)` form also builds, and inference has one edge the earlier probe missed because `1` is an untyped constant: a *typed* value of a concrete type, such as a `string` variable into a `map[string]any`, fails Go's inference with `type string of x does not match inferred type any for V`, so the explicit form is required there.
 A helper that documents no inference rule is not a report, and this one documents it.
 
-`.Size()` on a receiver whose type was inferred from a Go call has a substitute, so it is a workaround rather than a gap.
-The transpiler types a receiver from the `.gala` file's own text and does not read a Go sibling's signature, so the call is emitted against a type it never resolved:
-
-```gala
-var logs, err = List()   // List is declared in repo.go and returns []Log
-return logs.Size()        // logs.Size undefined (type []Log has no field or method Size)
-```
-
-A receiver whose type is *written out* resolves even across packages, and the inferred case is reachable without naming the type at all:
-
-```gala
-return go_interop.SliceFrom(logs, 0).Size()   // builds; emits len(go_interop.SliceFrom(logs, 0))
-```
-
-The substitute allocates nothing, and what establishes that is a source line rather than a benchmark: the `go_interop.SliceFrom` helper is a one-line reslice whose own doc comment calls it `O(1)`, so the earlier reading of it as a whole-slice copy was wrong.
-A multi-value binding still takes no type annotation, because the grammar's single `(type)?` slot sits after the whole name list, but a single-value binding does take one, so the annotation is not the only door.
-The lowering defect itself is a report, filed as upstream [#613](https://github.com/martianoff/gala/issues/613); what is not a report is the conclusion that the element count cannot be read.
+`.Size()` on a receiver whose type came from a Go declaration has a substitute, so it was never a gap.
+The lowering defect was filed as upstream [#613](https://github.com/martianoff/gala/issues/613) and is fixed on the compiler this skill was last measured against: a receiver whose type is written out or inferred from a call into a Go-declared function resolves for a type declared in the same package's handwritten `.go` sibling and in an imported one, so `var logs, err = List()` then `logs.Size()` emits `len(logs)` (checked 2026-10-10 on rev `cd2fdcb5`).
+Re-run the check before relying on the row, because the lowering depends on the compiler's ability to read the receiver's Go declaration.
+`go_interop.SliceFrom(xs, 0).Size()` remains available as a zero-allocation view when a receiver's type does not resolve: the helper is a one-line reslice whose own doc comment calls it `O(1)`, so the earlier reading of it as a whole-slice copy was wrong.
 
 A construct the transpiler accepts and then lowers wrongly is none of these.
 It is a defect, and it belongs under [Defects Observed While Pinning Rows](#defects-observed-while-pinning-rows).
@@ -269,7 +256,7 @@ The first four are the ones that look like walls and are not; each has already b
 - A construct with a `semantic` row there, such as assigning to a `:=` binding.
 - A construct whose `gala explain GALA-Exxxx` page already states the fix, which is a documented answer rather than a gap.
 - A construct re-derived on the compiler you have and found working, which this file lists under [Constructs That Were Never Gaps](#constructs-that-were-never-gaps): a block-bodied lambda in a typed return position, and `go_interop.MapPut` type-argument inference.
-- A receiver typed from a Go call, whose substitute costs nothing because the `go_interop.SliceFrom` helper is a one-line reslice; report the lowering defect instead, and the defect is filed.
+- A receiver typed from a Go call, which resolves on the compiler this skill was last measured against; the historical lowering defect was filed as [#613](https://github.com/martianoff/gala/issues/613) and is fixed, so re-run the row's check rather than filing either the gap or the defect again.
 
 Then the ones that are not about a construct at all:
 
