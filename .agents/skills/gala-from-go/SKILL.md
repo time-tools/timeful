@@ -43,6 +43,7 @@ Always transpile from the package directory, and transpile to a scratch path whi
 
 Read the project's own rules before touching its layout.
 A repository that commits the generated file, one that regenerates on build, and one that forbids generated code in a directory all want different things from the same `.gala` source.
+The runtime policy is part of those rules: a project that consumes the published stdlib module passes `gala transpile --stdlib-module go.gala.fyi/stdlib` so the generated imports name the module pinned in its `go.mod`, and a project that keeps generated Go runtime-free rejects the same imports.
 
 ## Triage Before Translating
 
@@ -67,6 +68,10 @@ Three shape rules decide whether a file can be rewritten whole, and all three ar
   A variant's `Unapply` returns a `std.Option`, and a match over the type ends in `panic("unreachable")` on the branch no variant can reach.
   There is no form a Go caller can construct positionally, so a file that introduces one reshapes its package's exported surface as surely as a `val` does.
   Read the emitted struct before committing to it rather than trusting this summary.
+
+The three rules are about a Go-facing surface, not about which constructs a rewrite may use.
+Every runtime construct is available to a translated file: `val` and `:=` bindings, `Try`, `Option`/`Either`, sealed types, the immutable collections, and the `go_interop` helpers all transpile, and a project on the published stdlib writes their imports as `go.gala.fyi/stdlib/...` with `gala transpile --stdlib-module go.gala.fyi/stdlib`.
+The spellings that remain boundary-changing for a Go-facing surface are: an exported `val` behind `std.Immutable`, a sealed type's merged struct, a non-`var` struct field behind `std.Immutable[T]`, and a `Codec` where a struct tag defined the wire shape.
 
 ### The Mixed Package
 
@@ -113,11 +118,12 @@ A `workaround` or an `answered` row is not that case: the row already names the 
 A translation that transpiles is not a translation that works, and the difference is where this skill spends most of its attention.
 
 ```sh
-# from the package directory
-gala transpile -i <name>.gala -o /tmp/<name>.go    # iterate to a scratch path
-gala transpile -i <name>.gala -o <name>.go         # write the real file
+# from the package directory; a project on the published stdlib carries
+# --stdlib-module go.gala.fyi/stdlib on every transpile:
+gala transpile --stdlib-module go.gala.fyi/stdlib -i <name>.gala -o /tmp/<name>.go  # iterate to a scratch path
+gala transpile --stdlib-module go.gala.fyi/stdlib -i <name>.gala -o <name>.go       # write the real file
 gofmt -l <name>.go                                # formatting
-gala transpile -i <name>.gala -o /tmp/again.go     # transpile twice
+gala transpile --stdlib-module go.gala.fyi/stdlib -i <name>.gala -o /tmp/again.go   # transpile twice
 diff <name>.go /tmp/again.go                      # regeneration is byte-identical
 go build ./...                                    # from the module root
 go test ./...                                     # the project's own suite
@@ -144,7 +150,7 @@ Two rules make reading the emitted text reliable, and both come from the same pr
 
 The import block is the cheapest read in the file and the most useful one, because it is the transpiler's own account of what the translation cost.
 A file that emits no runtime import pulled in nothing; a file that emits one has moved a dependency into the generated code, whatever the source looked like.
-Read it before deciding whether a rewrite is worth its blast radius.
+Read it before deciding whether a rewrite is worth its blast radius, and when the project adopted the published stdlib module confirm every runtime import names that module rather than `martianoff/gala`.
 
 Finally, read the emitted `//line` directives themselves.
 They name the path the transpiler was given, so relative directives are the evidence that you transpiled from the package directory rather than a claim that you did.

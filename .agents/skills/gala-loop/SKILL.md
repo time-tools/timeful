@@ -15,6 +15,7 @@ Run it one iteration at a time: bump first when the compiler moved, then transla
 - Record the provenance before touching anything: `gala version`, `which gala`, `jq -r '.nodes.gala.locked.rev' flake.lock`, and `cat server/GALA_COMPILER`.
 - Confirm both halves of every existing twin are committed and `git status` is clean, so a later failure is attributable to this iteration.
 - Read `server/GALA.md` for the twin registry, the open findings, the upstream report index, and the cursor.
+- Read the adopted runtime module and version from `server/go.mod`: a twin's generated Go may import `go.gala.fyi/stdlib/...` from the pinned module, and `martianoff/gala` is never allowed.
 - Load [`gala-from-go`](../gala-from-go/SKILL.md), and read the construct row for every construct the candidate uses before writing a line of GALA.
 
 ## Step 0: Bump when the rev moved
@@ -38,8 +39,10 @@ The cursor in `server/GALA.md` is ordered; take its next entry and re-check its 
 1. Read the ledger's findings for the candidate's package, and the report index for any upstream item it names.
 2. Pre-triage the candidate with `gala-from-go`'s triage: run each construct row's own check, and treat a ledger finding recorded as fixed on this rev as a workaround rather than a wall.
 3. Follow `gala-from-go`'s mechanical pass and verify sections in order, transpiling to a scratch path first so a parse error costs nothing.
-4. Register the twin: add its row to the twin registry in `server/GALA.md` and remove it from the cursor.
+   Every transpile carries `--stdlib-module go.gala.fyi/stdlib`, and the real twin is written from the package directory: `cd server/<pkg> && gala transpile --stdlib-module go.gala.fyi/stdlib -i <name>.gala -o <name>.go`.
+4. Register the twin: add its row (source, generated file, handwritten sibling, runtime status) to the twin registry in `server/GALA.md` and remove it from the cursor.
 5. Run `server/scripts/gala/verify.sh`, then `go build ./...` in `server/` and the canonical backend test sequence in `server/README.md`.
+   Read the generated import block before committing: a runtime import must be the `go.gala.fyi/stdlib/...` module pinned in `server/go.mod`, and `martianoff/gala` fails `verify.sh`.
 6. Record the iteration in the ledger when it changes a finding: a workaround becomes a row in the open findings table, and a closed finding is deleted with a note in the report index.
 
 A completed twin whose registry row is missing is not finished, because the next iteration reads the registry as the list of what exists.
@@ -71,5 +74,5 @@ The project additions are:
 - Never transpile from the repository root, because the emitted `//line` directives name the path the transpiler was given.
 - Never reshape a Go-facing signature, struct tag, or wire format to make the transpiler accept a file.
 - Never relax a test to accommodate a translation.
-- Never commit a twin whose generated Go imports the GALA runtime; use a handwritten sibling in the same package (GO_INTEROP.MD Part 3) or leave the file handwritten.
+- Never commit a twin whose generated Go imports `martianoff/gala`; a runtime import must be the `go.gala.fyi/stdlib/...` module pinned in `server/go.mod`, and a twin whose Go-facing surface the runtime shapes would change uses a handwritten sibling in the same package (GO_INTEROP.MD Part 3) or stays handwritten.
 - Never mix a compiler bump with a translation, because the bump and the iteration have separate evidence.
