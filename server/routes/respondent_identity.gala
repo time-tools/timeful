@@ -1,6 +1,8 @@
 package routes
 
 import (
+	"martianoff/gala/go_interop"
+
 	"timeful/server/models"
 	"timeful/server/respondents"
 )
@@ -52,15 +54,15 @@ func populateSignUpResponsePayloadIdentity(response *models.SignUpResponse, live
 
 	if !response.UserId.IsZero() {
 		val lookupKey = response.UserId.String()
-		val liveUser, ok = liveUsers[lookupKey]
-		if (ok && liveUser != nil) {
-			response.User = sanitizedResponseUser(liveUser)
-		} else {
-			val fallbackName = respondents.NormalizeGuestName(response.Name)
-			response.User = &models.User{
-				Id:        response.UserId,
-				FirstName: fallbackName,
-				Email:     response.Email,
+		go_interop.OptionFromMap(liveUsers, lookupKey) match {
+			case Some(liveUser) if liveUser != nil => response.User = sanitizedResponseUser(liveUser)
+			case _ => {
+				val fallbackName = respondents.NormalizeGuestName(response.Name)
+				response.User = &models.User{
+					Id:        response.UserId,
+					FirstName: fallbackName,
+					Email:     response.Email,
+				}
 			}
 		}
 		return (lookupKey, true)

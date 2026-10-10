@@ -5,6 +5,7 @@ package discord_bot
 import "go.gala.fyi/stdlib/std"
 import (
 	"github.com/bwmarrin/discordgo"
+	"go.gala.fyi/stdlib/go_interop"
 	"os"
 	"regexp"
 	"timeful/server/discord_bot/commands"
@@ -12,23 +13,23 @@ import (
 	"timeful/server/utils"
 )
 
-//line init.gala:13
+//line init.gala:14
 var BotId string
 
-//line init.gala:14
+//line init.gala:15
 var bot *discordgo.Session
 
-//line init.gala:15
+//line init.gala:16
 var listeningChannel *discordgo.Channel
 
-//line init.gala:16
+//line init.gala:17
 var commandMap = newCommandMap()
 
-//line init.gala:18
-func listeningChannelName() string {
 //line init.gala:19
-	var configuredChannel = std.NewImmutable(os.Getenv("DISCORD_BOT_CHANNEL"))
+func listeningChannelName() string {
 //line init.gala:20
+	var configuredChannel = std.NewImmutable(os.Getenv("DISCORD_BOT_CHANNEL"))
+//line init.gala:21
 	return func() string {
 		if configuredChannel.Get() != "" {
 			return configuredChannel.Get()
@@ -44,110 +45,93 @@ func listeningChannelName() string {
 	}()
 }
 
-//line init.gala:25
-func Init() {
 //line init.gala:26
-	var token = std.NewImmutable(os.Getenv("DISCORD_BOT_TOKEN"))
+func Init() {
 //line init.gala:27
-	var guildId = std.NewImmutable(os.Getenv("GUILD_ID"))
+	var token = std.NewImmutable(os.Getenv("DISCORD_BOT_TOKEN"))
 //line init.gala:28
+	var guildId = std.NewImmutable(os.Getenv("GUILD_ID"))
+//line init.gala:29
 	var (
 		_tmp_1, _tmp_2 = discordgo.New("Bot " + token.Get())
 		botSession     = std.NewImmutable(_tmp_1)
 		err            = std.NewImmutable(_tmp_2)
 	)
-//line init.gala:29
-	bot = botSession.Get()
 //line init.gala:30
-	if err.Get() != nil {
+	bot = botSession.Get()
 //line init.gala:31
+	if err.Get() != nil {
+//line init.gala:32
 		logger.StdErr.Panicln(err.Get())
 	}
-//line init.gala:34
-	var (
-		_tmp_3, _tmp_4 = bot.User("@me")
-		u              = std.NewImmutable(_tmp_3)
-		userErr        = std.NewImmutable(_tmp_4)
-	)
 //line init.gala:35
-	if userErr.Get() != nil {
+	var u = std.NewImmutable(std.GoTry(bot.User("@me")).OnFailure(func(err error) {
+		logger.StdErr.Panicln(err)
+	}).Get())
 //line init.gala:36
-		logger.StdErr.Panicln(userErr.Get())
-	}
-//line init.gala:38
 	BotId = u.Get().ID
-//line init.gala:40
-	var openErr = std.NewImmutable(bot.Open())
-//line init.gala:41
-	if openErr.Get() != nil {
-//line init.gala:42
-		logger.StdErr.Panicln(openErr.Get())
-	}
-//line init.gala:44
+//line init.gala:38
+	std.FromError(bot.Open()).OnFailure(func(err error) {
+		logger.StdErr.Panicln(err)
+	})
+//line init.gala:39
 	logger.StdOut.Println("Discord bot initialized")
-//line init.gala:46
+//line init.gala:41
 	var channelName = std.NewImmutable(listeningChannelName())
-//line init.gala:47
+//line init.gala:42
 	var (
-		_tmp_5, _ = bot.GuildChannels(guildId.Get())
-		channels  = std.NewImmutable(_tmp_5)
+		_tmp_3, _ = bot.GuildChannels(guildId.Get())
+		channels  = std.NewImmutable(_tmp_3)
 	)
-//line init.gala:48
+//line init.gala:43
 	for _, channel := range channels.Get() {
-//line init.gala:49
+//line init.gala:44
 		if channel.Name == channelName.Get() {
-//line init.gala:50
+//line init.gala:45
 			listeningChannel = channel
-//line init.gala:51
+//line init.gala:46
 			break
 		}
 	}
-//line init.gala:55
+//line init.gala:50
 	commands.Init()
-//line init.gala:56
+//line init.gala:51
 	for _, command := range commands.Commands {
-//line init.gala:57
+//line init.gala:52
 		commandMap[command.Name] = command
 	}
-//line init.gala:60
+//line init.gala:55
 	bot.AddHandler(messageHandler)
 }
 
-//line init.gala:63
+//line init.gala:58
 func SendMessage(message string) {
-//line init.gala:64
+//line init.gala:59
 	_, _ = bot.ChannelMessageSend(listeningChannel.ID, message)
 }
 
-//line init.gala:67
+//line init.gala:62
 func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
-//line init.gala:68
+//line init.gala:63
 	if m.ChannelID != listeningChannel.ID {
-//line init.gala:69
+//line init.gala:64
 		return
 	}
-//line init.gala:71
+//line init.gala:66
 	if m.Author.ID == BotId {
-//line init.gala:72
+//line init.gala:67
 		return
 	}
-//line init.gala:75
+//line init.gala:70
 	var re = std.NewImmutable(regexp.MustCompile(" +"))
-//line init.gala:76
+//line init.gala:71
 	var args = re.Get().Split(m.Content, -1)
-//line init.gala:77
+//line init.gala:72
 	var commandName = std.NewImmutable(args[0])
-//line init.gala:78
+//line init.gala:73
 	args = argsFrom(args, 1)
-//line init.gala:80
-	var (
-		_tmp_6, _tmp_7 = commandMap[commandName.Get()]
-		command        = std.NewImmutable(_tmp_6)
-		ok             = std.NewImmutable(_tmp_7)
-	)
-//line init.gala:81
-	if ok.Get() {
-//line init.gala:82
-		command.Get().Execute(s, m, args)
-	}
+//line init.gala:75
+	go_interop.OptionFromMap(commandMap, commandName.Get()).ForEach(func(command commands.Command) {
+		command.Execute(s, m, args)
+	})
 }

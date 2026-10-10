@@ -13,23 +13,16 @@ import (
 //line request_utils.gala:11
 func ParseArrayQueryParam(s string) []string {
 //line request_utils.gala:12
-	var (
-		_tmp_1, _tmp_2 = url.QueryUnescape(s)
-		decoded        = std.NewImmutable(_tmp_1)
-		err            = std.NewImmutable(_tmp_2)
-	)
+	var decoded = std.NewImmutable(std.GoTry(url.QueryUnescape(s)).OnFailure(func(err error) {
+		logger.StdErr.Panicln(err)
+	}).Get())
 //line request_utils.gala:13
-	if err.Get() != nil {
-//line request_utils.gala:14
-		logger.StdErr.Panicln(err.Get())
-	}
-//line request_utils.gala:16
 	var arr = std.NewImmutable(strings.Split(decoded.Get(), ","))
-//line request_utils.gala:17
+//line request_utils.gala:14
 	return arr.Get()
 }
 
-//line request_utils.gala:20
+//line request_utils.gala:17
 func GetOrigin(c *gin.Context) string {
 	return c.Request.Header.Get("Origin")
 }

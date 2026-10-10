@@ -28,10 +28,7 @@ func CallApi(user *models.User, calendarAuth *models.OAuth2CalendarAuth, method 
 	}
 	req.Header.Set("Authorization", s"Bearer ${calendarAuth.AccessToken}")
 
-	val response, err = http.DefaultClient.Do(req)
-	if err != nil {
-		logger.StdErr.Panicln(err)
-	}
+	val response = http.DefaultClient.Do(req).OnFailure((err) => logger.StdErr.Panicln(err)).Get()
 
 	return response
 }

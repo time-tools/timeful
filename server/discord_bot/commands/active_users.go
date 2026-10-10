@@ -12,130 +12,138 @@ import (
 	"strconv"
 	"time"
 	"timeful/server/logger"
-	pgstore "timeful/server/postgres"
+	"timeful/server/postgres"
 	"timeful/server/utils"
 )
 
 //line active_users.gala:16
 func executeActiveUsers(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
-//line active_users.gala:17
-	var err error
-//line active_users.gala:20
+//line active_users.gala:18
 	var list = false
-//line active_users.gala:21
+//line active_users.gala:19
 	var days = 7
-//line active_users.gala:22
+//line active_users.gala:20
 	if len(args) >= 1 {
-//line active_users.gala:23
+//line active_users.gala:21
 		if args[0] == "true" {
-//line active_users.gala:24
+//line active_users.gala:22
 			list = true
 		} else if args[0] == "false" {
-//line active_users.gala:26
+//line active_users.gala:24
 			list = false
 		} else {
-//line active_users.gala:28
+//line active_users.gala:26
 			sendMessage(s, m, fmt.Sprintf("LIST=%s is not a valid boolean!", args[0]))
-//line active_users.gala:29
+//line active_users.gala:27
 			return
 		}
 	}
-//line active_users.gala:32
+//line active_users.gala:30
 	if len(args) >= 2 {
-//line active_users.gala:33
-		days, err = strconv.Atoi(args[1])
+//line active_users.gala:31
+		{
+			obj := std.GoTry(strconv.Atoi(args[1]))
+			{
+				_tmp_1 := std.Success[int]{}.Unapply(obj)
+				_tmp_2 := _tmp_1.IsDefined()
+				var _tmp_3 int
+				if _tmp_2 {
+					_tmp_3 = _tmp_1.Get()
+				}
+				_ = _tmp_3
+				parsed := _tmp_3
+				if _tmp_2 {
+					days = parsed
+				} else {
+					_tmp_4 := std.Failure[int]{}.Unapply(obj)
+					_tmp_5 := _tmp_4.IsDefined()
+					var _tmp_6 error
+					if _tmp_5 {
+						_tmp_6 = _tmp_4.Get()
+					}
+					_ = _tmp_6
+					if _tmp_5 {
 //line active_users.gala:34
-		if err != nil {
+						sendMessage(s, m, fmt.Sprintf("DAYS=%s is not a valid number!", args[1]))
 //line active_users.gala:35
-			sendMessage(s, m, fmt.Sprintf("DAYS=%s is not a valid number!", args[1]))
-//line active_users.gala:36
-			return
+						return
+					} else {
+						panic("unreachable")
+					}
+				}
+			}
 		}
 	}
 //line active_users.gala:43
 	var startDate = std.NewImmutable(utils.GetDateAtTime(time.Now().AddDate(0, 0, -days), "00:00:00"))
 //line active_users.gala:45
-	var (
-		_tmp_1, _tmp_2 = pgstore.DefaultRepository()
-		repository     = std.NewImmutable(_tmp_1)
-		repoErr        = std.NewImmutable(_tmp_2)
-	)
+	var repository = std.NewImmutable(std.GoTry(postgres.DefaultRepository()).OnFailure(func(err error) {
+		logger.StdErr.Panicln(err)
+	}).Get())
 //line active_users.gala:46
-	if repoErr.Get() != nil {
-//line active_users.gala:47
-		logger.StdErr.Panicln(repoErr.Get())
-	}
+	var logs = std.NewImmutable(std.GoTry(repository.Get().ListActiveUserDays(context.Background(), startDate.Get(), time.Now())).OnFailure(func(err error) {
+		logger.StdErr.Panicln(err)
+	}).Get())
 //line active_users.gala:49
-	var (
-		_tmp_3, _tmp_4 = repository.Get().ListActiveUserDays(context.Background(), startDate.Get(), time.Now())
-		logs           = std.NewImmutable(_tmp_3)
-		logsErr        = std.NewImmutable(_tmp_4)
-	)
-//line active_users.gala:50
-	if logsErr.Get() != nil {
-//line active_users.gala:51
-		logger.StdErr.Panicln(logsErr.Get())
-	}
-//line active_users.gala:55
 	var dayStrings = std.NewImmutable(activeUsersDayStrings())
-//line active_users.gala:57
+//line active_users.gala:51
 	if list {
-//line active_users.gala:59
+//line active_users.gala:53
 		sendMessage(s, m, "Active Users:\n")
-//line active_users.gala:60
+//line active_users.gala:54
 		var message = ""
-//line active_users.gala:61
+//line active_users.gala:55
 		for _, log := range logs.Get() {
-//line active_users.gala:62
+//line active_users.gala:56
 			var date = std.NewImmutable(log.LogDate)
-//line active_users.gala:63
+//line active_users.gala:57
 			message += dayStrings.Get()[date.Get().Weekday()] + " "
-//line active_users.gala:64
+//line active_users.gala:58
 			message += utils.GetDateString(date.Get()) + " | "
-//line active_users.gala:65
+//line active_users.gala:59
 			message += fmt.Sprintf("Count: %d\n", activeUsersMembersCount(log))
-//line active_users.gala:67
+//line active_users.gala:61
 			for _, user := range log.Members {
-//line active_users.gala:68
-				message += fmt.Sprintf("\t- %v %v (%v)\n", user.FirstName, user.LastName, user.Email)
+//line active_users.gala:62
+				message += fmt.Sprintf("\t- %s %s (%s)\n", user.FirstName, user.LastName, user.Email)
 			}
 		}
-//line active_users.gala:72
+//line active_users.gala:66
 		for _, msg := range splitLongMessage(message, "```") {
-//line active_users.gala:73
+//line active_users.gala:67
 			sendMessage(s, m, msg)
 		}
 	} else {
-//line active_users.gala:79
+//line active_users.gala:73
 		var labels = activeUsersEmptyLabels()
-//line active_users.gala:80
+//line active_users.gala:74
 		var data = activeUsersEmptyData()
-//line active_users.gala:81
+//line active_users.gala:75
 		for i := activeUsersLogsCount(logs.Get()) - 1; i >= 0; i-- {
-//line active_users.gala:82
+//line active_users.gala:76
 			labels = activeUsersAppendLabel(labels, utils.GetDateString(logs.Get()[i].LogDate))
-//line active_users.gala:83
+//line active_users.gala:77
 			data = activeUsersAppendCount(data, activeUsersMembersCount(logs.Get()[i]))
 		}
-//line active_users.gala:87
+//line active_users.gala:81
 		var chart = std.NewImmutable(activeUsersChart(labels, data))
-//line active_users.gala:88
+//line active_users.gala:82
 		var (
-			_tmp_5, _ = json.Marshal(chart.Get())
-			jsonStr   = std.NewImmutable(_tmp_5)
+			_tmp_7, _ = json.Marshal(chart.Get())
+			jsonStr   = std.NewImmutable(_tmp_7)
 		)
-//line active_users.gala:90
+//line active_users.gala:84
 		var encodedChart = std.NewImmutable(url.PathEscape(string(jsonStr.Get())))
-//line active_users.gala:91
+//line active_users.gala:85
 		var chartUrl = std.NewImmutable(fmt.Sprintf("https://quickchart.io/chart?c=%s&backgroundColor=white", encodedChart.Get()))
-//line active_users.gala:92
+//line active_users.gala:86
 		var chartEmbed = std.NewImmutable(&discordgo.MessageEmbed{Title: "Active Users", Image: &discordgo.MessageEmbedImage{URL: chartUrl.Get()}})
-//line active_users.gala:99
+//line active_users.gala:93
 		sendEmbed(s, m, chartEmbed.Get())
 	}
 }
 
-//line active_users.gala:103
+//line active_users.gala:97
 var activeUsers Command = Command{Name: "!active_users", Description: `Gets the number of active users in the database, based on last sign in date. 
   - if LIST is true, it will list the name/email of all users, otherwise, it will show a bar graph
   - DAYS is the amount of days since last sign in

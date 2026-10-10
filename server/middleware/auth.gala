@@ -33,21 +33,25 @@ func AuthRequired() gin.HandlerFunc = (c *gin.Context) => {
 		return
 	}
 
-	val account, err = accounts.Resolve(c.Request.Context(), platformIdentityID)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
-		c.Abort()
-		return
+	accounts.Resolve(c.Request.Context(), platformIdentityID) match {
+		case Success(account) => {
+			accounts.LoadSessionUser(c.Request.Context(), account) match {
+				case Success(user) => {
+					c.Set("authUser", user)
+					c.Set("authAccount", account)
+					c.Next()
+				}
+				case Failure(_) => {
+					c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed to load account integration data"})
+					c.Abort()
+					return
+				}
+			}
+		}
+		case Failure(_) => {
+			c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
+			c.Abort()
+			return
+		}
 	}
-
-	val user, loadErr = accounts.LoadSessionUser(c.Request.Context(), account)
-	if loadErr != nil {
-		c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed to load account integration data"})
-		c.Abort()
-		return
-	}
-
-	c.Set("authUser", user)
-	c.Set("authAccount", account)
-	c.Next()
 }

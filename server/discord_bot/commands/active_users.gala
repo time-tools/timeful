@@ -9,13 +9,11 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"timeful/server/logger"
-	pgstore "timeful/server/postgres"
+	"timeful/server/postgres"
 	"timeful/server/utils"
 )
 
 func executeActiveUsers(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
-	var err error
-
 	// Parse args
 	var list = false
 	var days = 7
@@ -30,10 +28,12 @@ func executeActiveUsers(s *discordgo.Session, m *discordgo.MessageCreate, args [
 		}
 	}
 	if args.Size() >= 2 {
-		days, err = strconv.Atoi(args[1])
-		if err != nil {
-			sendMessage(s, m, s"DAYS=${args[1]} is not a valid number!")
-			return
+		strconv.Atoi(args[1]) match {
+			case Success(parsed) => days = parsed
+			case Failure(_) => {
+				sendMessage(s, m, s"DAYS=${args[1]} is not a valid number!")
+				return
+			}
 		}
 	}
 
@@ -42,14 +42,8 @@ func executeActiveUsers(s *discordgo.Session, m *discordgo.MessageCreate, args [
 	// the repository so the list and chart output are unchanged.
 	val startDate = utils.GetDateAtTime(time.Now().AddDate(0, 0, -days), "00:00:00")
 
-	val repository, repoErr = pgstore.DefaultRepository()
-	if repoErr != nil {
-		logger.StdErr.Panicln(repoErr)
-	}
-	val logs, logsErr = repository.ListActiveUserDays(context.Background(), startDate, time.Now())
-	if logsErr != nil {
-		logger.StdErr.Panicln(logsErr)
-	}
+	val repository = postgres.DefaultRepository().OnFailure((err) => logger.StdErr.Panicln(err)).Get()
+	val logs = repository.ListActiveUserDays(context.Background(), startDate, time.Now()).OnFailure((err) => logger.StdErr.Panicln(err)).Get()
 
 	// Define constants
 	val dayStrings = activeUsersDayStrings()

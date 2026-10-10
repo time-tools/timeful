@@ -8,36 +8,22 @@ import (
 	"context"
 	"github.com/bwmarrin/discordgo"
 	"timeful/server/logger"
-	pgstore "timeful/server/postgres"
+	"timeful/server/postgres"
 )
 
 //line num_users.gala:11
 func executeNumUsers(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
 //line num_users.gala:12
-	var (
-		_tmp_1, _tmp_2 = pgstore.DefaultRepository()
-		repository     = std.NewImmutable(_tmp_1)
-		err            = std.NewImmutable(_tmp_2)
-	)
+	var repository = std.NewImmutable(std.GoTry(postgres.DefaultRepository()).OnFailure(func(err error) {
+		logger.StdErr.Panicln(err)
+	}).Get())
 //line num_users.gala:13
-	if err.Get() != nil {
-//line num_users.gala:14
-		logger.StdErr.Panicln(err.Get())
-	}
-//line num_users.gala:16
-	var (
-		_tmp_3, _tmp_4 = repository.Get().CountAccounts(context.Background())
-		n              = std.NewImmutable(_tmp_3)
-		countErr       = std.NewImmutable(_tmp_4)
-	)
-//line num_users.gala:17
-	if countErr.Get() != nil {
-//line num_users.gala:18
-		logger.StdErr.Panicln(countErr.Get())
-	}
-//line num_users.gala:21
-	sendMessage(s, m, fmt.Sprintf("Number of currently signed up users: %v", n.Get()))
+	var n = std.NewImmutable(std.GoTry(repository.Get().CountAccounts(context.Background())).OnFailure(func(err error) {
+		logger.StdErr.Panicln(err)
+	}).Get())
+//line num_users.gala:15
+	sendMessage(s, m, fmt.Sprintf("Number of currently signed up users: %d", n.Get()))
 }
 
-//line num_users.gala:24
+//line num_users.gala:18
 var numUsers Command = Command{Name: "!num_users", Description: "Returns the number of signed up users", Execute: executeNumUsers}

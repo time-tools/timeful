@@ -48,16 +48,9 @@ func CallApi(user *models.User, calendarAuth *models.OAuth2CalendarAuth, method 
 //line services.gala:29
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", calendarAuth.AccessToken))
 //line services.gala:31
-	var (
-		_tmp_4, _tmp_5 = http.DefaultClient.Do(req)
-		response       = std.NewImmutable(_tmp_4)
-		err            = std.NewImmutable(_tmp_5)
-	)
-//line services.gala:32
-	if err.Get() != nil {
+	var response = std.NewImmutable(std.GoTry(http.DefaultClient.Do(req)).OnFailure(func(err error) {
+		logger.StdErr.Panicln(err)
+	}).Get())
 //line services.gala:33
-		logger.StdErr.Panicln(err.Get())
-	}
-//line services.gala:36
 	return response.Get()
 }

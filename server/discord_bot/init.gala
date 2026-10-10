@@ -5,6 +5,7 @@ import (
 	"regexp"
 
 	"github.com/bwmarrin/discordgo"
+	"martianoff/gala/go_interop"
 	"timeful/server/discord_bot/commands"
 	"timeful/server/logger"
 	"timeful/server/utils"
@@ -31,16 +32,10 @@ func Init() {
 		logger.StdErr.Panicln(err)
 	}
 
-	val u, userErr = bot.User("@me")
-	if userErr != nil {
-		logger.StdErr.Panicln(userErr)
-	}
+	val u = bot.User("@me").OnFailure((err) => logger.StdErr.Panicln(err)).Get()
 	BotId = u.ID
 
-	val openErr = bot.Open()
-	if openErr != nil {
-		logger.StdErr.Panicln(openErr)
-	}
+	FromError(bot.Open()).OnFailure((err) => logger.StdErr.Panicln(err))
 	logger.StdOut.Println("Discord bot initialized")
 
 	val channelName = listeningChannelName()
@@ -77,8 +72,5 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 	val commandName = args[0]
 	args = argsFrom(args, 1)
 
-	val command, ok = commandMap[commandName]
-	if ok {
-		command.Execute(s, m, args)
-	}
+	go_interop.OptionFromMap(commandMap, commandName).ForEach((command commands.Command) => command.Execute(s, m, args))
 }

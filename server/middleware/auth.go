@@ -2,6 +2,8 @@
 
 package middleware
 
+import "timeful/server/models"
+import "timeful/server/postgres"
 import "go.gala.fyi/stdlib/std"
 import (
 	"github.com/gin-gonic/gin"
@@ -43,40 +45,78 @@ func AuthRequired() gin.HandlerFunc {
 			return
 		}
 //line auth.gala:36
-		var (
-			_tmp_1, _tmp_2 = accounts.Resolve(c.Request.Context(), platformIdentityID.Get())
-			account        = std.NewImmutable(_tmp_1)
-			err            = std.NewImmutable(_tmp_2)
-		)
-//line auth.gala:37
-		if err.Get() != nil {
+		{
+			obj := std.GoTry(accounts.Resolve(c.Request.Context(), platformIdentityID.Get()))
+			{
+				_tmp_1 := std.Success[*postgres.Account]{}.Unapply(obj)
+				_tmp_2 := _tmp_1.IsDefined()
+				var _tmp_3 *postgres.Account
+				if _tmp_2 {
+					_tmp_3 = _tmp_1.Get()
+				}
+				_ = _tmp_3
+				account := _tmp_3
+				if _tmp_2 {
 //line auth.gala:38
-			c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
-//line auth.gala:39
-			c.Abort()
+					{
+						obj := std.GoTry(accounts.LoadSessionUser(c.Request.Context(), account))
+						{
+							_tmp_4 := std.Success[*models.User]{}.Unapply(obj)
+							_tmp_5 := _tmp_4.IsDefined()
+							var _tmp_6 *models.User
+							if _tmp_5 {
+								_tmp_6 = _tmp_4.Get()
+							}
+							_ = _tmp_6
+							user := _tmp_6
+							if _tmp_5 {
 //line auth.gala:40
-			return
-		}
-//line auth.gala:43
-		var (
-			_tmp_3, _tmp_4 = accounts.LoadSessionUser(c.Request.Context(), account.Get())
-			user           = std.NewImmutable(_tmp_3)
-			loadErr        = std.NewImmutable(_tmp_4)
-		)
-//line auth.gala:44
-		if loadErr.Get() != nil {
+								c.Set("authUser", user)
+//line auth.gala:41
+								c.Set("authAccount", account)
+//line auth.gala:42
+								c.Next()
+							} else {
+								_tmp_7 := std.Failure[*models.User]{}.Unapply(obj)
+								_tmp_8 := _tmp_7.IsDefined()
+								var _tmp_9 error
+								if _tmp_8 {
+									_tmp_9 = _tmp_7.Get()
+								}
+								_ = _tmp_9
+								if _tmp_8 {
 //line auth.gala:45
-			c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed to load account integration data"})
+									c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed to load account integration data"})
 //line auth.gala:46
-			c.Abort()
+									c.Abort()
 //line auth.gala:47
-			return
-		}
-//line auth.gala:50
-		c.Set("authUser", user.Get())
-//line auth.gala:51
-		c.Set("authAccount", account.Get())
+									return
+								} else {
+									panic("unreachable")
+								}
+							}
+						}
+					}
+				} else {
+					_tmp_10 := std.Failure[*postgres.Account]{}.Unapply(obj)
+					_tmp_11 := _tmp_10.IsDefined()
+					var _tmp_12 error
+					if _tmp_11 {
+						_tmp_12 = _tmp_10.Get()
+					}
+					_ = _tmp_12
+					if _tmp_11 {
 //line auth.gala:52
-		c.Next()
+						c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
+//line auth.gala:53
+						c.Abort()
+//line auth.gala:54
+						return
+					} else {
+						panic("unreachable")
+					}
+				}
+			}
+		}
 	}
 }

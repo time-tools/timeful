@@ -7,36 +7,22 @@ import "go.gala.fyi/stdlib/std"
 import (
 	"context"
 	"timeful/server/logger"
-	pgstore "timeful/server/postgres"
+	"timeful/server/postgres"
 )
 
 //line num_users.gala:10
 func executeNumUsers(args []string, webhookUrl string) {
 //line num_users.gala:11
-	var (
-		_tmp_1, _tmp_2 = pgstore.DefaultRepository()
-		repository     = std.NewImmutable(_tmp_1)
-		err            = std.NewImmutable(_tmp_2)
-	)
+	var repository = std.NewImmutable(std.GoTry(postgres.DefaultRepository()).OnFailure(func(err error) {
+		logger.StdErr.Panicln(err)
+	}).Get())
 //line num_users.gala:12
-	if err.Get() != nil {
-//line num_users.gala:13
-		logger.StdErr.Panicln(err.Get())
-	}
-//line num_users.gala:15
-	var (
-		_tmp_3, _tmp_4 = repository.Get().CountAccounts(context.Background())
-		n              = std.NewImmutable(_tmp_3)
-		countErr       = std.NewImmutable(_tmp_4)
-	)
-//line num_users.gala:16
-	if countErr.Get() != nil {
-//line num_users.gala:17
-		logger.StdErr.Panicln(countErr.Get())
-	}
-//line num_users.gala:20
-	SendRawMessage(newResponse("in_channel", fmt.Sprintf("Number of currently signed up users: %v", n.Get())), webhookUrl)
+	var n = std.NewImmutable(std.GoTry(repository.Get().CountAccounts(context.Background())).OnFailure(func(err error) {
+		logger.StdErr.Panicln(err)
+	}).Get())
+//line num_users.gala:14
+	SendRawMessage(newResponse("in_channel", fmt.Sprintf("Number of currently signed up users: %d", n.Get())), webhookUrl)
 }
 
-//line num_users.gala:23
+//line num_users.gala:17
 var numUsers Command = Command{Name: "/num_users", Description: "Returns the number of signed up users", Execute: executeNumUsers}

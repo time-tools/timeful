@@ -38,6 +38,25 @@ A candidate whose Go-facing API cannot survive the split stays handwritten.
 Read the emitted import block before committing a twin: a runtime import must be the `go.gala.fyi/stdlib/...` module pinned in `server/go.mod`, and `verify.sh` fails a twin whose generated Go imports `martianoff/gala`.
 A runtime-free twin is not stale; `verify.sh` accepts either form and the registry names which is which.
 
+### Runtime idiom pass (TASK-0354, 2026-10-10)
+
+The committed twins' Go-spelled failure handling was rewritten with the runtime as values: a Go call returning `(T, error)` used as a value is already a `Try[T]` (the transpiler emits `std.GoTry`), `match` takes `Success`/`Failure` apart, `OnFailure`/`GetOrElse` handle the ends, `FromError` covers a void error return, and `go_interop.OptionFromMap` covers absence at a map boundary.
+The pass touched `middleware/auth.gala`, `utils/request_utils.gala`, `routes/respondent_identity.gala`, `services/services.gala`, both `num_users.gala` and both `active_users.gala` twins, and `discord_bot/init.gala`; the generated Go keeps every Go-facing signature, every panic site's `logger.StdErr.Panicln` call, every HTTP status, and every wire payload, and no test changed.
+`Try(...)` is the panic-catching constructor (`std.Try[T]{}.Apply` over a closure that panics on the error), so it was not used where the current code propagates a panic: the void call `bot.Open()` uses `FromError`, which checks the error without catching panics.
+`routes/respondent_identity.gala`'s `liveUsers` lookup became `go_interop.OptionFromMap(liveUsers, lookupKey)` matched as `Some(liveUser) if liveUser != nil` against `case _`, which keeps the explicit-nil map value and the fallback branch as distinct as the comma-ok form did.
+
+The sites that stay on the Go spelling, and why:
+
+- Pointer nil guards stay in `routes/respondent_identity.gala` (`cloneUser`'s `user == nil`, `sanitizedResponseUser`'s `sanitized == nil`, `populateSignUpResponsePayloadIdentity`'s `response == nil`), `routes/users.gala` (`user == nil`), `routes/guest_response_ownership.gala` (`response == nil`), and `services/services.gala` (the `user` and `body` parameters).
+  The adopted runtime has no pointer-to-Option conversion; `go_interop.OptionFromMap` is its only absence-to-Option helper, so rewriting a pointer guard with `Option` would move the same `== nil` test into a `Some`/`None` constructor without removing it.
+  `populateSignUpResponsePayloadIdentity` and `CallApi` are called by handwritten Go (`routes/event_routes.go`, `services/*`), and the route helpers are read by `routes/guest_response_ownership_test.go`, so those signatures cannot change in any case.
+- `discord_bot/init.gala`'s `val botSession, err = discordgo.New(...)` stays Go-spelled because the original publishes the returned session to the package-level `bot` before the error check, and the value layer has no spelling that yields the session on `Failure`; `discordgo.New` on v0.27.1 always returns a non-nil session, so publish-then-check is the behavior being kept.
+- Blank error discards stay blank (`json.Marshal` and `http.NewRequest` in `services.gala`, `bot.GuildChannels` in `init.gala`), because the original deliberately ignores those errors and no runtime spelling represents an ignored error.
+
+The pass also confirmed that the transpiler resolves a Go call's signature only when the import qualifier names the package itself: the `pgstore "timeful/server/postgres"` alias left `pgstore.DefaultRepository()` an unknown type (annotated `.OnFailure` emitted a call without `std.GoTry`, which `go build` rejects), so the bot and command twins use `"timeful/server/postgres"` and spell it `postgres.DefaultRepository()`.
+The alias row and the `Try`/`FromError` distinction are recorded in [`constructs.md`](../.agents/skills/gala-from-go/references/constructs.md).
+[`scripts/gala/verify.sh`](scripts/gala/verify.sh) reports `OK (22 twins)` with every regenerated twin byte-identical under a double transpile, `go build ./...` is green, and the canonical Compose backend sequence in [`README.md`](README.md) passes.
+
 ## Compiler
 
 The translation target is the `gala` compiler the dev shell puts on `PATH`, and every committed twin regenerates byte-identically under it.

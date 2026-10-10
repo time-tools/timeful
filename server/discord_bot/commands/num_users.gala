@@ -5,18 +5,12 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"timeful/server/logger"
-	pgstore "timeful/server/postgres"
+	"timeful/server/postgres"
 )
 
 func executeNumUsers(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
-	val repository, err = pgstore.DefaultRepository()
-	if err != nil {
-		logger.StdErr.Panicln(err)
-	}
-	val n, countErr = repository.CountAccounts(context.Background())
-	if countErr != nil {
-		logger.StdErr.Panicln(countErr)
-	}
+	val repository = postgres.DefaultRepository().OnFailure((err) => logger.StdErr.Panicln(err)).Get()
+	val n = repository.CountAccounts(context.Background()).OnFailure((err) => logger.StdErr.Panicln(err)).Get()
 
 	sendMessage(s, m, s"Number of currently signed up users: $n")
 }

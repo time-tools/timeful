@@ -4,51 +4,52 @@ package routes
 
 import "go.gala.fyi/stdlib/std"
 import (
+	"go.gala.fyi/stdlib/go_interop"
 	"timeful/server/models"
 	"timeful/server/respondents"
 )
 
-//line respondent_identity.gala:8
-func cloneUser(user *models.User) *models.User {
-//line respondent_identity.gala:9
-	if user == nil {
 //line respondent_identity.gala:10
+func cloneUser(user *models.User) *models.User {
+//line respondent_identity.gala:11
+	if user == nil {
+//line respondent_identity.gala:12
 		return nil
 	}
-//line respondent_identity.gala:13
+//line respondent_identity.gala:15
 	var clone = *user
-//line respondent_identity.gala:14
+//line respondent_identity.gala:16
 	return &clone
 }
 
-//line respondent_identity.gala:17
-func sanitizedResponseUser(user *models.User) *models.User {
-//line respondent_identity.gala:18
-	var sanitized = std.NewImmutable(cloneUser(user))
 //line respondent_identity.gala:19
-	if sanitized.Get() == nil {
+func sanitizedResponseUser(user *models.User) *models.User {
 //line respondent_identity.gala:20
+	var sanitized = std.NewImmutable(cloneUser(user))
+//line respondent_identity.gala:21
+	if sanitized.Get() == nil {
+//line respondent_identity.gala:22
 		return nil
 	}
-//line respondent_identity.gala:23
+//line respondent_identity.gala:25
 	var (
 		_tmp_1, _tmp_2, _ = respondents.SanitizeUserDisplayName(sanitized.Get())
 		firstName         = std.NewImmutable(_tmp_1)
 		lastName          = std.NewImmutable(_tmp_2)
 	)
-//line respondent_identity.gala:24
+//line respondent_identity.gala:26
 	sanitized.Get().FirstName = firstName.Get()
-//line respondent_identity.gala:25
-	sanitized.Get().LastName = lastName.Get()
 //line respondent_identity.gala:27
+	sanitized.Get().LastName = lastName.Get()
+//line respondent_identity.gala:29
 	return sanitized.Get()
 }
 
-//line respondent_identity.gala:30
-func canonicalGuestName(name string) string {
-//line respondent_identity.gala:31
-	var validation = std.NewImmutable(respondents.ValidateGuestName(name))
 //line respondent_identity.gala:32
+func canonicalGuestName(name string) string {
+//line respondent_identity.gala:33
+	var validation = std.NewImmutable(respondents.ValidateGuestName(name))
+//line respondent_identity.gala:34
 	return func() string {
 		if validation.Get().Code != respondents.GuestNameValid {
 			return ""
@@ -58,7 +59,7 @@ func canonicalGuestName(name string) string {
 	}()
 }
 
-//line respondent_identity.gala:35
+//line respondent_identity.gala:37
 func guestNameValidationErrorMessage(code respondents.GuestNameValidationCode) string {
 	return func(obj respondents.GuestNameValidationCode) string {
 		if obj == respondents.GuestNameRequired {
@@ -75,7 +76,7 @@ func guestNameValidationErrorMessage(code respondents.GuestNameValidationCode) s
 	}(code)
 }
 
-//line respondent_identity.gala:42
+//line respondent_identity.gala:44
 
 // populateSignUpResponsePayloadIdentity resolves the response identity key and
 // promotes the live account profile when one exists. liveUsers carries the
@@ -84,46 +85,51 @@ func guestNameValidationErrorMessage(code respondents.GuestNameValidationCode) s
 // the wire shape never gains an account shape it did not have before.
 func populateSignUpResponsePayloadIdentity(response *models.SignUpResponse, liveUsers map[string]*models.User) (string, bool) {
 	var _goResult std.Tuple[string, bool] = func() std.Tuple[string, bool] {
-//line respondent_identity.gala:49
+//line respondent_identity.gala:51
 		if response == nil {
-//line respondent_identity.gala:50
+//line respondent_identity.gala:52
 			return std.Tuple[string, bool]{V1: std.NewImmutable(""), V2: std.NewImmutable(false)}
 		}
-//line respondent_identity.gala:53
-		if !response.UserId.IsZero() {
-//line respondent_identity.gala:54
-			var lookupKey = std.NewImmutable(response.UserId.String())
 //line respondent_identity.gala:55
-			var (
-				_tmp_3, _tmp_4 = liveUsers[lookupKey.Get()]
-				liveUser       = std.NewImmutable(_tmp_3)
-				ok             = std.NewImmutable(_tmp_4)
-			)
+		if !response.UserId.IsZero() {
 //line respondent_identity.gala:56
-			if ok.Get() && liveUser.Get() != nil {
+			var lookupKey = std.NewImmutable(response.UserId.String())
 //line respondent_identity.gala:57
-				response.User = sanitizedResponseUser(liveUser.Get())
-			} else {
-//line respondent_identity.gala:59
-				var fallbackName = std.NewImmutable(respondents.NormalizeGuestName(response.Name))
+			func(obj std.Option[*models.User]) {
+				{
+					_tmp_3 := std.Some[*models.User]{}.Unapply(obj)
+					_tmp_4 := _tmp_3.IsDefined()
+					var _tmp_5 *models.User
+					if _tmp_4 {
+						_tmp_5 = _tmp_3.Get()
+					}
+					_ = _tmp_5
+					liveUser := _tmp_5
+					if _tmp_4 && liveUser != nil {
+						response.User = sanitizedResponseUser(liveUser)
+					} else {
 //line respondent_identity.gala:60
-				response.User = &models.User{Id: response.UserId, FirstName: fallbackName.Get(), Email: response.Email}
-			}
-//line respondent_identity.gala:66
+						var fallbackName = std.NewImmutable(respondents.NormalizeGuestName(response.Name))
+//line respondent_identity.gala:61
+						response.User = &models.User{Id: response.UserId, FirstName: fallbackName.Get(), Email: response.Email}
+					}
+				}
+			}(go_interop.OptionFromMap(liveUsers, lookupKey.Get()))
+//line respondent_identity.gala:68
 			return std.Tuple[string, bool]{V1: std.NewImmutable(lookupKey.Get()), V2: std.NewImmutable(true)}
 		}
-//line respondent_identity.gala:69
-		var name = std.NewImmutable(canonicalGuestName(response.Name))
-//line respondent_identity.gala:70
-		if name.Get() == "" {
 //line respondent_identity.gala:71
+		var name = std.NewImmutable(canonicalGuestName(response.Name))
+//line respondent_identity.gala:72
+		if name.Get() == "" {
+//line respondent_identity.gala:73
 			return std.Tuple[string, bool]{V1: std.NewImmutable(""), V2: std.NewImmutable(false)}
 		}
-//line respondent_identity.gala:74
+//line respondent_identity.gala:76
 		response.Name = name.Get()
-//line respondent_identity.gala:75
+//line respondent_identity.gala:77
 		response.User = &models.User{FirstName: name.Get(), Email: response.Email}
-//line respondent_identity.gala:79
+//line respondent_identity.gala:81
 		return std.Tuple[string, bool]{V1: std.NewImmutable(name.Get()), V2: std.NewImmutable(true)}
 	}()
 	return _goResult.V1.Get(), _goResult.V2.Get()
