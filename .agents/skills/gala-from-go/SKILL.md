@@ -236,7 +236,7 @@ Each of these is a way the translation goes wrong without producing an error at 
 - **A resource combinator's result type defaults to `any`, which drops the enclosing function's return type.**
   `resource.Using(res, (x) => x.Name)` binds the body's parameter correctly and defaults its *result* to `any`, so the enclosing function is emitted with no result at all.
   The transpile is clean; the failure is `too many return values` and `(no value) used as value` from `go build`, in a generated file.
-  Supply both type arguments explicitly.
+  Supply both type arguments explicitly, except when the result is a function type: `Bracket[context.CancelFunc, func()]` is a parse error, so name the type (`type CloseFn func()`) or omit both arguments and annotate the binding (`var closeFn func() = resource.Bracket(cancel, release, body)`), which infers the result from the annotation.
 - **A `use` binding is not the acquired value.**
   `use x = acquire` takes a single-value acquire, so a call returning `(T, error)` has to have its error handled first, and the resulting binding is a `Try`, which is why calling a method on it fails.
 - **The capture guard covers one concurrency boundary and not the other.**

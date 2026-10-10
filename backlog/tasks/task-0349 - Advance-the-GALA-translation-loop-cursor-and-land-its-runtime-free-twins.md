@@ -4,7 +4,7 @@ title: Advance the GALA translation loop cursor and land its runtime-free twins
 status: In Progress
 assignee: []
 created_date: '2026-10-05 08:44'
-updated_date: '2026-10-10 15:59'
+updated_date: '2026-10-10 16:19'
 labels: []
 dependencies: []
 references:
@@ -43,6 +43,8 @@ modified_files:
   - server/postgres/repository_types.go
   - server/postgres/codec.gala
   - server/postgres/codec.go
+  - server/postgres/pool.gala
+  - server/postgres/pool.go
   - .agents/skills/gala-from-go/SKILL.md
   - .agents/skills/gala-from-go/references/constructs.md
 priority: medium
@@ -349,6 +351,31 @@ Run the `gala-loop` skill one iteration at a time, taking the next entry from th
 **Next:** cursor entry 1 stays blocked; entry 2 is `postgres/pool.go` and `postgres/tracing.go`.
 
 **State:** changes are in the worktree, not committed: `server/postgres/codec.gala`, `server/postgres/codec.go`, `server/GALA.md`, `.agents/skills/gala-from-go/references/constructs.md`, and this task's notes. The pre-existing unrelated `backlog/backlog.md` modification was left untouched.
+
+## Iteration 14 — postgres/pool whole-file twin (2026-10-10)
+
+**Provenance:** `gala` `GALA version 0.87.1` at `/nix/store/mib0p8skl8rh79alw3hp2nza8qbvhdwd-gala-0.87.1/bin/gala`; flake rev `cd2fdcb50cf1bc988ed03c3f6cdc0c485403576c` and extraction marker match `server/GALA_COMPILER`, so no bump. The tree held only the pre-existing `backlog/backlog.md` edit, left untouched.
+
+**Candidate:** cursor entry 1 (`models/set.go`, `models/location.go`, `models/event.go`) stays blocked: `scripts/gala/probes/models-struct-tag` and `models-empty-struct` re-ran on the pinned rev and reproduced their recorded parse errors. The loop took entry 2's first candidate, `postgres/pool.go`.
+
+**Triage:** rewrite whole (no handwritten remainder). The old `pool.go` was moved aside before the transpile.
+
+**Re-derived rows (pinned compiler):** `defer cancel()` over a `(Context, CancelFunc)` pair is `resource.Bracket` with the bindings annotated; `resource.Bracket[context.CancelFunc, func()]` is a parse error because a function type cannot be written as an explicit type argument, so the release/body lambdas were inferred from `var closeFn func() = ...` (a named `type CloseFn func()` also passes as a type argument). The dot-imported `go_builtins.Panic` lowers to Go's builtin `panic` and emits no `go_builtins` import. `Panic` before and inside the Bracket body, a nested `return () => {...}` lambda, assignment to the package-level `Pool` from the body lambda, and `var createdPool, connErr = pgxpool.NewWithConfig(...)` all transpile; the emitted import block is `go.gala.fyi/stdlib/resource` alone.
+
+**Behavior note:** `resource.Bracket` releases on every exit path but re-raises a caught string panic as a `*panicError`; nothing in the server recovers `Init`'s panics, so the process-visible behavior is unchanged, and the alternative (explicit `cancel()` before each panic) was rejected as a weaker substitute for the deferred release.
+
+**Landed:** `server/postgres/pool.gala` -> generated `server/postgres/pool.go`, a whole-file twin with no handwritten sibling. The three environment-name `const`s became package `var`s (`pool_test.go` reads `maxConnectionsEnvironment` as a plain value), `Pool` stays an exported `var`, and every Go-facing signature and panic message is unchanged.
+
+**Evidence:**
+- Double transpile byte-identical (`diff` clean) and `gofmt -l` clean; generated imports only `go.gala.fyi/stdlib/resource`; no `martianoff/gala`; `go vet ./postgres/` clean.
+- `server/scripts/gala/verify.sh` reports OK (26 twins) including `go build ./...`.
+- Canonical Compose backend sequence green across every package (`postgres` 8.728s, `routes` 2.309s); existing `.env.test` kept; cache volumes created one per command.
+
+**Ledger:** registry 25 -> 26 with the `postgres/pool` row; cursor entry 2 now offers only `tracing.go`; new open-findings row `Function type as an explicit type argument` (workaround, no probe needed); postgres prose records the landing and the `*panicError` note. `gala-from-go`'s resource trap, the function-type row, and the `panic` row record the type-argument refusal and the builtin-`panic` lowering. Formatted with `npm run format:markdown`.
+
+**Next:** cursor entry 1 stays blocked; entry 2 is `postgres/tracing.go`.
+
+**State:** changes are in the worktree, not committed: `server/postgres/pool.gala`, `server/postgres/pool.go`, `server/GALA.md`, the two `.agents` references, and this task's notes. The pre-existing unrelated `backlog/backlog.md` modification was left untouched.
 <!-- SECTION:NOTES:END -->
 
 ## Comments
