@@ -107,7 +107,7 @@ A rev mismatch is resolved by a bump iteration and never by translating across i
 
 ## Twin registry
 
-Twenty-four `.gala` sources across fifteen packages carry a committed twin.
+Twenty-five `.gala` sources across fifteen packages carry a committed twin.
 `stdlib` means the generated Go imports the adopted runtime; `runtime-free` means it names no runtime package and no `martianoff/gala` either.
 Every row regenerates with `cd server/<dir> && gala transpile --stdlib-module go.gala.fyi/stdlib -i <name>.gala -o <name>.go`; a handwritten sibling has no command because it is not generated.
 
@@ -135,6 +135,7 @@ Every row regenerates with `cd server/<dir> && gala transpile --stdlib-module go
 | `middleware`              | `middleware/auth.gala`                        | `middleware/auth.go`                        | `middleware/doc.go` (package comment), `middleware/auth_session.go` (`sessionIdentityID`)                                                                                     | stdlib       |
 | `postgres`                | `postgres/dailylogs.gala`                     | `postgres/dailylogs.go`                     | `postgres/dailylogs_methods.go` (the four `*Repository` daily-log methods), `postgres/dailylogs_types.go` (`DailyUserLog`, `DailyUserLogMember`)                              | stdlib       |
 | `postgres`                | `postgres/repository.gala`                    | `postgres/repository.go`                    | `postgres/repository_types.go` (`Repository`, `dbtx`), `postgres/repository_methods.go` (all eighteen `*Repository` methods)                                                  | stdlib       |
+| `postgres`                | `postgres/codec.gala`                         | `postgres/codec.go`                         | —                                                                                                                                                                             | stdlib       |
 | `models`                  | `models/datetime.gala`                        | `models/datetime.go`                        | `models/datetime_extra.go` (`MarshalJSON`, `UnmarshalJSON`)                                                                                                                   | stdlib       |
 | `models`                  | `models/uuid.gala`                            | `models/uuid.go`                            | `models/uuid_extra.go` (`ParseUUID`, `NewUUID`, `formatUUID`, and the JSON/text marshalers)                                                                                   | stdlib       |
 
@@ -195,6 +196,7 @@ The `len` on a slice whose type is a handwritten `.go` sibling finding closed on
 The `postgres/repository.go` split landed on 2026-10-10: the declarations and free functions moved to `repository.gala` with its generated `repository.go`, and the handwritten remainder is `repository_types.go` (`Repository` and `dbtx` verbatim) plus `repository_methods.go` (all eighteen `*Repository` methods verbatim).
 The method-set rule above is what fixes the shape: a first draft that carried the methods in `repository.gala` broke `discord_bot/commands`, `slackbot/commands`, and `routes/group` with a false `GALA-E0044` until the methods moved back to the sibling, so `Repository` is never re-declared in GALA.
 The free functions replace the two local `[5]byte`/`[4]byte` random buffers with `go_interop.SliceWithSize[byte]`, `scanEvent` takes a named `rowScanner` instead of the anonymous interface, and every Go-facing name, signature, and behavior is unchanged; the methods' `defer tx.Rollback(ctx)` and its comment survive because those methods stayed handwritten.
+`postgres/codec.gala` landed on 2026-10-10: `encodePayload` and `decodePayload` keep their exact signatures, error strings, and clone semantics, with the declared `([]byte, error)` result list on the `Success`/`Failure` row, `len` and the cloning `append` on their helper rows, and a zero-value guard in `decodePayload` because `go_interop.SliceCopy` returns a non-nil empty slice where `append(json.RawMessage(nil), payload...)` returns nil and an empty non-nil `RawMessage` fails `json.Marshal`.
 
 ## Upstream report index
 
@@ -236,7 +238,7 @@ The cursor is ordered, and the loop takes the next entry and re-checks its const
 A fixed blocker moves the candidate forward; a persistent blocker with no workaround becomes a Backlog task and a probe, and the candidate stays.
 
 1. `models/set.go`, `models/location.go`, `models/event.go` — tags and `struct{}`; blockers re-verified on the pinned compiler with probes at `scripts/gala/probes/models-*`; `models/datetime.go` and `models/uuid.go` are migrated (the runtime-synthesized `Hash`/`Compare` replaced the siblings in TASK-0353.03), with uuid's fixed-size `[16]byte` helpers still in `models/uuid_extra.go`.
-2. `postgres/` — `repository.go` was split on 2026-10-10 (declarations and free functions in `repository.gala`; `Repository`, `dbtx`, and all `*Repository` methods handwritten), so the remaining candidates are the files that declare free functions only: `codec.go`, `pool.go`, and `tracing.go`; a `.gala` file that declares a `*Repository` method would make the package's GALA index the receiver's whole method set for importers, so every `*Repository` method stays handwritten.
+2. `postgres/` — `repository.go` was split on 2026-10-10 (declarations and free functions in `repository.gala`; `Repository`, `dbtx`, and all `*Repository` methods handwritten) and `codec.go` landed as `codec.gala` on 2026-10-10, so the remaining candidates are the free-function files `pool.go` and `tracing.go`; a `.gala` file that declares a `*Repository` method would make the package's GALA index the receiver's whole method set for importers, so every `*Repository` method stays handwritten.
 3. `main.go`.
 4. `observability/provider.go`, `observability/readiness.go`, `observability/transport.go`.
 5. `services/auth`, `services/calendar`, `services/contacts`, `services/listmonk`, `services/microsoftgraph`.

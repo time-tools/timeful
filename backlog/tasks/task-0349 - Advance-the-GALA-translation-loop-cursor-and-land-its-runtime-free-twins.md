@@ -4,7 +4,7 @@ title: Advance the GALA translation loop cursor and land its runtime-free twins
 status: In Progress
 assignee: []
 created_date: '2026-10-05 08:44'
-updated_date: '2026-10-10 15:22'
+updated_date: '2026-10-10 15:59'
 labels: []
 dependencies: []
 references:
@@ -41,6 +41,8 @@ modified_files:
   - server/postgres/repository.go
   - server/postgres/repository_methods.go
   - server/postgres/repository_types.go
+  - server/postgres/codec.gala
+  - server/postgres/codec.go
   - .agents/skills/gala-from-go/SKILL.md
   - .agents/skills/gala-from-go/references/constructs.md
 priority: medium
@@ -324,6 +326,29 @@ Run the `gala-loop` skill one iteration at a time, taking the next entry from th
 **State:** changes are in the worktree, not committed, at the time of this note; the pre-existing unrelated `backlog/backlog.md` modification was left untouched.
 
 **Iteration 12 addendum — stale `.gala` cache (2026-10-10):** a later full `verify.sh` run reported `middleware/auth.go` drift (its transitive `models`/`postgres` standalone imports swapped order) after the v1 experiment's cache entries survived the `repository.gala` replacement; deleting `server/.gala/` and re-running regenerated the committed byte-identical file, and two further full runs report OK (24 twins). The ledger's contract section now records the remedy, and the committed `middleware/auth.go` is unchanged.
+
+## Iteration 13 — postgres/codec whole-file twin (2026-10-10)
+
+**Provenance:** `gala` `GALA version 0.87.1` at `/nix/store/mib0p8skl8rh79alw3hp2nza8qbvhdwd-gala-0.87.1/bin/gala`; flake rev `cd2fdcb50cf1bc988ed03c3f6cdc0c485403576c` and extraction marker match `server/GALA_COMPILER`, so no bump. The tree held only the pre-existing `backlog/backlog.md` edit, left untouched.
+
+**Candidate:** cursor entry 1 (`models/set.go`, `models/location.go`, `models/event.go`) stays blocked: `scripts/gala/probes/models-struct-tag` and `models-empty-struct` re-ran on the pinned rev and reproduced their recorded parse errors. The loop took entry 2's first candidate, `postgres/codec.go`.
+
+**Triage:** rewrite whole (no handwritten remainder). `emptyPayload`, `encodePayload`, and `decodePayload` are all expressible; the old `codec.go` was moved aside before the transpile.
+
+**Re-derived rows (pinned compiler):** the declared `([]byte, error)` result list with a `Success`/`Failure` body emits the `std.Try` IIFE whose failure path returns `*new([]byte), err` (the original `nil, err`); `len(payload)` on `json.RawMessage` lowers from `.Size()`; `json.RawMessage(go_interop.ToBytes("{}"))` is a valid conversion; `go_interop.SliceCopy` accepts a named `[]byte` type and returns `[]byte`. One runtime subtlety was preserved deliberately: `SliceCopy` returns a non-nil empty slice for a non-nil empty input while `append(json.RawMessage(nil), payload...)` returns nil, and an empty non-nil `RawMessage` fails `json.Marshal` (verified with a host scratch program), so `decodePayload` guards the zero-length case and returns a zero-value `json.RawMessage`. `constructs.md`'s builtins prose now records the clone nuance.
+
+**Landed:** `server/postgres/codec.gala` -> generated `server/postgres/codec.go`, a whole-file twin with no handwritten sibling. Every Go-facing name, signature, error string, and clone behavior is unchanged; `encodePayload`/`decodePayload` are still called by `repository_methods.go`, `calendar.go`, `dashboard.go`, and `repository.gala`.
+
+**Evidence:**
+- Double transpile byte-identical (`diff` clean) and `gofmt -l` clean; generated imports only `go.gala.fyi/stdlib/std` and `go.gala.fyi/stdlib/go_interop`; no `martianoff/gala`; `go vet ./postgres/` clean.
+- `server/scripts/gala/verify.sh` first reported `middleware/auth.go` drift; deleting the stale `server/.gala/` cache (the ledger's recorded remedy) and re-running reports OK (25 twins) with `go build ./...` green and `middleware/auth.go` unchanged.
+- Canonical Compose backend sequence green across every package (`postgres` 10.479s, `routes` 2.906s); existing `.env.test` kept.
+
+**Ledger:** registry 24 -> 25 with the `postgres/codec` row; cursor entry 2 now offers only `pool.go` and `tracing.go`; postgres prose records the split. No finding changed.
+
+**Next:** cursor entry 1 stays blocked; entry 2 is `postgres/pool.go` and `postgres/tracing.go`.
+
+**State:** changes are in the worktree, not committed: `server/postgres/codec.gala`, `server/postgres/codec.go`, `server/GALA.md`, `.agents/skills/gala-from-go/references/constructs.md`, and this task's notes. The pre-existing unrelated `backlog/backlog.md` modification was left untouched.
 <!-- SECTION:NOTES:END -->
 
 ## Comments
