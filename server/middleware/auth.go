@@ -2,6 +2,7 @@
 
 package middleware
 
+import "go.gala.fyi/stdlib/std"
 import (
 	"github.com/gin-gonic/gin"
 	"net/http"
@@ -31,9 +32,9 @@ import (
 func AuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
 //line auth.gala:29
-		var platformIdentityID = sessionIdentityID(c)
+		var platformIdentityID = std.NewImmutable(sessionIdentityID(c))
 //line auth.gala:30
-		if platformIdentityID == "" {
+		if platformIdentityID.Get() == "" {
 //line auth.gala:31
 			c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.NotSignedIn})
 //line auth.gala:32
@@ -42,9 +43,13 @@ func AuthRequired() gin.HandlerFunc {
 			return
 		}
 //line auth.gala:36
-		var account, err = accounts.Resolve(c.Request.Context(), platformIdentityID)
+		var (
+			_tmp_1, _tmp_2 = accounts.Resolve(c.Request.Context(), platformIdentityID.Get())
+			account        = std.NewImmutable(_tmp_1)
+			err            = std.NewImmutable(_tmp_2)
+		)
 //line auth.gala:37
-		if err != nil {
+		if err.Get() != nil {
 //line auth.gala:38
 			c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
 //line auth.gala:39
@@ -53,9 +58,13 @@ func AuthRequired() gin.HandlerFunc {
 			return
 		}
 //line auth.gala:43
-		var user, loadErr = accounts.LoadSessionUser(c.Request.Context(), account)
+		var (
+			_tmp_3, _tmp_4 = accounts.LoadSessionUser(c.Request.Context(), account.Get())
+			user           = std.NewImmutable(_tmp_3)
+			loadErr        = std.NewImmutable(_tmp_4)
+		)
 //line auth.gala:44
-		if loadErr != nil {
+		if loadErr.Get() != nil {
 //line auth.gala:45
 			c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed to load account integration data"})
 //line auth.gala:46
@@ -64,9 +73,9 @@ func AuthRequired() gin.HandlerFunc {
 			return
 		}
 //line auth.gala:50
-		c.Set("authUser", user)
+		c.Set("authUser", user.Get())
 //line auth.gala:51
-		c.Set("authAccount", account)
+		c.Set("authAccount", account.Get())
 //line auth.gala:52
 		c.Next()
 	}

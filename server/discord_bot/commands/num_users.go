@@ -3,6 +3,7 @@
 package commands
 
 import "fmt"
+import "go.gala.fyi/stdlib/std"
 import (
 	"context"
 	"github.com/bwmarrin/discordgo"
@@ -13,21 +14,29 @@ import (
 //line num_users.gala:11
 func executeNumUsers(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
 //line num_users.gala:12
-	var repository, err = pgstore.DefaultRepository()
+	var (
+		_tmp_1, _tmp_2 = pgstore.DefaultRepository()
+		repository     = std.NewImmutable(_tmp_1)
+		err            = std.NewImmutable(_tmp_2)
+	)
 //line num_users.gala:13
-	if err != nil {
+	if err.Get() != nil {
 //line num_users.gala:14
-		logger.StdErr.Panicln(err)
+		logger.StdErr.Panicln(err.Get())
 	}
 //line num_users.gala:16
-	var n, countErr = repository.CountAccounts(context.Background())
+	var (
+		_tmp_3, _tmp_4 = repository.Get().CountAccounts(context.Background())
+		n              = std.NewImmutable(_tmp_3)
+		countErr       = std.NewImmutable(_tmp_4)
+	)
 //line num_users.gala:17
-	if countErr != nil {
+	if countErr.Get() != nil {
 //line num_users.gala:18
-		logger.StdErr.Panicln(countErr)
+		logger.StdErr.Panicln(countErr.Get())
 	}
 //line num_users.gala:21
-	sendMessage(s, m, fmt.Sprintf("Number of currently signed up users: %v", n))
+	sendMessage(s, m, fmt.Sprintf("Number of currently signed up users: %v", n.Get()))
 }
 
 //line num_users.gala:24

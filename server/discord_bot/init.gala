@@ -16,35 +16,35 @@ var listeningChannel *discordgo.Channel
 var commandMap = newCommandMap()
 
 func listeningChannelName() string {
-	var configuredChannel = os.Getenv("DISCORD_BOT_CHANNEL")
+	val configuredChannel = os.Getenv("DISCORD_BOT_CHANNEL")
 	if (configuredChannel != "") configuredChannel
 	else if (utils.IsRelease()) "timeful-bot"
 	else "timeful-bot-dev"
 }
 
 func Init() {
-	var token = os.Getenv("DISCORD_BOT_TOKEN")
-	var guildId = os.Getenv("GUILD_ID")
-	var botSession, err = discordgo.New("Bot " + token)
+	val token = os.Getenv("DISCORD_BOT_TOKEN")
+	val guildId = os.Getenv("GUILD_ID")
+	val botSession, err = discordgo.New("Bot " + token)
 	bot = botSession
 	if err != nil {
 		logger.StdErr.Panicln(err)
 	}
 
-	var u, userErr = bot.User("@me")
+	val u, userErr = bot.User("@me")
 	if userErr != nil {
 		logger.StdErr.Panicln(userErr)
 	}
 	BotId = u.ID
 
-	err = bot.Open()
-	if err != nil {
-		logger.StdErr.Panicln(err)
+	val openErr = bot.Open()
+	if openErr != nil {
+		logger.StdErr.Panicln(openErr)
 	}
 	logger.StdOut.Println("Discord bot initialized")
 
-	var channelName = listeningChannelName()
-	var channels, _ = bot.GuildChannels(guildId)
+	val channelName = listeningChannelName()
+	val channels, _ = bot.GuildChannels(guildId)
 	for _, channel := range channels {
 		if channel.Name == channelName {
 			listeningChannel = channel
@@ -72,12 +72,12 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
-	var re = regexp.MustCompile(" +")
+	val re = regexp.MustCompile(" +")
 	var args = re.Split(m.Content, -1)
-	var commandName = args[0]
+	val commandName = args[0]
 	args = argsFrom(args, 1)
 
-	var command, ok = commandMap[commandName]
+	val command, ok = commandMap[commandName]
 	if ok {
 		command.Execute(s, m, args)
 	}

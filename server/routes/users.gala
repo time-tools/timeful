@@ -11,7 +11,7 @@ import (
 )
 
 func InitUsers(router *gin.RouterGroup) {
-	var usersRouter = router.Group("/users")
+	val usersRouter = router.Group("/users")
 
 	// Public profile for invite screens, ads, etc. (no auth). Must be registered
 	// after more specific /:userId/... routes.
@@ -25,14 +25,14 @@ func InitUsers(router *gin.RouterGroup) {
 // @Success 200 {object} models.User
 // @Router /users/{userId} [get]
 func getPublicUserProfile(c *gin.Context) {
-	var platformIdentityID = c.Param("userId")
-	var user = accounts.UserByPlatformIdentityID(platformIdentityID)
+	val platformIdentityID = c.Param("userId")
+	val user = accounts.UserByPlatformIdentityID(platformIdentityID)
 	if user == nil {
 		c.JSON(http.StatusNotFound, responses.Error{Error: errs.UserDoesNotExist})
 		return
 	}
 
-	var public = models.User{
+	val public = models.User{
 		Id:        user.Id,
 		FirstName: user.FirstName,
 		LastName:  user.LastName,

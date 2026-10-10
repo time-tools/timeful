@@ -7,20 +7,20 @@ import (
 )
 
 // redactedValue replaces every credential-bearing capture group.
-var redactedValue = "[REDACTED]"
+val redactedValue = "[REDACTED]"
 
 // urlUserInfoPattern matches URL userinfo, for example https://user:password@host/path.
-var urlUserInfoPattern = regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9+.\-]*://)([^/@\s]+)@`)
+val urlUserInfoPattern = regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9+.\-]*://)([^/@\s]+)@`)
 
 // schemeCredentialPattern matches Bearer and Basic scheme credentials.
-var schemeCredentialPattern = regexp.MustCompile(`(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=\-]{6,}`)
+val schemeCredentialPattern = regexp.MustCompile(`(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=\-]{6,}`)
 
 // credentialFieldPattern matches credential-bearing headers and fields, including
 // JSON forms. Unquoted values stop at a query separator so following parameters survive.
-var credentialFieldPattern = regexp.MustCompile(`(?i)\b(authorization|proxy-authorization|cookie|set-cookie|x-api-key|api[-_]?key|password|passwd|secret|token|access_token|refresh_token|id_token|edit_token|editToken|owner_token)\b("?)(\s*[:=]\s*)("[^"]*"|'[^']*'|[^&\n]+)`)
+val credentialFieldPattern = regexp.MustCompile(`(?i)\b(authorization|proxy-authorization|cookie|set-cookie|x-api-key|api[-_]?key|password|passwd|secret|token|access_token|refresh_token|id_token|edit_token|editToken|owner_token)\b("?)(\s*[:=]\s*)("[^"]*"|'[^']*'|[^&\n]+)`)
 
 // sensitiveQueryPattern matches token, secret, credential, and OAuth-code query parameters.
-var sensitiveQueryPattern = regexp.MustCompile(`(?i)([?&][^=&\s#]*(?:token|secret|password|passwd|api[-_]?key|credential|auth|code|otp)[^=&\s#]*=)[^&#\s]*`)
+val sensitiveQueryPattern = regexp.MustCompile(`(?i)([?&][^=&\s#]*(?:token|secret|password|passwd|api[-_]?key|credential|auth|code|otp)[^=&\s#]*=)[^&#\s]*`)
 
 // Redact removes credentials, secrets, and token-bearing URLs and headers from
 // a diagnostic string. Structured records never carry raw requests, so this is
@@ -53,7 +53,7 @@ func truncate(var value string, limit int) string {
 	var used = 0
 	var lastSpaceIndex = -1
 	for _, r := range value {
-		var size = utf8.RuneLen(r)
+		val size = utf8.RuneLen(r)
 		if used + size > limit {
 			break
 		}

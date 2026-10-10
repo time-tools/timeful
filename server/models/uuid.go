@@ -2,6 +2,8 @@
 
 package models
 
+import "go.gala.fyi/stdlib/std"
+
 //line uuid.gala:2
 
 // ZeroUUID returns the all-zero UUID sentinel the API emits for a zero account
@@ -20,6 +22,13 @@ func ZeroUUID() UUID {
 // all-zero sentinel. The zero UUID represents an absent account identity and is
 // never a stored account.
 type UUID string
+
+func (s UUID) Hash() uint32 {
+	return std.HashString(string(s))
+}
+func (s UUID) Compare(other UUID) int {
+	return std.CompareString(string(s), string(other))
+}
 
 //line uuid.gala:15
 

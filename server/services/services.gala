@@ -19,16 +19,16 @@ func CallApi(user *models.User, calendarAuth *models.OAuth2CalendarAuth, method 
 	// non-nil io.Reader.
 	var req *http.Request
 	if (body != nil) {
-		var bodyBytes, _ = json.Marshal(body)
-		var created, _ = http.NewRequest(method, url, bytes.NewBuffer(bodyBytes))
+		val bodyBytes, _ = json.Marshal(body)
+		val created, _ = http.NewRequest(method, url, bytes.NewBuffer(bodyBytes))
 		req = created
 	} else {
-		var created, _ = http.NewRequest(method, url, nil)
+		val created, _ = http.NewRequest(method, url, nil)
 		req = created
 	}
 	req.Header.Set("Authorization", s"Bearer ${calendarAuth.AccessToken}")
 
-	var response, err = http.DefaultClient.Do(req)
+	val response, err = http.DefaultClient.Do(req)
 	if err != nil {
 		logger.StdErr.Panicln(err)
 	}

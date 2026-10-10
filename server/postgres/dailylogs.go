@@ -2,14 +2,15 @@
 
 package postgres
 
+import "go.gala.fyi/stdlib/std"
 import "time"
 
 //line dailylogs.gala:5
 func dailyLogDate(now time.Time, timezoneOffset int) time.Time {
 //line dailylogs.gala:6
-	var adjusted = now.Add(time.Duration(timezoneOffset) * time.Minute).UTC()
+	var adjusted = std.NewImmutable(now.Add(time.Duration(timezoneOffset) * time.Minute).UTC())
 //line dailylogs.gala:7
-	return time.Date(adjusted.Year(), adjusted.Month(), adjusted.Day(), 0, 0, 0, 0, time.UTC)
+	return time.Date(adjusted.Get().Year(), adjusted.Get().Month(), adjusted.Get().Day(), 0, 0, 0, 0, time.UTC)
 }
 
 //line dailylogs.gala:10

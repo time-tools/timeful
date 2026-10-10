@@ -9,11 +9,11 @@ import (
 )
 
 func ParseArrayQueryParam(s string) []string {
-	var decoded, err = url.QueryUnescape(s)
+	val decoded, err = url.QueryUnescape(s)
 	if err != nil {
 		logger.StdErr.Panicln(err)
 	}
-	var arr = strings.Split(decoded, ",")
+	val arr = strings.Split(decoded, ",")
 	return arr
 }
 

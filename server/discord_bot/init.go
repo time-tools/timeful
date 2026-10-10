@@ -2,6 +2,7 @@
 
 package discord_bot
 
+import "go.gala.fyi/stdlib/std"
 import (
 	"github.com/bwmarrin/discordgo"
 	"os"
@@ -26,11 +27,11 @@ var commandMap = newCommandMap()
 //line init.gala:18
 func listeningChannelName() string {
 //line init.gala:19
-	var configuredChannel = os.Getenv("DISCORD_BOT_CHANNEL")
+	var configuredChannel = std.NewImmutable(os.Getenv("DISCORD_BOT_CHANNEL"))
 //line init.gala:20
 	return func() string {
-		if configuredChannel != "" {
-			return configuredChannel
+		if configuredChannel.Get() != "" {
+			return configuredChannel.Get()
 		} else {
 			return func() string {
 				if utils.IsRelease() {
@@ -46,44 +47,55 @@ func listeningChannelName() string {
 //line init.gala:25
 func Init() {
 //line init.gala:26
-	var token = os.Getenv("DISCORD_BOT_TOKEN")
+	var token = std.NewImmutable(os.Getenv("DISCORD_BOT_TOKEN"))
 //line init.gala:27
-	var guildId = os.Getenv("GUILD_ID")
+	var guildId = std.NewImmutable(os.Getenv("GUILD_ID"))
 //line init.gala:28
-	var botSession, err = discordgo.New("Bot " + token)
+	var (
+		_tmp_1, _tmp_2 = discordgo.New("Bot " + token.Get())
+		botSession     = std.NewImmutable(_tmp_1)
+		err            = std.NewImmutable(_tmp_2)
+	)
 //line init.gala:29
-	bot = botSession
+	bot = botSession.Get()
 //line init.gala:30
-	if err != nil {
+	if err.Get() != nil {
 //line init.gala:31
-		logger.StdErr.Panicln(err)
+		logger.StdErr.Panicln(err.Get())
 	}
 //line init.gala:34
-	var u, userErr = bot.User("@me")
+	var (
+		_tmp_3, _tmp_4 = bot.User("@me")
+		u              = std.NewImmutable(_tmp_3)
+		userErr        = std.NewImmutable(_tmp_4)
+	)
 //line init.gala:35
-	if userErr != nil {
+	if userErr.Get() != nil {
 //line init.gala:36
-		logger.StdErr.Panicln(userErr)
+		logger.StdErr.Panicln(userErr.Get())
 	}
 //line init.gala:38
-	BotId = u.ID
+	BotId = u.Get().ID
 //line init.gala:40
-	err = bot.Open()
+	var openErr = std.NewImmutable(bot.Open())
 //line init.gala:41
-	if err != nil {
+	if openErr.Get() != nil {
 //line init.gala:42
-		logger.StdErr.Panicln(err)
+		logger.StdErr.Panicln(openErr.Get())
 	}
 //line init.gala:44
 	logger.StdOut.Println("Discord bot initialized")
 //line init.gala:46
-	var channelName = listeningChannelName()
+	var channelName = std.NewImmutable(listeningChannelName())
 //line init.gala:47
-	var channels, _ = bot.GuildChannels(guildId)
+	var (
+		_tmp_5, _ = bot.GuildChannels(guildId.Get())
+		channels  = std.NewImmutable(_tmp_5)
+	)
 //line init.gala:48
-	for _, channel := range channels {
+	for _, channel := range channels.Get() {
 //line init.gala:49
-		if channel.Name == channelName {
+		if channel.Name == channelName.Get() {
 //line init.gala:50
 			listeningChannel = channel
 //line init.gala:51
@@ -120,18 +132,22 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 //line init.gala:75
-	var re = regexp.MustCompile(" +")
+	var re = std.NewImmutable(regexp.MustCompile(" +"))
 //line init.gala:76
-	var args = re.Split(m.Content, -1)
+	var args = re.Get().Split(m.Content, -1)
 //line init.gala:77
-	var commandName = args[0]
+	var commandName = std.NewImmutable(args[0])
 //line init.gala:78
 	args = argsFrom(args, 1)
 //line init.gala:80
-	var command, ok = commandMap[commandName]
+	var (
+		_tmp_6, _tmp_7 = commandMap[commandName.Get()]
+		command        = std.NewImmutable(_tmp_6)
+		ok             = std.NewImmutable(_tmp_7)
+	)
 //line init.gala:81
-	if ok {
+	if ok.Get() {
 //line init.gala:82
-		command.Execute(s, m, args)
+		command.Get().Execute(s, m, args)
 	}
 }

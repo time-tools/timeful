@@ -3,7 +3,7 @@ package postgres
 import "time"
 
 func dailyLogDate(now time.Time, timezoneOffset int) time.Time {
-	var adjusted = now.Add(time.Duration(timezoneOffset) * time.Minute).UTC()
+	val adjusted = now.Add(time.Duration(timezoneOffset) * time.Minute).UTC()
 	return time.Date(adjusted.Year(), adjusted.Month(), adjusted.Day(), 0, 0, 0, 0, time.UTC)
 }
 

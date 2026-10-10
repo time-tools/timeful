@@ -3,6 +3,7 @@
 package commands
 
 import "fmt"
+import "go.gala.fyi/stdlib/std"
 import (
 	"context"
 	"timeful/server/logger"
@@ -12,21 +13,29 @@ import (
 //line num_users.gala:10
 func executeNumUsers(args []string, webhookUrl string) {
 //line num_users.gala:11
-	var repository, err = pgstore.DefaultRepository()
+	var (
+		_tmp_1, _tmp_2 = pgstore.DefaultRepository()
+		repository     = std.NewImmutable(_tmp_1)
+		err            = std.NewImmutable(_tmp_2)
+	)
 //line num_users.gala:12
-	if err != nil {
+	if err.Get() != nil {
 //line num_users.gala:13
-		logger.StdErr.Panicln(err)
+		logger.StdErr.Panicln(err.Get())
 	}
 //line num_users.gala:15
-	var n, countErr = repository.CountAccounts(context.Background())
+	var (
+		_tmp_3, _tmp_4 = repository.Get().CountAccounts(context.Background())
+		n              = std.NewImmutable(_tmp_3)
+		countErr       = std.NewImmutable(_tmp_4)
+	)
 //line num_users.gala:16
-	if countErr != nil {
+	if countErr.Get() != nil {
 //line num_users.gala:17
-		logger.StdErr.Panicln(countErr)
+		logger.StdErr.Panicln(countErr.Get())
 	}
 //line num_users.gala:20
-	SendRawMessage(newResponse("in_channel", fmt.Sprintf("Number of currently signed up users: %v", n)), webhookUrl)
+	SendRawMessage(newResponse("in_channel", fmt.Sprintf("Number of currently signed up users: %v", n.Get())), webhookUrl)
 }
 
 //line num_users.gala:23

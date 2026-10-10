@@ -6,12 +6,13 @@
 // The package source lives in eventid.gala; eventid.go is its transpiled output.
 package eventid
 
+import "go.gala.fyi/stdlib/std"
 import "regexp"
 
 //line eventid.gala:8
 
 // canonicalShortID matches an eight-character Crockford base32 identifier.
-var canonicalShortID = regexp.MustCompile(`^[0-9A-HJKMNPQRSTVWXYZ]{8}$`)
+var canonicalShortID = std.NewImmutable(regexp.MustCompile(`^[0-9A-HJKMNPQRSTVWXYZ]{8}$`))
 
 //line eventid.gala:11
 
@@ -19,5 +20,5 @@ var canonicalShortID = regexp.MustCompile(`^[0-9A-HJKMNPQRSTVWXYZ]{8}$`)
 // identifier.
 // id: the identifier to test.
 func Canonical(id string) bool {
-	return canonicalShortID.MatchString(id)
+	return canonicalShortID.Get().MatchString(id)
 }

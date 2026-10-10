@@ -26,21 +26,21 @@ import (
 // This documentation lives here rather than in doc.go so it stays with the
 // declaration it documents.
 func AuthRequired() gin.HandlerFunc = (c *gin.Context) => {
-	var platformIdentityID = sessionIdentityID(c)
+	val platformIdentityID = sessionIdentityID(c)
 	if platformIdentityID == "" {
 		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.NotSignedIn})
 		c.Abort()
 		return
 	}
 
-	var account, err = accounts.Resolve(c.Request.Context(), platformIdentityID)
+	val account, err = accounts.Resolve(c.Request.Context(), platformIdentityID)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
 		c.Abort()
 		return
 	}
 
-	var user, loadErr = accounts.LoadSessionUser(c.Request.Context(), account)
+	val user, loadErr = accounts.LoadSessionUser(c.Request.Context(), account)
 	if loadErr != nil {
 		c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed to load account integration data"})
 		c.Abort()

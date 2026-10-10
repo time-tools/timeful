@@ -16,7 +16,7 @@ var realMicrosoftOAuthTokenEndpoint = "https://login.microsoftonline.com/common/
 var realMicrosoftGraphAPIBaseURL = "https://graph.microsoft.com/v1.0"
 
 func overrideOrDefault(envName string, fallback string) string {
-	var value = strings.TrimSpace(os.Getenv(envName))
+	val value = strings.TrimSpace(os.Getenv(envName))
 	if (value != "") value else fallback
 }
 

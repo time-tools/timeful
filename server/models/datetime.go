@@ -2,6 +2,7 @@
 
 package models
 
+import "go.gala.fyi/stdlib/std"
 import "time"
 
 //line datetime.gala:4
@@ -10,6 +11,13 @@ import "time"
 // is an RFC3339 string for values and a millisecond integer when used as a map
 // key.
 type DateTime int64
+
+func (s DateTime) Hash() uint32 {
+	return std.HashInt(int64(s))
+}
+func (s DateTime) Compare(other DateTime) int {
+	return std.CompareInt(int64(s), int64(other))
+}
 
 //line datetime.gala:9
 

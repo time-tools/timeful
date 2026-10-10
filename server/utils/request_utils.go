@@ -2,6 +2,7 @@
 
 package utils
 
+import "go.gala.fyi/stdlib/std"
 import (
 	"github.com/gin-gonic/gin"
 	"net/url"
@@ -12,16 +13,20 @@ import (
 //line request_utils.gala:11
 func ParseArrayQueryParam(s string) []string {
 //line request_utils.gala:12
-	var decoded, err = url.QueryUnescape(s)
+	var (
+		_tmp_1, _tmp_2 = url.QueryUnescape(s)
+		decoded        = std.NewImmutable(_tmp_1)
+		err            = std.NewImmutable(_tmp_2)
+	)
 //line request_utils.gala:13
-	if err != nil {
+	if err.Get() != nil {
 //line request_utils.gala:14
-		logger.StdErr.Panicln(err)
+		logger.StdErr.Panicln(err.Get())
 	}
 //line request_utils.gala:16
-	var arr = strings.Split(decoded, ",")
+	var arr = std.NewImmutable(strings.Split(decoded.Get(), ","))
 //line request_utils.gala:17
-	return arr
+	return arr.Get()
 }
 
 //line request_utils.gala:20

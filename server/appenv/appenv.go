@@ -2,6 +2,7 @@
 
 package appenv
 
+import "go.gala.fyi/stdlib/std"
 import (
 	"os"
 	"strings"
@@ -11,6 +12,13 @@ import (
 
 // Environment is the application environment selected by APP_ENV.
 type Environment string
+
+func (s Environment) Hash() uint32 {
+	return std.HashString(string(s))
+}
+func (s Environment) Compare(other Environment) int {
+	return std.CompareString(string(s), string(other))
+}
 
 //line appenv.gala:11
 var Development Environment = "development"

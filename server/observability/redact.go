@@ -2,6 +2,7 @@
 
 package observability
 
+import "go.gala.fyi/stdlib/std"
 import (
 	"regexp"
 	"strings"
@@ -11,28 +12,28 @@ import (
 //line redact.gala:8
 
 // redactedValue replaces every credential-bearing capture group.
-var redactedValue = "[REDACTED]"
+var redactedValue = std.NewImmutable("[REDACTED]")
 
 //line redact.gala:11
 
 // urlUserInfoPattern matches URL userinfo, for example https://user:password@host/path.
-var urlUserInfoPattern = regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9+.\-]*://)([^/@\s]+)@`)
+var urlUserInfoPattern = std.NewImmutable(regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9+.\-]*://)([^/@\s]+)@`))
 
 //line redact.gala:14
 
 // schemeCredentialPattern matches Bearer and Basic scheme credentials.
-var schemeCredentialPattern = regexp.MustCompile(`(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=\-]{6,}`)
+var schemeCredentialPattern = std.NewImmutable(regexp.MustCompile(`(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=\-]{6,}`))
 
 //line redact.gala:17
 
 // credentialFieldPattern matches credential-bearing headers and fields, including
 // JSON forms. Unquoted values stop at a query separator so following parameters survive.
-var credentialFieldPattern = regexp.MustCompile(`(?i)\b(authorization|proxy-authorization|cookie|set-cookie|x-api-key|api[-_]?key|password|passwd|secret|token|access_token|refresh_token|id_token|edit_token|editToken|owner_token)\b("?)(\s*[:=]\s*)("[^"]*"|'[^']*'|[^&\n]+)`)
+var credentialFieldPattern = std.NewImmutable(regexp.MustCompile(`(?i)\b(authorization|proxy-authorization|cookie|set-cookie|x-api-key|api[-_]?key|password|passwd|secret|token|access_token|refresh_token|id_token|edit_token|editToken|owner_token)\b("?)(\s*[:=]\s*)("[^"]*"|'[^']*'|[^&\n]+)`))
 
 //line redact.gala:21
 
 // sensitiveQueryPattern matches token, secret, credential, and OAuth-code query parameters.
-var sensitiveQueryPattern = regexp.MustCompile(`(?i)([?&][^=&\s#]*(?:token|secret|password|passwd|api[-_]?key|credential|auth|code|otp)[^=&\s#]*=)[^&#\s]*`)
+var sensitiveQueryPattern = std.NewImmutable(regexp.MustCompile(`(?i)([?&][^=&\s#]*(?:token|secret|password|passwd|api[-_]?key|credential|auth|code|otp)[^=&\s#]*=)[^&#\s]*`))
 
 //line redact.gala:24
 
@@ -47,13 +48,13 @@ func Redact(value string) string {
 		return value
 	}
 //line redact.gala:33
-	var redacted = urlUserInfoPattern.ReplaceAllString(value, "${1}"+redactedValue+"@")
+	var redacted = urlUserInfoPattern.Get().ReplaceAllString(value, "${1}"+redactedValue.Get()+"@")
 //line redact.gala:34
-	redacted = schemeCredentialPattern.ReplaceAllString(redacted, "${1} "+redactedValue)
+	redacted = schemeCredentialPattern.Get().ReplaceAllString(redacted, "${1} "+redactedValue.Get())
 //line redact.gala:35
-	redacted = credentialFieldPattern.ReplaceAllString(redacted, "${1}${2}${3}"+redactedValue)
+	redacted = credentialFieldPattern.Get().ReplaceAllString(redacted, "${1}${2}${3}"+redactedValue.Get())
 //line redact.gala:36
-	redacted = sensitiveQueryPattern.ReplaceAllString(redacted, "${1}"+redactedValue)
+	redacted = sensitiveQueryPattern.Get().ReplaceAllString(redacted, "${1}"+redactedValue.Get())
 //line redact.gala:37
 	return redacted
 }
@@ -85,9 +86,9 @@ func truncate(value string, limit int) string {
 //line redact.gala:55
 	for _, r := range value {
 //line redact.gala:56
-		var size = utf8.RuneLen(r)
+		var size = std.NewImmutable(utf8.RuneLen(r))
 //line redact.gala:57
-		if used+size > limit {
+		if used+size.Get() > limit {
 //line redact.gala:58
 			break
 		}
@@ -101,7 +102,7 @@ func truncate(value string, limit int) string {
 //line redact.gala:64
 		trimmed = trimmed + string(r)
 //line redact.gala:65
-		used = used + size
+		used = used + size.Get()
 	}
 //line redact.gala:67
 	if lastSpaceIndex > limit/2 {

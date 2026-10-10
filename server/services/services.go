@@ -3,6 +3,7 @@
 package services
 
 import "fmt"
+import "go.gala.fyi/stdlib/std"
 import (
 	"bytes"
 	"encoding/json"
@@ -24,26 +25,39 @@ func CallApi(user *models.User, calendarAuth *models.OAuth2CalendarAuth, method 
 //line services.gala:21
 	if body != nil {
 //line services.gala:22
-		var bodyBytes, _ = json.Marshal(body)
+		var (
+			_tmp_1, _ = json.Marshal(body)
+			bodyBytes = std.NewImmutable(_tmp_1)
+		)
 //line services.gala:23
-		var created, _ = http.NewRequest(method, url, bytes.NewBuffer(bodyBytes))
+		var (
+			_tmp_2, _ = http.NewRequest(method, url, bytes.NewBuffer(bodyBytes.Get()))
+			created   = std.NewImmutable(_tmp_2)
+		)
 //line services.gala:24
-		req = created
+		req = created.Get()
 	} else {
 //line services.gala:26
-		var created, _ = http.NewRequest(method, url, nil)
+		var (
+			_tmp_3, _ = http.NewRequest(method, url, nil)
+			created   = std.NewImmutable(_tmp_3)
+		)
 //line services.gala:27
-		req = created
+		req = created.Get()
 	}
 //line services.gala:29
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", calendarAuth.AccessToken))
 //line services.gala:31
-	var response, err = http.DefaultClient.Do(req)
+	var (
+		_tmp_4, _tmp_5 = http.DefaultClient.Do(req)
+		response       = std.NewImmutable(_tmp_4)
+		err            = std.NewImmutable(_tmp_5)
+	)
 //line services.gala:32
-	if err != nil {
+	if err.Get() != nil {
 //line services.gala:33
-		logger.StdErr.Panicln(err)
+		logger.StdErr.Panicln(err.Get())
 	}
 //line services.gala:36
-	return response
+	return response.Get()
 }

@@ -2,6 +2,7 @@
 
 package routes
 
+import "go.gala.fyi/stdlib/std"
 import (
 	"github.com/gin-gonic/gin"
 	"net/http"
@@ -14,9 +15,9 @@ import (
 //line users.gala:13
 func InitUsers(router *gin.RouterGroup) {
 //line users.gala:14
-	var usersRouter = router.Group("/users")
+	var usersRouter = std.NewImmutable(router.Group("/users"))
 //line users.gala:18
-	usersRouter.GET("/:userId", getPublicUserProfile)
+	usersRouter.Get().GET("/:userId", getPublicUserProfile)
 }
 
 //line users.gala:20
@@ -29,18 +30,18 @@ func InitUsers(router *gin.RouterGroup) {
 // @Router /users/{userId} [get]
 func getPublicUserProfile(c *gin.Context) {
 //line users.gala:28
-	var platformIdentityID = c.Param("userId")
+	var platformIdentityID = std.NewImmutable(c.Param("userId"))
 //line users.gala:29
-	var user = accounts.UserByPlatformIdentityID(platformIdentityID)
+	var user = std.NewImmutable(accounts.UserByPlatformIdentityID(platformIdentityID.Get()))
 //line users.gala:30
-	if user == nil {
+	if user.Get() == nil {
 //line users.gala:31
 		c.JSON(http.StatusNotFound, responses.Error{Error: errs.UserDoesNotExist})
 //line users.gala:32
 		return
 	}
 //line users.gala:35
-	var public = models.User{Id: user.Id, FirstName: user.FirstName, LastName: user.LastName, Picture: user.Picture}
+	var public = std.NewImmutable(models.User{Id: user.Get().Id, FirstName: user.Get().FirstName, LastName: user.Get().LastName, Picture: user.Get().Picture})
 //line users.gala:41
-	c.JSON(http.StatusOK, public)
+	c.JSON(http.StatusOK, public.Get())
 }

@@ -10,38 +10,12 @@ import (
 // Handwritten sibling beside the generated uuid.go.
 //
 // UUID is transpiled from uuid.gala as `opaque type UUID string`. Hash and
-// Compare suppress the synthesized std-backed methods so the generated Go stays
-// runtime-free; every other member stays here because it crosses the GALA
-// boundary (multi-value return, fixed-size [16]byte, or a pointer receiver over
-// a text unmarshaler).
+// Compare are synthesized by the transpiler through the adopted
+// go.gala.fyi/stdlib runtime. Every other member stays here because it crosses
+// the GALA boundary (multi-value return, fixed-size [16]byte, or a pointer
+// receiver over a text unmarshaler).
 
 const zeroUUIDValue = "00000000-0000-0000-0000-000000000000"
-
-// Hash hashes the canonical string with the FNV-1a mixing the synthesized
-// method used.
-func (id UUID) Hash() uint32 {
-	value := string(id)
-	var h uint32 = 2166136261
-	for index := 0; index < len(value); index++ {
-		h = h ^ uint32(value[index])
-		h = h * 16777619
-	}
-	return h
-}
-
-// Compare orders two identifiers lexicographically, matching the synthesized
-// method.
-func (id UUID) Compare(other UUID) int {
-	value := string(id)
-	compare := string(other)
-	if value < compare {
-		return -1
-	}
-	if value > compare {
-		return 1
-	}
-	return 0
-}
 
 // MarshalJSON emits the canonical lowercase hyphenated string, including the
 // all-zero sentinel.
