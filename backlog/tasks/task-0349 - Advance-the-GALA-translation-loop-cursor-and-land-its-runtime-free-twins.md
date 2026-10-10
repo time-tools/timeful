@@ -4,7 +4,7 @@ title: Advance the GALA translation loop cursor and land its runtime-free twins
 status: In Progress
 assignee: []
 created_date: '2026-10-05 08:44'
-updated_date: '2026-10-10 16:19'
+updated_date: '2026-10-10 16:47'
 labels: []
 dependencies: []
 references:
@@ -56,13 +56,13 @@ ordinal: 353005
 <!-- SECTION:DESCRIPTION:BEGIN -->
 After TASK-0348 pinned GALA 0.85.0, the compiler emits declaration comments, which unblocks the cursor's first candidate that TASK-0336 had to abort: `routes/users.go`. The cursor still lists nine candidate groups, and each translation is one run of the `gala-loop` skill under the ledger's provenance, verification, and finding rules.
 
-This task tracks that loop across the several iterations planned for it: each iteration lands at most one runtime-free twin with its registry row, its cursor removal, and its evidence, and keeps `server/GALA.md` the single source of truth for what exists and what still blocks. The first iteration (`routes/users`) is already landed on this branch and is recorded in the task notes; the remaining iterations continue from the cursor's next entry.
+This task tracks that loop across the several iterations planned for it: each iteration lands at most one twin with its registry row, its cursor removal, and its evidence, and keeps `server/GALA.md` the single source of truth for what exists and what still blocks. The first iteration (`routes/users`) is already landed on this branch and is recorded in the task notes; the remaining iterations continue from the cursor's next entry.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 `server/routes/users.gala` and its generated `server/routes/users.go` are committed halves with a registry row and updated count in `server/GALA.md`, and no `routes/users.go` entry remains in the cursor.
-- [ ] #2 Every twin this task lands regenerates byte-identically from its `.gala` source under `server/scripts/gala/verify.sh`, is `gofmt`-clean, and names no GALA runtime.
+- [ ] #2 Every twin this task lands regenerates byte-identically from its `.gala` source under `server/scripts/gala/verify.sh`, is `gofmt`-clean, and follows the adopted runtime contract: it imports only `go.gala.fyi/stdlib/...` from the module pinned in `server/go.mod`, or stays runtime-free where a runtime construct would change its Go-facing surface, and it never names `martianoff/gala`.
 - [ ] #3 `go build ./...` in `server/` and the canonical Compose backend test sequence from `server/README.md` pass after each landed twin.
 - [ ] #4 Swag-annotated handlers keep `server/docs` regenerating with their endpoints present, or the candidate stays handwritten with the reason recorded as a finding.
 - [ ] #5 Exported Go-facing signatures, struct tags, and wire formats are unchanged, no generated file is hand-edited, and no test is relaxed.
@@ -385,5 +385,17 @@ author: TASK-0350
 created: 2026-10-05 09:37
 ---
 TASK-0350 resolved 2026-10-05 with no upstream report: the `opaque type` runtime binding is suppressible. A same-package `.go` sibling declaring `Hash`/`Compare` keeps the generated Go free of `martianoff/gala` (verified on the pinned rev), at the cost of two added exported methods. `server/GALA.md` cursor entry 1 and the defined-scalar finding row now record that path, and the probe notes carry the repro; upstream PR #665 documents the suppression, so no comment on #528/#621 was needed. Struct tags, fixed-size arrays, and `struct{}` stay handwritten under `gaps.md`'s "What Not To File".
+---
+
+author: opencode
+created: 2026-10-10 16:46
+---
+TASK-0356 refreshed acceptance criterion #2 to the adopted `go.gala.fyi/stdlib` contract. TASK-0353 superseded the runtime-free requirement, and iterations 12–14 already landed stdlib twins under this task, so the criterion now allows the pinned runtime where a runtime construct keeps the Go-facing surface, silently-evaluated side of the old rule, and keeps `martianoff/gala` banned. The description no longer says the iterations land runtime-free twins; the title stays as its historical label because the refreshed criterion is the operative contract.
+---
+
+author: opencode
+created: 2026-10-10 16:47
+---
+Correction to the previous note: its middle clause is garbled. It should read: the refreshed criterion allows the pinned `go.gala.fyi/stdlib` runtime where a runtime construct keeps the Go-facing surface, allows a runtime-free form where a runtime construct would change that surface, and keeps `martianoff/gala` banned.
 ---
 <!-- COMMENTS:END -->

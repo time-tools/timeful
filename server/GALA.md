@@ -237,15 +237,17 @@ The loop re-checks a report's finding on the pinned compiler before relying on i
 
 ## Cursor
 
-The cursor is ordered, and the loop takes the next entry and re-checks its constructs on the pinned compiler before translating.
+The cursor is ordered, and the loop takes the next workable entry and re-checks its constructs on the pinned compiler before translating.
+An entry that lists more than one candidate states the candidates' order and any dependency between them, so the next pick is unambiguous.
+An entry whose candidates stay blocked records the compiler rev its blockers were last re-verified on, so the loop knows whether re-probing them carries new information.
 A fixed blocker moves the candidate forward; a persistent blocker with no workaround becomes a Backlog task and a probe, and the candidate stays.
 
-1. `models/set.go`, `models/location.go`, `models/event.go` — tags and `struct{}`; blockers re-verified on the pinned compiler with probes at `scripts/gala/probes/models-*`; `models/datetime.go` and `models/uuid.go` are migrated (the runtime-synthesized `Hash`/`Compare` replaced the siblings in TASK-0353.03), with uuid's fixed-size `[16]byte` helpers still in `models/uuid_extra.go`.
+1. `models/set.go`, `models/location.go`, `models/event.go` — all three are blocked on `struct{}` and tags with no dependency among them, and the listed order is by size and blocker count (`set.go` is three lines, `location.go` thirteen, `event.go` the tag-heavy one); blockers last re-verified on rev `cd2fdcb5` (2026-10-10) with probes at `scripts/gala/probes/models-*`; `models/datetime.go` and `models/uuid.go` are migrated (the runtime-synthesized `Hash`/`Compare` replaced the siblings in TASK-0353.03), with uuid's fixed-size `[16]byte` helpers still in `models/uuid_extra.go`.
 2. `postgres/` — `repository.go` was split on 2026-10-10 (declarations and free functions in `repository.gala`; `Repository`, `dbtx`, and all `*Repository` methods handwritten), `codec.go` landed as `codec.gala` on 2026-10-10, and `pool.go` landed as `pool.gala` on 2026-10-10, so the remaining candidate is the free-function file `tracing.go`; a `.gala` file that declares a `*Repository` method would make the package's GALA index the receiver's whole method set for importers, so every `*Repository` method stays handwritten.
 3. `main.go`.
-4. `observability/provider.go`, `observability/readiness.go`, `observability/transport.go`.
-5. `services/auth`, `services/calendar`, `services/contacts`, `services/listmonk`, `services/microsoftgraph`.
-6. `mockprovider`, `services/gcloud/tasks.go`.
+4. `observability/provider.go`, `observability/readiness.go`, `observability/transport.go` — take them in the listed order; `provider.go` declares the `Recorder` type that `transport.go`'s helpers extend and that `readiness.go`'s state flows into through `SetReadiness`, so `provider.go` goes first for the shared-type picture, while each file still lands as its own triage verdict.
+5. `services/auth`, `services/calendar`, `services/contacts`, `services/listmonk`, `services/microsoftgraph` — take them in the listed order; `calendar` imports `auth` (`services/calendar/calendar.go`), so `auth` is its dependency and must be judged first, while `contacts`, `listmonk`, and `microsoftgraph` are independent of the rest.
+6. `mockprovider`, `services/gcloud/tasks.go` — take them in the listed order; they have no dependency on each other, and `tasks.go`'s import of `services/listmonk` (entry 5) stays satisfied whether or not listmonk is translated.
 
 ## Stop conditions
 
