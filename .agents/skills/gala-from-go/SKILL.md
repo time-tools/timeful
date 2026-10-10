@@ -233,10 +233,11 @@ Each of these is a way the translation goes wrong without producing an error at 
 - **A byte-boundary truncation has no spelling, and the substitute changes the count.**
   `s[:n]` is a parse error, so a truncation has to become a hand-written loop, and a loop that accumulates runes stops at character boundaries rather than the byte boundary the Go code asked for.
   The rewrite builds, runs, and returns a different length for any non-ASCII input, so decide which of the two meanings the code wanted before writing the loop.
-- **A resource combinator's result type defaults to `any`, which drops the enclosing function's return type.**
-  `resource.Using(res, (x) => x.Name)` binds the body's parameter correctly and defaults its *result* to `any`, so the enclosing function is emitted with no result at all.
-  The transpile is clean; the failure is `too many return values` and `(no value) used as value` from `go build`, in a generated file.
-  Supply both type arguments explicitly, except when the result is a function type: `Bracket[context.CancelFunc, func()]` is a parse error, so name the type (`type CloseFn func()`) or omit both arguments and annotate the binding (`var closeFn func() = resource.Bracket(cancel, release, body)`), which infers the result from the annotation.
+- **A resource combinator needs the resource type resolvable from `.gala` text, or the body parameter binds to `any`.**
+  A GALA-declared resource type infers both type arguments with none written out, and `WithLock` infers either way, but a resource type declared in a handwritten `.go` sibling needs both arguments written out, or the body parameter binds to `any` and the generated file does not build ([#618](https://github.com/martianoff/gala/issues/618)).
+  A partial type-argument list is its own failure, emitting the transpiler's own type-parameter name as a declared Go type.
+  The enclosing function's return type is emitted unchanged in every variant checked; `func F() = <expr>` is the shape that never infers a result ([#617](https://github.com/martianoff/gala/issues/617)).
+  A function-typed result cannot be spelled as an explicit type argument at all: `resource.Bracket[context.CancelFunc, func()]` is a parse error, so name the type (`type CloseFn func()`) and pass it, or omit both arguments and annotate the binding (`var closeFn func() = resource.Bracket(cancel, release, body)`), which infers the result from the annotation.
 - **A `resource.Bracket` body's panic is re-raised as an error, not as Go's panic value.**
   The body's panic becomes a `Try` Failure holding the runtime's unexported `panicError`, the release still runs on every exit path, and re-raising the Failure delivers that error to an outer `recover`, so a `string` panic arrives as a `*panicError` rather than as a `string`.
   `Unwrap` still reaches the original and `Error()` prints the same message, so a checker that only reads the message sees no difference, while one that inspects the recovered value's type does.
