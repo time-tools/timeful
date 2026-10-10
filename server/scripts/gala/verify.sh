@@ -84,7 +84,7 @@ while IFS= read -r -d '' src; do
   twin_count=$((twin_count + 1))
   gofmt_targets+=("$SERVER_DIR/$generated")
 
-  if grep -q '"martianoff/gala' "$scratch"; then
+  if grep -Eq '"(martianoff/gala|go\.gala\.fyi/)' "$scratch"; then
     echo "RUNTIME: $rel generates Go that imports the GALA runtime; keep the twin runtime-free (GO_INTEROP.MD Part 3)"
     status=1
   fi

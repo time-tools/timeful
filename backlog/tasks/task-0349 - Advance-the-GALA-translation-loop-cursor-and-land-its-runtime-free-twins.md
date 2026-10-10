@@ -4,7 +4,7 @@ title: Advance the GALA translation loop cursor and land its runtime-free twins
 status: In Progress
 assignee: []
 created_date: '2026-10-05 08:44'
-updated_date: '2026-10-09 10:04'
+updated_date: '2026-10-10 10:17'
 labels: []
 dependencies: []
 references:
@@ -241,6 +241,25 @@ Run the `gala-loop` skill one iteration at a time, taking the next entry from th
 **Next:** cursor entry 1 is still blocked; entry 2 is `routes/group.go` (785 lines).
 
 **State:** changes are in the worktree, not committed: `server/routes/respondent_identity.gala`, `server/routes/respondent_identity.go`, `server/routes/respondent_identity_extra.go`, `server/GALA.md`, and this task's notes.
+
+## Iteration 10 — compiler bump 0.87.1 post-release HEAD (2026-10-10)
+
+**Provenance:** `nix flake update gala` moved the lock from `669c958cfb1f0ef2fe69ecb8e199b33c88456664` to `cd2fdcb50cf1bc988ed03c3f6cdc0c485403576c`; `gala version` reports `GALA version 0.87.1` at `/nix/store/mib0p8skl8rh79alw3hp2nza8qbvhdwd-gala-0.87.1/bin/gala`. After deleting `~/.gala/stdlib/v0.87.1/.stdlib-extracted` and transpiling `server/eventid/eventid.gala` to a scratch path, the marker reads `0.87.1 7b1dd2080a304c06a04eeb7240937109fd3d3f02e19b103f4755be79fb71d7fa`, unchanged from the previous lock, so the bump is codegen-only. `server/GALA_COMPILER` records the new rev and date. Bump-only iteration; no translation. The tree held only the pre-existing `backlog/backlog.md` edit and untracked `TODO.md`, both left untouched.
+
+**Upstream between revs (5 commits):** #737 (nix pin of the stdlib transpiler to the 0.87.1 release), #742 (fixes #739: `case 1 | 2` alternative patterns with new `GALA-E0071`), #743 (fixes #740: `gala transpile --stdlib-module`), #746 (sealed match exhaustiveness requires full coverage of each variant).
+
+**Evidence:**
+- `server/scripts/gala/verify.sh --write` then `verify.sh`: OK (22 twins), with no diff to any generated twin, so the bump changed no twin shape.
+- Canonical Compose backend sequence green across every package (`routes` 3.844s, `postgres` 11.626s); cache volumes created one per command, existing `.env.test` kept.
+- Scratch transpiles on the pinned rev: `case 1 | 2` emits `if obj == 1 || obj == 2` (finding #739 closed); `gala transpile --stdlib-module go.gala.fyi/stdlib` rewrote an emitted `martianoff/gala/std` import to `go.gala.fyi/stdlib/std` (finding #740 closed as a transpile capability).
+
+**Finding/ledger changes:** the `Several values in one case` and `GALA runtime from go.gala.fyi/stdlib in a transpiled twin` rows are deleted and recorded in the report index as fixed on the pinned rev; the compiler paragraph, provenance table, version-string caveat, and #698 prose updated; the contract now names both runtime import paths and `verify.sh` rejects both; the `gala-from-go` `fallthrough`/`several values in one case` rows and the `|` trap updated to the alternative-pattern behavior with `GALA-E0071`.
+
+**Next:** cursor entry 1 is unchanged (`models/set.go`, `models/location.go`, `models/event.go`, blocked on struct tags and `struct{}`). The runtime-free contract is unchanged, so `--stdlib-module` stays unused; revisiting that contract is a separate decision.
+
+**State:** changes are in the worktree, not committed: `flake.lock`, `server/GALA_COMPILER`, `server/GALA.md`, `server/scripts/gala/verify.sh`, `.agents/skills/gala-from-go/SKILL.md`, `.agents/skills/gala-from-go/references/constructs.md`.
+
+**Handoff (2026-10-10):** TASK-0353 (`Decide whether server GALA twins adopt the go.gala.fyi/stdlib module`) was created for the runtime-free-contract decision raised by iteration 10. The loop keeps the current contract until TASK-0353 decides otherwise; do not start consuming `--stdlib-module` from the cursor.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
