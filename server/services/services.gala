@@ -1,0 +1,34 @@
+package services
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+
+	"timeful/server/logger"
+	"timeful/server/models"
+	"timeful/server/services/auth"
+)
+
+func CallApi(user *models.User, calendarAuth *models.OAuth2CalendarAuth, method string, url string, body *map[string]any) *http.Response {
+	if user != nil {
+		auth.RefreshUserTokenIfNecessary(user, nil)
+	}
+
+	// Pass a literal nil body rather than a nil *bytes.Buffer, which would be a
+	// non-nil io.Reader.
+	var req *http.Request
+	if (body != nil) {
+		val bodyBytes, _ = json.Marshal(body)
+		val created, _ = http.NewRequest(method, url, bytes.NewBuffer(bodyBytes))
+		req = created
+	} else {
+		val created, _ = http.NewRequest(method, url, nil)
+		req = created
+	}
+	req.Header.Set("Authorization", s"Bearer ${calendarAuth.AccessToken}")
+
+	val response = http.DefaultClient.Do(req).OnFailure((err) => logger.StdErr.Panicln(err)).Get()
+
+	return response
+}

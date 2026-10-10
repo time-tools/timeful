@@ -1,0 +1,21 @@
+package commands
+
+import (
+	"context"
+
+	"timeful/server/logger"
+	"timeful/server/postgres"
+)
+
+func executeNumUsers(args []string, webhookUrl string) {
+	val repository = postgres.DefaultRepository().OnFailure((err) => logger.StdErr.Panicln(err)).Get()
+	val n = repository.CountAccounts(context.Background()).OnFailure((err) => logger.StdErr.Panicln(err)).Get()
+
+	SendRawMessage(newResponse("in_channel", s"Number of currently signed up users: $n"), webhookUrl)
+}
+
+var numUsers Command = Command{
+	Name:        "/num_users",
+	Description: "Returns the number of signed up users",
+	Execute:     executeNumUsers,
+}

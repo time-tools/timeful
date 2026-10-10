@@ -1,0 +1,40 @@
+package appenv
+
+import (
+	"os"
+	"strings"
+)
+
+// Environment is the application environment selected by APP_ENV.
+opaque type Environment string
+
+var Development Environment = "development"
+var Test Environment = "test"
+var Staging Environment = "staging"
+var Production Environment = "production"
+
+func normalize(value string) string = strings.ToLower(strings.TrimSpace(value))
+
+func Parse(value string) Environment = Environment(normalize(value)) match {
+	case Test => Test
+	case Staging => Staging
+	case Production => Production
+	case _ => Development
+}
+
+func Current() Environment = Parse(os.Getenv("APP_ENV"))
+
+func IsProductionLike(env Environment) bool = env == Staging || env == Production
+
+func ShouldUseReleaseMode(ginMode string, env Environment) bool = normalize(ginMode) match {
+	case mode if mode == "debug" || mode == string(Development) => false
+	case mode if mode == "release" || mode == string(Production) => true
+	case _ => IsProductionLike(env)
+}
+
+func Port(env Environment) string = env match {
+	case Test => "3003"
+	case Staging => "3004"
+	case Production => "3005"
+	case _ => "3002"
+}

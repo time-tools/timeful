@@ -1,0 +1,27 @@
+package models
+
+// ZeroUUID returns the all-zero UUID sentinel the API emits for a zero account
+// identity. It is surfaced to clients for an absent account identity (for
+// example the guest userId) and for unowned events, so the wire format must
+// keep it. It is exposed as a function so callers cannot overwrite the
+// sentinel.
+func ZeroUUID() UUID = zeroUUIDValue
+
+// UUID is a canonical lowercase hyphenated RFC 9562 UUID string. Its JSON
+// representation is that canonical form, and its empty value serializes as the
+// all-zero sentinel. The zero UUID represents an absent account identity and is
+// never a stored account.
+opaque type UUID string
+
+// String returns the canonical lowercase hyphenated form, mapping the empty
+// value to the all-zero sentinel.
+func (id UUID) String() string {
+	if (id == "") {
+		return zeroUUIDValue
+	}
+	return string(id)
+}
+
+// IsZero reports whether the identifier is the empty or all-zero sentinel
+// value.
+func (id UUID) IsZero() bool = id == "" || id == zeroUUIDValue

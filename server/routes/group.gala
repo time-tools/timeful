@@ -1,0 +1,651 @@
+package routes
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
+	"io"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+	"timeful/server/accounts"
+	"timeful/server/errs"
+	"timeful/server/models"
+	"timeful/server/postgres"
+	"timeful/server/respondents"
+	"timeful/server/responses"
+	"timeful/server/services/listmonk"
+	"timeful/server/utils"
+)
+
+import "martianoff/gala/go_interop"
+
+// The members that cannot be expressed in GALA live beside this file in
+// group_extra.go: the embedded eventInput and tagged groupAttendeePayload wire
+// shapes, and the channel fan-out in getCalendarAvailabilities.
+
+var groupInviteEmailTemplate = 9
+var groupUpdateEmailTemplate = 11
+
+// accountEmail resolves the signed-in account's email through the
+// authoritative account boundary, adopting a legacy session once if needed.
+func accountEmail(ctx context.Context, platformIdentityID string) string {
+	if (platformIdentityID == "") {
+		return ""
+	}
+	var account, err = accounts.Resolve(ctx, platformIdentityID)
+	if (err != nil || account == nil) {
+		return ""
+	}
+	return account.Email
+}
+
+// groupViewerIsInvitee reports whether the signed-in viewer is a
+// non-declined member of the group, which is required to expose respondent
+// emails for matching pending attendees to respondents. The membership check is
+// a repository EXISTS over event_attendees (event_id, lower(email)) rather than
+// an in-memory scan of the loaded attendee list.
+func groupViewerIsInvitee(ctx context.Context, repository *postgres.Repository, eventID string, viewer *visitor) bool {
+	val email = accountEmail(ctx, viewer.platformIdentityID)
+	if (email == "") {
+		return false
+	}
+	var invitee, err = repository.HasNonDeclinedAttendeeEmail(ctx, eventID, email)
+	return err == nil && invitee
+}
+
+// groupEmailVisibility keeps respondent emails visible to the owner and
+// non-declined invitees so clients can match pending attendees to respondents
+// when collectEmails is off, mirroring legacy group behavior. The repository does
+// not persist a denormalized account snapshot, so the response email is
+// promoted into the rebuilt user snapshot at read time.
+func groupEmailVisibility(ctx context.Context, repository *postgres.Repository, eventID string, value models.Event, viewer *visitor, responseMap map[string]*publicResponse) {
+	if (responseMap == nil) {
+		return
+	}
+	val showEmails = viewer.owner && utils.Coalesce(value.CollectEmails)
+	val keepGroupEmails = viewer.owner || groupViewerIsInvitee(ctx, repository, eventID, viewer)
+	for key, response := range responseMap {
+		if (response == nil) {
+			continue
+		}
+		if (keepGroupEmails && response.Email != "" && response.User == nil) {
+			response.User = &models.User{Email: response.Email}
+		}
+		stripSensitiveUserFields(response.User)
+		if (!showEmails) {
+			response.Email = ""
+			if (response.User != nil && !keepGroupEmails) {
+				response.User.Email = ""
+			}
+		}
+		responseMap[key] = response
+	}
+}
+
+// groupViewerHasResponded reports whether the calling visitor owns a
+// response on the group, either through a signed-in account response or the
+// browser Event Visitor Identity. It backs the derived hasResponded read.
+func groupViewerHasResponded(ctx context.Context, repo *postgres.Repository, event *postgres.Event, viewer *visitor) bool {
+	if (viewer == nil) {
+		return false
+	}
+	if (viewer.platformIdentityID != "") {
+		var _, err = repo.GetResponseByPlatformIdentityID(ctx, event.ID, viewer.platformIdentityID)
+		if (err == nil) {
+			return true
+		}
+		if (!errors.Is(err, pgx.ErrNoRows)) {
+			return false
+		}
+	}
+	if (viewer.identity == nil) {
+		return false
+	}
+	var hasResponded, err = repo.EventVisitorHasResponse(ctx, event.ID, viewer.identity.ID)
+	if (err != nil) {
+		return false
+	}
+	return hasResponded
+}
+
+// sendGroupInviteEmails sends the existing availability-group
+// invitation email to each newly added invitee.
+func sendGroupInviteEmails(ownerName string, groupName string, groupURL string, emails []string) {
+	for _, email := range emails {
+		if (strings.TrimSpace(email) == "") {
+			continue
+		}
+		val data = go_interop.MapEmpty[string, any]()
+		go_interop.MapPut[string, any](data, "ownerName", ownerName)
+		go_interop.MapPut[string, any](data, "groupName", groupName)
+		go_interop.MapPut[string, any](data, "groupUrl", groupURL)
+		listmonk.SendEmailAddSubscriberIfNotExist(email, groupInviteEmailTemplate, data, false)
+	}
+}
+
+// sendGroupUpdateEmails sends invitation emails to added members and
+// the existing group update email to kept members, matching legacy ordering.
+func sendGroupUpdateEmails(ownerName string, groupName string, groupURL string, added []string, kept []string) {
+	sendGroupInviteEmails(ownerName, groupName, groupURL, added)
+	if (added.Size() == 0) {
+		return
+	}
+	for _, email := range kept {
+		if (strings.TrimSpace(email) == "") {
+			continue
+		}
+		val data = go_interop.MapEmpty[string, any]()
+		go_interop.MapPut[string, any](data, "ownerName", ownerName)
+		go_interop.MapPut[string, any](data, "groupName", groupName)
+		go_interop.MapPut[string, any](data, "groupUrl", groupURL)
+		go_interop.MapPut[string, any](data, "emails", added)
+		listmonk.SendEmailAddSubscriberIfNotExist(email, groupUpdateEmailTemplate, data, false)
+	}
+}
+
+func groupURL(shortID string) string = s"${utils.GetBaseUrl()}/g/$shortID"
+
+// groupEmailPlan carries the owner-facing email work computed while the
+// event row is locked so it can be sent after the transaction commits.
+struct groupEmailPlan(
+	var ownerName string,
+	var groupName string,
+	var added []string = nil,
+	var kept []string = nil
+)
+
+// applyGroupAttendeeEdits diffs the requested attendee emails against
+// the stored membership, removes departed members' account responses so the
+// response count stays correct, and returns the post-commit email plan. The
+// owner membership is protected from removal. The caller already holds the
+// event row lock and persists the adjusted response count.
+func applyGroupAttendeeEdits(ctx context.Context, tx *postgres.Repository, event *postgres.Event, requested []string) (groupEmailPlan, error) {
+	var plan = groupEmailPlan(
+		ownerName = groupOwnerName(ctx, event.OwnerPlatformIdentityID),
+		groupName = event.Name
+	)
+	var current, listErr = tx.ListAttendees(ctx, event.ID)
+	if (listErr != nil) {
+		return Failure(listErr)
+	}
+	var currentEmails = go_interop.SliceWithCapacity[string](go_interop.SliceFrom(current, 0).Size())
+	var byEmail = go_interop.MapWithCapacity[string, postgres.Attendee](go_interop.SliceFrom(current, 0).Size())
+	for _, attendee := range current {
+		currentEmails = go_interop.SliceAppend(currentEmails, attendee.Email)
+		byEmail[strings.ToLower(strings.TrimSpace(attendee.Email))] = attendee
+	}
+	var added, removed, kept = utils.FindAddedRemovedKept(requested, currentEmails)
+	var removedEmails = go_interop.SliceWithCapacity[string](go_interop.SliceFrom(removed, 0).Size())
+	var removedIdentityIDs = go_interop.SliceWithCapacity[string](go_interop.SliceFrom(removed, 0).Size())
+	for _, item := range removed {
+		val attendee = byEmail[strings.ToLower(strings.TrimSpace(item.Value))]
+		if (attendee.PlatformIdentityID != nil && event.OwnerPlatformIdentityID != nil && *attendee.PlatformIdentityID == *event.OwnerPlatformIdentityID) {
+			continue
+		}
+		removedEmails = go_interop.SliceAppend(removedEmails, attendee.Email)
+		if (attendee.PlatformIdentityID != nil) {
+			removedIdentityIDs = go_interop.SliceAppend(removedIdentityIDs, *attendee.PlatformIdentityID)
+		}
+	}
+	// One statement removes every departed account response and reports the
+	// deleted rows so the in-memory response count stays exact. The caller
+	// persists it with the settings payload. The decrement is clamped at zero
+	// because the stored count can lag the response table; a stale counter must
+	// not fail the settings write on the non-negative check.
+	var deleted, deleteErr = tx.DeleteAccountResponses(ctx, event.ID, removedIdentityIDs)
+	if (deleteErr != nil) {
+		return Failure(deleteErr)
+	}
+	if (deleted > 0) {
+		event.NumResponses -= int(deleted)
+		if (event.NumResponses < 0) {
+			event.NumResponses = 0
+		}
+	}
+	var removeErr = tx.RemoveAttendees(ctx, event.ID, removedEmails)
+	if (removeErr != nil) {
+		return Failure(removeErr)
+	}
+	var addedEmails = go_interop.SliceWithCapacity[string](go_interop.SliceFrom(added, 0).Size())
+	for _, item := range added {
+		if (strings.TrimSpace(item.Value) == "") {
+			continue
+		}
+		addedEmails = go_interop.SliceAppend(addedEmails, item.Value)
+		plan.added = go_interop.SliceAppend(plan.added, item.Value)
+	}
+	var addErr = tx.AddAttendees(ctx, event.ID, addedEmails, utils.FalsePtr())
+	if (addErr != nil) {
+		return Failure(addErr)
+	}
+	for _, item := range kept {
+		plan.kept = go_interop.SliceAppend(plan.kept, item.Value)
+	}
+	return Success(plan)
+}
+
+// groupOwnerName resolves the owner display name used in group emails.
+func groupOwnerName(ctx context.Context, ownerPlatformIdentityID *string) string {
+	if (ownerPlatformIdentityID == nil || *ownerPlatformIdentityID == "") {
+		return "Somebody"
+	}
+	var account, err = accounts.Resolve(ctx, *ownerPlatformIdentityID)
+	if (err != nil || account == nil || account.FirstName == "") {
+		return "Somebody"
+	}
+	return account.FirstName
+}
+
+// declineInvite sets the attendee decline state for the signed-in
+// member of a group. An optional {"declined": false} body covers
+// undecline.
+// @Summary Decline the current user's invite to the event
+// @Tags events
+// @Accept json
+// @Produce json
+// @Param eventId path string true "Event ID"
+// @Success 200
+// @Router /events/{eventId}/decline [post]
+func declineInvite(c *gin.Context) {
+	var declined = true
+	var body, readErr = io.ReadAll(c.Request.Body)
+	if (readErr == nil && go_interop.SliceFrom(bytes.TrimSpace(body), 0).Size() > 0) {
+		var input declineBody
+		if (json.Unmarshal(body, &input) == nil && input.Declined != nil) {
+			declined = *input.Declined
+		}
+	}
+	var repository = defaultRepository(c)
+	if (repository == nil) {
+		return
+	}
+	var event = loadEvent(c, repository)
+	if (event == nil) {
+		return
+	}
+	if (event.Type != postgres.EventTypeGroup) {
+		c.JSON(http.StatusBadRequest, responses.Error{Error: errs.EventNotGroup})
+		return
+	}
+	var userInterface, _ = c.Get("authUser")
+	val user = userInterface match {
+		case u: *models.User => u
+		case _ => nil
+	}
+	if (user == nil) {
+		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.NotSignedIn})
+		return
+	}
+	var _, getErr = repository.GetAttendeeByEmail(c.Request.Context(), event.ID, user.Email)
+	if (getErr != nil) {
+		if (errors.Is(getErr, pgx.ErrNoRows)) {
+			c.JSON(http.StatusNotFound, responses.Error{Error: errs.AttendeeEmailNotFound})
+			return
+		}
+		mutationError(c, getErr)
+		return
+	}
+	var setErr = repository.SetAttendeeDeclined(c.Request.Context(), event.ID, user.Email, declined)
+	if (setErr != nil) {
+		mutationError(c, setErr)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{})
+}
+
+// groupManualAvailability is the day-window map an availability group stores per
+// response. Each key is the millisecond instant a day starts and each value
+// holds the available instants inside that day.
+type groupManualAvailability map[models.DateTime][]models.DateTime
+
+// decodeGroupManualAvailability normalizes the two JSON encodings the group
+// transport can produce: the legacy millisecond-keyed map whose values are
+// RFC3339 strings, and the frontend ZonedDateTime-keyed encoding whose values
+// are epoch milliseconds. Omitted or null input yields a nil map so an update
+// preserves the stored availability.
+func decodeGroupManualAvailability(raw json.RawMessage) (groupManualAvailability, error) {
+	var trimmed = bytes.TrimSpace(raw)
+	if (go_interop.SliceFrom(trimmed, 0).Size() == 0 || string(trimmed) == "null") {
+		return Success(nil)
+	}
+	var encoded map[string][]json.RawMessage
+	var decodeErr = json.Unmarshal(trimmed, &encoded)
+	if (decodeErr != nil) {
+		return Failure(decodeErr)
+	}
+	var result = groupManualAvailability{}
+	for key, values := range encoded {
+		var day, dayErr = parseGroupAvailabilityInstant(key)
+		if (dayErr != nil) {
+			return Failure(dayErr)
+		}
+		var instants = go_interop.SliceWithCapacity[models.DateTime](go_interop.SliceFrom(values, 0).Size())
+		for _, value := range values {
+			var instant, ok, valueErr = parseGroupAvailabilityValue(value)
+			if (valueErr != nil) {
+				return Failure(valueErr)
+			}
+			if (ok) {
+				instants = go_interop.SliceAppend(instants, instant)
+			}
+		}
+		result[day] = instants
+	}
+	return Success(result)
+}
+
+func parseGroupAvailabilityInstant(value string) (models.DateTime, error) {
+	var trimmed = strings.TrimSpace(value)
+	var millis, parseErr = strconv.ParseInt(trimmed, 10, 64)
+	if (parseErr == nil) {
+		return Success(models.DateTime(millis))
+	}
+	var instant, timeErr = parseGroupAvailabilityTime(trimmed)
+	if (timeErr != nil) {
+		return Failure(timeErr)
+	}
+	return Success(models.NewDateTimeFromTime(instant))
+}
+
+func parseGroupAvailabilityValue(raw json.RawMessage) (models.DateTime, bool, error) {
+	var trimmed = bytes.TrimSpace(raw)
+	if (go_interop.SliceFrom(trimmed, 0).Size() == 0 || string(trimmed) == "null") {
+		return Success((models.DateTime(0), false))
+	}
+	var millis int64
+	var millisErr = json.Unmarshal(trimmed, &millis)
+	if (millisErr == nil) {
+		return Success((models.DateTime(millis), true))
+	}
+	var encoded string
+	var encodedErr = json.Unmarshal(trimmed, &encoded)
+	if (encodedErr != nil) {
+		return Failure(encodedErr)
+	}
+	var instant, timeErr = parseGroupAvailabilityTime(encoded)
+	if (timeErr != nil) {
+		return Failure(timeErr)
+	}
+	return Success((models.NewDateTimeFromTime(instant), true))
+}
+
+// parseGroupAvailabilityTime accepts RFC3339 instants and Temporal's RFC9557
+// ZonedDateTime string form whose trailing [timeZone] annotation Go cannot parse
+// on its own.
+func parseGroupAvailabilityTime(value string) (time.Time, error) {
+	var trimmed = strings.TrimSpace(value)
+	val index = strings.LastIndex(trimmed, "[")
+	if (index != -1) {
+		trimmed = string(go_interop.SliceTake(go_interop.ToBytes(trimmed), index))
+	}
+	return time.Parse(time.RFC3339Nano, trimmed)
+}
+
+// mergeGroupManualAvailability applies the legacy day-window replacement: an
+// existing day inside a payload day's [start, start+window) span is replaced by
+// the payload day, and payload days that replace nothing are appended. Deletions
+// during iteration match the legacy map behavior so partially overlapping days
+// resolve the same way.
+func mergeGroupManualAvailability(window time.Duration, existing groupManualAvailability, incoming groupManualAvailability) groupManualAvailability {
+	var merged = groupManualAvailability{}
+	for day, times := range existing {
+		merged[day] = times
+	}
+	var replacements = groupManualAvailability{}
+	for day, times := range incoming {
+		replacements[day] = times
+	}
+	for day := range merged {
+		for payloadDay, availableTimes := range replacements {
+			val endTime = payloadDay.Time().Add(window)
+			if (day.Time().Compare(payloadDay.Time()) >= 0 && day.Time().Compare(endTime) <= 0) {
+				go_interop.MapDelete(merged, day)
+				merged[payloadDay] = availableTimes
+				go_interop.MapDelete(replacements, payloadDay)
+				break
+			}
+		}
+		if (go_interop.MapLen(replacements) == 0) {
+			break
+		}
+	}
+	for day, times := range replacements {
+		merged[day] = times
+	}
+	return merged
+}
+
+// groupDurationHours derives the availability group's legacy duration
+// from the canonical slot-generation window. The group editor defines the
+// duration as the wrapped local-time window (a 09:00-17:00 group is eight
+// hours), and the manual availability day-window merge spans that duration
+// because the transport no longer carries the legacy duration field.
+func groupDurationHours(generation *models.SlotGeneration) *float32 {
+	if (generation == nil) {
+		return nil
+	}
+	var start, startErr = parseLocalTime(generation.StartTimeLocal)
+	if (startErr != nil) {
+		return nil
+	}
+	var end, endErr = parseLocalTime(generation.EndTimeLocal)
+	if (endErr != nil) {
+		return nil
+	}
+	var duration = end.Sub(start)
+	if (duration <= 0) {
+		duration += 24 * time.Hour
+	}
+	var hours = float32(duration.Hours())
+	return &hours
+}
+
+// canonicalGroupResponseName resolves the guest display name for a group
+// mutation, preferring the supplied name and falling back to the stored name so
+// an explicit-selection edit may omit the unchanged name.
+func canonicalGroupResponseName(supplied string, value *models.Response) string {
+	val name = canonicalGuestName(supplied)
+	if (name != "") {
+		return name
+	}
+	if (value == nil) {
+		return ""
+	}
+	return canonicalGuestName(value.Name)
+}
+
+// setGroupDecline writes the attendee decline state for the respondent's
+// account email. A respondent with no resolved account, or who is not an
+// attendee, is left untouched. Responding clears the decline state and leaving
+// sets it, matching legacy group behavior.
+func setGroupDecline(ctx context.Context, tx *postgres.Repository, eventID string, stored *postgres.Response, visitor *visitor, declined bool) error {
+	var email = ""
+	if (visitor != nil && visitor.platformIdentityID != "") {
+		email = accountEmail(ctx, visitor.platformIdentityID)
+	}
+	if (email == "" && stored != nil && stored.PlatformIdentityID != nil) {
+		email = accountEmail(ctx, *stored.PlatformIdentityID)
+	}
+	if (email == "") {
+		return nil
+	}
+	var err = tx.SetAttendeeDeclined(ctx, eventID, email, declined)
+	if (err != nil && !errors.Is(err, pgx.ErrNoRows)) {
+		return err
+	}
+	return nil
+}
+
+// mutateGroupResponse applies the explicit-selection contract to an
+// availability group. Account respondents persist with their account identity;
+// anonymous respondents persist with the shared canonical guest name. Saving a
+// response clears the respondent's attendee decline state and deleting it sets
+// the decline state (leaving the group). Calendar-derived mode, selected
+// calendars, copied calendar preferences, and the day-window merged manual
+// availability are persisted in the response payload.
+func mutateGroupResponse(c *gin.Context, repository *postgres.Repository, event *postgres.Event, visitor *visitor, input responseInput, operation string) {
+	var publicID = input.ResponseID
+	var manualAvailability, decodeErr = decodeGroupManualAvailability(input.ManualAvailability)
+	if (decodeErr != nil) {
+		c.JSON(http.StatusBadRequest, responses.Error{Error: "invalid-manual-availability"})
+		return
+	}
+	var eventValue, eventErr = eventModel(event)
+	if (eventErr != nil) {
+		c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed-to-serialize-event"})
+		return
+	}
+	var manualWindow = time.Duration(0)
+	if (eventValue.Duration != nil) {
+		manualWindow = time.Duration(*eventValue.Duration) * time.Hour
+	}
+	var txErr = repository.WithTransaction(c.Request.Context(), (ctx context.Context, tx *postgres.Repository) => {
+		var locked, lockErr = tx.LockEvent(ctx, event.ID)
+		if (lockErr != nil) {
+			return lockErr
+		}
+		var writableErr = writableEvent(locked)
+		if (writableErr != nil) {
+			return writableErr
+		}
+		var stored = &postgres.Response{EventID: event.ID, EventVisitorIdentityID: visitor.identity.ID}
+		var value *models.Response
+		if (input.CreateResponse) {
+			if (!visitor.authorized) {
+				return newGuestForbidden("visitor-credential-required")
+			}
+		} else {
+			var getErr error
+			stored, getErr = tx.GetResponseByPublicID(ctx, event.ID, input.ResponseID)
+			if (getErr != nil) {
+				return getErr
+			}
+			var authorized, authErr = visitor.controls(ctx, tx, stored.EventVisitorIdentityID)
+			if (authErr != nil) {
+				return authErr
+			}
+			if (!authorized) {
+				return newGuestForbidden("response-credential-required")
+			}
+			var responseErr error
+			value, _, responseErr = responseModel(*stored)
+			if (responseErr != nil) {
+				return responseErr
+			}
+		}
+		if (value == nil) {
+			value = &models.Response{}
+		}
+		if (operation == "delete") {
+			var deleteErr = tx.DeleteResponse(ctx, stored.ID)
+			if (deleteErr != nil) {
+				return deleteErr
+			}
+			var adjustErr = tx.AdjustEventResponseCount(ctx, locked.ID, -1)
+			if (adjustErr != nil) {
+				return adjustErr
+			}
+			return setGroupDecline(ctx, tx, locked.ID, stored, visitor, true)
+		}
+		if (operation == "rename") {
+			val validated = respondents.ValidateGuestName(input.NewName)
+			if (validated.Code != respondents.GuestNameValid) {
+				return newGuestNameError(guestNameValidationErrorMessage(validated.Code))
+			}
+			value.Name = validated.Name
+		} else {
+			if (input.CreateResponse) {
+				if (visitor.platformIdentityID != "") {
+					var platformIdentityID = visitor.platformIdentityID
+					stored.RespondentKind = postgres.RespondentKindAccount
+					stored.PlatformIdentityID = &platformIdentityID
+					value.Email = accountEmail(ctx, visitor.platformIdentityID)
+				} else {
+					var guestErr = applyGroupGuestName(stored, value, input.Name)
+					if (guestErr != nil) {
+						return guestErr
+					}
+					value.Email = input.Email
+				}
+			} else {
+				stored.RespondentKind match {
+					case postgres.RespondentKindAccount => {
+						// Reattach the visitor identity only when the caller has one;
+						// an anonymous credential holder editing a legacy account
+						// response must not write an empty uuid.
+						if ((stored.PlatformIdentityID == nil || *stored.PlatformIdentityID == "") && visitor.platformIdentityID != "") {
+							var platformIdentityID = visitor.platformIdentityID
+							stored.PlatformIdentityID = &platformIdentityID
+						}
+						if (stored.PlatformIdentityID != nil && *stored.PlatformIdentityID != "") {
+							value.Email = accountEmail(ctx, *stored.PlatformIdentityID)
+						}
+					}
+					case _ => {
+						var guestErr = applyGroupGuestName(stored, value, input.Name)
+						if (guestErr != nil) {
+							return guestErr
+						}
+						value.Email = input.Email
+					}
+				}
+			}
+			value.Availability, value.IfNeeded = normalizeTimedResponseAvailabilitySlots(input.Availability, input.IfNeeded)
+			var existing = groupManualAvailability(nil)
+			if (value.ManualAvailability != nil) {
+				existing = *value.ManualAvailability
+			}
+			var merged = mergeGroupManualAvailability(manualWindow, existing, manualAvailability)
+			value.ManualAvailability = &merged
+			value.UseCalendarAvailability = input.UseCalendarAvailability
+			value.EnabledCalendars = input.EnabledCalendars
+			value.CalendarOptions = input.CalendarOptions
+		}
+		var payload, marshalErr = json.Marshal(value)
+		if (marshalErr != nil) {
+			return marshalErr
+		}
+		stored.Payload = payload
+		if (input.CreateResponse) {
+			var createErr = tx.CreateResponse(ctx, stored)
+			if (createErr != nil) {
+				return createErr
+			}
+			publicID = stored.PublicID
+			var countErr = tx.AdjustEventResponseCount(ctx, locked.ID, 1)
+			if (countErr != nil) {
+				return countErr
+			}
+		} else {
+			var updateErr = tx.UpdateResponse(ctx, stored)
+			if (updateErr != nil) {
+				return updateErr
+			}
+		}
+		if (operation == "save") {
+			return setGroupDecline(ctx, tx, locked.ID, stored, visitor, false)
+		}
+		return nil
+	})
+	if (txErr != nil) {
+		mutationError(c, txErr)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"responseId": publicID, "eventVisitorId": visitor.identity.PublicID})
+}
+
+func applyGroupGuestName(stored *postgres.Response, value *models.Response, supplied string) error {
+	val validated = respondents.ValidateGuestName(canonicalGroupResponseName(supplied, value))
+	if (validated.Code != respondents.GuestNameValid) {
+		return newGuestNameError(guestNameValidationErrorMessage(validated.Code))
+	}
+	stored.RespondentKind = postgres.RespondentKindGuest
+	stored.PlatformIdentityID = nil
+	value.Name = validated.Name
+	return nil
+}

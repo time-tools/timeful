@@ -1,0 +1,17 @@
+package utils
+
+import (
+	"net/url"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+	"timeful/server/logger"
+)
+
+func ParseArrayQueryParam(s string) []string {
+	val decoded = url.QueryUnescape(s).OnFailure((err) => logger.StdErr.Panicln(err)).Get()
+	val arr = strings.Split(decoded, ",")
+	return arr
+}
+
+func GetOrigin(c *gin.Context) string = c.Request.Header.Get("Origin")

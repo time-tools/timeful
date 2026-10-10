@@ -1,0 +1,20 @@
+package errs
+
+var EventOwnerCredentialRequired = "event-owner-credential-required"
+var EventArchived = "event-archived"
+
+// Errors enum
+// TODO: make these an actual type (i.e. Errors.NotSignedIn)
+var NotSignedIn string = "not-signed-in"
+var UserDoesNotExist string = "user-does-not-exist"
+var AccountEmailMismatch string = "account-email-mismatch"
+var EventNotFound string = "event-not-found"
+var EventNameTooLong string = "event-name-too-long"
+var UserNotEventOwner string = "user-not-event-owner"
+var AttendeeEmailNotFound string = "attendee-email-not-found"
+var EventNotGroup string = "event-not-group"
+var InvalidCredentials string = "invalid-credentials"
+var OtpExpired string = "otp-expired"
+var OtpInvalidCode string = "otp-invalid-code"
+var OtpTooManyAttempts string = "otp-too-many-attempts"
+var InvalidIdToken string = "invalid-id-token"
