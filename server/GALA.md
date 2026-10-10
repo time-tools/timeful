@@ -12,6 +12,19 @@ Never hand-edit a generated file; it carries a `DO NOT EDIT` header and the next
 Transpile from the package directory so the emitted `//line` directives stay relative: `cd server/<pkg> && gala transpile -i <name>.gala -o <name>.go`.
 The transpiler writes its analysis cache under `server/.gala/`, which is gitignored.
 
+### Adopted runtime (decided 2026-10-10)
+
+TASK-0353 decides that server twins adopt the published Go module `go.gala.fyi/stdlib` at the version paired with the pinned compiler, rather than staying runtime-free.
+The scope is every existing twin plus new twins and cursor candidates: a twin moves to the runtime where the emitted Go keeps the package's Go-facing API and wire format unchanged, and keeps its current form where a runtime construct would change them — an exported `val` becoming `std.Immutable`, a sealed type's merged struct, non-`var` struct fields gaining wrappers, or `Codec` changing a wire shape.
+`martianoff/gala` stays banned in generated Go, and the only allowed runtime import path is `go.gala.fyi/stdlib/...` from the module pinned in `server/go.mod`.
+The decision rests on a scratch check on the pinned compiler (`cd2fdcb5`, 2026-10-10): a source using `val`, a GALA struct, an `opaque type`, a sealed type with a `match`, and `std.Try` transpiled with `--stdlib-module go.gala.fyi/stdlib` to Go importing only `go.gala.fyi/stdlib/std`, and that Go built and ran in a plain Go module requiring `go.gala.fyi/stdlib v0.87.1`, which has no transitive requirements.
+A minimal Docker build mirroring `server/Dockerfile`'s `go mod download` and build stages fetched the module with an empty cache and ran the binary, and the isolated-stack shape (source mount plus a `GOMODCACHE` volume with `go run`) fetched it into the volume and ran.
+
+The contract change lands in TASK-0353.01, the `gala-from-go` and `gala-loop` updates in TASK-0353.02, and the twin and cursor migration in TASK-0353.03.
+Until TASK-0353.01 lands, the runtime-free rules below remain in force, `verify.sh` still rejects both runtime import paths, and no twin may be migrated.
+
+### Runtime-free rules (in force until TASK-0353.01)
+
 Every committed twin is runtime-free: its generated Go names no GALA runtime package (`martianoff/gala/...` or `go.gala.fyi/stdlib/...`), so the repository vendors no GALA runtime and `server/go.mod` has no runtime requirement.
 Write Go packages directly, bind raw Go values with `var`, and use `.ByteSize()`/`.Size()` in place of `len`.
 Within that limit, write idiomatic GALA rather than Go in GALA syntax: on the pinned compiler a `match` whose arms are literals, stable identifiers, guards, or `_`, an `if` expression, `s"..."`/`f"..."` interpolation, an expression-bodied function, and an `opaque type` beside a `Hash`/`Compare` sibling all emit plain Go.
@@ -50,13 +63,14 @@ jq -r '.nodes.gala.locked.rev' flake.lock
 cat server/GALA_COMPILER
 ```
 
-The GALA runtime is not vendored.
-Every twin is runtime-free, so generated Go imports only the server's own packages and ordinary Go dependencies; `server/go.mod` has no GALA runtime require or replace, and `server/Dockerfile` copies no runtime tree.
+The GALA runtime is not vendored as a source tree.
+While the interim runtime-free rules apply, generated Go imports only the server's own packages and ordinary Go dependencies; `server/go.mod` has no GALA runtime require or replace, and `server/Dockerfile` copies no runtime tree.
+Under the adopted contract (TASK-0353) the published module becomes a normal `go.gala.fyi/stdlib` requirement in `server/go.mod` and `go.sum`, fetched like any other Go module, so no runtime source tree is vendored either way.
 [#698](https://github.com/martianoff/gala/issues/698) asked upstream to publish the transpiled stdlib for plain-Go consumers.
 Upstream first recommended `gala build`, which the [counter-repro posted on 2026-10-05](https://github.com/martianoff/gala/issues/698#issuecomment-5996259351) showed is not a substitute, then closed the issue on 2026-10-09 by publishing every release's stdlib as the Go module `go.gala.fyi/stdlib`, with no `replace` directives, and adding `gala stdlib export`.
 [#740](https://github.com/martianoff/gala/issues/740) then asked `gala transpile` itself to be able to write those imports, and its fix, [#743](https://github.com/martianoff/gala/pull/743), is in the current lock: `gala transpile --stdlib-module go.gala.fyi/stdlib` rewrote an emitted `martianoff/gala/std` import to `go.gala.fyi/stdlib/std` in a scratch transpile on 2026-10-10.
-This repository still consumes neither: adopting the module would add `go.gala.fyi/stdlib` to `server/go.mod` and a GALA runtime import to generated Go, which the runtime-free twin contract excludes, and revisiting that contract is a separate decision.
-Every committed twin therefore stays runtime-free, `verify.sh` rejects both runtime import paths, and the flag is unused.
+TASK-0353 adopted the module on 2026-10-10 and replaces the runtime-free contract with the adopted dependency policy; the build and verification side of that change lands in TASK-0353.01, and the flag [`--stdlib-module`](https://github.com/martianoff/gala/pull/743) is what writes the module path into generated imports.
+Until then every committed twin stays runtime-free, `verify.sh` rejects both runtime import paths, and the flag is unused.
 
 When the flake rev and `GALA_COMPILER` disagree, stop translating and run a bump iteration first.
 The version string alone cannot identify the compiler, because several commits share one version string and the current rev shares its stdlib fingerprint with the previous one, so the flake rev is the compiler's identity and the marker proves which stdlib extraction it carries.
@@ -139,7 +153,8 @@ The models group's blockers were re-verified on 0.85.0 on 2026-10-05 and gained 
 The runtime-free `opaque type` suppression path was re-verified on the same compiler on 2026-10-05.
 A workaround that names a runtime construct (`go_interop`, `Try`) is no longer available in a committed twin and belongs in a handwritten Go sibling.
 The `Several values in one case` and `GALA runtime from go.gala.fyi/stdlib in a transpiled twin` findings closed on the 2026-10-10 bump: a scratch transpile showed `case 1 | 2` now emits `obj == 1 || obj == 2` (`GALA-E0071` rejects an alternative that binds a name, is `_`, or mixes `|` with arithmetic without parentheses), and `gala transpile --stdlib-module` rewrites a transpiled twin's stdlib imports.
-Both rows are deleted and recorded in the report index, and the runtime-free contract keeps the module unused, so a candidate still avoids runtime constructs through a handwritten sibling.
+Both rows are deleted and recorded in the report index; the pre-adoption runtime-free contract kept the module unused, and TASK-0353 now adopts it, with TASK-0353.01 lifting the build contract and TASK-0353.03 migrating the twins and cursor.
+Until that change lands a candidate still avoids runtime constructs through a handwritten sibling.
 
 ## Upstream report index
 
