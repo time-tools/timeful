@@ -30,8 +30,14 @@ server/scripts/gala/verify.sh          # drift detection
 server/scripts/gala/verify.sh --write  # regenerate the committed twins in place
 ```
 
-The script prints the compiler provenance recorded in `GALA_COMPILER`, requires every twin to regenerate byte-identically and stay free of the GALA runtime, checks `gofmt`, and runs `go build ./...`.
-Transpile from the package directory when working by hand, because the emitted `//line` directives name the path the transpiler was given, and never hand-edit a generated file.
+The script prints the compiler provenance recorded in `GALA_COMPILER`, requires every twin to regenerate byte-identically, checks `gofmt`, and runs `go build ./...`.
+Server twins have adopted the published GALA stdlib: `server/go.mod` requires `go.gala.fyi/stdlib`, `verify.sh` transpiles every twin with `--stdlib-module go.gala.fyi/stdlib`, only `go.gala.fyi/stdlib/...` imports are allowed in generated Go, and `martianoff/gala` stays banned.
+Transpile from the package directory when working by hand, because the emitted `//line` directives name the path the transpiler was given, and never hand-edit a generated file:
+
+```sh
+cd server/<pkg> && gala transpile --stdlib-module go.gala.fyi/stdlib -i <name>.gala -o <name>.go
+```
+
 A handwritten sibling is not generated and has no regeneration command; `GALA.md` lists them.
 A file carrying `swag` annotations can be translated when its compiler emits declaration comments, which the pinned compiler does.
 
