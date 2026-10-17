@@ -131,3 +131,10 @@ The repository accepted the two-added-methods cost for `models/datetime.go` and 
 One transpile-order requirement showed up while landing them: the suppression only takes effect when the superseded handwritten file is absent at analysis time.
 Transpiling `datetime.gala` while the old `datetime.go` still declared `DateTime` emitted `martianoff/gala/std`-backed `Hash`/`Compare`, while moving the old file aside first produced the runtime-free output above.
 The uuid split keeps `ParseUUID`, `NewUUID`, `formatUUID`, and the marshalers in `uuid_extra.go`; this probe stays because it is the committed repro for the suppression path.
+
+## Re-verified (2026-10-18)
+
+- `gala version`: `GALA version 0.90.0`
+- flake rev: `014c2f23e45a2cd631b73cab38c0bdcb5e773347`
+- extraction: `0.90.0 bd0c1591b19ce9971d64efd52406bab21723db64807b526c0f716102453bdd90`
+- Result: the default run still emits the runtime-backed `Hash`/`Compare`, and the suppression run still emits neither.

@@ -51,3 +51,10 @@ No specific follow-up report was found.
 - flake rev: `cd2fdcb50cf1bc988ed03c3f6cdc0c485403576c`
 - extraction: `0.87.1 7b1dd2080a304c06a04eeb7240937109fd3d3f02e19b103f4755be79fb71d7fa`
 - date: 2026-10-10
+
+## Re-verified (2026-10-18)
+
+- `gala version`: `GALA version 0.90.0`
+- flake rev: `014c2f23e45a2cd631b73cab38c0bdcb5e773347`
+- extraction: `0.90.0 bd0c1591b19ce9971d64efd52406bab21723db64807b526c0f716102453bdd90`
+- Result: the same parse error for the bare embed spelling; the expected-token list now includes the new `default` keyword.

@@ -12,7 +12,7 @@ import "go.gala.fyi/stdlib/std"
 // keep it. It is exposed as a function so callers cannot overwrite the
 // sentinel.
 func ZeroUUID() UUID {
-	return zeroUUIDValue
+	return UUID(zeroUUIDValue)
 }
 
 //line uuid.gala:9

@@ -68,7 +68,7 @@ func executeActiveUsers(s *discordgo.Session, m *discordgo.MessageCreate, args [
 //line active_users.gala:35
 						return
 					} else {
-						panic("unreachable")
+						panic("gala: a std.Try matched none of its cases: it is a zero value, which a sealed type without a default case does not have")
 					}
 				}
 			}

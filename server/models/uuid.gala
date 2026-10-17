@@ -5,7 +5,7 @@ package models
 // example the guest userId) and for unowned events, so the wire format must
 // keep it. It is exposed as a function so callers cannot overwrite the
 // sentinel.
-func ZeroUUID() UUID = zeroUUIDValue
+func ZeroUUID() UUID = UUID(zeroUUIDValue)
 
 // UUID is a canonical lowercase hyphenated RFC 9562 UUID string. Its JSON
 // representation is that canonical form, and its empty value serializes as the

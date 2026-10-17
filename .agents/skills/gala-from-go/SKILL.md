@@ -216,6 +216,7 @@ Each of these is a way the translation goes wrong without producing an error at 
 - **`type X Y` is an alias, not a defined type.**
   It emits `type X = Y`, so a Go `type Environment string` translated with the same spelling silently becomes interchangeable with every `string`, and every caller still builds.
   Use `opaque type X Y` for a distinct type, and check the emitted declaration for the absence of `=` rather than trusting a green build.
+  An `opaque type` also takes no implicit conversion from its underlying type: write `X(s)`, or the compiler refuses the value with `GALA-E0064`.
 - **`|` in a pattern is an alternative, not bitwise OR, and it has restrictions.**
   `case 1 | 2` matches either value and emits `obj == 1 || obj == 2`; `GALA-E0071` rejects an alternative that binds a name or is `_`, `|` mixed with `+`, `-`, or `^` without parentheses, and `|` inside a comparison or boolean expression of a pattern.
   On a compiler that predates the fix the same spelling was an expression pattern that emitted `obj == 1|2` and matched only `3`, so run the row's check rather than trusting either behavior.

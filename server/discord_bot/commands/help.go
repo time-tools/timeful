@@ -12,11 +12,11 @@ func executeHelp(s *discordgo.Session, m *discordgo.MessageCreate, args []string
 //line help.gala:7
 	for _, command := range Commands {
 //line help.gala:8
-		message += fmt.Sprintf("\n\n`%v`: %v ", command.Name, command.Description)
+		message += fmt.Sprintf("\n\n`%s`: %s ", command.Name, command.Description)
 //line help.gala:9
 		if command.Usage != "" {
 //line help.gala:10
-			message += fmt.Sprintf("Usage: `%v`", command.Usage)
+			message += fmt.Sprintf("Usage: `%s`", command.Usage)
 		}
 	}
 //line help.gala:14

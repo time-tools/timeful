@@ -92,7 +92,7 @@ func AuthRequired() gin.HandlerFunc {
 //line auth.gala:47
 									return
 								} else {
-									panic("unreachable")
+									panic("gala: a std.Try matched none of its cases: it is a zero value, which a sealed type without a default case does not have")
 								}
 							}
 						}
@@ -113,7 +113,7 @@ func AuthRequired() gin.HandlerFunc {
 //line auth.gala:54
 						return
 					} else {
-						panic("unreachable")
+						panic("gala: a std.Try matched none of its cases: it is a zero value, which a sealed type without a default case does not have")
 					}
 				}
 			}
