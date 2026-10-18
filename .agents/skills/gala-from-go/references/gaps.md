@@ -163,11 +163,13 @@ Three corrections to the earlier reading of this, each with a probe behind it.
 The build failure needs a **pointer**-receiver method: a value-receiver method on the unwrapped copy builds and runs, so the same source is either a build failure or a quiet copy.
 And the trigger is narrower than it looks — the transpiler emits `std.AddrOfCopy(x.Get()).M()` for a GALA-declared receiver and for an imported one, and skips it only for a type declared in a same-package handwritten `.go` sibling, which is also where `GALA-E0053` is suppressed.
 
-**`GALA-E0044` rejects a method declared in a handwritten `.go` sibling, and its hint is false.** [#615](https://github.com/martianoff/gala/issues/615).
-The receiver's method set is read from the file being transpiled only, so a `struct` declared in the `.gala` file is judged against a method set that excludes a sibling's.
-The refusal is a false positive: the emitted Go would compile, and changing the sibling's extension from `.go` to `.gala` makes the identical declarations transpile and build.
-The hint reads `Repo declares no methods`, which is untrue, and the `GALA-E0044` page's own stand-down text asserts the opposite of what happens — "a type declared in the package being compiled is fully known and is still checked".
-The check fires exactly where its metadata is weakest, which is the scope a fix needs.
+**`GALA-E0044` rejects a method declared in a handwritten `.go` sibling, and its hint is false.** [#615](https://github.com/martianoff/gala/issues/615), fixed on the compiler this skill was last measured against.
+The receiver's method set used to be read from the file being transpiled only, so a `struct` declared in the `.gala` file was judged against a method set that excluded a sibling's.
+The refusal was a false positive: the emitted Go would compile, and changing the sibling's extension from `.go` to `.gala` made the identical declarations transpile and build.
+The hint read `Repo declares no methods`, which was untrue, and the `GALA-E0044` page's own stand-down text asserted the opposite of what happened — "a type declared in the package being compiled is fully known and is still checked".
+The check fired exactly where its metadata was weakest, which is the scope the fix needed.
+Both directions are fixed on the pinned rev (verified 2026-10-18): the analysis files a sibling's methods in `GoTypeInfo.GalaTypeMethods` under a `GoKindMethodsOnly` record, the unknown-method check consults that record before erroring, and an importer of such a package emits the plain call and builds.
+Re-run the check before relying on it, because it holds only for a compiler that carries that record.
 
 **A bare name in a declared-type position resolves to an imported package.** [#616](https://github.com/martianoff/gala/issues/616).
 A return type, a parameter type, or a `var` annotation spelled as a bare name takes an imported package's qualifier whenever any import of the file exports that name, while a constructor position resolves to the package-local declaration.
@@ -252,7 +254,8 @@ Do not file these, and do not spend a report slot on them.
 The first four are the ones that look like walls and are not; each has already been filed and answered upstream, and re-filing one spends the credibility a real gap needs.
 
 - A construct with a `workaround` row in [`constructs.md`](constructs.md), which is where the replacement spelling is.
-- A construct with an `answered` row there: `switch`, struct tags, embedded fields, anonymous and `struct{}` types, fixed-size arrays, type assertions, `interface{}`, `select`, `goto`, a method on a defined type, the `if` initializer, `recover`, multi-value returns, channel types, grouped parameters, and nested functions.
+- A construct with an `answered` row there: `switch`, struct tags, embedded fields, anonymous and `struct{}` types, fixed-size arrays, type assertions, `interface{}`, `goto`, a method on a defined type, the `if` initializer, `recover`, multi-value returns, channel types, grouped parameters, and nested functions.
+  `select` is the exception this list used to cover wholesale: its timeout and first-wins shapes are answered, while a multiplex over channels the function does not own is a language gap, so file that shape and only that shape (see [`constructs.md`](constructs.md)'s control-flow note).
 - A construct with a `semantic` row there, such as assigning to a `:=` binding.
 - A construct whose `gala explain GALA-Exxxx` page already states the fix, which is a documented answer rather than a gap.
 - A construct re-derived on the compiler you have and found working, which this file lists under [Constructs That Were Never Gaps](#constructs-that-were-never-gaps): a block-bodied lambda in a typed return position, and `go_interop.MapPut` type-argument inference.

@@ -84,9 +84,9 @@ Four rules belong to the package rather than to the file; the first is loud at t
   An unqualified GALA-runtime name is the same rule from the other side, and its hint names the package that declares the name and both spellings of the fix.
 - A declaration in a handwritten sibling is visible to the `.gala` file as a name but is not a GALA declaration, so the transpiler emits calls against a type whose members it never saw.
   [`references/gaps.md`](references/gaps.md) records the case known to fail and why a repro in isolation settles nothing either way.
-- One receiver's methods have to stay in one language across the package.
-  A method declared on a receiver in a `.gala` file becomes that receiver's whole method set for every *importer* of the package, because the importer resolves the type from the package's GALA index and never merges the methods its handwritten `.go` siblings declare; the importer's call to a sibling-declared method is then refused with a false `GALA-E0044` (checked 2026-10-10 on rev `cd2fdcb5`, where a `repository.gala` carrying eighteen methods broke five committed twins until they moved back to a handwritten sibling).
-  Translate the methods into `.gala` only when the receiver's methods all move with them, and keep the declaration split's methods handwritten otherwise.
+- One receiver's methods belong in one language across the package, as a readability choice rather than a compiler constraint.
+  A receiver split across a `.gala` file and a handwritten `.go` sibling is legal in both directions on the compiler this skill was last measured against: an importer's call to a sibling-declared method resolves and builds (checked 2026-10-18), where an earlier compiler refused it with a false `GALA-E0044` and a `repository.gala` carrying eighteen methods broke five committed twins until they moved back to a handwritten sibling.
+  Translate a receiver's methods into `.gala` when they all move together; otherwise expect the split to cost a second merge point rather than a transpile failure.
 - A bare name that both a translated file and an imported package export is contested rather than settled: on the compiler this skill was measured against, the local declaration wins, and a report of the opposite is a fact about the reporter's compiler rather than about the language.
   Do not depend on the outcome either way: never name such a type in a `.gala` file, and call a handwritten constructor in the sibling instead, so the ambiguity never gets a chance to arise.
 
@@ -201,8 +201,9 @@ Each of these is a way the translation goes wrong without producing an error at 
   Constructing it positionally or calling a method on it can transpile and then fail to build, because the transpiler emits a call on a type it does not know.
   A method call on such a type passes through and Go resolves it, so the failure is about the *type's* origin, not the call's.
   The `.Size()`/`.ByteSize()` lowering over such a receiver, and over one inferred from a Go call, was the defect filed as [#613](https://github.com/martianoff/gala/issues/613) and is fixed on the compiler this skill was last measured against; run the corresponding row's check rather than assuming either behavior.
-  The mirror direction is worse: a type declared in the `.gala` file whose method is declared in the sibling is *refused* with `GALA-E0044` and a hint that claims the type declares no methods, although Go accepts the program ([#615](https://github.com/martianoff/gala/issues/615)).
-  This is a mixed-package effect and does not reproduce in a package with no handwritten sibling, so a repro in isolation proves nothing either way.
+  The mirror direction was the same bug: a type declared in the `.gala` file whose method is declared in the sibling used to be *refused* with `GALA-E0044` and a hint that claims the type declares no methods, although Go accepts the program ([#615](https://github.com/martianoff/gala/issues/615)).
+  That refusal is fixed on the compiler this skill was last measured against, for an importer of the package as well as for the package itself (checked 2026-10-18: the importer emits the plain call and builds), so keep the split for readability rather than because the compiler forces it.
+  This is still a mixed-package effect and does not reproduce in a package with no handwritten sibling, so a repro in isolation proves nothing either way.
 - **A bare name in a declared-type position can resolve to an import.**
   A return type, a parameter type, or a `var` annotation takes an imported package's qualifier whenever any import of the file exports that name, even when the package declares the name itself; a constructor position resolves correctly, so the two can disagree inside one file.
   Declare the type in the same `.gala` file, or reach it through a handwritten constructor, and never assume a bare name in a type position means the local type ([#616](https://github.com/martianoff/gala/issues/616)).
