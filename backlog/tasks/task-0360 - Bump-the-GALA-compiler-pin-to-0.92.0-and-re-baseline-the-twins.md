@@ -4,7 +4,7 @@ title: Bump the GALA compiler pin to 0.92.0 and re-baseline the twins
 status: In Progress
 assignee: []
 created_date: '2026-10-21 20:02'
-updated_date: '2026-10-24 06:44'
+updated_date: '2026-10-24 06:50'
 labels:
   - gala
   - tooling
@@ -71,5 +71,11 @@ created: 2026-10-24 06:44
 The pin moved past the recorded 0.92.0 rev to the 0.92.1 release: flake.lock now locks martianoff/gala at 911cc059 (0.92.1 plus the upstream nix pin of the release binary, PR #835), which is version-only relative to 4bd2d4e8 (gala.mod, MODULE.bazel, and nix/gala.nix). server/GALA_COMPILER records 0.92.1/911cc059 with the same extraction content hash (2c6059ca..., version prefix changed), server/go.mod requires go.gala.fyi/stdlib v0.92.1, all 30 twins regenerate byte-identically, the six committed probes were re-run on 2026-10-24, and go build ./... plus the canonical Compose backend suite pass (2026-10-24).
 
 Observation outside this change: server/tmp-alias-probe and server/tmp-optmap-probe are staged scratch trees whose .gala files have no committed twins, so verify.sh --write reports them as MISSING; the run above passed with those two trees set aside. They need to be removed from the index or the verify contract before CI runs it.
+---
+
+author: DeepSeek Harness
+created: 2026-10-24 06:50
+---
+The two staged scratch trees from the previous note were unstaged and removed from server/ on 2026-10-24; verify.sh now passes with no workaround (OK, 30 twins).
 ---
 <!-- COMMENTS:END -->
