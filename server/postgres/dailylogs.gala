@@ -1,0 +1,24 @@
+package postgres
+
+import "time"
+
+func dailyLogDate(now time.Time, timezoneOffset int) time.Time {
+	val adjusted = now.Add(time.Duration(timezoneOffset) * time.Minute).UTC()
+	return time.Date(adjusted.Year(), adjusted.Month(), adjusted.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+var recordDailyUserLogMembershipQuery = `INSERT INTO daily_user_log_members (daily_user_log_id, platform_identity_id, first_seen_position)
+VALUES ($1, $2, COALESCE((SELECT MAX(first_seen_position) + 1 FROM daily_user_log_members WHERE daily_user_log_id = $1), 0))
+ON CONFLICT (daily_user_log_id, platform_identity_id) DO NOTHING`
+
+var listActiveUserDaysQuery = `WITH reporting_days AS (
+    SELECT generate_series($1::date, $2::date, interval '1 day')::date AS log_date
+    UNION
+    SELECT log_date FROM daily_user_logs WHERE log_date >= $1::date
+)
+SELECT l.id, d.log_date, m.platform_identity_id, COALESCE(a.first_name, ''), COALESCE(a.last_name, ''), COALESCE(a.email, ''), m.first_seen_position
+FROM reporting_days d
+LEFT JOIN daily_user_logs l ON l.log_date = d.log_date
+LEFT JOIN daily_user_log_members m ON m.daily_user_log_id = l.id
+LEFT JOIN accounts a ON a.platform_identity_id = m.platform_identity_id
+ORDER BY d.log_date DESC, m.first_seen_position, m.id`

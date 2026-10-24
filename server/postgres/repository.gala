@@ -1,0 +1,130 @@
+package postgres
+
+import (
+	"context"
+	"crypto/rand"
+	"errors"
+	"fmt"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+import "martianoff/gala/go_interop"
+
+// This file carries the declarations and free functions of the former
+// repository.go. The Repository struct and dbtx interface stay handwritten in
+// repository_types.go, and every *Repository method stays handwritten in
+// repository_methods.go: a method declared on Repository in a .gala file makes
+// Repository's method set GALA-resolved for every importer, which hides the
+// methods that other handwritten files of this package declare.
+
+var crockfordBase32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+
+var ErrPoolUninitialized = errors.New("postgresql pool is not initialized")
+
+// rowScanner names the anonymous `interface{ Scan(...any) error }` parameter
+// that scanEvent took from the Go original, because GALA has no syntax for an
+// anonymous interface type.
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+func NewRepository(pool *pgxpool.Pool) *Repository = &Repository{db: pool}
+
+// NewRepositoryFromTx binds a repository to an existing transaction so a caller
+// that owns the transaction can compose repository operations with its own SQL
+// in one atomic unit of work.
+func NewRepositoryFromTx(tx pgx.Tx) *Repository = &Repository{db: tx}
+
+// DefaultRepository uses the package-global pool initialized by Init.
+func DefaultRepository() (*Repository, error) {
+	if (Pool == nil) {
+		return Failure(ErrPoolUninitialized)
+	}
+	return Success(NewRepository(Pool))
+}
+
+// WithTransaction runs fn against the package-global pool in one transaction.
+func WithTransaction(ctx context.Context, fn func(context.Context, *Repository) error) error {
+	var repository, repoErr = DefaultRepository()
+	if (repoErr != nil) {
+		return repoErr
+	}
+	return repository.WithTransaction(ctx, fn)
+}
+
+func GenerateShortID() (string, error) {
+	var value = go_interop.SliceWithSize[byte](5)
+	var _, readErr = rand.Read(value)
+	if (readErr != nil) {
+		return Failure(fmt.Errorf("generate short event ID: %w", readErr))
+	}
+	return Success(encodeCrockford(value, 8))
+}
+
+func GenerateEventShortID() (string, error) = GenerateShortID()
+
+// GenerateTransferCode returns a six-digit decimal matching code. Rejection
+// sampling keeps the value uniform without modulo bias, and formatting keeps
+// leading zeros so every code is exactly six digits.
+func GenerateTransferCode() (string, error) {
+	var raw = go_interop.SliceWithSize[byte](4)
+	for {
+		var _, readErr = rand.Read(raw)
+		if (readErr != nil) {
+			return Failure(fmt.Errorf("generate transfer code: %w", readErr))
+		}
+		var value = uint32(raw[0])<<24 | uint32(raw[1])<<16 | uint32(raw[2])<<8 | uint32(raw[3])
+		if (value >= 4000000000) {
+			continue
+		}
+		return Success(formatTransferCode(value % 1000000))
+	}
+}
+
+func formatTransferCode(value uint32) string = fmt.Sprintf("%06d", value)
+
+func encodeCrockford(value []byte, length int) string {
+	var result = go_interop.SliceWithSize[byte](length)
+	var buffer uint64
+	var bits = uint(0)
+	var index = 0
+	for _, b := range value {
+		buffer = buffer<<8 | uint64(b)
+		bits += 8
+		for bits >= 5 && index < length {
+			bits -= 5
+			result[index] = crockfordBase32[(buffer>>bits)&31]
+			index++
+		}
+	}
+	if (index < length && bits > 0) {
+		result[index] = crockfordBase32[(buffer<<(5-bits))&31]
+	}
+	return string(result)
+}
+
+var eventColumns = `id, short_id, owner_edit_token_hash, owner_platform_identity_id, owner_event_visitor_identity_id, name, type, is_archived, is_deleted, num_responses, schedule_version, creator_posthog_id, created_at, updated_at, payload`
+
+func scanEvent(row rowScanner) (*Event, error) {
+	var event = &Event{}
+	var scanErr = row.Scan(&event.ID, &event.ShortID, &event.OwnerEditTokenHash, &event.OwnerPlatformIdentityID, &event.OwnerEventVisitorIdentityID, &event.Name, &event.Type, &event.IsArchived, &event.IsDeleted, &event.NumResponses, &event.ScheduleVersion, &event.CreatorPosthogID, &event.CreatedAt, &event.UpdatedAt, &event.Payload)
+	if (scanErr != nil) {
+		return Failure(scanErr)
+	}
+	event.Payload = decodePayload(event.Payload)
+	return Success(event)
+}
+
+// listResponsesQuery lists one event's responses in write order. The
+// supporting-index forced-plan test runs this statement directly.
+var listResponsesQuery = `SELECT id, public_id, event_visitor_identity_id, event_id, respondent_kind, platform_identity_id, payload, created_at, updated_at FROM event_responses WHERE event_id = $1 ORDER BY created_at, id`
+
+func isUniqueViolation(err error) bool {
+	var postgresError *pgconn.PgError
+	return errors.As(err, &postgresError) && postgresError.Code == "23505"
+}
+
+// IsUniqueViolation reports PostgreSQL unique-index conflicts to route adapters.
+func IsUniqueViolation(err error) bool = isUniqueViolation(err)

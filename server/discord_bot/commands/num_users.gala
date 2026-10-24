@@ -1,0 +1,22 @@
+package commands
+
+import (
+	"context"
+
+	"github.com/bwmarrin/discordgo"
+	"timeful/server/logger"
+	"timeful/server/postgres"
+)
+
+func executeNumUsers(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
+	val repository = postgres.DefaultRepository().OnFailure((err) => logger.StdErr.Panicln(err)).Get()
+	val n = repository.CountAccounts(context.Background()).OnFailure((err) => logger.StdErr.Panicln(err)).Get()
+
+	sendMessage(s, m, s"Number of currently signed up users: $n")
+}
+
+var numUsers Command = Command{
+	Name:        "!num_users",
+	Description: "Returns the number of signed up users",
+	Execute:     executeNumUsers,
+}

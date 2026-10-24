@@ -1,0 +1,11 @@
+package probe
+
+// The Go type this stands for is routes.eventInput in server/routes/group.go:
+// models.Event is embedded so its fields are promoted into the request JSON
+// key space, and the outer Attendees field carries the legacy invite list.
+
+struct Event(var Name string, var ShortID string)
+
+type eventInput struct {
+	Event
+}

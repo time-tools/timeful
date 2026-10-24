@@ -1,0 +1,27 @@
+package probe
+
+// The shape this stands for is getCalendarAvailabilities in
+// server/routes/group.go: a buffered result channel, one goroutine per
+// request with an in-place recover that substitutes an empty result, and a
+// blocking receive per request.
+
+func fanOut(requestIDs []string) {
+	type result struct {
+		publicID string
+	}
+	results := make(chan result, len(requestIDs))
+	for _, id := range requestIDs {
+		id := id
+		go func() {
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					results <- result{}
+				}
+			}()
+			results <- result{publicID: id}
+		}()
+	}
+	for i := 0; i < len(requestIDs); i++ {
+		_ = <-results
+	}
+}

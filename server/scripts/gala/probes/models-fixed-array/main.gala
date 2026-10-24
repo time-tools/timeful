@@ -1,0 +1,7 @@
+package probe
+
+// The Go type this stands for is models.UUID's NewUUID/formatUUID in
+// server/models/uuid.go, which work through a [16]byte.
+func newUUIDBytes() {
+	var value [16]byte
+}

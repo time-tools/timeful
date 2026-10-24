@@ -1,0 +1,17 @@
+package models
+
+import "time"
+
+// DateTime is a canonical millisecond-precision instant. Its JSON representation
+// is an RFC3339 string for values and a millisecond integer when used as a map
+// key.
+opaque type DateTime int64
+
+// Time returns the instant.
+func (d DateTime) Time() time.Time = time.UnixMilli(int64(d))
+
+// IsZero reports whether the value is the Unix epoch default.
+func (d DateTime) IsZero() bool = d == 0
+
+// NewDateTimeFromTime converts a time into millisecond precision.
+func NewDateTimeFromTime(value time.Time) DateTime = DateTime(value.UnixMilli())

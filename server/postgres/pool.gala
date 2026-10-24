@@ -1,0 +1,83 @@
+package postgres
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"strconv"
+	"time"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel/trace"
+)
+
+import . "martianoff/gala/go_builtins"
+import "martianoff/gala/resource"
+
+var applicationURIEnvironment = "POSTGRES_APPLICATION_URI"
+
+var connectTimeoutEnvironment = "POSTGRES_CONNECT_TIMEOUT_SECONDS"
+
+var maxConnectionsEnvironment = "POSTGRES_MAX_CONNS"
+
+var Pool *pgxpool.Pool
+
+// Init connects and verifies the PostgreSQL store before the server accepts
+// requests, and installs the query tracer so database work joins its request
+// trace. PostgreSQL-owned event routes may be enabled after startup.
+func Init(tracerProvider trace.TracerProvider) func() {
+	var uri = os.Getenv(applicationURIEnvironment)
+	if (uri == "") {
+		Panic(applicationURIEnvironment + " environment variable is required")
+	}
+
+	var config, parseErr = pgxpool.ParseConfig(uri)
+	if (parseErr != nil) {
+		Panic(fmt.Sprintf("invalid %s: %v", applicationURIEnvironment, parseErr))
+	}
+	config.MaxConns = environmentInt(maxConnectionsEnvironment, 10)
+	config.ConnConfig.Tracer = newQueryTracer(tracerProvider)
+
+	var ctx, cancel = context.WithTimeout(context.Background(), connectionTimeout())
+	var closeFn func() = resource.Bracket(cancel, (c) => c(), (_) => {
+		var createdPool, connErr = pgxpool.NewWithConfig(ctx, config)
+		Pool = createdPool
+		if (connErr != nil) {
+			Panic(fmt.Sprintf("connect to PostgreSQL: %v", connErr))
+		}
+		var pingErr = Pool.Ping(ctx)
+		if (pingErr != nil) {
+			Pool.Close()
+			Pool = nil
+			Panic(fmt.Sprintf("ping PostgreSQL: %v", pingErr))
+		}
+		return () => {
+			if (Pool != nil) {
+				Pool.Close()
+				Pool = nil
+			}
+		}
+	})
+	return closeFn
+}
+
+func Ping(ctx context.Context) error {
+	if (Pool == nil) {
+		return errors.New("postgresql pool is not initialized")
+	}
+	return Pool.Ping(ctx)
+}
+
+func connectionTimeout() time.Duration = time.Duration(environmentInt(connectTimeoutEnvironment, 10)) * time.Second
+
+func environmentInt(name string, fallback int) int32 {
+	var value = os.Getenv(name)
+	if (value == "") {
+		return int32(fallback)
+	}
+	var parsed, parseErr = strconv.ParseInt(value, 10, 32)
+	if (parseErr != nil || parsed < 1) {
+		Panic(fmt.Sprintf("%s must be a positive integer", name))
+	}
+	return int32(parsed)
+}

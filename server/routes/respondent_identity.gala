@@ -1,0 +1,82 @@
+package routes
+
+import (
+	"martianoff/gala/go_interop"
+
+	"timeful/server/models"
+	"timeful/server/respondents"
+)
+
+func cloneUser(user *models.User) *models.User {
+	if (user == nil) {
+		return nil
+	}
+
+	var clone = *user
+	return &clone
+}
+
+func sanitizedResponseUser(user *models.User) *models.User {
+	val sanitized = cloneUser(user)
+	if (sanitized == nil) {
+		return nil
+	}
+
+	val firstName, lastName, _ = respondents.SanitizeUserDisplayName(sanitized)
+	sanitized.FirstName = firstName
+	sanitized.LastName = lastName
+
+	return sanitized
+}
+
+func canonicalGuestName(name string) string {
+	val validation = respondents.ValidateGuestName(name)
+	return if (validation.Code != respondents.GuestNameValid) { "" } else { validation.Name }
+}
+
+func guestNameValidationErrorMessage(code respondents.GuestNameValidationCode) string = code match {
+	case respondents.GuestNameRequired => "Guest name is required"
+	case respondents.GuestNameInvalidFormatting => "Guest name contains only unsupported formatting characters"
+	case respondents.GuestNameAccountIDLike => "Guest name cannot look like an account ID"
+	case respondents.GuestNameTooLong => "Guest name must be 100 characters or fewer"
+	case _ => "Guest name is invalid"
+}
+
+// populateSignUpResponsePayloadIdentity resolves the response identity key and
+// promotes the live account profile when one exists. liveUsers carries the
+// batched account read keyed by platform identity UUID; a missing account
+// (including a failed batch read) falls back to the stored response identity so
+// the wire shape never gains an account shape it did not have before.
+func populateSignUpResponsePayloadIdentity(response *models.SignUpResponse, liveUsers map[string]*models.User) (string, bool) {
+	if (response == nil) {
+		return ("", false)
+	}
+
+	if !response.UserId.IsZero() {
+		val lookupKey = response.UserId.String()
+		go_interop.OptionFromMap(liveUsers, lookupKey) match {
+			case Some(liveUser) if liveUser != nil => response.User = sanitizedResponseUser(liveUser)
+			case _ => {
+				val fallbackName = respondents.NormalizeGuestName(response.Name)
+				response.User = &models.User{
+					Id:        response.UserId,
+					FirstName: fallbackName,
+					Email:     response.Email,
+				}
+			}
+		}
+		return (lookupKey, true)
+	}
+
+	val name = canonicalGuestName(response.Name)
+	if (name == "") {
+		return ("", false)
+	}
+
+	response.Name = name
+	response.User = &models.User{
+		FirstName: name,
+		Email:     response.Email,
+	}
+	return (name, true)
+}
