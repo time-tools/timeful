@@ -1,6 +1,6 @@
 ---
 name: gala-loop
-description: Continue the server's GALA translation loop: use when the user asks to translate the next server Go file to a committed GALA twin, to continue GALA translation, or to check the GALA ledger's compiler provenance.
+description: "Continue the server's GALA translation loop: use when the user asks to translate the next server Go file to a committed GALA twin, to continue GALA translation, or to check the GALA ledger's compiler provenance."
 ---
 
 # GALA Loop

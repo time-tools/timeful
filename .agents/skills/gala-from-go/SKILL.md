@@ -1,6 +1,6 @@
 ---
 name: gala-from-go
-description: Translate a Go file to GALA, showing each Go construct and whether GALA can express it: use when the user asks how to rewrite, port, or convert Go code in GALA, asks whether a Go construct is expressible in GALA, or asks what a GALA gap is and how to report one.
+description: "Translate a Go file to GALA, showing each Go construct and whether GALA can express it: use when the user asks how to rewrite, port, or convert Go code in GALA, asks whether a Go construct is expressible in GALA, or asks what a GALA gap is and how to report one."
 ---
 
 # GALA From Go
