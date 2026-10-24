@@ -2,7 +2,6 @@
 
 package providerconfig
 
-import "go.gala.fyi/stdlib/std"
 import (
 	"os"
 	"strings"
@@ -35,15 +34,15 @@ var realMicrosoftGraphAPIBaseURL = "https://graph.microsoft.com/v1.0"
 //line providerconfig.gala:18
 func overrideOrDefault(envName string, fallback string) string {
 //line providerconfig.gala:19
-	var value = std.NewImmutable(strings.TrimSpace(os.Getenv(envName)))
+	var value = strings.TrimSpace(os.Getenv(envName))
 //line providerconfig.gala:20
-	return func() string {
-		if value.Get() != "" {
-			return value.Get()
+	{
+		if value != "" {
+			return value
 		} else {
 			return fallback
 		}
-	}()
+	}
 }
 
 //line providerconfig.gala:23

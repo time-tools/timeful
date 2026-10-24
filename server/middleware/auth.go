@@ -34,9 +34,9 @@ import (
 func AuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
 //line auth.gala:29
-		var platformIdentityID = std.NewImmutable(sessionIdentityID(c))
+		var platformIdentityID = sessionIdentityID(c)
 //line auth.gala:30
-		if platformIdentityID.Get() == "" {
+		if platformIdentityID == "" {
 //line auth.gala:31
 			c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.NotSignedIn})
 //line auth.gala:32
@@ -46,7 +46,7 @@ func AuthRequired() gin.HandlerFunc {
 		}
 //line auth.gala:36
 		{
-			obj := std.GoTry(accounts.Resolve(c.Request.Context(), platformIdentityID.Get()))
+			obj := std.GoTry(accounts.Resolve(c.Request.Context(), platformIdentityID))
 			{
 				_tmp_1 := std.Success[*postgres.Account]{}.Unapply(obj)
 				_tmp_2 := _tmp_1.IsDefined()

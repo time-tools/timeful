@@ -97,3 +97,17 @@ No specific follow-up report was found.
 - flake rev: `014c2f23e45a2cd631b73cab38c0bdcb5e773347`
 - extraction: `0.90.0 bd0c1591b19ce9971d64efd52406bab21723db64807b526c0f716102453bdd90`
 - Result: the same refusals for `chan`, `defer func()`, `go`, and `recover`; the expected-token lists now include the new `default` keyword.
+
+## Re-verified (2026-10-21)
+
+- `gala version`: `GALA version 0.92.0`
+- flake rev: `4bd2d4e89cb8699e94b1f209356dd679db8d54ac`
+- extraction: `0.92.0 2c6059cade6f8331c75c084d870dbf4f9af574030a1e211d539c98b456f294a3`
+- Result: the same refusals for `chan`, `defer func()`, `go`, and `recover`; the expected-token lists still name the `default` keyword.
+
+## Re-verified (2026-10-24)
+
+- `gala version`: `GALA version 0.92.1`
+- flake rev: `911cc05932486626e684931aac9f1707939a91e6`
+- extraction: `0.92.1 2c6059cade6f8331c75c084d870dbf4f9af574030a1e211d539c98b456f294a3`
+- Result: the same refusals for `chan`, `defer func()`, `go`, and `recover`; the expected-token lists still name the `default` keyword.

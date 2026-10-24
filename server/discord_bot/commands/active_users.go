@@ -75,17 +75,17 @@ func executeActiveUsers(s *discordgo.Session, m *discordgo.MessageCreate, args [
 		}
 	}
 //line active_users.gala:43
-	var startDate = std.NewImmutable(utils.GetDateAtTime(time.Now().AddDate(0, 0, -days), "00:00:00"))
+	var startDate = utils.GetDateAtTime(time.Now().AddDate(0, 0, -days), "00:00:00")
 //line active_users.gala:45
-	var repository = std.NewImmutable(std.GoTry(postgres.DefaultRepository()).OnFailure(func(err error) {
+	var repository = std.GoTry(postgres.DefaultRepository()).OnFailure(func(err error) {
 		logger.StdErr.Panicln(err)
-	}).Get())
+	}).Get()
 //line active_users.gala:46
-	var logs = std.NewImmutable(std.GoTry(repository.Get().ListActiveUserDays(context.Background(), startDate.Get(), time.Now())).OnFailure(func(err error) {
+	var logs = std.GoTry(repository.ListActiveUserDays(context.Background(), startDate, time.Now())).OnFailure(func(err error) {
 		logger.StdErr.Panicln(err)
-	}).Get())
+	}).Get()
 //line active_users.gala:49
-	var dayStrings = std.NewImmutable(activeUsersDayStrings())
+	var dayStrings = activeUsersDayStrings()
 //line active_users.gala:51
 	if list {
 //line active_users.gala:53
@@ -93,13 +93,13 @@ func executeActiveUsers(s *discordgo.Session, m *discordgo.MessageCreate, args [
 //line active_users.gala:54
 		var message = ""
 //line active_users.gala:55
-		for _, log := range logs.Get() {
+		for _, log := range logs {
 //line active_users.gala:56
-			var date = std.NewImmutable(log.LogDate)
+			var date = log.LogDate
 //line active_users.gala:57
-			message += dayStrings.Get()[date.Get().Weekday()] + " "
+			message += dayStrings[date.Weekday()] + " "
 //line active_users.gala:58
-			message += utils.GetDateString(date.Get()) + " | "
+			message += utils.GetDateString(date) + " | "
 //line active_users.gala:59
 			message += fmt.Sprintf("Count: %d\n", activeUsersMembersCount(log))
 //line active_users.gala:61
@@ -119,27 +119,24 @@ func executeActiveUsers(s *discordgo.Session, m *discordgo.MessageCreate, args [
 //line active_users.gala:74
 		var data = activeUsersEmptyData()
 //line active_users.gala:75
-		for i := activeUsersLogsCount(logs.Get()) - 1; i >= 0; i-- {
+		for i := activeUsersLogsCount(logs) - 1; i >= 0; i-- {
 //line active_users.gala:76
-			labels = activeUsersAppendLabel(labels, utils.GetDateString(logs.Get()[i].LogDate))
+			labels = activeUsersAppendLabel(labels, utils.GetDateString(std.NewImmutable(logs).Get()[i].LogDate))
 //line active_users.gala:77
-			data = activeUsersAppendCount(data, activeUsersMembersCount(logs.Get()[i]))
+			data = activeUsersAppendCount(data, activeUsersMembersCount(logs[i]))
 		}
 //line active_users.gala:81
-		var chart = std.NewImmutable(activeUsersChart(labels, data))
+		var chart = activeUsersChart(labels, data)
 //line active_users.gala:82
-		var (
-			_tmp_7, _ = json.Marshal(chart.Get())
-			jsonStr   = std.NewImmutable(_tmp_7)
-		)
+		var jsonStr, _ = json.Marshal(chart)
 //line active_users.gala:84
-		var encodedChart = std.NewImmutable(url.PathEscape(string(jsonStr.Get())))
+		var encodedChart = url.PathEscape(string(jsonStr))
 //line active_users.gala:85
-		var chartUrl = std.NewImmutable(fmt.Sprintf("https://quickchart.io/chart?c=%s&backgroundColor=white", encodedChart.Get()))
+		var chartUrl = fmt.Sprintf("https://quickchart.io/chart?c=%s&backgroundColor=white", encodedChart)
 //line active_users.gala:86
-		var chartEmbed = std.NewImmutable(&discordgo.MessageEmbed{Title: "Active Users", Image: &discordgo.MessageEmbedImage{URL: chartUrl.Get()}})
+		var chartEmbed = &discordgo.MessageEmbed{Title: "Active Users", Image: &discordgo.MessageEmbedImage{URL: chartUrl}}
 //line active_users.gala:93
-		sendEmbed(s, m, chartEmbed.Get())
+		sendEmbed(s, m, chartEmbed)
 	}
 }
 

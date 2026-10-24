@@ -143,7 +143,7 @@ Three facts since the filing, each checked by transpiling the shape on the compi
 So the price is that the substitute is written down nowhere, not that the length cannot be read.
 It is also worth knowing as a limitation when deciding whether a member can move into a `.gala` file beside a `.go` sibling.
 
-**A method call on a `:=` or `val` binding is lowered into an unwrap of the receiver.** [#614](https://github.com/martianoff/gala/issues/614).
+**A method call on a local `:=` or `val` binding used to lower into an unwrap of the receiver.** [#614](https://github.com/martianoff/gala/issues/614), fixed on 0.92.0 (rev `4bd2d4e8`, checked 2026-10-21).
 
 ```gala
 var usersRouter = router.Group("/users")
@@ -152,23 +152,23 @@ usersRouter.GET("/:userId", getPublicUserProfile)   // emits usersRouter.GET(...
 
 ```gala
 usersRouter := router.Group("/users")
-usersRouter.GET("/:userId", getPublicUserProfile)   // emits usersRouter.Get().GET(...), does not build
+usersRouter.GET("/:userId", getPublicUserProfile)   // emits usersRouter.GET(...), builds since 0.92.0
 ```
 
-The transpile is clean, there is no diagnostic, and the failure is a `go build` error against generated code the reader did not write.
-The `var` form emits no `std.NewImmutable` anywhere in the file, and that absence is what distinguishes the two lowerings rather than merely the presence of a wrapper in one of them.
+On the `0.90.0` line the second form emitted `usersRouter.Get().GET(...)`, the transpile was clean, there was no diagnostic, and the failure was a `go build` error against generated code the reader did not write.
+The `var` form emitted no `std.NewImmutable` anywhere in the file, which is what distinguished the two lowerings.
 
-Three corrections to the earlier reading of this, each with a probe behind it.
-`val` emits the same artifact as `:=`, so `var` is the only safe spelling of the three rather than one of two.
-The build failure needs a **pointer**-receiver method: a value-receiver method on the unwrapped copy builds and runs, so the same source is either a build failure or a quiet copy.
-And the trigger is narrower than it looks — the transpiler emits `std.AddrOfCopy(x.Get()).M()` for a GALA-declared receiver and for an imported one, and skips it only for a type declared in a same-package handwritten `.go` sibling, which is also where `GALA-E0053` is suppressed.
+Two details governed the old artifact.
+The build failure needed a **pointer**-receiver method: a value-receiver method on the unwrapped copy built and ran, so the same source was either a build failure or a quiet copy.
+And the trigger was narrower than it looked: the transpiler emitted `std.AddrOfCopy(x.Get()).M()` for a GALA-declared receiver and for an imported one, and skipped it only for a type declared in a same-package handwritten `.go` sibling, which was also where `GALA-E0053` was suppressed.
+The local-`val` lowering in 0.92.0 removes the wrapper, so both spellings now emit the plain call; re-run the two transpiles before relying on either behavior.
 
 **`GALA-E0044` rejects a method declared in a handwritten `.go` sibling, and its hint is false.** [#615](https://github.com/martianoff/gala/issues/615), fixed on the compiler this skill was last measured against.
 The receiver's method set used to be read from the file being transpiled only, so a `struct` declared in the `.gala` file was judged against a method set that excluded a sibling's.
 The refusal was a false positive: the emitted Go would compile, and changing the sibling's extension from `.go` to `.gala` made the identical declarations transpile and build.
 The hint read `Repo declares no methods`, which was untrue, and the `GALA-E0044` page's own stand-down text asserted the opposite of what happened — "a type declared in the package being compiled is fully known and is still checked".
 The check fired exactly where its metadata was weakest, which is the scope the fix needed.
-Both directions are fixed on the pinned rev (verified 2026-10-18): the analysis files a sibling's methods in `GoTypeInfo.GalaTypeMethods` under a `GoKindMethodsOnly` record, the unknown-method check consults that record before erroring, and an importer of such a package emits the plain call and builds.
+Both directions are fixed since rev `014c2f23` (verified 2026-10-18): the analysis files a sibling's methods in `GoTypeInfo.GalaTypeMethods` under a `GoKindMethodsOnly` record, the unknown-method check consults that record before erroring, and an importer of such a package emits the plain call and builds.
 Re-run the check before relying on it, because it holds only for a compiler that carries that record.
 
 **A bare name in a declared-type position resolves to an imported package.** [#616](https://github.com/martianoff/gala/issues/616).

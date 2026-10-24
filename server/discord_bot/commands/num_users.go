@@ -14,15 +14,15 @@ import (
 //line num_users.gala:11
 func executeNumUsers(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
 //line num_users.gala:12
-	var repository = std.NewImmutable(std.GoTry(postgres.DefaultRepository()).OnFailure(func(err error) {
+	var repository = std.GoTry(postgres.DefaultRepository()).OnFailure(func(err error) {
 		logger.StdErr.Panicln(err)
-	}).Get())
+	}).Get()
 //line num_users.gala:13
-	var n = std.NewImmutable(std.GoTry(repository.Get().CountAccounts(context.Background())).OnFailure(func(err error) {
+	var n = std.GoTry(repository.CountAccounts(context.Background())).OnFailure(func(err error) {
 		logger.StdErr.Panicln(err)
-	}).Get())
+	}).Get()
 //line num_users.gala:15
-	sendMessage(s, m, fmt.Sprintf("Number of currently signed up users: %d", n.Get()))
+	sendMessage(s, m, fmt.Sprintf("Number of currently signed up users: %d", n))
 }
 
 //line num_users.gala:18

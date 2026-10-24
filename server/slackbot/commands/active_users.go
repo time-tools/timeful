@@ -74,17 +74,17 @@ func executeActiveUsers(args []string, webhookUrl string) {
 		}
 	}
 //line active_users.gala:42
-	var startDate = std.NewImmutable(utils.GetDateAtTime(time.Now().AddDate(0, 0, -days), "00:00:00"))
+	var startDate = utils.GetDateAtTime(time.Now().AddDate(0, 0, -days), "00:00:00")
 //line active_users.gala:44
-	var repository = std.NewImmutable(std.GoTry(postgres.DefaultRepository()).OnFailure(func(err error) {
+	var repository = std.GoTry(postgres.DefaultRepository()).OnFailure(func(err error) {
 		logger.StdErr.Panicln(err)
-	}).Get())
+	}).Get()
 //line active_users.gala:45
-	var logs = std.NewImmutable(std.GoTry(repository.Get().ListActiveUserDays(context.Background(), startDate.Get(), time.Now())).OnFailure(func(err error) {
+	var logs = std.GoTry(repository.ListActiveUserDays(context.Background(), startDate, time.Now())).OnFailure(func(err error) {
 		logger.StdErr.Panicln(err)
-	}).Get())
+	}).Get()
 //line active_users.gala:48
-	var dayStrings = std.NewImmutable(activeUsersDayStrings())
+	var dayStrings = activeUsersDayStrings()
 //line active_users.gala:50
 	if list {
 //line active_users.gala:52
@@ -92,13 +92,13 @@ func executeActiveUsers(args []string, webhookUrl string) {
 //line active_users.gala:53
 		var message = ""
 //line active_users.gala:54
-		for _, log := range logs.Get() {
+		for _, log := range logs {
 //line active_users.gala:55
-			var date = std.NewImmutable(log.LogDate)
+			var date = log.LogDate
 //line active_users.gala:56
-			message += dayStrings.Get()[date.Get().Weekday()] + " "
+			message += dayStrings[date.Weekday()] + " "
 //line active_users.gala:57
-			message += utils.GetDateString(date.Get()) + " | "
+			message += utils.GetDateString(date) + " | "
 //line active_users.gala:58
 			message += fmt.Sprintf("Count: %d\n", activeUsersMembersCount(log))
 //line active_users.gala:60
@@ -118,25 +118,22 @@ func executeActiveUsers(args []string, webhookUrl string) {
 //line active_users.gala:73
 		var data = activeUsersEmptyData()
 //line active_users.gala:74
-		for i := activeUsersLogsCount(logs.Get()) - 1; i >= 0; i-- {
+		for i := activeUsersLogsCount(logs) - 1; i >= 0; i-- {
 //line active_users.gala:75
-			labels = activeUsersAppendLabel(labels, utils.GetDateString(logs.Get()[i].LogDate))
+			labels = activeUsersAppendLabel(labels, utils.GetDateString(std.NewImmutable(logs).Get()[i].LogDate))
 //line active_users.gala:76
-			data = activeUsersAppendCount(data, activeUsersMembersCount(logs.Get()[i]))
+			data = activeUsersAppendCount(data, activeUsersMembersCount(logs[i]))
 		}
 //line active_users.gala:80
-		var chart = std.NewImmutable(activeUsersChart(labels, data))
+		var chart = activeUsersChart(labels, data)
 //line active_users.gala:81
-		var (
-			_tmp_7, _ = json.Marshal(chart.Get())
-			jsonStr   = std.NewImmutable(_tmp_7)
-		)
+		var jsonStr, _ = json.Marshal(chart)
 //line active_users.gala:83
-		var encodedChart = std.NewImmutable(url.PathEscape(string(jsonStr.Get())))
+		var encodedChart = url.PathEscape(string(jsonStr))
 //line active_users.gala:84
-		var chartUrl = std.NewImmutable(fmt.Sprintf("https://quickchart.io/chart?c=%s&backgroundColor=white", encodedChart.Get()))
+		var chartUrl = fmt.Sprintf("https://quickchart.io/chart?c=%s&backgroundColor=white", encodedChart)
 //line active_users.gala:86
-		SendRawMessage(activeUsersChartResponse(chartUrl.Get()), webhookUrl)
+		SendRawMessage(activeUsersChartResponse(chartUrl), webhookUrl)
 	}
 }
 

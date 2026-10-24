@@ -90,11 +90,11 @@ func shouldRunInReleaseMode(env appenv.Environment) bool {
 func openLogFile(path string) (*os.File, error) {
 	var _goResult std.Try[*os.File] = func() std.Try[*os.File] {
 //line main.gala:61
-		var logDir = std.NewImmutable(filepath.Dir(path))
+		var logDir = filepath.Dir(path)
 //line main.gala:62
-		if logDir.Get() != "." {
+		if logDir != "." {
 //line main.gala:63
-			var mkdirErr = os.MkdirAll(logDir.Get(), 0755)
+			var mkdirErr = os.MkdirAll(logDir, 0755)
 //line main.gala:64
 			if mkdirErr != nil {
 //line main.gala:65
@@ -122,7 +122,7 @@ func openLogFile(path string) (*os.File, error) {
 // configureRuntime validates Compose-injected configuration before startup.
 func configureRuntime() appenv.Environment {
 //line main.gala:78
-	var currentAppEnv = std.NewImmutable(appenv.Current())
+	var currentAppEnv = appenv.Current()
 //line main.gala:80
 	validateSessionSecret()
 //line main.gala:81
@@ -133,7 +133,7 @@ func configureRuntime() appenv.Environment {
 		logger.StdErr.Panicln(validateErr)
 	}
 //line main.gala:86
-	return currentAppEnv.Get()
+	return currentAppEnv
 }
 
 //line main.gala:88
@@ -141,14 +141,14 @@ func configureRuntime() appenv.Environment {
 // validateSessionSecret ensures SESSION_SECRET is set and meets security requirements
 func validateSessionSecret() {
 //line main.gala:91
-	var secret = std.NewImmutable(os.Getenv("SESSION_SECRET"))
+	var secret = os.Getenv("SESSION_SECRET")
 //line main.gala:93
-	if secret.Get() == "" {
+	if secret == "" {
 //line main.gala:94
 		logger.StdErr.Panicln("SESSION_SECRET environment variable is required but not set")
 	}
 //line main.gala:97
-	if len(secret.Get()) < 32 {
+	if len(secret) < 32 {
 //line main.gala:98
 		logger.StdErr.Panicln("SESSION_SECRET must be at least 32 characters long")
 	}

@@ -25,38 +25,34 @@ func cloneUser(user *models.User) *models.User {
 //line respondent_identity.gala:19
 func sanitizedResponseUser(user *models.User) *models.User {
 //line respondent_identity.gala:20
-	var sanitized = std.NewImmutable(cloneUser(user))
+	var sanitized = cloneUser(user)
 //line respondent_identity.gala:21
-	if sanitized.Get() == nil {
+	if sanitized == nil {
 //line respondent_identity.gala:22
 		return nil
 	}
 //line respondent_identity.gala:25
-	var (
-		_tmp_1, _tmp_2, _ = respondents.SanitizeUserDisplayName(sanitized.Get())
-		firstName         = std.NewImmutable(_tmp_1)
-		lastName          = std.NewImmutable(_tmp_2)
-	)
+	var firstName, lastName, _ = respondents.SanitizeUserDisplayName(sanitized)
 //line respondent_identity.gala:26
-	sanitized.Get().FirstName = firstName.Get()
+	sanitized.FirstName = firstName
 //line respondent_identity.gala:27
-	sanitized.Get().LastName = lastName.Get()
+	sanitized.LastName = lastName
 //line respondent_identity.gala:29
-	return sanitized.Get()
+	return sanitized
 }
 
 //line respondent_identity.gala:32
 func canonicalGuestName(name string) string {
 //line respondent_identity.gala:33
-	var validation = std.NewImmutable(respondents.ValidateGuestName(name))
+	var validation = respondents.ValidateGuestName(name)
 //line respondent_identity.gala:34
-	return func() string {
-		if validation.Get().Code != respondents.GuestNameValid {
+	{
+		if validation.Code != respondents.GuestNameValid {
 			return ""
 		} else {
-			return validation.Get().Name
+			return validation.Name
 		}
-	}()
+	}
 }
 
 //line respondent_identity.gala:37
@@ -93,44 +89,44 @@ func populateSignUpResponsePayloadIdentity(response *models.SignUpResponse, live
 //line respondent_identity.gala:55
 		if !response.UserId.IsZero() {
 //line respondent_identity.gala:56
-			var lookupKey = std.NewImmutable(response.UserId.String())
+			var lookupKey = response.UserId.String()
 //line respondent_identity.gala:57
 			func(obj std.Option[*models.User]) {
 				{
-					_tmp_3 := std.Some[*models.User]{}.Unapply(obj)
-					_tmp_4 := _tmp_3.IsDefined()
-					var _tmp_5 *models.User
-					if _tmp_4 {
-						_tmp_5 = _tmp_3.Get()
+					_tmp_1 := std.Some[*models.User]{}.Unapply(obj)
+					_tmp_2 := _tmp_1.IsDefined()
+					var _tmp_3 *models.User
+					if _tmp_2 {
+						_tmp_3 = _tmp_1.Get()
 					}
-					_ = _tmp_5
-					liveUser := _tmp_5
-					if _tmp_4 && liveUser != nil {
+					_ = _tmp_3
+					liveUser := _tmp_3
+					if _tmp_2 && liveUser != nil {
 						response.User = sanitizedResponseUser(liveUser)
 					} else {
 //line respondent_identity.gala:60
-						var fallbackName = std.NewImmutable(respondents.NormalizeGuestName(response.Name))
+						var fallbackName = respondents.NormalizeGuestName(response.Name)
 //line respondent_identity.gala:61
-						response.User = &models.User{Id: response.UserId, FirstName: fallbackName.Get(), Email: response.Email}
+						response.User = &models.User{Id: response.UserId, FirstName: fallbackName, Email: response.Email}
 					}
 				}
-			}(go_interop.OptionFromMap(liveUsers, lookupKey.Get()))
+			}(go_interop.OptionFromMap(liveUsers, lookupKey))
 //line respondent_identity.gala:68
-			return std.Tuple[string, bool]{V1: std.NewImmutable(lookupKey.Get()), V2: std.NewImmutable(true)}
+			return std.Tuple[string, bool]{V1: std.NewImmutable(lookupKey), V2: std.NewImmutable(true)}
 		}
 //line respondent_identity.gala:71
-		var name = std.NewImmutable(canonicalGuestName(response.Name))
+		var name = canonicalGuestName(response.Name)
 //line respondent_identity.gala:72
-		if name.Get() == "" {
+		if name == "" {
 //line respondent_identity.gala:73
 			return std.Tuple[string, bool]{V1: std.NewImmutable(""), V2: std.NewImmutable(false)}
 		}
 //line respondent_identity.gala:76
-		response.Name = name.Get()
+		response.Name = name
 //line respondent_identity.gala:77
-		response.User = &models.User{FirstName: name.Get(), Email: response.Email}
+		response.User = &models.User{FirstName: name, Email: response.Email}
 //line respondent_identity.gala:81
-		return std.Tuple[string, bool]{V1: std.NewImmutable(name.Get()), V2: std.NewImmutable(true)}
+		return std.Tuple[string, bool]{V1: std.NewImmutable(name), V2: std.NewImmutable(true)}
 	}()
 	return _goResult.V1.Get(), _goResult.V2.Get()
 }

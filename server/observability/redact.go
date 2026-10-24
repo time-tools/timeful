@@ -86,9 +86,9 @@ func truncate(value string, limit int) string {
 //line redact.gala:55
 	for _, r := range value {
 //line redact.gala:56
-		var size = std.NewImmutable(utf8.RuneLen(r))
+		var size = utf8.RuneLen(r)
 //line redact.gala:57
-		if used+size.Get() > limit {
+		if used+size > limit {
 //line redact.gala:58
 			break
 		}
@@ -102,7 +102,7 @@ func truncate(value string, limit int) string {
 //line redact.gala:64
 		trimmed = trimmed + string(r)
 //line redact.gala:65
-		used = used + size.Get()
+		used = used + size
 	}
 //line redact.gala:67
 	if lastSpaceIndex > limit/2 {

@@ -51,26 +51,26 @@ func newQueryTracer(provider trace.TracerProvider) queryTracer {
 //line tracing.gala:32
 func (t queryTracer) TraceQueryStart(ctx context.Context, connection *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
 //line tracing.gala:33
-	var operation = std.NewImmutable(queryOperation(data.SQL))
+	var operation = queryOperation(data.SQL)
 //line tracing.gala:34
-	var attributes = go_interop.SliceOf(attribute.String("db.system.name", "postgresql"), attribute.String("db.operation.name", operation.Get()))
+	var attributes = go_interop.SliceOf(attribute.String("db.system.name", "postgresql"), attribute.String("db.operation.name", operation))
 //line tracing.gala:38
 	if connection != nil {
 //line tracing.gala:39
-		var config = std.NewImmutable(connection.Config())
+		var config = connection.Config()
 //line tracing.gala:40
-		if config.Get().Database != "" {
+		if config.Database != "" {
 //line tracing.gala:41
-			attributes = go_interop.SliceAppend(attributes, attribute.String("db.namespace", config.Get().Database))
+			attributes = go_interop.SliceAppend(attributes, attribute.String("db.namespace", config.Database))
 		}
 //line tracing.gala:43
-		if config.Get().Host != "" {
+		if config.Host != "" {
 //line tracing.gala:44
-			attributes = go_interop.SliceAppend(attributes, attribute.String("server.address", config.Get().Host))
+			attributes = go_interop.SliceAppend(attributes, attribute.String("server.address", config.Host))
 		}
 	}
 //line tracing.gala:47
-	var nextCtx, _ = t.tracer.Start(ctx, operation.Get(), trace.WithSpanKind(trace.SpanKindClient), trace.WithAttributes(attributes...))
+	var nextCtx, _ = t.tracer.Start(ctx, operation, trace.WithSpanKind(trace.SpanKindClient), trace.WithAttributes(attributes...))
 //line tracing.gala:51
 	return nextCtx
 }
@@ -78,7 +78,7 @@ func (t queryTracer) TraceQueryStart(ctx context.Context, connection *pgx.Conn, 
 //line tracing.gala:54
 func (t queryTracer) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryEndData) {
 //line tracing.gala:55
-	var span = std.NewImmutable(trace.SpanFromContext(ctx))
+	var span = trace.SpanFromContext(ctx)
 //line tracing.gala:56
 	if data.Err != nil {
 //line tracing.gala:57
@@ -86,26 +86,26 @@ func (t queryTracer) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, data pgx.Tr
 //line tracing.gala:58
 		if errors.As(data.Err, &postgresError) && postgresError.Code != "" {
 //line tracing.gala:59
-			span.Get().SetAttributes(attribute.String("db.response.status_code", postgresError.Code))
+			span.SetAttributes(attribute.String("db.response.status_code", postgresError.Code))
 		}
 //line tracing.gala:61
-		span.Get().SetStatus(codes.Error, "")
+		span.SetStatus(codes.Error, "")
 	}
 //line tracing.gala:63
-	span.Get().End()
+	span.End()
 }
 
 //line tracing.gala:66
 func queryOperation(sql string) string {
 //line tracing.gala:67
-	var fields = std.NewImmutable(strings.Fields(sql))
+	var fields = strings.Fields(sql)
 //line tracing.gala:68
-	if len(fields.Get()) == 0 {
+	if len(fields) == 0 {
 //line tracing.gala:69
 		return "unknown"
 	}
 //line tracing.gala:71
-	return strings.ToUpper(fields.Get()[0])
+	return strings.ToUpper(fields[0])
 }
 
 //line tracing.gala:73
@@ -120,9 +120,9 @@ func ConnectionStats() (int, int, int) {
 			return std.Tuple3[int, int, int]{V1: std.NewImmutable(0), V2: std.NewImmutable(0), V3: std.NewImmutable(0)}
 		}
 //line tracing.gala:80
-		var stats = std.NewImmutable(Pool.Stat())
+		var stats = Pool.Stat()
 //line tracing.gala:81
-		return std.Tuple3[int, int, int]{V1: std.NewImmutable(int(stats.Get().AcquiredConns())), V2: std.NewImmutable(int(stats.Get().IdleConns())), V3: std.NewImmutable(int(stats.Get().MaxConns()))}
+		return std.Tuple3[int, int, int]{V1: std.NewImmutable(int(std.NewImmutable(stats).Get().AcquiredConns())), V2: std.NewImmutable(int(std.NewImmutable(stats).Get().IdleConns())), V3: std.NewImmutable(int(std.NewImmutable(stats).Get().MaxConns()))}
 	}()
 	return _goResult.V1.Get(), _goResult.V2.Get(), _goResult.V3.Get()
 }

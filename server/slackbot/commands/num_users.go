@@ -13,15 +13,15 @@ import (
 //line num_users.gala:10
 func executeNumUsers(args []string, webhookUrl string) {
 //line num_users.gala:11
-	var repository = std.NewImmutable(std.GoTry(postgres.DefaultRepository()).OnFailure(func(err error) {
+	var repository = std.GoTry(postgres.DefaultRepository()).OnFailure(func(err error) {
 		logger.StdErr.Panicln(err)
-	}).Get())
+	}).Get()
 //line num_users.gala:12
-	var n = std.NewImmutable(std.GoTry(repository.Get().CountAccounts(context.Background())).OnFailure(func(err error) {
+	var n = std.GoTry(repository.CountAccounts(context.Background())).OnFailure(func(err error) {
 		logger.StdErr.Panicln(err)
-	}).Get())
+	}).Get()
 //line num_users.gala:14
-	SendRawMessage(newResponse("in_channel", fmt.Sprintf("Number of currently signed up users: %d", n.Get())), webhookUrl)
+	SendRawMessage(newResponse("in_channel", fmt.Sprintf("Number of currently signed up users: %d", n)), webhookUrl)
 }
 
 //line num_users.gala:17

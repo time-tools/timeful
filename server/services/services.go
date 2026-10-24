@@ -25,32 +25,23 @@ func CallApi(user *models.User, calendarAuth *models.OAuth2CalendarAuth, method 
 //line services.gala:21
 	if body != nil {
 //line services.gala:22
-		var (
-			_tmp_1, _ = json.Marshal(body)
-			bodyBytes = std.NewImmutable(_tmp_1)
-		)
+		var bodyBytes, _ = json.Marshal(body)
 //line services.gala:23
-		var (
-			_tmp_2, _ = http.NewRequest(method, url, bytes.NewBuffer(bodyBytes.Get()))
-			created   = std.NewImmutable(_tmp_2)
-		)
+		var created, _ = http.NewRequest(method, url, bytes.NewBuffer(bodyBytes))
 //line services.gala:24
-		req = created.Get()
+		req = created
 	} else {
 //line services.gala:26
-		var (
-			_tmp_3, _ = http.NewRequest(method, url, nil)
-			created   = std.NewImmutable(_tmp_3)
-		)
+		var created, _ = http.NewRequest(method, url, nil)
 //line services.gala:27
-		req = created.Get()
+		req = created
 	}
 //line services.gala:29
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", calendarAuth.AccessToken))
 //line services.gala:31
-	var response = std.NewImmutable(std.GoTry(http.DefaultClient.Do(req)).OnFailure(func(err error) {
+	var response = std.GoTry(http.DefaultClient.Do(req)).OnFailure(func(err error) {
 		logger.StdErr.Panicln(err)
-	}).Get())
+	}).Get()
 //line services.gala:33
-	return response.Get()
+	return response
 }

@@ -63,14 +63,14 @@ func accountEmail(ctx context.Context, platformIdentityID string) string {
 // an in-memory scan of the loaded attendee list.
 func groupViewerIsInvitee(ctx context.Context, repository *postgres.Repository, eventID string, viewer *visitor) bool {
 //line group.gala:53
-	var email = std.NewImmutable(accountEmail(ctx, viewer.platformIdentityID))
+	var email = accountEmail(ctx, viewer.platformIdentityID)
 //line group.gala:54
-	if email.Get() == "" {
+	if email == "" {
 //line group.gala:55
 		return false
 	}
 //line group.gala:57
-	var invitee, err = repository.HasNonDeclinedAttendeeEmail(ctx, eventID, email.Get())
+	var invitee, err = repository.HasNonDeclinedAttendeeEmail(ctx, eventID, email)
 //line group.gala:58
 	return err == nil && invitee
 }
@@ -89,9 +89,9 @@ func groupEmailVisibility(ctx context.Context, repository *postgres.Repository, 
 		return
 	}
 //line group.gala:70
-	var showEmails = std.NewImmutable(viewer.owner && utils.Coalesce(value.CollectEmails))
+	var showEmails = viewer.owner && utils.Coalesce(value.CollectEmails)
 //line group.gala:71
-	var keepGroupEmails = std.NewImmutable(viewer.owner || groupViewerIsInvitee(ctx, repository, eventID, viewer))
+	var keepGroupEmails = viewer.owner || groupViewerIsInvitee(ctx, repository, eventID, viewer)
 //line group.gala:72
 	for key, response := range responseMap {
 //line group.gala:73
@@ -100,18 +100,18 @@ func groupEmailVisibility(ctx context.Context, repository *postgres.Repository, 
 			continue
 		}
 //line group.gala:76
-		if keepGroupEmails.Get() && response.Email != "" && response.User == nil {
+		if keepGroupEmails && response.Email != "" && response.User == nil {
 //line group.gala:77
 			response.User = &models.User{Email: response.Email}
 		}
 //line group.gala:79
 		stripSensitiveUserFields(response.User)
 //line group.gala:80
-		if !showEmails.Get() {
+		if !showEmails {
 //line group.gala:81
 			response.Email = ""
 //line group.gala:82
-			if response.User != nil && !keepGroupEmails.Get() {
+			if response.User != nil && !keepGroupEmails {
 //line group.gala:83
 				response.User.Email = ""
 			}
@@ -176,15 +176,15 @@ func sendGroupInviteEmails(ownerName string, groupName string, groupURL string, 
 			continue
 		}
 //line group.gala:123
-		var data = std.NewImmutable(go_interop.MapEmpty[string, any]())
+		var data = go_interop.MapEmpty[string, any]()
 //line group.gala:124
-		go_interop.MapPut[string, any](data.Get(), "ownerName", ownerName)
+		go_interop.MapPut[string, any](data, "ownerName", ownerName)
 //line group.gala:125
-		go_interop.MapPut[string, any](data.Get(), "groupName", groupName)
+		go_interop.MapPut[string, any](data, "groupName", groupName)
 //line group.gala:126
-		go_interop.MapPut[string, any](data.Get(), "groupUrl", groupURL)
+		go_interop.MapPut[string, any](data, "groupUrl", groupURL)
 //line group.gala:127
-		listmonk.SendEmailAddSubscriberIfNotExist(email, groupInviteEmailTemplate, data.Get(), false)
+		listmonk.SendEmailAddSubscriberIfNotExist(email, groupInviteEmailTemplate, data, false)
 	}
 }
 
@@ -208,17 +208,17 @@ func sendGroupUpdateEmails(ownerName string, groupName string, groupURL string, 
 			continue
 		}
 //line group.gala:142
-		var data = std.NewImmutable(go_interop.MapEmpty[string, any]())
+		var data = go_interop.MapEmpty[string, any]()
 //line group.gala:143
-		go_interop.MapPut[string, any](data.Get(), "ownerName", ownerName)
+		go_interop.MapPut[string, any](data, "ownerName", ownerName)
 //line group.gala:144
-		go_interop.MapPut[string, any](data.Get(), "groupName", groupName)
+		go_interop.MapPut[string, any](data, "groupName", groupName)
 //line group.gala:145
-		go_interop.MapPut[string, any](data.Get(), "groupUrl", groupURL)
+		go_interop.MapPut[string, any](data, "groupUrl", groupURL)
 //line group.gala:146
-		go_interop.MapPut[string, any](data.Get(), "emails", added)
+		go_interop.MapPut[string, any](data, "emails", added)
 //line group.gala:147
-		listmonk.SendEmailAddSubscriberIfNotExist(email, groupUpdateEmailTemplate, data.Get(), false)
+		listmonk.SendEmailAddSubscriberIfNotExist(email, groupUpdateEmailTemplate, data, false)
 	}
 }
 
@@ -283,18 +283,18 @@ func applyGroupAttendeeEdits(ctx context.Context, tx *postgres.Repository, event
 //line group.gala:185
 		for _, item := range removed {
 //line group.gala:186
-			var attendee = std.NewImmutable(byEmail[strings.ToLower(strings.TrimSpace(item.Value))])
+			var attendee = byEmail[strings.ToLower(strings.TrimSpace(item.Value))]
 //line group.gala:187
-			if attendee.Get().PlatformIdentityID != nil && event.OwnerPlatformIdentityID != nil && *attendee.Get().PlatformIdentityID == *event.OwnerPlatformIdentityID {
+			if attendee.PlatformIdentityID != nil && event.OwnerPlatformIdentityID != nil && *attendee.PlatformIdentityID == *event.OwnerPlatformIdentityID {
 //line group.gala:188
 				continue
 			}
 //line group.gala:190
-			removedEmails = go_interop.SliceAppend(removedEmails, attendee.Get().Email)
+			removedEmails = go_interop.SliceAppend(removedEmails, attendee.Email)
 //line group.gala:191
-			if attendee.Get().PlatformIdentityID != nil {
+			if attendee.PlatformIdentityID != nil {
 //line group.gala:192
-				removedIdentityIDs = go_interop.SliceAppend(removedIdentityIDs, *attendee.Get().PlatformIdentityID)
+				removedIdentityIDs = go_interop.SliceAppend(removedIdentityIDs, *attendee.PlatformIdentityID)
 			}
 		}
 //line group.gala:200
@@ -427,7 +427,7 @@ func declineInvite(c *gin.Context) {
 //line group.gala:275
 	var userInterface, _ = c.Get("authUser")
 //line group.gala:276
-	var user = std.NewImmutable(func(obj any) *models.User {
+	var user = func(obj any) *models.User {
 		{
 			u, _tmp_1 := std.As[*models.User](obj)
 			if _tmp_1 {
@@ -436,16 +436,16 @@ func declineInvite(c *gin.Context) {
 				return nil
 			}
 		}
-	}(userInterface))
+	}(userInterface)
 //line group.gala:280
-	if user.Get() == nil {
+	if user == nil {
 //line group.gala:281
 		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.NotSignedIn})
 //line group.gala:282
 		return
 	}
 //line group.gala:284
-	var _, getErr = repository.GetAttendeeByEmail(c.Request.Context(), event.ID, user.Get().Email)
+	var _, getErr = repository.GetAttendeeByEmail(c.Request.Context(), event.ID, user.Email)
 //line group.gala:285
 	if getErr != nil {
 //line group.gala:286
@@ -461,7 +461,7 @@ func declineInvite(c *gin.Context) {
 		return
 	}
 //line group.gala:293
-	var setErr = repository.SetAttendeeDeclined(c.Request.Context(), event.ID, user.Get().Email, declined)
+	var setErr = repository.SetAttendeeDeclined(c.Request.Context(), event.ID, user.Email, declined)
 //line group.gala:294
 	if setErr != nil {
 //line group.gala:295
@@ -628,11 +628,11 @@ func parseGroupAvailabilityTime(value string) (time.Time, error) {
 //line group.gala:381
 		var trimmed = strings.TrimSpace(value)
 //line group.gala:382
-		var index = std.NewImmutable(strings.LastIndex(trimmed, "["))
+		var index = strings.LastIndex(trimmed, "[")
 //line group.gala:383
-		if index.Get() != -1 {
+		if index != -1 {
 //line group.gala:384
-			trimmed = string(go_interop.SliceTake(go_interop.ToBytes(trimmed), index.Get()))
+			trimmed = string(go_interop.SliceTake(go_interop.ToBytes(trimmed), index))
 		}
 //line group.gala:386
 		return std.GoTry(time.Parse(time.RFC3339Nano, trimmed))
@@ -670,9 +670,9 @@ func mergeGroupManualAvailability(window time.Duration, existing groupManualAvai
 //line group.gala:404
 		for payloadDay, availableTimes := range replacements {
 //line group.gala:405
-			var endTime = std.NewImmutable(payloadDay.Time().Add(window))
+			var endTime = payloadDay.Time().Add(window)
 //line group.gala:406
-			if day.Time().Compare(payloadDay.Time()) >= 0 && day.Time().Compare(endTime.Get()) <= 0 {
+			if day.Time().Compare(payloadDay.Time()) >= 0 && day.Time().Compare(endTime) <= 0 {
 //line group.gala:407
 				go_interop.MapDelete(merged, day)
 //line group.gala:408
@@ -745,11 +745,11 @@ func groupDurationHours(generation *models.SlotGeneration) *float32 {
 // an explicit-selection edit may omit the unchanged name.
 func canonicalGroupResponseName(supplied string, value *models.Response) string {
 //line group.gala:452
-	var name = std.NewImmutable(canonicalGuestName(supplied))
+	var name = canonicalGuestName(supplied)
 //line group.gala:453
-	if name.Get() != "" {
+	if name != "" {
 //line group.gala:454
-		return name.Get()
+		return name
 	}
 //line group.gala:456
 	if value == nil {
@@ -918,14 +918,14 @@ func mutateGroupResponse(c *gin.Context, repository *postgres.Repository, event 
 //line group.gala:555
 		if operation == "rename" {
 //line group.gala:556
-			var validated = std.NewImmutable(respondents.ValidateGuestName(input.NewName))
+			var validated = respondents.ValidateGuestName(input.NewName)
 //line group.gala:557
-			if validated.Get().Code != respondents.GuestNameValid {
+			if validated.Code != respondents.GuestNameValid {
 //line group.gala:558
-				return newGuestNameError(guestNameValidationErrorMessage(validated.Get().Code))
+				return newGuestNameError(guestNameValidationErrorMessage(validated.Code))
 			}
 //line group.gala:560
-			value.Name = validated.Get().Name
+			value.Name = validated.Name
 		} else {
 //line group.gala:562
 			if input.CreateResponse {
@@ -1058,18 +1058,18 @@ func mutateGroupResponse(c *gin.Context, repository *postgres.Repository, event 
 //line group.gala:642
 func applyGroupGuestName(stored *postgres.Response, value *models.Response, supplied string) error {
 //line group.gala:643
-	var validated = std.NewImmutable(respondents.ValidateGuestName(canonicalGroupResponseName(supplied, value)))
+	var validated = respondents.ValidateGuestName(canonicalGroupResponseName(supplied, value))
 //line group.gala:644
-	if validated.Get().Code != respondents.GuestNameValid {
+	if validated.Code != respondents.GuestNameValid {
 //line group.gala:645
-		return newGuestNameError(guestNameValidationErrorMessage(validated.Get().Code))
+		return newGuestNameError(guestNameValidationErrorMessage(validated.Code))
 	}
 //line group.gala:647
 	stored.RespondentKind = postgres.RespondentKindGuest
 //line group.gala:648
 	stored.PlatformIdentityID = nil
 //line group.gala:649
-	value.Name = validated.Get().Name
+	value.Name = validated.Name
 //line group.gala:650
 	return nil
 }

@@ -61,9 +61,9 @@ The verdicts are about the file; the gap classes in [`references/gaps.md`](refer
 Three shape rules decide whether a file can be rewritten whole, and all three are about what escapes the package rather than about taste.
 
 - An exported package-level `val` emits `var X = std.NewImmutable(...)`, so a Go caller has to call `.Get()`; keep `var` for anything that crosses into Go.
-- A `:=` binding is a val-style binding, not a neutral one: it lowers through `std.NewImmutable` and every read emits `.Get()`.
-  `val` emits the same thing, so `var` is the only safe spelling of the three.
-  Use `var` for anything a Go caller or a sibling `.go` file can see.
+- A local `val` or `:=` binding is a plain Go variable since GALA 0.92.0, so it no longer wraps the value in `std.Immutable` or forces `.Get()` on a read.
+  On the `0.90.0` line it did both, and the wrapper could surface as a build failure in a Go sibling or a pointer-receiver method call.
+  Keep `var` for a package-level name or a struct field that a Go caller or a sibling `.go` file can see; a local binding has no such surface.
 - A `sealed type` is the largest of the three: it emits one merged struct whose every field is a `std.Immutable`, a private discriminant with one constant per variant, an `Apply` and an `Unapply` per variant, an `is<Variant>()` helper per variant, and `Copy`, `Equal`, and `String` on the parent.
   A variant's `Unapply` returns a `std.Option`, and a match over the type ends in `panic("unreachable")` on the branch no variant can reach.
   There is no form a Go caller can construct positionally, so a file that introduces one reshapes its package's exported surface as surely as a `val` does.
@@ -179,11 +179,9 @@ Classify before reporting, because a construct with a substitute is not a gap an
 
 Each of these is a way the translation goes wrong without producing an error at the point of the mistake.
 
-- **A `:=` binding is a `val` binding.**
-  It lowers through `std.NewImmutable` and every read emits `.Get()`.
-  A program that only passes the value around still runs, so the wrapper survives a green test and shows up as a build failure in a Go sibling or a Go caller.
-  The worst case is the method-call *receiver*, which is not a read at all: `x := f()` then `x.M()` emits `x.Get().M()`, which does not exist in Go when `M` has a pointer receiver.
-  `val` emits the identical artifact, so `var` is the only safe spelling of the three, and it is the shape to reach for whenever a binding's value has methods.
+- **A local `val` or `:=` binding lowers to a plain Go variable since 0.92.0.**
+  On the `0.90.0` line it lowered through `std.NewImmutable` and every read emitted `.Get()`, and the wrapper survived a green test until a Go sibling or a pointer-receiver call failed to build.
+  The wrappers that remain are on an exported or package-level `val` and on a struct field, so inspect those shapes rather than a function's local bindings.
 - **A package-level `val` is not a plain Go var.**
   It emits `var X = std.NewImmutable(...)`, and a Go caller needs `.Get()`.
   Inside the GALA file it already reads as a plain value, so writing `.Get()` there produces a double unwrap that fails to build.
@@ -194,8 +192,9 @@ Each of these is a way the translation goes wrong without producing an error at 
 - **A `sealed type` is not a struct with a tag.**
   One merged struct carries every variant's fields as `std.Immutable`, plus a private discriminant and one constant per variant, and each variant gets `Apply` and `Unapply` with `is<Variant>()` helpers on the parent.
   The parent gains `Copy`, `Equal`, and `String`, and a Go caller cannot construct it positionally at all, so a sealed type is a boundary change and not a local rewrite.
-- **A `val` holding a collection reads through two unwraps.**
-  A `HashMap` bound with `val` and read with `Get` emits `m.Get().Get(k)`: the outer call unwraps the binding and the inner one is the lookup.
+- **A package-level `val` holding a collection reads through two unwraps.**
+  A `HashMap` bound with a package-level `val` and read with `Get` emits `m.Get().Get(k)`: the outer call unwraps the binding and the inner one is the lookup.
+  A local `val` became a plain Go variable in 0.92.0, so it emits only the lookup.
   It builds and returns the right value, so nothing reports it until a Go caller or a sibling reads the name it is bound to.
 - **A struct declared in a handwritten sibling is not a GALA struct.**
   Constructing it positionally or calling a method on it can transpile and then fail to build, because the transpiler emits a call on a type it does not know.

@@ -85,39 +85,39 @@ func Start(ctx context.Context, config Config) (*Recorder, error) {
 			return std.Failure[*Recorder]{}.Apply(tracesErr)
 		}
 //line provider.gala:60
-		var authHeader = std.NewImmutable(config.AuthHeader())
+		var authHeader = config.AuthHeader()
 //line provider.gala:62
-		var logHeaders = std.NewImmutable(go_interop.MapEmpty[string, string]())
+		var logHeaders = go_interop.MapEmpty[string, string]()
 //line provider.gala:63
-		go_interop.MapPut[string, string](logHeaders.Get(), "Authorization", authHeader.Get())
+		go_interop.MapPut[string, string](logHeaders, "Authorization", authHeader)
 //line provider.gala:64
-		go_interop.MapPut[string, string](logHeaders.Get(), "stream-name", ServerLogStream)
+		go_interop.MapPut[string, string](logHeaders, "stream-name", ServerLogStream)
 //line provider.gala:65
-		var logExporter, logExporterErr = otlploghttp.New(ctx, otlploghttp.WithEndpointURL(logsURL), otlploghttp.WithHeaders(logHeaders.Get()), otlploghttp.WithTimeout(exportTimeout))
+		var logExporter, logExporterErr = otlploghttp.New(ctx, otlploghttp.WithEndpointURL(logsURL), otlploghttp.WithHeaders(logHeaders), otlploghttp.WithTimeout(exportTimeout))
 //line provider.gala:70
 		if logExporterErr != nil {
 //line provider.gala:71
 			return std.Failure[*Recorder]{}.Apply(fmt.Errorf("build OpenObserve OTLP logs exporter: %w", logExporterErr))
 		}
 //line provider.gala:74
-		var traceHeaders = std.NewImmutable(go_interop.MapEmpty[string, string]())
+		var traceHeaders = go_interop.MapEmpty[string, string]()
 //line provider.gala:75
-		go_interop.MapPut[string, string](traceHeaders.Get(), "Authorization", authHeader.Get())
+		go_interop.MapPut[string, string](traceHeaders, "Authorization", authHeader)
 //line provider.gala:76
-		go_interop.MapPut[string, string](traceHeaders.Get(), "stream-name", ServerTraceStream)
+		go_interop.MapPut[string, string](traceHeaders, "stream-name", ServerTraceStream)
 //line provider.gala:77
-		var traceExporter, traceExporterErr = otlptracehttp.New(ctx, otlptracehttp.WithEndpointURL(tracesURL), otlptracehttp.WithHeaders(traceHeaders.Get()), otlptracehttp.WithTimeout(exportTimeout))
+		var traceExporter, traceExporterErr = otlptracehttp.New(ctx, otlptracehttp.WithEndpointURL(tracesURL), otlptracehttp.WithHeaders(traceHeaders), otlptracehttp.WithTimeout(exportTimeout))
 //line provider.gala:82
 		if traceExporterErr != nil {
 //line provider.gala:83
 			return std.Failure[*Recorder]{}.Apply(fmt.Errorf("build OpenObserve OTLP traces exporter: %w", traceExporterErr))
 		}
 //line provider.gala:86
-		var metricHeaders = std.NewImmutable(go_interop.MapEmpty[string, string]())
+		var metricHeaders = go_interop.MapEmpty[string, string]()
 //line provider.gala:87
-		go_interop.MapPut[string, string](metricHeaders.Get(), "Authorization", authHeader.Get())
+		go_interop.MapPut[string, string](metricHeaders, "Authorization", authHeader)
 //line provider.gala:88
-		var metricExporter, metricExporterErr = otlpmetrichttp.New(ctx, otlpmetrichttp.WithEndpointURL(metricsURL), otlpmetrichttp.WithHeaders(metricHeaders.Get()), otlpmetrichttp.WithTimeout(metricExportTimeout))
+		var metricExporter, metricExporterErr = otlpmetrichttp.New(ctx, otlpmetrichttp.WithEndpointURL(metricsURL), otlpmetrichttp.WithHeaders(metricHeaders), otlpmetrichttp.WithTimeout(metricExportTimeout))
 //line provider.gala:93
 		if metricExporterErr != nil {
 //line provider.gala:94
@@ -128,9 +128,9 @@ func Start(ctx context.Context, config Config) (*Recorder, error) {
 //line provider.gala:98
 		otel.SetTextMapPropagator(propagation.TraceContext{})
 //line provider.gala:100
-		var metricReader = std.NewImmutable(sdkmetric.NewPeriodicReader(metricExporter, sdkmetric.WithInterval(metricExportInterval), sdkmetric.WithTimeout(metricExportTimeout)))
+		var metricReader = sdkmetric.NewPeriodicReader(metricExporter, sdkmetric.WithInterval(metricExportInterval), sdkmetric.WithTimeout(metricExportTimeout))
 //line provider.gala:104
-		var recorder, recorderErr = newRecorder(logExporter, traceExporter, metricReader.Get(), config.Environment)
+		var recorder, recorderErr = newRecorder(logExporter, traceExporter, metricReader, config.Environment)
 //line provider.gala:105
 		if recorderErr != nil {
 //line provider.gala:106

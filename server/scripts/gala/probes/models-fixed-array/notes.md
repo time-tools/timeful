@@ -64,3 +64,17 @@ No specific follow-up report was found.
 
 `models/uuid.go` landed as `models/uuid.gala` plus `models/uuid_extra.go`; the fixed-size `[16]byte` helpers `NewUUID` and `formatUUID` moved into the sibling unchanged, so the construct still keeps any `.gala` file from declaring those members but no longer keeps the whole file handwritten.
 This probe stays because the gap is still open on the pinned compiler.
+
+## Re-verified (2026-10-21)
+
+- `gala version`: `GALA version 0.92.0`
+- flake rev: `4bd2d4e89cb8699e94b1f209356dd679db8d54ac`
+- extraction: `0.92.0 2c6059cade6f8331c75c084d870dbf4f9af574030a1e211d539c98b456f294a3`
+- Result: the same two parse errors; the expected-token lists still name the `default` keyword.
+
+## Re-verified (2026-10-24)
+
+- `gala version`: `GALA version 0.92.1`
+- flake rev: `911cc05932486626e684931aac9f1707939a91e6`
+- extraction: `0.92.1 2c6059cade6f8331c75c084d870dbf4f9af574030a1e211d539c98b456f294a3`
+- Result: the same two parse errors; the expected-token lists still name the `default` keyword.

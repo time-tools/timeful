@@ -13,13 +13,13 @@ import (
 //line request_utils.gala:11
 func ParseArrayQueryParam(s string) []string {
 //line request_utils.gala:12
-	var decoded = std.NewImmutable(std.GoTry(url.QueryUnescape(s)).OnFailure(func(err error) {
+	var decoded = std.GoTry(url.QueryUnescape(s)).OnFailure(func(err error) {
 		logger.StdErr.Panicln(err)
-	}).Get())
+	}).Get()
 //line request_utils.gala:13
-	var arr = std.NewImmutable(strings.Split(decoded.Get(), ","))
+	var arr = strings.Split(decoded, ",")
 //line request_utils.gala:14
-	return arr.Get()
+	return arr
 }
 
 //line request_utils.gala:17
