@@ -31,6 +31,7 @@ server/scripts/gala/verify.sh --write  # regenerate the committed twins in place
 ```
 
 The script prints the compiler provenance recorded in `GALA_COMPILER`, requires every twin to regenerate byte-identically, checks `gofmt`, and runs `go build ./...`.
+Each run prints per-twin progress and writes a timestamped log to `server/.gala/verify.log`; `--verbose` shows every command, `--log FILE` moves the log, and `--no-log` disables it.
 Server twins have adopted the published GALA stdlib: `server/go.mod` requires `go.gala.fyi/stdlib`, `verify.sh` transpiles every twin with `--stdlib-module go.gala.fyi/stdlib`, only `go.gala.fyi/stdlib/...` imports are allowed in generated Go, and `martianoff/gala` stays banned.
 Transpile from the package directory when working by hand, because the emitted `//line` directives name the path the transpiler was given, and never hand-edit a generated file:
 
