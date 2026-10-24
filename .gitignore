@@ -14,6 +14,7 @@ deploy_scripts/reboot_log.txt
 archived
 tmp
 .direnv
+.local/
 listmonk/
 infra/support-mail/.env
 infra/support-mail/certs/*.crt

@@ -48,7 +48,13 @@
             pkgs.actionlint
           ];
           shellHook = ''
-             export BACKLOG_CWD="$PWD"
+             # Do not export BACKLOG_CWD here: shellHook sees the directory
+             # `nix develop` was invoked from, not the checkout, so the value is
+             # redundant inside the repository and wrong outside it. Clear any
+             # stale BACKLOG_CWD inherited from the launching shell and let
+             # backlog resolve the project from its cwd; .envrc pins the
+             # checkout root for direnv users.
+             unset BACKLOG_CWD
              export PLAYWRIGHT_BROWSERS_PATH="${pkgs.playwright-driver.browsers}"
           '';
         };
