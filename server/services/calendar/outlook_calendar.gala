@@ -1,0 +1,89 @@
+package calendar
+
+import (
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"timeful/server/models"
+	"timeful/server/services"
+	"timeful/server/services/providerconfig"
+	"timeful/server/utils"
+
+	"martianoff/gala/go_interop"
+	"martianoff/gala/resource"
+)
+
+func (cal *OutlookCalendar) GetCalendarList() (map[string]models.SubCalendar, error) {
+	var response = services.CallApi(nil, &cal.OAuth2CalendarAuth, "GET", fmt.Sprintf("%s/me/calendars?$select=id,name", providerconfig.MicrosoftGraphAPIBaseURL()), nil)
+
+	return resource.Bracket(response, (r) => { FromError(r.Body.Close()) }, (r) => {
+		var responseBody outlookCalendarListResponse
+
+		var decodeErr = json.NewDecoder(r.Body).Decode(&responseBody)
+		if (decodeErr != nil) {
+			return Failure(decodeErr)
+		}
+
+		if (responseBody.Error != nil) {
+			return Failure(fmt.Errorf("error fetching Outlook calendars: %v", responseBody.Error))
+		}
+
+		var calendars = go_interop.MapEmpty[string, models.SubCalendar]()
+		for _, calendar := range responseBody.Value {
+			go_interop.MapPut(calendars, calendar.Id, models.SubCalendar{
+				Name:    calendar.Name,
+				Enabled: utils.TruePtr(),
+			})
+		}
+
+		return Success(calendars)
+	})
+}
+
+func (cal *OutlookCalendar) GetCalendarEvents(calendarId string, timeMin time.Time, timeMax time.Time) ([]models.CalendarEvent, error) {
+	var requestUrl = fmt.Sprintf("%s/me/calendars/%s/calendarview?startdatetime=%s&enddatetime=%s&$select=id,subject,start,end,showAs",
+		providerconfig.MicrosoftGraphAPIBaseURL(),
+		calendarId,
+		timeMin.Format(time.RFC3339),
+		timeMax.Format(time.RFC3339))
+	var response = services.CallApi(nil, &cal.OAuth2CalendarAuth, "GET", requestUrl, nil)
+
+	return resource.Bracket(response, (r) => { FromError(r.Body.Close()) }, (r) => {
+		var responseBody outlookCalendarEventsResponse
+		var decodeErr = json.NewDecoder(r.Body).Decode(&responseBody)
+		if (decodeErr != nil) {
+			return Failure(decodeErr)
+		}
+
+		if (responseBody.Error != nil) {
+			return Failure(fmt.Errorf("error fetching Outlook events: %v", responseBody.Error))
+		}
+
+		var calendarEvents = go_interop.SliceEmpty[models.CalendarEvent]()
+		for _, event := range responseBody.Value {
+			// Custom time format for Outlook date-time strings
+			var outlookTimeFormat = "2006-01-02T15:04:05.0000000"
+
+			var startTime, startErr = time.Parse(outlookTimeFormat, event.Start.DateTime)
+			if (startErr != nil) {
+				return Failure(fmt.Errorf("failed to parse start time: %w", startErr))
+			}
+			var endTime, endErr = time.Parse(outlookTimeFormat, event.End.DateTime)
+			if (endErr != nil) {
+				return Failure(fmt.Errorf("failed to parse end time: %w", endErr))
+			}
+
+			calendarEvents = go_interop.SliceAppend(calendarEvents, models.CalendarEvent{
+				Id:         event.Id,
+				CalendarId: calendarId,
+				Summary:    event.Subject,
+				StartDate:  models.NewDateTimeFromTime(startTime),
+				EndDate:    models.NewDateTimeFromTime(endTime),
+				Free:       event.ShowAs == "free",
+			})
+		}
+
+		return Success(calendarEvents)
+	})
+}

@@ -1,0 +1,133 @@
+package calendar
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/url"
+	"time"
+
+	"timeful/server/logger"
+	"timeful/server/models"
+	"timeful/server/services/providerconfig"
+	"timeful/server/utils"
+
+	"martianoff/gala/go_interop"
+	"martianoff/gala/resource"
+)
+
+func (cal GoogleCalendar) GetCalendarList() (map[string]models.SubCalendar, error) {
+	var req, _ = http.NewRequest(
+		"GET",
+		fmt.Sprintf("%s/users/me/calendarList?fields=items(id,summary,selected)", providerconfig.GoogleCalendarAPIBaseURL()),
+		nil,
+	)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", cal.AccessToken))
+	var resp, fetchErr = http.DefaultClient.Do(req)
+	if (fetchErr != nil) {
+		logger.StdErr.Panicln(fetchErr)
+	}
+
+	return resource.Bracket(resp, (r) => { FromError(r.Body.Close()) }, (r) => {
+		var res googleCalendarListResponse
+		var decodeErr = json.NewDecoder(r.Body).Decode(&res)
+		if (decodeErr != nil) {
+			logger.StdErr.Panicln(decodeErr)
+		}
+
+		// Check if the response returned an error
+		if (res.Error != nil) {
+			return Failure(res.Error)
+		}
+
+		// Append only the selected calendars
+		var calendars = go_interop.MapEmpty[string, models.SubCalendar]()
+		for _, item := range res.Items {
+			var enabled *bool
+			if (item.Selected) {
+				enabled = utils.TruePtr()
+			} else {
+				enabled = utils.FalsePtr()
+			}
+
+			go_interop.MapPut(calendars, item.Id, models.SubCalendar{
+				Name:    item.Summary,
+				Enabled: enabled,
+			})
+		}
+
+		return Success(calendars)
+	})
+}
+
+func (cal *GoogleCalendar) GetCalendarEvents(calendarId string, timeMin time.Time, timeMax time.Time) ([]models.CalendarEvent, error) {
+	var min, _ = timeMin.MarshalText()
+	var max, _ = timeMax.MarshalText()
+	var req, _ = http.NewRequest(
+		"GET",
+		fmt.Sprintf("%s/calendars/%s/events?fields=items(id,summary,start,end,transparency,attendees)&timeMin=%s&timeMax=%s&singleEvents=true&eventTypes=default&eventTypes=outOfOffice", providerconfig.GoogleCalendarAPIBaseURL(), url.PathEscape(calendarId), min, max),
+		nil,
+	)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", cal.AccessToken))
+	var resp, fetchErr = http.DefaultClient.Do(req)
+	if (fetchErr != nil) {
+		logger.StdErr.Panicln(fetchErr)
+	}
+
+	return resource.Bracket(resp, (r) => { FromError(r.Body.Close()) }, (r) => {
+		var res googleCalendarEventsResponse
+		var decodeErr = json.NewDecoder(r.Body).Decode(&res)
+		if (decodeErr != nil) {
+			logger.StdErr.Panicln(decodeErr)
+		}
+
+		// Check if the response returned an error
+		if (res.Error != nil) {
+			return Failure(res.Error)
+		}
+
+		// Format response to return
+		var calendarEvents = go_interop.SliceEmpty[models.CalendarEvent]()
+		for _, item := range res.Items {
+			var startDate = item.Start.DateTime
+			var endDate = item.End.DateTime
+			var allDay = false
+
+			// Handle all day events
+			if (item.Start.DateTime.IsZero()) {
+				var parsedStart, _ = time.Parse(time.DateOnly, item.Start.Date)
+				startDate = parsedStart
+				var parsedEnd, _ = time.Parse(time.DateOnly, item.End.Date)
+				endDate = parsedEnd
+				allDay = true
+			}
+
+			// Determine if user is free during this event
+			var free = false
+			if (item.Transparency == "transparent") {
+				free = true
+			} else {
+				if (item.Attendees != nil) {
+					var selfIndex = utils.Find(item.Attendees, (a googleEventAttendee) => a.Self)
+					if (selfIndex != -1) {
+						free = item.Attendees[selfIndex].ResponseStatus != "accepted"
+					}
+				}
+			}
+
+			// Restructure event
+			var calendarEvent = models.CalendarEvent{
+				Id:         item.Id,
+				CalendarId: calendarId,
+				Summary:    item.Summary,
+				StartDate:  models.NewDateTimeFromTime(startDate),
+				EndDate:    models.NewDateTimeFromTime(endDate),
+				Free:       free,
+				AllDay:     allDay,
+			}
+			calendarEvents = go_interop.SliceAppend(calendarEvents, calendarEvent)
+		}
+
+		return Success(calendarEvents)
+	})
+}

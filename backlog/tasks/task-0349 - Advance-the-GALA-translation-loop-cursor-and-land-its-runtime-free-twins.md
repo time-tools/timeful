@@ -4,7 +4,7 @@ title: Advance the GALA translation loop cursor and land its runtime-free twins
 status: In Progress
 assignee: []
 created_date: '2026-10-05 08:44'
-updated_date: '2026-10-25 13:19'
+updated_date: '2026-10-25 13:47'
 labels: []
 dependencies: []
 references:
@@ -466,6 +466,29 @@ Run the `gala-loop` skill one iteration at a time, taking the next entry from th
 **Next:** cursor entry 1 stays the models trio; entry 2 is `services/calendar/ics_calendar.go`, then the other provider files; `services/calendar/calendar.go` stays handwritten on the channel/recover findings.
 
 **State:** committed as the batch commit on `rewrite-in-gala`; the pre-existing unrelated edits were left untouched.
+
+## Iteration 18 — ten-twin batch (2026-10-25)
+
+**Provenance:** `gala` `GALA version 0.93.0` at `/nix/store/v0jxpys9mxb58dvdp3np8bywpchbyppa-gala-0.93.0/bin/gala`; flake rev `8ba02b2b18eca7ca3bc410f5e467b112366bdf6c` matches `server/GALA_COMPILER` (extraction `0.93.0 6368c093…`), so no bump. The user asked for ten more Go files and to run `verify.sh` once after translating, because a per-twin verifier run is the expensive step, so one run covers the ten independent candidates; each twin still keeps its Go-facing surface and the batch is committed as one change.
+
+**Landed (10 twins):**
+- `accounts/users.gala` -> `users.go` (whole file: `models.User` keyed literal and `models.UUID(...)` conversion, `(*pgstore.Account, error)` helpers).
+- `respondents/identity.gala` -> `identity.go`; `identity_extra.go` keeps the validation constants, `GuestNameValidationCode`, and `GuestNameValidationResult` so their Go surface is unchanged.
+- `observability/config.gala` -> `config.go`; `config_extra.go` keeps `Config`.
+- `observability/record.gala` -> `record.go`; `record_extra.go` keeps `RequestCompletion`.
+- `postgres/credentials.gala` -> `credentials.go` (whole file: AES-256-GCM codec, `SliceWithSize`/`SliceAppendAll`/`SliceTake`/`SliceDrop`).
+- `services/calendar/ics_calendar.gala`, `google_calendar.gala`, `outlook_calendar.gala`, `apple_calendar.gala` -> their generated files; each sibling keeps the provider struct (embedded auth field) and the named response structs that the anonymous-struct row forces handwritten.
+- `slackbot/slackbot.gala` -> `slackbot.go` (runtime-free); `slackbot_extra.go` keeps `SlackbotMessageType`, `GENERAL`, and the swag-annotated `execCommand`.
+
+**Construct facts re-derived on the pinned compiler:** a `.gala` file that declares a method on a sibling-declared type gives that file the receiver but not the field list, so constructing the same type there is refused with `GALA-E0045` (`accounts/delete.go` stayed handwritten on that fact, and the workaround row is in the ledger and `constructs.md`); an exported GALA struct emits `Copy`/`Equal`/`Unapply`/`New<Type>`/`StructMeta_<Type>`, so an exported struct whose synthesized members would widen the API stays in a sibling (`Config`, `RequestCompletion`); a three-result `(T, T, error)` GALA function is written `Failure(err)`/`Success((a, b))` and bound with `var a, b, err = f()` (`apple_calendar.gala`'s `getClients`); a method body reads an embedded struct's promoted field through a sibling receiver (`cal.AccessToken`, `cal.FeedURL`); `parseTimeWithTZ` keeps the original's shadowed `err` in the `TZID` branch deliberately, so a parse failure there still returns the zero time; the standalone runtime import spelling keeps `gofmt` order when `golang.org/x/...` and `go.gala.fyi/...` share a block.
+
+**Evidence:** `server/scripts/gala/verify.sh` -> OK (48 twins) in 6m08s, 48/48 byte-identical double transpiles, `gofmt` 48 checked, orphan scan over 196 Go files, `go build ./...` ok; `go vet ./...` clean; the canonical isolated Compose sequence from `server/README.md` passes across every package (`postgres` 6.979s, `routes` 2.722s, `accounts` 0.215s, `observability` 0.240s, `respondents` 0.008s, `services/auth` 0.059s, `services/gcloud` 0.050s, `services/microsoftgraph` 0.015s, `utils` 0.065s). No generated file hand-edited and no test relaxed.
+
+**Ledger:** registry 38 -> 48 sources and 23 -> 26 packages (new `accounts`, `respondents`, `slackbot` package rows); the cursor's `services/calendar` provider entry is gone and now lists `accounts/accounts.go` then `accounts/delete.go`, `utils/utils.go`, `slackbot/commands/utils.go` then `discord_bot/commands/index.go`, and the blocked `services/calendar/calendar.go`; the open-findings table gained the `.gala`-method-on-a-sibling row; a ten-twin batch prose section records the construct facts; `constructs.md` gained the sibling-method construction row and its prose. `npm run format:markdown` was run on `server/GALA.md`.
+
+**Next:** cursor entry 2 is `accounts/accounts.go`, then `accounts/delete.go` with its construction boundary.
+
+**State:** committed as the ten-twin batch commit on `rewrite-in-gala`.
 <!-- SECTION:NOTES:END -->
 
 ## Comments

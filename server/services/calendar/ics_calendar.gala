@@ -1,0 +1,121 @@
+package calendar
+
+import (
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/emersion/go-ical"
+	"timeful/server/models"
+	"timeful/server/utils"
+
+	"martianoff/gala/go_interop"
+	"martianoff/gala/resource"
+)
+
+func (cal *ICSCalendar) GetCalendarList() (map[string]models.SubCalendar, error) {
+	var calendars = go_interop.MapEmpty[string, models.SubCalendar]()
+	go_interop.MapPut(calendars, "default", models.SubCalendar{
+		Name:    cal.Label,
+		Enabled: utils.TruePtr(),
+	})
+	return Success(calendars)
+}
+
+func (cal *ICSCalendar) GetCalendarEvents(calendarId string, timeMin time.Time, timeMax time.Time) ([]models.CalendarEvent, error) {
+	// Fetch the data and ensure the fetch was successful
+	var resp, fetchErr = http.Get(cal.FeedURL)
+	if (fetchErr != nil) {
+		return Failure(fmt.Errorf("failed to fetch ICS feed: %v", fetchErr))
+	}
+
+	return resource.Bracket(resp, (r) => { FromError(r.Body.Close()) }, (r) => {
+		if (r.StatusCode != http.StatusOK) {
+			return Failure(fmt.Errorf("ICS feed returned status %d", r.StatusCode))
+		}
+
+		// Parse
+		var decoder = ical.NewDecoder(r.Body)
+		var parsedCal, decodeErr = decoder.Decode()
+		if (decodeErr != nil) {
+			return Failure(fmt.Errorf("failed to parse ICS data: %v", decodeErr))
+		}
+
+		var events []models.CalendarEvent
+
+		// Loop through parsed data and append each to events array
+		for _, component := range parsedCal.Children {
+			if (component.Name != ical.CompEvent) {
+				continue
+			}
+
+			var summary = component.Props.Get(ical.PropSummary)
+			var uid = component.Props.Get(ical.PropUID)
+			var dtStart = component.Props.Get(ical.PropDateTimeStart)
+			var dtEnd = component.Props.Get(ical.PropDateTimeEnd)
+
+			if (dtStart == nil || dtEnd == nil) {
+				continue
+			}
+
+			var allDay = false
+			var startTime time.Time
+			var endTime time.Time
+
+			// Check that event is not all day
+			if (!strings.Contains(dtStart.Value, "T")) {
+				var parsedStart, _ = time.Parse("20060102", dtStart.Value)
+				startTime = parsedStart
+				var parsedEnd, _ = time.Parse("20060102", dtEnd.Value)
+				endTime = parsedEnd
+				allDay = true
+			} else {
+				var parsedStart, startErr = parseTimeWithTZ(dtStart)
+				if (startErr != nil) {
+					continue
+				}
+				startTime = parsedStart
+
+				var parsedEnd, endErr = parseTimeWithTZ(dtEnd)
+				if (endErr != nil) {
+					continue
+				}
+				endTime = parsedEnd
+			}
+
+			if (endTime.Before(timeMin) || startTime.After(timeMax)) {
+				continue
+			}
+
+			var free = false
+			var transp = component.Props.Get(ical.PropTransparency)
+			if (transp != nil) {
+				// TRANSPARENT means free, OPAQUE means busy
+				free = strings.EqualFold(transp.Value, "TRANSPARENT")
+			}
+
+			var summaryStr = ""
+			if (summary != nil) {
+				summaryStr = summary.Value
+			}
+
+			var uidStr = ""
+			if (uid != nil) {
+				uidStr = uid.Value
+			}
+
+			events = go_interop.SliceAppend(events, models.CalendarEvent{
+				Id:         uidStr,
+				CalendarId: calendarId,
+				Summary:    summaryStr,
+				StartDate:  models.NewDateTimeFromTime(startTime),
+				EndDate:    models.NewDateTimeFromTime(endTime),
+				Free:       free,
+				AllDay:     allDay,
+			})
+		}
+
+		return Success(events)
+	})
+}
