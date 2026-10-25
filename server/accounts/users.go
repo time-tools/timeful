@@ -10,14 +10,14 @@ import (
 	"strings"
 	"timeful/server/logger"
 	"timeful/server/models"
-	pgstore "timeful/server/postgres"
+	"timeful/server/postgres"
 )
 
 //line users.gala:13
 
 // UserFromAccount builds the internal user shape from the authoritative
 // account. It performs no fallback lookup.
-func UserFromAccount(account *pgstore.Account) *models.User {
+func UserFromAccount(account *postgres.Account) *models.User {
 //line users.gala:17
 	if account == nil {
 //line users.gala:18
@@ -95,42 +95,42 @@ func UserByEmail(email string) *models.User {
 // deliberately uninitialized pool and a missing account row both return no
 // account; every other failure is returned so callers never mistake the error
 // for absence.
-func accountByPlatformIdentityID(platformIdentityID string) (*pgstore.Account, error) {
-	var _goResult std.Try[*pgstore.Account] = func() std.Try[*pgstore.Account] {
+func accountByPlatformIdentityID(platformIdentityID string) (*postgres.Account, error) {
+	var _goResult std.Try[*postgres.Account] = func() std.Try[*postgres.Account] {
 //line users.gala:65
 		if platformIdentityID == "" {
 //line users.gala:66
-			return std.Success[*pgstore.Account]{}.Apply(nil)
+			return std.Success[*postgres.Account]{}.Apply(nil)
 		}
 //line users.gala:68
-		var repository, repoErr = pgstore.DefaultRepository()
+		var repository, repoErr = postgres.DefaultRepository()
 //line users.gala:69
 		if repoErr != nil {
 //line users.gala:70
-			if errors.Is(repoErr, pgstore.ErrPoolUninitialized) {
+			if errors.Is(repoErr, postgres.ErrPoolUninitialized) {
 //line users.gala:71
-				return std.Success[*pgstore.Account]{}.Apply(nil)
+				return std.Success[*postgres.Account]{}.Apply(nil)
 			}
 //line users.gala:73
-			return std.Failure[*pgstore.Account]{}.Apply(repoErr)
+			return std.Failure[*postgres.Account]{}.Apply(repoErr)
 		}
 //line users.gala:75
 		var account, lookupErr = repository.GetAccountByPlatformIdentityID(context.Background(), platformIdentityID)
 //line users.gala:76
 		if errors.Is(lookupErr, pgx.ErrNoRows) {
 //line users.gala:77
-			return std.Success[*pgstore.Account]{}.Apply(nil)
+			return std.Success[*postgres.Account]{}.Apply(nil)
 		}
 //line users.gala:79
 		if lookupErr != nil {
 //line users.gala:80
-			return std.Failure[*pgstore.Account]{}.Apply(lookupErr)
+			return std.Failure[*postgres.Account]{}.Apply(lookupErr)
 		}
 //line users.gala:82
-		return std.Success[*pgstore.Account]{}.Apply(account)
+		return std.Success[*postgres.Account]{}.Apply(account)
 	}()
 	if _goResult.IsFailure() {
-		return *new(*pgstore.Account), _goResult.GetError()
+		return *new(*postgres.Account), _goResult.GetError()
 	}
 	return _goResult.Get(), nil
 }
@@ -139,37 +139,37 @@ func accountByPlatformIdentityID(platformIdentityID string) (*pgstore.Account, e
 
 // accountByEmail applies the same outcome classification as
 // accountByPlatformIdentityID for a case-insensitive email lookup.
-func accountByEmail(email string) (*pgstore.Account, error) {
-	var _goResult std.Try[*pgstore.Account] = func() std.Try[*pgstore.Account] {
+func accountByEmail(email string) (*postgres.Account, error) {
+	var _goResult std.Try[*postgres.Account] = func() std.Try[*postgres.Account] {
 //line users.gala:88
-		var repository, repoErr = pgstore.DefaultRepository()
+		var repository, repoErr = postgres.DefaultRepository()
 //line users.gala:89
 		if repoErr != nil {
 //line users.gala:90
-			if errors.Is(repoErr, pgstore.ErrPoolUninitialized) {
+			if errors.Is(repoErr, postgres.ErrPoolUninitialized) {
 //line users.gala:91
-				return std.Success[*pgstore.Account]{}.Apply(nil)
+				return std.Success[*postgres.Account]{}.Apply(nil)
 			}
 //line users.gala:93
-			return std.Failure[*pgstore.Account]{}.Apply(repoErr)
+			return std.Failure[*postgres.Account]{}.Apply(repoErr)
 		}
 //line users.gala:95
 		var account, lookupErr = repository.GetAccountByEmail(context.Background(), email)
 //line users.gala:96
 		if errors.Is(lookupErr, pgx.ErrNoRows) {
 //line users.gala:97
-			return std.Success[*pgstore.Account]{}.Apply(nil)
+			return std.Success[*postgres.Account]{}.Apply(nil)
 		}
 //line users.gala:99
 		if lookupErr != nil {
 //line users.gala:100
-			return std.Failure[*pgstore.Account]{}.Apply(lookupErr)
+			return std.Failure[*postgres.Account]{}.Apply(lookupErr)
 		}
 //line users.gala:102
-		return std.Success[*pgstore.Account]{}.Apply(account)
+		return std.Success[*postgres.Account]{}.Apply(account)
 	}()
 	if _goResult.IsFailure() {
-		return *new(*pgstore.Account), _goResult.GetError()
+		return *new(*postgres.Account), _goResult.GetError()
 	}
 	return _goResult.Get(), nil
 }

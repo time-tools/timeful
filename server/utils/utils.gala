@@ -1,0 +1,169 @@
+package utils
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/mail"
+	"net/url"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/brianvoe/sjwt"
+	"timeful/server/logger"
+	"timeful/server/models"
+)
+
+import . "martianoff/gala/go_builtins"
+import "martianoff/gala/go_interop"
+
+// Returns whether running on production server
+func IsRelease() bool {
+	var mode = os.Getenv("GIN_MODE")
+	return mode == "release"
+}
+
+func PrintJson(s any) {
+	var data, marshalErr = json.MarshalIndent(s, "", "  ")
+	if (marshalErr != nil) {
+		logger.StdErr.Panicln(marshalErr)
+	}
+
+	fmt.Println(string(data))
+}
+
+func ParseJWT(jwt string) sjwt.Claims {
+	var claims, parseErr = sjwt.Parse(jwt)
+	if (parseErr != nil) {
+		logger.StdErr.Panicln(parseErr)
+	}
+
+	return claims
+}
+
+// Gets the access token expire date from an "expiresIn" int representing the number of seconds
+// after which the access token will expire
+func GetAccessTokenExpireDate(expiresIn int) time.Time {
+	var expireDuration, durationErr = time.ParseDuration(fmt.Sprintf("%ds", expiresIn))
+	if (durationErr != nil) {
+		logger.StdErr.Panicln(durationErr)
+	}
+	return time.Now().Add(expireDuration)
+}
+
+// Returns the ISO date string for the given date
+func GetDateString(date time.Time) string {
+	var marshaled, _ = date.UTC().MarshalText()
+	return string(go_interop.SliceTake(marshaled, 10))
+}
+
+// Returns a time object with the given date and a time string in the form of "00:00:00"
+func GetDateAtTime(date time.Time, timeString string) time.Time {
+	var utcDateString = GetDateString(date)
+	var newDate, parseErr = time.Parse(time.RFC3339, fmt.Sprintf("%sT%sZ", utcDateString, timeString))
+	if (parseErr != nil) {
+		logger.StdErr.Panicln(parseErr)
+	}
+	return newDate
+}
+
+// Returns the correct client id given the token origin
+func GetClientIdFromTokenOrigin(tokenOrigin models.TokenOriginType) string = tokenOrigin match {
+	case models.ANDROID => os.Getenv("ANDROID_CLIENT_ID")
+	case models.IOS => os.Getenv("IOS_CLIENT_ID")
+	case _ => os.Getenv("CLIENT_ID")
+}
+
+// Prints the http response as a string
+func PrintHttpResponse(resp *http.Response) {
+	var body, _ = io.ReadAll(resp.Body)
+	logger.StdOut.Println(string(body))
+	resp.Body = io.NopCloser(bytes.NewBuffer(body))
+}
+
+// GetBaseUrl returns the canonical public application origin for generated links.
+func GetBaseUrl() string {
+	var baseUrl, baseErr = normalizedBaseUrl(os.Getenv("APP_BASE_URL"))
+	if (baseErr != nil) {
+		Panic(baseErr)
+	}
+	return baseUrl
+}
+
+func ValidateBaseUrl() error {
+	var _, baseErr = normalizedBaseUrl(os.Getenv("APP_BASE_URL"))
+	return baseErr
+}
+
+// GetListmonkOtpFromAddress returns the configured sender for Listmonk OTP emails.
+func GetListmonkOtpFromAddress() (string, error) {
+	var fromAddress = strings.TrimSpace(os.Getenv("LISTMONK_OTP_FROM_ADDRESS"))
+	if (fromAddress == "") {
+		return Failure(errors.New("LISTMONK_OTP_FROM_ADDRESS is required when sending OTP emails"))
+	}
+
+	var _, mailErr = mail.ParseAddress(fromAddress)
+	if (mailErr != nil) {
+		return Failure(fmt.Errorf("LISTMONK_OTP_FROM_ADDRESS is invalid: %w", mailErr))
+	}
+
+	return Success(fromAddress)
+}
+
+func normalizedBaseUrl(value string) (string, error) {
+	var parsed, parseErr = url.Parse(strings.TrimSpace(value))
+	if (parseErr != nil || parsed.Scheme == "" || parsed.Host == "") {
+		return Failure(errors.New("APP_BASE_URL must be an absolute HTTP(S) origin"))
+	}
+	if (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return Failure(errors.New("APP_BASE_URL must use the http or https scheme"))
+	}
+	if (parsed.User != nil || (parsed.Path != "" && parsed.Path != "/") || parsed.RawQuery != "" || parsed.Fragment != "") {
+		return Failure(errors.New("APP_BASE_URL must not include credentials, a path, query, or fragment"))
+	}
+	return Success(parsed.Scheme + "://" + parsed.Host)
+}
+
+// Returns the value of the first non nil pointer in `args`.
+// Otherwise, just return the zero value
+func Coalesce[T any](args ...*T) T {
+	for _, candidate := range args {
+		if (candidate != nil) {
+			return *candidate
+		}
+	}
+
+	var zero T
+	return zero
+}
+
+// Return a pointer to true
+func TruePtr() *bool {
+	var b = true
+	return &b
+}
+
+// Return a pointer to false
+func FalsePtr() *bool {
+	var b = false
+	return &b
+}
+
+// NormalizeEmail returns the email in a canonical form for lookups and storage (trim + ASCII lower).
+func NormalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
+}
+
+// GetCalendarAccountKey builds the canonical map key for calendarAccounts. Email-like identifiers are trimmed and lowercased;
+// ICS uses the feed label as the first segment and is only trimmed, not lowercased.
+func GetCalendarAccountKey(ident string, calendarType models.CalendarType) string {
+	var keyPart = strings.TrimSpace(ident)
+	if (calendarType != models.ICSCalendarType) {
+		keyPart = NormalizeEmail(keyPart)
+	}
+	return fmt.Sprintf("%s_%s", keyPart, calendarType)
+}

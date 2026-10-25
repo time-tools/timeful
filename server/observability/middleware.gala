@@ -1,0 +1,98 @@
+package observability
+
+import (
+	"crypto/rand"
+	"fmt"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/gin-gonic/gin"
+
+	"martianoff/gala/go_interop"
+)
+
+var requestIDContextKey = "observability.requestID"
+
+// RequestIDHeader lets an operator correlate a failed response with its
+// shipped record (QR-010).
+var RequestIDHeader = "X-Request-ID"
+
+var unmatchedRoute = "unmatched"
+
+var errorCodePattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
+
+// RequestMiddleware records one structured diagnostic record and one server
+// span per finished request, and records the request duration metric. It
+// generates the request correlation identifier, starts the trace span that the
+// log record inherits, captures only the bounded JSON error field of failed
+// responses, and hands the completion to the recorder, which enqueues it
+// without waiting on OpenObserve.
+func RequestMiddleware(recorder *Recorder) gin.HandlerFunc = (c) => {
+	var started = time.Now()
+	var requestID = newRequestID()
+	c.Set(requestIDContextKey, requestID)
+	c.Header(RequestIDHeader, requestID)
+
+	var spanContext, span = recorder.StartRequestSpan(c.Request.Context(), c.Request.Method)
+	// Handlers and the repository layer read the request context, so the
+	// span travels with it and database work joins the request trace.
+	c.Request = c.Request.WithContext(spanContext)
+
+	var capture = newErrorCapture(c.Writer)
+	c.Writer = capture
+
+	c.Next()
+
+	var completion = newRequestCompletion(requestID, c.Request.Method, requestRoute(c), capture.Status(), time.Since(started), started, recorder.readinessState())
+	var errorType, errorMessage = capture.errorContext(completion.Status)
+	completion.ErrorType = errorType
+	completion.ErrorMessage = errorMessage
+	if (completion.ErrorMessage == "" && go_interop.SliceFrom(c.Errors, 0).Size() > 0) {
+		completion.ErrorMessage = c.Errors.String()
+	}
+	completion.ApplyToSpan(span)
+	recorder.RecordRequestMetrics(spanContext, completion)
+	recorder.EmitRequest(spanContext, completion)
+	span.End()
+}
+
+func requestRoute(c *gin.Context) string {
+	var route = c.FullPath()
+	if (route != "") {
+		return route
+	}
+	return unmatchedRoute
+}
+
+func newRequestID() string {
+	var value = go_interop.SliceWithSize[byte](16)
+	var _, readErr = rand.Read(value)
+	if (readErr != nil) {
+		return fmt.Sprintf("request-%d", time.Now().UnixNano())
+	}
+	value[6] = (value[6] & 0x0f) | 0x40
+	value[8] = (value[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", go_interop.Slice(value, 0, 4), go_interop.Slice(value, 4, 6), go_interop.Slice(value, 6, 8), go_interop.Slice(value, 8, 10), go_interop.Slice(value, 10, 16))
+}
+
+func classifyError(status int, message string) (string, string) {
+	var redacted = strings.TrimSpace(Redact(message))
+	if (redacted == "") {
+		return (statusErrorType(status), "")
+	}
+	if (errorCodePattern.MatchString(redacted)) {
+		return (redacted, "")
+	}
+	return (statusErrorType(status), redacted)
+}
+
+func statusErrorType(status int) string {
+	if (status >= 500) {
+		return "http_5xx"
+	}
+	if (status >= 400) {
+		return "http_4xx"
+	}
+	return ""
+}

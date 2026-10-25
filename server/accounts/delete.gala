@@ -1,0 +1,19 @@
+package accounts
+
+import (
+	"context"
+)
+
+// DeleteAccount permanently deletes the account and all data it owns.
+func DeleteAccount(ctx context.Context, platformIdentityID string) error {
+	return defaultDeleter.Delete(ctx, platformIdentityID)
+}
+
+// SetDefaultDeleter replaces the package deletion step and returns a function
+// that restores the previous one. It exists so tests can force a deletion
+// failure; it is not safe for concurrent use.
+func SetDefaultDeleter(deleter Deleter) func() {
+	var previous = defaultDeleter
+	defaultDeleter = deleter
+	return () => { defaultDeleter = previous }
+}

@@ -1,0 +1,51 @@
+package commands
+
+import (
+	"github.com/bwmarrin/discordgo"
+	"strings"
+)
+
+import "martianoff/gala/go_interop"
+
+// Send a message to the current channel that received a message
+func sendMessage(s *discordgo.Session, m *discordgo.MessageCreate, message string) {
+	s.ChannelMessageSend(m.ChannelID, message)
+}
+
+func sendEmbed(s *discordgo.Session, m *discordgo.MessageCreate, embedMessage *discordgo.MessageEmbed) {
+	s.ChannelMessageSendEmbed(m.ChannelID, embedMessage)
+}
+
+func splitLongMessage(message string, surroundString string) []string {
+	/* Returns an array containing the separate messages to send when a
+	 * single message is too long (>2000 characters).
+	 * Each message in the array will be surrounded by surroundString (e.g. "```")
+	 */
+
+	var charLimit = 2000
+	charLimit -= surroundString.ByteSize() * 2
+	var messageArray = go_interop.SliceEmpty[string]()
+	var remaining = message
+
+	// Go through message and keep substringing it in 2000 character chunks,
+	// and add the chunks to the messageArray
+	for (remaining.ByteSize() > charLimit) {
+		// Split at the last newline before the character limit, or the character limit
+		// if newline was not found
+		var splitIndex = strings.LastIndex(string(go_interop.SliceTake(go_interop.ToBytes(remaining), charLimit)), "\n")
+		if (splitIndex == -1) {
+			splitIndex = charLimit
+		}
+
+		messageArray = go_interop.SliceAppend(messageArray, surroundString+string(go_interop.SliceTake(go_interop.ToBytes(remaining), splitIndex))+surroundString)
+		if (string(go_interop.Slice(go_interop.ToBytes(remaining), splitIndex, splitIndex + 1)) == "\n") {
+			splitIndex++
+		}
+		remaining = string(go_interop.SliceFrom(go_interop.ToBytes(remaining), splitIndex))
+	}
+	if (remaining.ByteSize() > 0) {
+		messageArray = go_interop.SliceAppend(messageArray, surroundString+remaining+surroundString)
+	}
+
+	return messageArray
+}

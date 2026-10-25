@@ -1,0 +1,202 @@
+package routes
+
+import (
+	"errors"
+	"net/http"
+	"regexp"
+
+	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
+	"timeful/server/middleware"
+	pgstore "timeful/server/postgres"
+
+	"martianoff/gala/go_interop"
+)
+
+var folderIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
+func validFolderID(id string) bool = folderIDPattern.MatchString(id)
+
+func InitFolders(router *gin.RouterGroup) {
+	var folderRouter = router.Group("/user/folders")
+	folderRouter.Use(middleware.AuthRequired())
+
+	folderRouter.GET("", GetAllFolders)
+	folderRouter.POST("", CreateFolder)
+	folderRouter.GET("/:folderId", GetFolder)
+	folderRouter.PATCH("/:folderId", UpdateFolder)
+	folderRouter.DELETE("/:folderId", DeleteFolder)
+}
+
+// @Summary Get all folders
+// @Tags folders
+// @Produce json
+// @Success 200 {array} FolderResponse "A list of all folders for the user"
+// @Failure 400 {object} map[string]string "Invalid user ID"
+// @Failure 500 {object} map[string]string "Failed to get folders"
+// @Router /user/folders [get]
+func GetAllFolders(c *gin.Context) {
+	var platformIdentityID, ok = folderPlatformIdentityID(c)
+	if (!ok) {
+		return
+	}
+	var repository = defaultRepository(c)
+	if (repository == nil) {
+		return
+	}
+
+	var folders, listErr = repository.ListFolders(c.Request.Context(), platformIdentityID)
+	if (listErr != nil) {
+		c.JSON(http.StatusInternalServerError, go_interop.MapPut[string, any](go_interop.MapEmpty[string, any](), "error", "Failed to get folders"))
+		return
+	}
+
+	c.JSON(http.StatusOK, folderResponsesFrom(folders))
+}
+
+// @Summary Get a folder by its ID and its contents
+// @Tags folders
+// @Produce json
+// @Param folderId path string true "Folder ID"
+// @Success 200 {object} FolderResponse "The folder object with events"
+// @Failure 400 {object} map[string]string "Invalid user ID or folder ID"
+// @Failure 404 {object} map[string]string "Folder not found"
+// @Failure 500 {object} map[string]string "Failed to get events in folder"
+// @Router /user/folders/{folderId} [get]
+func GetFolder(c *gin.Context) {
+	var platformIdentityID, ok = folderPlatformIdentityID(c)
+	if (!ok) {
+		return
+	}
+	var repository = defaultRepository(c)
+	if (repository == nil) {
+		return
+	}
+
+	var folder, getErr = repository.GetFolderByID(c.Request.Context(), c.Param("folderId"), platformIdentityID)
+	if (errors.Is(getErr, pgx.ErrNoRows)) {
+		c.JSON(http.StatusNotFound, go_interop.MapPut[string, any](go_interop.MapEmpty[string, any](), "error", "Folder not found"))
+		return
+	}
+	if (getErr != nil) {
+		c.JSON(http.StatusInternalServerError, go_interop.MapPut[string, any](go_interop.MapEmpty[string, any](), "error", "Failed to get events in folder"))
+		return
+	}
+
+	c.JSON(http.StatusOK, folderResponseFrom(*folder))
+}
+
+// @Summary Create a new folder
+// @Tags folders
+// @Accept json
+// @Produce json
+// @Param payload body object{name=string,color=string} true "Folder name and optional color"
+// @Success 201 {object} CreateFolderResponse "The ID of the created folder"
+// @Failure 400 {object} map[string]string "Invalid user ID or request body"
+// @Failure 500 {object} map[string]string "Failed to create folder"
+// @Router /user/folders [post]
+func CreateFolder(c *gin.Context) {
+	var body = newFolderCreateBody()
+
+	var bindErr = c.ShouldBindJSON(body)
+	if (bindErr != nil) {
+		c.JSON(http.StatusBadRequest, go_interop.MapPut[string, any](go_interop.MapEmpty[string, any](), "error", bindErr.Error()))
+		return
+	}
+
+	var platformIdentityID, ok = folderPlatformIdentityID(c)
+	if (!ok) {
+		return
+	}
+	var repository = defaultRepository(c)
+	if (repository == nil) {
+		return
+	}
+
+	var folder = pgstore.Folder{
+		PlatformIdentityID: platformIdentityID,
+		Name:               body.Name,
+		Color:              body.Color,
+	}
+	var createErr = repository.CreateFolder(c.Request.Context(), &folder)
+	if (createErr != nil) {
+		c.JSON(http.StatusInternalServerError, go_interop.MapPut[string, any](go_interop.MapEmpty[string, any](), "error", "Failed to create folder"))
+		return
+	}
+
+	c.JSON(http.StatusCreated, newCreateFolderResponse(folder.ID))
+}
+
+// @Summary Update a folder's name or color
+// @Tags folders
+// @Accept json
+// @Produce json
+// @Param folderId path string true "Folder ID"
+// @Param payload body object{name=string,color=string} true "New folder name and/or color"
+// @Success 200
+// @Failure 400 {object} map[string]string "Invalid user ID or folder ID"
+// @Failure 404 {object} map[string]string "Folder not found"
+// @Failure 500 {object} map[string]string "Failed to update folder"
+// @Router /user/folders/{folderId} [patch]
+func UpdateFolder(c *gin.Context) {
+	var body = newFolderUpdateBody()
+
+	var bindErr = c.ShouldBindJSON(body)
+	if (bindErr != nil) {
+		c.JSON(http.StatusBadRequest, go_interop.MapPut[string, any](go_interop.MapEmpty[string, any](), "error", bindErr.Error()))
+		return
+	}
+
+	var platformIdentityID, ok = folderPlatformIdentityID(c)
+	if (!ok) {
+		return
+	}
+	var repository = defaultRepository(c)
+	if (repository == nil) {
+		return
+	}
+
+	var updateErr = repository.UpdateFolder(c.Request.Context(), c.Param("folderId"), platformIdentityID, body.Name, body.Color)
+	if (errors.Is(updateErr, pgx.ErrNoRows)) {
+		c.JSON(http.StatusNotFound, go_interop.MapPut[string, any](go_interop.MapEmpty[string, any](), "error", "Folder not found"))
+		return
+	}
+	if (updateErr != nil) {
+		c.JSON(http.StatusInternalServerError, go_interop.MapPut[string, any](go_interop.MapEmpty[string, any](), "error", "Failed to update folder"))
+		return
+	}
+
+	c.Status(http.StatusOK)
+}
+
+// @Summary Delete a folder
+// @Tags folders
+// @Produce json
+// @Param folderId path string true "Folder ID"
+// @Success 200
+// @Failure 400 {object} map[string]string "Invalid user ID or folder ID"
+// @Failure 404 {object} map[string]string "Folder not found"
+// @Failure 500 {object} map[string]string "Failed to delete folder"
+// @Router /user/folders/{folderId} [delete]
+func DeleteFolder(c *gin.Context) {
+	var platformIdentityID, ok = folderPlatformIdentityID(c)
+	if (!ok) {
+		return
+	}
+	var repository = defaultRepository(c)
+	if (repository == nil) {
+		return
+	}
+
+	var deleteErr = repository.DeleteFolder(c.Request.Context(), c.Param("folderId"), platformIdentityID)
+	if (errors.Is(deleteErr, pgx.ErrNoRows)) {
+		c.JSON(http.StatusNotFound, go_interop.MapPut[string, any](go_interop.MapEmpty[string, any](), "error", "Folder not found"))
+		return
+	}
+	if (deleteErr != nil) {
+		c.JSON(http.StatusInternalServerError, go_interop.MapPut[string, any](go_interop.MapEmpty[string, any](), "error", "Failed to delete folder"))
+		return
+	}
+
+	c.Status(http.StatusOK)
+}

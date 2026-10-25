@@ -8,12 +8,12 @@ import (
 	"github.com/jackc/pgx/v5"
 	"timeful/server/logger"
 	"timeful/server/models"
-	pgstore "timeful/server/postgres"
+	"timeful/server/postgres"
 )
 
 // UserFromAccount builds the internal user shape from the authoritative
 // account. It performs no fallback lookup.
-func UserFromAccount(account *pgstore.Account) *models.User {
+func UserFromAccount(account *postgres.Account) *models.User {
 	if (account == nil) {
 		return nil
 	}
@@ -61,13 +61,13 @@ func UserByEmail(email string) *models.User {
 // deliberately uninitialized pool and a missing account row both return no
 // account; every other failure is returned so callers never mistake the error
 // for absence.
-func accountByPlatformIdentityID(platformIdentityID string) (*pgstore.Account, error) {
+func accountByPlatformIdentityID(platformIdentityID string) (*postgres.Account, error) {
 	if (platformIdentityID == "") {
 		return Success(nil)
 	}
-	var repository, repoErr = pgstore.DefaultRepository()
+	var repository, repoErr = postgres.DefaultRepository()
 	if (repoErr != nil) {
-		if (errors.Is(repoErr, pgstore.ErrPoolUninitialized)) {
+		if (errors.Is(repoErr, postgres.ErrPoolUninitialized)) {
 			return Success(nil)
 		}
 		return Failure(repoErr)
@@ -84,10 +84,10 @@ func accountByPlatformIdentityID(platformIdentityID string) (*pgstore.Account, e
 
 // accountByEmail applies the same outcome classification as
 // accountByPlatformIdentityID for a case-insensitive email lookup.
-func accountByEmail(email string) (*pgstore.Account, error) {
-	var repository, repoErr = pgstore.DefaultRepository()
+func accountByEmail(email string) (*postgres.Account, error) {
+	var repository, repoErr = postgres.DefaultRepository()
 	if (repoErr != nil) {
-		if (errors.Is(repoErr, pgstore.ErrPoolUninitialized)) {
+		if (errors.Is(repoErr, postgres.ErrPoolUninitialized)) {
 			return Success(nil)
 		}
 		return Failure(repoErr)

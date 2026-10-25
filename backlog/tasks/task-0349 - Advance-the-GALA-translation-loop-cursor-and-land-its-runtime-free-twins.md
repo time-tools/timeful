@@ -4,7 +4,7 @@ title: Advance the GALA translation loop cursor and land its runtime-free twins
 status: In Progress
 assignee: []
 created_date: '2026-10-05 08:44'
-updated_date: '2026-10-25 13:47'
+updated_date: '2026-10-25 14:46'
 labels: []
 dependencies: []
 references:
@@ -489,6 +489,34 @@ Run the `gala-loop` skill one iteration at a time, taking the next entry from th
 **Next:** cursor entry 2 is `accounts/accounts.go`, then `accounts/delete.go` with its construction boundary.
 
 **State:** committed as the ten-twin batch commit on `rewrite-in-gala`.
+
+## Iteration 19 — third ten-twin batch (2026-10-25)
+
+**Provenance:** `gala` `GALA version 0.93.0` at `/nix/store/v0jxpys9mxb58dvdp3np8bywpchbyppa-gala-0.93.0/bin/gala`; flake rev `8ba02b2b18eca7ca3bc410f5e467b112366bdf6c` matches `server/GALA_COMPILER` (extraction `0.93.0 6368c093…`), so no bump. The user asked for ten more Go files, so one `verify.sh` run covers the ten independent candidates and the batch is committed as one change.
+
+**Landed (10 twins):**
+- `accounts/accounts.gala` -> `accounts.go`; `accounts_extra.go` keeps `Profile`.
+- `accounts/calendar.gala` -> `calendar.go`; `calendar_extra.go` keeps `CalendarIntegrations`, `CalendarPreferences`, and `newCalendarIntegrations`.
+- `accounts/delete.gala` -> `delete.go` (runtime-free); `delete_extra.go` keeps `Deleter`, `DefaultDeleter`, its `Delete` method, and `defaultDeleter` in one language.
+- `utils/utils.gala` -> `utils.go`; `utils_extra.go` keeps `GetAuthUser`, `GetAuthAccount`, and `CORSOrigins`.
+- `slackbot/commands/utils.gala` -> `utils.go`; `utils_extra.go` keeps `Response`, `Command`, `CommandMap`, and `newResponse`.
+- `discord_bot/commands/index.gala` -> `index.go`; `index_extra.go` keeps `Command`, `Commands`, and `Init`.
+- `routes/events.gala` -> `events.go`; `events_extra.go` keeps `normalizeTimedResponseAvailabilitySlots`.
+- `routes/grants.gala` -> `grants.go`; `grants_extra.go` keeps the named body struct, its constructor, and the session helper.
+- `routes/folders.gala` -> `folders.go`; `folders_extra.go` keeps the tagged response structs, the named bodies, the identity helper, and the response builders.
+- `observability/middleware.gala` -> `middleware.go`; `middleware_extra.go` keeps `errorCapture` and its methods, `newErrorCapture`, `newRequestCompletion`, and `maxCapturedErrorBytes`.
+
+**Construct facts re-derived on the pinned compiler:** GALA keywords are not identifiers (`val` in a `range` binding and `embed` as a parameter are parse errors); a non-error result list takes a plain tuple return while `Success` there emits a `std.Try` the emitted `std.Tuple` body cannot assign; `Success((nil, nil))` infers a three-result list's tuple types; `c.Errors.Size()` does not resolve on gin's defined `Errors` slice, so `go_interop.SliceFrom(c.Errors, 0).Size()` is the count; `gin.H{...}` payloads became `MapPut`/`MapEmpty` maps; a void function's `defer resp.Body.Close()` is `resource.Bracket(..., (_) => { return true })` in statement position; the slicing loop moved to `SliceTake`/`Slice`/`SliceFrom` over `ToBytes` with a `var remaining` copy; `[16]byte` became `SliceWithSize[byte](16)`; the `go_interop` import had to stand alone in `routes/events.gala` for `gofmt` order.
+
+**Regression found and worked around:** `accounts.Resolve`'s `*pgstore.Account` leaked the alias qualifier into `middleware/auth.gala`'s regeneration without its import, and the drift survived a cache clear. The three `accounts` twins moved to the `"timeful/server/postgres"` package-name spelling, which made `middleware/auth.gala` regenerate byte-identically again; the ledger's open findings table and `constructs.md` gained the row, and `accounts/users.go` was re-baselined onto the same spelling.
+
+**Evidence:** `server/scripts/gala/verify.sh` -> OK (58 twins) in 8m02s (58/58 byte-identical, `gofmt` 58 checked, orphan scan over 206 Go files, `go build ./...` ok); `go vet ./...` clean; the canonical isolated Compose sequence passes (`routes` 2.703s, `postgres` 8.607s, `accounts` 0.205s, `observability` 0.235s, `utils` 0.012s); `swag init --parseDependency` regenerated `server/docs` byte-identically; `npm run format:markdown` and `:check` pass.
+
+**Ledger:** registry 48 -> 58 sources (packages stay 26), with the ten rows and corrected `slackbot/commands` sibling names; a third batch prose section records the construct facts; the `.gala`-method-on-a-sibling row now records the `delete.gala` split; the aliased-qualifier finding row is new; the cursor drops the three landed entries and lists `routes/identity.go`/`routes/owner.go`, `routes/analytics.go`/`routes/event_timed_slots.go`, and `observability/metrics.go`.
+
+**Next:** cursor entry 2 is `routes/identity.go`, then `routes/owner.go`.
+
+**State:** committed as the third ten-twin batch commit on `rewrite-in-gala`; no generated file hand-edited and no test relaxed.
 <!-- SECTION:NOTES:END -->
 
 ## Comments

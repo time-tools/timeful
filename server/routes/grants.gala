@@ -1,0 +1,114 @@
+package routes
+
+import (
+	"context"
+	"errors"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
+	pgstore "timeful/server/postgres"
+
+	"martianoff/gala/go_interop"
+)
+
+func grantCookieName(eventID string) string = "timeful_grant_" + eventID
+
+func provenGrant(c *gin.Context, repo *pgstore.Repository, event *pgstore.Event) (*pgstore.EventVisitorIdentity, *pgstore.EventVisitorCredential, error) {
+	var cookie, cookieErr = c.Cookie(grantCookieName(event.ShortID))
+	if (cookieErr != nil) {
+		return Success((nil, nil))
+	}
+	var parts = strings.Split(cookie, ".")
+	var visitor, visitorErr = repo.GetEventVisitorIdentity(c.Request.Context(), event.ID, parts[0])
+	if (errors.Is(visitorErr, pgx.ErrNoRows)) {
+		return Success((nil, nil))
+	}
+	if (visitorErr != nil) {
+		return Failure(visitorErr)
+	}
+	var credential, credentialErr = provenCredentialCookie(c, repo, visitor, grantCookieName(event.ShortID))
+	if (credentialErr != nil) {
+		return Failure(credentialErr)
+	}
+	if (credential == nil || credential.Kind != pgstore.CredentialKindGranted) {
+		return Success((nil, nil))
+	}
+	return Success((visitor, credential))
+}
+
+// @Summary Inspect or explicitly confirm granted response identity association
+// @Description An active Granted EVCC and signed-in session are required. Association preserves source response ownership and does not associate event ownership.
+// @Tags events
+// @Accept json
+// @Produce json
+// @Param eventId path string true "Event ID"
+// @Param payload body object{confirm=bool} true "Explicit consent; false only inspects"
+// @Success 200 {object} object{confirmationRequired=bool}
+// @Failure 403
+// @Router /events/{eventId}/grant-association [post]
+func grantAssociation(c *gin.Context) {
+	var repo = defaultRepository(c)
+	if (repo == nil) {
+		return
+	}
+	var event = loadEvent(c, repo)
+	if (event == nil) {
+		return
+	}
+	var input = newGrantAssociationInput()
+	var bindErr = c.BindJSON(input)
+	if (bindErr != nil) {
+		return
+	}
+	var platformIdentityID = grantPlatformIdentityID(c)
+	var required = false
+	var txErr = repo.WithTransaction(c.Request.Context(), (txCtx context.Context, tx *pgstore.Repository) => {
+		var locked, lockErr = tx.LockEvent(txCtx, event.ID)
+		if (lockErr != nil) {
+			return lockErr
+		}
+		if (locked.IsDeleted) {
+			return pgx.ErrNoRows
+		}
+		var visitor, _, grantErr = provenGrant(c, tx, event)
+		if (grantErr != nil) {
+			return grantErr
+		}
+		if (visitor == nil || platformIdentityID == "") {
+			if (input.Confirm) {
+				return pgx.ErrNoRows
+			}
+			return nil
+		}
+		if (visitor.PlatformIdentityID != nil) {
+			return nil
+		}
+		var platform, platformErr = resolveSessionPlatformIdentity(txCtx, tx, platformIdentityID)
+		if (platformErr != nil) {
+			return platformErr
+		}
+		if (platform == nil) {
+			if (input.Confirm) {
+				return pgx.ErrNoRows
+			}
+			return nil
+		}
+		required = true
+		if (!input.Confirm) {
+			return nil
+		}
+		var associateErr = tx.AssociateEventVisitorIdentity(txCtx, visitor.ID, platform.ID)
+		if (associateErr != nil) {
+			return associateErr
+		}
+		required = false
+		return nil
+	})
+	if (txErr != nil) {
+		transferDenied(c, txErr)
+		return
+	}
+	var confirmation = go_interop.MapPut[string, any](go_interop.MapEmpty[string, any](), "confirmationRequired", required)
+	c.JSON(200, confirmation)
+}

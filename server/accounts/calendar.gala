@@ -1,0 +1,299 @@
+// Calendar integrations are authoritative. This file is the explicit boundary
+// that translates between the internal API user shape (models) and the
+// repository types (pgstore), so no route handler, provider, or service reaches
+// the database directly.
+package accounts
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"timeful/server/models"
+	"timeful/server/postgres"
+
+	"martianoff/gala/go_interop"
+)
+
+// LoadCalendarIntegrations reads every calendar connection, sub-calendar, and
+// preference for an account. A missing preference row is an empty preference,
+// not an error, and any other failure is returned.
+func LoadCalendarIntegrations(ctx context.Context, platformIdentityID string) (*CalendarIntegrations, error) {
+	var repository, repoErr = postgres.DefaultRepository()
+	if (repoErr != nil) {
+		return Failure(repoErr)
+	}
+	var stored, listErr = repository.ListCalendarAccountsForUser(ctx, platformIdentityID)
+	if (listErr != nil) {
+		return Failure(listErr)
+	}
+	var integrations = newCalendarIntegrations(go_interop.MapWithCapacity[string, models.CalendarAccount](stored.Size()))
+	for _, account := range stored {
+		integrations.Accounts[account.CalendarKey] = calendarAccountFromStorage(account)
+	}
+	var preferences, prefErr = repository.GetCalendarPreferences(ctx, platformIdentityID)
+	if (prefErr != nil) {
+		if (!errors.Is(prefErr, pgx.ErrNoRows)) {
+			return Failure(prefErr)
+		}
+		return Success(integrations)
+	}
+	integrations.PrimaryAccountKey = preferences.PrimaryAccountKey
+	if (preferences.TokenOrigin != nil) {
+		integrations.TokenOrigin = models.TokenOriginType(*preferences.TokenOrigin)
+	}
+	if (go_interop.SliceFrom(preferences.CalendarOptions, 0).Size() > 0) {
+		var options, optionsErr = calendarOptionsFromJSON(preferences.CalendarOptions)
+		if (optionsErr != nil) {
+			return Failure(optionsErr)
+		}
+		integrations.CalendarOptions = options
+	}
+	return Success(integrations)
+}
+
+// LoadSessionUser builds the authenticated user from the authoritative account
+// profile and the calendar state.
+func LoadSessionUser(ctx context.Context, account *postgres.Account) (*models.User, error) {
+	var integrations, loadErr = LoadCalendarIntegrations(ctx, account.PlatformIdentityID)
+	if (loadErr != nil) {
+		return Failure(loadErr)
+	}
+	return Success(CalendarUser(account, integrations))
+}
+
+// LoadSessionUserByPlatformIdentityID resolves the authoritative account for a
+// platform identity UUID and loads its calendar state.
+func LoadSessionUserByPlatformIdentityID(ctx context.Context, platformIdentityID string) (*models.User, error) {
+	var account, lookupErr = Lookup(ctx, platformIdentityID)
+	if (lookupErr != nil) {
+		return Failure(lookupErr)
+	}
+	return LoadSessionUser(ctx, account)
+}
+
+// CalendarUser overlays the calendar state onto the authoritative account
+// profile. An empty integration set leaves the calendar fields absent so the
+// serialized response shape is unchanged.
+func CalendarUser(account *postgres.Account, integrations *CalendarIntegrations) *models.User {
+	var user = UserFromAccount(account)
+	if (integrations == nil) {
+		return user
+	}
+	if (integrations.Accounts.Size() > 0) {
+		user.CalendarAccounts = integrations.Accounts
+	}
+	user.PrimaryAccountKey = integrations.PrimaryAccountKey
+	user.TokenOrigin = integrations.TokenOrigin
+	user.CalendarOptions = integrations.CalendarOptions
+	return user
+}
+
+// SaveCalendarAccount creates or replaces one calendar connection together with
+// its credentials and sub-calendars in a single transaction. The caller supplies
+// the runtime calendar key so the email_CALENDARTYPE key semantics are
+// preserved.
+func SaveCalendarAccount(ctx context.Context, platformIdentityID string, calendarKey string, account models.CalendarAccount) error {
+	if (calendarKey == "") {
+		return errors.New("calendar account key is required")
+	}
+	var repository, repoErr = postgres.DefaultRepository()
+	if (repoErr != nil) {
+		return repoErr
+	}
+	var converted = calendarAccountToStorage(calendarKey, account)
+	return repository.WithTransaction(ctx, (txCtx context.Context, tx *postgres.Repository) => {
+		var upsertErr = tx.UpsertCalendarAccount(txCtx, platformIdentityID, converted)
+		if (upsertErr != nil) {
+			return upsertErr
+		}
+		if (account.SubCalendars == nil) {
+			return nil
+		}
+		return syncCalendarSubCalendars(txCtx, tx, platformIdentityID, calendarKey, *account.SubCalendars)
+	})
+}
+
+// SyncCalendarSubCalendars reconciles the stored sub-calendar set with a
+// provider refresh: present sub-calendars are upserted and stored sub-calendars
+// the provider no longer reports are removed. An empty set removes every stored
+// sub-calendar.
+func SyncCalendarSubCalendars(ctx context.Context, platformIdentityID string, calendarKey string, subCalendars map[string]models.SubCalendar) error {
+	var repository, repoErr = postgres.DefaultRepository()
+	if (repoErr != nil) {
+		return repoErr
+	}
+	return syncCalendarSubCalendars(ctx, repository, platformIdentityID, calendarKey, subCalendars)
+}
+
+// syncCalendarSubCalendars converts the internal sub-calendar map into the
+// set-based sync. The batched repository path updates only the sub-calendar
+// table and deliberately does not re-read the connection's encrypted
+// credentials, so a provider refresh can no longer fail on credential
+// decryption it does not need.
+func syncCalendarSubCalendars(ctx context.Context, repository *postgres.Repository, platformIdentityID string, calendarKey string, subCalendars map[string]models.SubCalendar) error {
+	var converted = go_interop.SliceWithCapacity[postgres.CalendarSubCalendar](subCalendars.Size())
+	for id, sub := range subCalendars {
+		if (id == "") {
+			return errors.New("sub-calendar ID is required")
+		}
+		converted = go_interop.SliceAppend(converted, postgres.CalendarSubCalendar{
+			SubCalendarID: id,
+			Name:          sub.Name,
+			Enabled:       sub.Enabled,
+		})
+	}
+	return repository.SyncCalendarSubCalendars(ctx, platformIdentityID, calendarKey, converted)
+}
+
+// DeleteCalendarAccount removes one connection and its credentials and
+// sub-calendars.
+func DeleteCalendarAccount(ctx context.Context, platformIdentityID string, calendarKey string) error {
+	var repository, repoErr = postgres.DefaultRepository()
+	if (repoErr != nil) {
+		return repoErr
+	}
+	return repository.DeleteCalendarAccount(ctx, platformIdentityID, calendarKey)
+}
+
+// SetCalendarAccountEnabled writes the explicit connection enabled state.
+func SetCalendarAccountEnabled(ctx context.Context, platformIdentityID string, calendarKey string, enabled bool) error {
+	var repository, repoErr = postgres.DefaultRepository()
+	if (repoErr != nil) {
+		return repoErr
+	}
+	return repository.SetCalendarAccountEnabled(ctx, platformIdentityID, calendarKey, enabled)
+}
+
+// SetSubCalendarEnabled writes the explicit sub-calendar enabled state.
+func SetSubCalendarEnabled(ctx context.Context, platformIdentityID string, calendarKey string, subCalendarID string, enabled bool) error {
+	var repository, repoErr = postgres.DefaultRepository()
+	if (repoErr != nil) {
+		return repoErr
+	}
+	return repository.SetCalendarSubCalendarEnabled(ctx, platformIdentityID, calendarKey, subCalendarID, enabled)
+}
+
+// SaveCalendarPreferences replaces the account's calendar preferences. The
+// caller supplies the complete preference state, so a nil field clears it.
+func SaveCalendarPreferences(ctx context.Context, platformIdentityID string, preferences CalendarPreferences) error {
+	var repository, repoErr = postgres.DefaultRepository()
+	if (repoErr != nil) {
+		return repoErr
+	}
+	var options json.RawMessage
+	if (preferences.CalendarOptions != nil) {
+		var encoded, encodeErr = json.Marshal(preferences.CalendarOptions)
+		if (encodeErr != nil) {
+			return encodeErr
+		}
+		options = encoded
+	}
+	var tokenOrigin *string
+	if (preferences.TokenOrigin != "") {
+		var value = string(preferences.TokenOrigin)
+		tokenOrigin = &value
+	}
+	return repository.UpsertCalendarPreferences(ctx, platformIdentityID, &postgres.CalendarPreferences{
+		PrimaryAccountKey: preferences.PrimaryAccountKey,
+		TokenOrigin:       tokenOrigin,
+		CalendarOptions:   options,
+	})
+}
+
+// UpdateCalendarAccessToken persists a refreshed OAuth2 access token and expiry
+// for one connection.
+func UpdateCalendarAccessToken(ctx context.Context, platformIdentityID string, calendarKey string, accessToken string, expiresAt time.Time) error {
+	var repository, repoErr = postgres.DefaultRepository()
+	if (repoErr != nil) {
+		return repoErr
+	}
+	return repository.UpdateCalendarOAuthAccessToken(ctx, platformIdentityID, calendarKey, accessToken, expiresAt)
+}
+
+// calendarAccountToStorage translates the internal user-shaped connection into
+// its storage form. Provider secrets stay plaintext here; the repository
+// encrypts them at rest.
+func calendarAccountToStorage(calendarKey string, account models.CalendarAccount) *postgres.CalendarAccount {
+	var converted = &postgres.CalendarAccount{
+		CalendarKey:  calendarKey,
+		CalendarType: string(account.CalendarType),
+		Email:        account.Email,
+		Picture:      account.Picture,
+		Enabled:      account.Enabled,
+	}
+	if (account.OAuth2CalendarAuth != nil) {
+		var credentials = &postgres.CalendarOAuth2Credentials{
+			AccessToken:  account.OAuth2CalendarAuth.AccessToken,
+			RefreshToken: account.OAuth2CalendarAuth.RefreshToken,
+			Scope:        account.OAuth2CalendarAuth.Scope,
+		}
+		if (account.OAuth2CalendarAuth.AccessTokenExpireDate > 0) {
+			var expiresAt = account.OAuth2CalendarAuth.AccessTokenExpireDate.Time()
+			credentials.AccessTokenExpiresAt = &expiresAt
+		}
+		converted.OAuth2 = credentials
+	}
+	if (account.AppleCalendarAuth != nil) {
+		converted.Apple = &postgres.CalendarAppleCredentials{Password: account.AppleCalendarAuth.Password}
+	}
+	if (account.ICSCalendarAuth != nil) {
+		converted.ICS = &postgres.CalendarICSCredentials{FeedURL: account.ICSCalendarAuth.FeedURL}
+	}
+	if (account.SubCalendars != nil) {
+		var subCalendars = *account.SubCalendars
+		var stored = go_interop.MapWithCapacity[string, postgres.CalendarSubCalendar](subCalendars.Size())
+		for id, sub := range subCalendars {
+			stored[id] = postgres.CalendarSubCalendar{SubCalendarID: id, Name: sub.Name, Enabled: sub.Enabled}
+		}
+		converted.SubCalendars = stored
+	}
+	return converted
+}
+
+// calendarAccountFromStorage translates a stored connection into the internal
+// user shape.
+func calendarAccountFromStorage(account postgres.CalendarAccount) models.CalendarAccount {
+	var converted = models.CalendarAccount{
+		CalendarType: models.CalendarType(account.CalendarType),
+		Email:        account.Email,
+		Picture:      account.Picture,
+		Enabled:      account.Enabled,
+	}
+	if (account.OAuth2 != nil) {
+		var credentials = &models.OAuth2CalendarAuth{
+			AccessToken:  account.OAuth2.AccessToken,
+			RefreshToken: account.OAuth2.RefreshToken,
+			Scope:        account.OAuth2.Scope,
+		}
+		if (account.OAuth2.AccessTokenExpiresAt != nil) {
+			credentials.AccessTokenExpireDate = models.NewDateTimeFromTime(*account.OAuth2.AccessTokenExpiresAt)
+		}
+		converted.OAuth2CalendarAuth = credentials
+	}
+	if (account.Apple != nil) {
+		converted.AppleCalendarAuth = &models.AppleCalendarAuth{Email: account.Email, Password: account.Apple.Password}
+	}
+	if (account.ICS != nil) {
+		converted.ICSCalendarAuth = &models.ICSCalendarAuth{FeedURL: account.ICS.FeedURL, Label: account.Email}
+	}
+	if (account.SubCalendars.Size() > 0) {
+		var subCalendars = go_interop.MapWithCapacity[string, models.SubCalendar](account.SubCalendars.Size())
+		for id, sub := range account.SubCalendars {
+			subCalendars[id] = models.SubCalendar{Name: sub.Name, Enabled: sub.Enabled}
+		}
+		converted.SubCalendars = &subCalendars
+	}
+	return converted
+}
+
+func calendarOptionsFromJSON(raw json.RawMessage) (*models.CalendarOptions, error) {
+	var options models.CalendarOptions
+	var decodeErr = json.Unmarshal(raw, &options)
+	if (decodeErr != nil) {
+		return Failure(decodeErr)
+	}
+	return Success(&options)
+}
