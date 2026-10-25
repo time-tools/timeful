@@ -51,6 +51,19 @@ ANSI = {
 }
 
 
+def gala_state_dir() -> Path:
+    """Return the compiler's state root, honouring a relocated ``GALA_HOME``.
+
+    ``.envrc`` points ``GALA_HOME`` at ``.local/gala`` so the compiler keeps its
+    stdlib extraction inside the checkout, and the verifier has to read the
+    marker the compiler is actually using rather than assuming ``~/.gala``.
+    """
+    home = os.environ.get("GALA_HOME")
+    if home:
+        return Path(os.path.expanduser(home))
+    return Path.home() / ".gala"
+
+
 class Fatal(Exception):
     """An environment problem that stops the run before any checking happens."""
 
@@ -368,7 +381,7 @@ class Verifier:
             )
             return
         version = extraction.split(" ", 1)[0]
-        marker = Path.home() / ".gala" / "stdlib" / f"v{version}" / ".stdlib-extracted"
+        marker = gala_state_dir() / "stdlib" / f"v{version}" / ".stdlib-extracted"
         current = ""
         if marker.is_file():
             current = marker.read_text(encoding="utf-8", errors="replace").rstrip("\n")
