@@ -1,0 +1,152 @@
+package listmonk
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
+	"strconv"
+
+	"timeful/server/logger"
+)
+
+import "martianoff/gala/go_interop"
+
+// Adds the given user to the Listmonk contact list
+// If subscriberId is not nil, then UPDATE the user instead of adding user
+func AddUserToListmonk(email string, firstName string, lastName string, picture string, subscriberId *int, sendMarketingEmails bool) {
+	if (os.Getenv("LISTMONK_ENABLED") == "false") {
+		return
+	}
+
+	var url = os.Getenv("LISTMONK_URL")
+	var username = os.Getenv("LISTMONK_USERNAME")
+	var password = os.Getenv("LISTMONK_PASSWORD")
+	var listIdString = os.Getenv("LISTMONK_LIST_ID")
+
+	var listId, listIdErr = strconv.Atoi(listIdString)
+	if (listIdErr != nil) {
+		logger.StdErr.Println(listIdErr)
+		return
+	}
+
+	var args = go_interop.MapEmpty[string, any]()
+	go_interop.MapPut[string, any](args, "email", email)
+	go_interop.MapPut[string, any](args, "name", firstName + " " + lastName)
+	go_interop.MapPut[string, any](args, "status", "enabled")
+	var attribs = go_interop.MapEmpty[string, any]()
+	go_interop.MapPut[string, any](attribs, "firstName", firstName)
+	go_interop.MapPut[string, any](attribs, "lastName", lastName)
+	go_interop.MapPut[string, any](attribs, "picture", picture)
+	go_interop.MapPut[string, any](args, "attribs", attribs)
+	go_interop.MapPut[string, any](args, "preconfirm_subscriptions", true)
+	if (sendMarketingEmails) {
+		go_interop.MapPut[string, any](args, "lists", go_interop.SliceOf[any](listId))
+	}
+	var body, _ = json.Marshal(args)
+	var bodyBuffer = bytes.NewBuffer(body)
+
+	var method = if (subscriberId != nil) { "PUT" } else { "POST" }
+	var target = if (subscriberId != nil) {
+		fmt.Sprintf("%s/api/subscribers/%d", url, *subscriberId)
+	} else {
+		fmt.Sprintf("%s/api/subscribers", url)
+	}
+	var req, _ = http.NewRequest(method, target, bodyBuffer)
+	req.SetBasicAuth(username, password)
+	req.Header.Set("Content-Type", "application/json")
+
+	var resp, respErr = http.DefaultClient.Do(req)
+	if (respErr != nil) {
+		logger.StdErr.Println(respErr)
+		return
+	}
+	resp.Body.Close()
+}
+
+// Check if the user is already in listmonk
+// Returns a bool representing whether the subscriber exists and the id of the subscriber if it does exist
+func DoesUserExist(email string) (bool, *int) {
+	if (os.Getenv("LISTMONK_ENABLED") == "false") {
+		return (false, nil)
+	}
+
+	var url = os.Getenv("LISTMONK_URL")
+	var username = os.Getenv("LISTMONK_USERNAME")
+	var password = os.Getenv("LISTMONK_PASSWORD")
+
+	var req, _ = http.NewRequest("GET", fmt.Sprintf("%s/api/subscribers?query=subscribers.email='%s'", url, email), nil)
+	req.SetBasicAuth(username, password)
+	req.Header.Set("Content-Type", "application/json")
+
+	var resp, respErr = http.DefaultClient.Do(req)
+	if (respErr != nil) {
+		logger.StdErr.Println(respErr)
+		return (false, nil)
+	}
+
+	var response listmonkResponse
+	var decodeErr = json.NewDecoder(resp.Body).Decode(&response)
+	resp.Body.Close()
+	if (decodeErr != nil) {
+		logger.StdErr.Println(decodeErr)
+		return (false, nil)
+	}
+
+	if (go_interop.SliceFrom(response.Data.Results, 0).Size() > 0) {
+		return (true, &response.Data.Results[0].Id)
+	} else {
+		return (false, nil)
+	}
+}
+
+// Send a transactional email using the specified template and data.
+// fromEmail is optional; if non-empty, overrides the default sender address.
+func SendEmail(email string, templateId int, data map[string]any, fromEmail ...string) {
+	if (os.Getenv("LISTMONK_ENABLED") == "false") {
+		return
+	}
+
+	var listmonkUrl = os.Getenv("LISTMONK_URL")
+	var listmonkUsername = os.Getenv("LISTMONK_USERNAME")
+	var listmonkPassword = os.Getenv("LISTMONK_PASSWORD")
+
+	var payload = go_interop.MapEmpty[string, any]()
+	go_interop.MapPut[string, any](payload, "subscriber_email", email)
+	go_interop.MapPut[string, any](payload, "template_id", templateId)
+	go_interop.MapPut[string, any](payload, "data", data)
+	go_interop.MapPut[string, any](payload, "content_type", "html")
+	if (fromEmail.Size() > 0 && fromEmail[0] != "") {
+		go_interop.MapPut[string, any](payload, "from_email", fromEmail[0])
+	}
+	var body, marshalErr = json.Marshal(payload)
+	if (marshalErr != nil) {
+		logger.StdErr.Println(marshalErr)
+		return
+	}
+
+	var req, _ = http.NewRequest("POST", fmt.Sprintf("%s/api/tx", listmonkUrl), bytes.NewBuffer(body))
+	req.SetBasicAuth(listmonkUsername, listmonkPassword)
+	req.Header.Set("Content-Type", "application/json")
+
+	var response, doErr = http.DefaultClient.Do(req)
+	if (doErr != nil) {
+		logger.StdErr.Println(doErr)
+	}
+	response.Body.Close()
+}
+
+// Send a transactional email using the specified template and data. Adds subscriber if they don't exist
+func SendEmailAddSubscriberIfNotExist(email string, templateId int, data map[string]any, sendMarketingEmails bool, fromEmail ...string) {
+	if (os.Getenv("LISTMONK_ENABLED") == "false") {
+		return
+	}
+
+	var exists, _ = DoesUserExist(email)
+	if (!exists) {
+		AddUserToListmonk(email, "", "", "", nil, sendMarketingEmails)
+	}
+
+	SendEmail(email, templateId, data, fromEmail...)
+}

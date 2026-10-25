@@ -60,6 +60,25 @@ That alias defect is [#749](https://github.com/martianoff/gala/issues/749) and i
 The same pass found that an unannotated `go_interop.OptionFromMap(...).ForEach` lambda leaked the compiler's own `T` when the map's value type was a GALA struct declared in another package, so `discord_bot/init.gala` annotates the lambda; that leak is [#750](https://github.com/martianoff/gala/issues/750) and is fixed since the `014c2f23` lock (verified 2026-10-18: the lambda now emits the concrete type).
 [`scripts/gala/verify.sh`](scripts/gala/verify.sh) reports `OK (30 twins)` with every regenerated twin byte-identical under a double transpile, `go build ./...` is green, and the canonical Compose backend sequence in [`README.md`](README.md) passes.
 
+### Eight-twin batch (2026-10-25)
+
+A single batch landed eight twins under the same compiler and verifier run, because the full `verify.sh` pass is the expensive step and the candidates are independent.
+The batch is `observability/transport`, `services/auth`, `services/calendar/types`, `services/contacts`, `services/listmonk`, `services/microsoftgraph`, `services/gcloud/tasks`, and `mockprovider`; each keeps its Go-facing names, signatures, tags, and wire shapes.
+
+The construct facts the batch settled on the pinned compiler:
+
+- `resource.Bracket` carries a `defer` whose release returns an error once the release body spells the call as `FromError(r.Body.Close())`; a bare `r.Body.Close()` is refused because a void lambda cannot discard the error.
+- A declared Go result list whose error is a concrete pointer type lowers from a plain tuple return, as `([]models.User, *errs.GoogleAPIError)` did in `contacts.gala`, while an `error` result takes `Success`/`Failure` and an expression body wraps `resource.Bracket` without leaving `std`.
+- An empty named map literal (`http.Header{}`, `url.Values{}`) is direct in GALA and emits the same Go literal, which keeps `Transport`'s nil-header guard and the OAuth form payload exact.
+- A `match` arm that returns must be a block (`case X => { return ... }`), and a non-sealed match still needs `case _`; the same goes for the fall-through case the original `switch` left to the trailing `return nil`.
+- Package-level constants became `var`s in `mockprovider` only where no caller needs constantness, and the mock's `map[string]any` and `[]map[string]any` payloads went through `MapEmpty`/`MapPut` and `SliceOf` with explicit type arguments.
+- `services/gcloud/tasks.gala` shows a nested protobuf keyed literal (`&cloudtaskspb.CreateTaskRequest{...}` with the `Task_HttpRequest` oneof and its `HttpRequest`), a `map[int]*timestamppb.Timestamp` from `MapEmpty[int, *timestamppb.Timestamp]()`, and map-index assignment as direct.
+- `services/auth` keeps its tagged `GoogleIdTokenInfo`, the `chan`/`recover` async refresh, and the channel-driven `RefreshUserTokenIfNecessary` in `auth_extra.go`; the verification and token-exchange members moved because none of their signatures or wire shapes changed.
+- `services/microsoftgraph` and `services/calendar/types` stay runtime-free (their generated Go names no runtime package), the latter because `GetCalendarProvider` only compares defined-type constants and returns sibling-declared structs.
+
+Each twin's generated imports name only `go.gala.fyi/stdlib/...` where it uses the runtime, and each sibling is handwritten and gofmt-clean.
+The batch's evidence is one full `verify.sh` run, a module-wide `go build ./...` and `go vet ./...`, and the canonical Compose backend sequence from `server/README.md`.
+
 ## Compiler
 
 The translation target is the `gala` compiler the dev shell puts on `PATH`, and every committed twin regenerates byte-identically under it.
@@ -121,7 +140,7 @@ A rev mismatch is resolved by a bump iteration and never by translating across i
 
 ## Twin registry
 
-Thirty `.gala` sources across sixteen packages carry a committed twin.
+Thirty-eight `.gala` sources across twenty-three packages carry a committed twin.
 `stdlib` means the generated Go imports the adopted runtime; `runtime-free` means it names no runtime package and no `martianoff/gala` either.
 Every row regenerates with `cd server/<dir> && gala transpile --stdlib-module go.gala.fyi/stdlib -i <name>.gala -o <name>.go`; a handwritten sibling has no command because it is not generated.
 
@@ -132,12 +151,19 @@ Every row regenerates with `cd server/<dir> && gala transpile --stdlib-module go
 | `observability`           | `observability/redact.gala`                   | `observability/redact.go`                   | —                                                                                                                                                                             | stdlib       |
 | `observability`           | `observability/provider.gala`                 | `observability/provider.go`                 | `observability/provider_recorder.go` (`Recorder` and its ten provider methods)                                                                                                | stdlib       |
 | `observability`           | `observability/readiness.gala`                | `observability/readiness.go`                | `observability/readiness_monitor.go` (`ReadinessMonitor` and its `Start`, `SetObserver`, `State`, and `check` methods)                                                        | stdlib       |
+| `observability`           | `observability/transport.gala`                | `observability/transport.go`                | `observability/transport_extra.go` (`(*Recorder).Transport`)                                                                                                                  | stdlib       |
 | `logger`                  | `logger/logger.gala`                          | `logger/logger.go`                          | —                                                                                                                                                                             | runtime-free |
 | `appenv`                  | `appenv/appenv.gala`                          | `appenv/appenv.go`                          | `appenv/appenv_port.go` (`ResolvePort`)                                                                                                                                       | stdlib       |
 | `utils`                   | `utils/array_utils.gala`                      | `utils/array_utils.go`                      | `utils/array_utils_extra.go` (`ArrayToSet`, `ElementWithIndex`, `FindAddedRemovedKept`)                                                                                       | runtime-free |
 | `utils`                   | `utils/request_utils.gala`                    | `utils/request_utils.go`                    | —                                                                                                                                                                             | stdlib       |
 | `services`                | `services/services.gala`                      | `services/services.go`                      | —                                                                                                                                                                             | stdlib       |
 | `services/providerconfig` | `services/providerconfig/providerconfig.gala` | `services/providerconfig/providerconfig.go` | `services/providerconfig/doc.go` (package comment)                                                                                                                            | stdlib       |
+| `services/auth`           | `services/auth/auth.gala`                     | `services/auth/auth.go`                     | `services/auth/auth_extra.go` (`GoogleIdTokenInfo`, `RefreshAccessTokenData`, `RefreshAccessTokenAsync`, `RefreshUserTokenIfNecessary`)                                       | stdlib       |
+| `services/calendar`       | `services/calendar/types.gala`                | `services/calendar/types.go`                | —                                                                                                                                                                             | runtime-free |
+| `services/contacts`       | `services/contacts/contacts.gala`             | `services/contacts/contacts.go`             | `services/contacts/contacts_extra.go` (the People API response structs)                                                                                                       | stdlib       |
+| `services/listmonk`       | `services/listmonk/listmonk.gala`             | `services/listmonk/listmonk.go`             | `services/listmonk/listmonk_extra.go` (the subscriber-search response structs)                                                                                                | stdlib       |
+| `services/microsoftgraph` | `services/microsoftgraph/microsoftgraph.gala` | `services/microsoftgraph/microsoftgraph.go` | `services/microsoftgraph/microsoftgraph_extra.go` (`UserInfo` and the Graph user response)                                                                                    | runtime-free |
+| `services/gcloud`         | `services/gcloud/tasks.gala`                  | `services/gcloud/tasks.go`                  | —                                                                                                                                                                             | stdlib       |
 | `routes`                  | `routes/guest_response_ownership.gala`        | `routes/guest_response_ownership.go`        | —                                                                                                                                                                             | runtime-free |
 | `routes`                  | `routes/users.gala`                           | `routes/users.go`                           | —                                                                                                                                                                             | stdlib       |
 | `routes`                  | `routes/respondent_identity.gala`             | `routes/respondent_identity.go`             | —                                                                                                                                                                             | stdlib       |
@@ -157,6 +183,7 @@ Every row regenerates with `cd server/<dir> && gala transpile --stdlib-module go
 | `models`                  | `models/datetime.gala`                        | `models/datetime.go`                        | `models/datetime_extra.go` (`MarshalJSON`, `UnmarshalJSON`)                                                                                                                   | stdlib       |
 | `models`                  | `models/uuid.gala`                            | `models/uuid.go`                            | `models/uuid_extra.go` (`ParseUUID`, `NewUUID`, `formatUUID`, and the JSON/text marshalers)                                                                                   | stdlib       |
 | `main`                    | `main.gala`                                   | `main.go`                                   | `main_run.go` (`main()`'s `chan error`/`go`/`select` run loop)                                                                                                                | stdlib       |
+| `mockprovider`            | `mockprovider/main.gala`                      | `mockprovider/main.go`                      | —                                                                                                                                                                             | stdlib       |
 
 `scripts/gala/verify.sh` checks that every one of them regenerates byte-identically under `--stdlib-module go.gala.fyi/stdlib`, imports only the adopted `go.gala.fyi/stdlib/...` runtime and never `martianoff/gala`, is `gofmt`-clean, and keeps `go build ./...` green.
 Adding a twin means adding its registry row here and passing `verify.sh`.
@@ -267,9 +294,9 @@ An entry whose candidates stay blocked records the compiler rev its blockers wer
 A fixed blocker moves the candidate forward; a persistent blocker with no workaround becomes a Backlog task and a probe, and the candidate stays.
 
 1. `models/set.go`, `models/location.go`, `models/event.go` — all three are blocked on `struct{}` and tags with no dependency among them, and the listed order is by size and blocker count (`set.go` is three lines, `location.go` thirteen, `event.go` the tag-heavy one); blockers last re-verified on rev `8ba02b2b` (2026-10-25) with probes at `scripts/gala/probes/models-*`; `models/datetime.go` and `models/uuid.go` are migrated (the runtime-synthesized `Hash`/`Compare` replaced the siblings in TASK-0353.03), with uuid's fixed-size `[16]byte` helpers still in `models/uuid_extra.go`.
-2. `observability/transport.go` — `provider.go` landed on 2026-10-10 as the split whose handwritten sibling is `provider_recorder.go`, and `readiness` landed on 2026-10-18 with `readiness_monitor.go` holding `ReadinessMonitor` and its methods; every `*Recorder` method stays handwritten (the receiver's methods are spread across `provider.go`, `metrics.go`, and `transport.go`), so take `transport.go` (whose `InstrumentDefaultTransport`, `tracingTransport`, and the two free functions are candidates while `(*Recorder).Transport` stays handwritten).
-3. `services/auth`, `services/calendar`, `services/contacts`, `services/listmonk`, `services/microsoftgraph` — take them in the listed order; `calendar` imports `auth` (`services/calendar/calendar.go`), so `auth` is its dependency and must be judged first, while `contacts`, `listmonk`, and `microsoftgraph` are independent of the rest.
-4. `mockprovider`, `services/gcloud/tasks.go` — take them in the listed order; they have no dependency on each other, and `tasks.go`'s import of `services/listmonk` (entry 3) stays satisfied whether or not listmonk is translated.
+2. `services/calendar/ics_calendar.go`, then `services/calendar/google_calendar.go`, `services/calendar/outlook_calendar.go`, and `services/calendar/apple_calendar.go` — `services/calendar/types.go` landed on 2026-10-25 as a runtime-free whole-file twin; `services/calendar/calendar.go` stays handwritten because its `chan`/`go`/in-place-`recover` fan-out has no substitute (the channel and recover findings), while the remaining provider files are candidates whose tagged response structs move to a handwritten sibling.
+   Take `ics_calendar.go` first: it is the smallest provider file, and `google_calendar.go` and `outlook_calendar.go` repeat its shape.
+3. `services/calendar/calendar.go`'s two `recover`-guarded broadcast helpers and `GetUsersCalendarEvents` stay handwritten until the channel/recover findings close; no new candidate depends on them.
 
 ## Stop conditions
 

@@ -1,0 +1,102 @@
+package contacts
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/url"
+
+	"timeful/server/errs"
+	"timeful/server/logger"
+	"timeful/server/models"
+	"timeful/server/services"
+	"timeful/server/utils"
+)
+
+import "martianoff/gala/go_interop"
+
+func SearchContacts(user *models.User, query string) ([]models.User, *errs.GoogleAPIError) {
+	// Set calendar auth to the user's primary google calendar account
+	if (user.CalendarAccounts == nil) {
+		return (nil, &errs.GoogleAPIError{Code: 400, Message: "No calendar accounts linked", Status: "FAILED_PRECONDITION"})
+	}
+	var key = utils.GetCalendarAccountKey(user.Email, models.GoogleCalendarType)
+	var account = user.CalendarAccounts[key]
+	if (account.OAuth2CalendarAuth == nil) {
+		return (nil, &errs.GoogleAPIError{Code: 400, Message: "No Google calendar account linked", Status: "FAILED_PRECONDITION"})
+	}
+	var calendarAuth = account.OAuth2CalendarAuth
+
+	// Search contacts
+	var response = services.CallApi(
+		user,
+		calendarAuth,
+		"GET",
+		fmt.Sprintf("https://people.googleapis.com/v1/people:searchContacts?query=%s&pageSize=10&readMask=names,emailAddresses,photos", url.QueryEscape(query)),
+		nil,
+	)
+
+	var contactsData contactsSearchResponse
+	var searchDecodeErr = json.NewDecoder(response.Body).Decode(&contactsData)
+	response.Body.Close()
+	if (searchDecodeErr != nil) {
+		logger.StdErr.Panicln(searchDecodeErr)
+	}
+
+	var directoryData contactsDirectoryResponse
+	if (query.ByteSize() > 0) {
+		// Search Directory
+		response = services.CallApi(
+			user,
+			calendarAuth,
+			"GET",
+			fmt.Sprintf("https://people.googleapis.com/v1/people:searchDirectoryPeople?query=%s&pageSize=10&readMask=names,emailAddresses,photos&sources=DIRECTORY_SOURCE_TYPE_DOMAIN_PROFILE", url.QueryEscape(query)),
+			nil,
+		)
+
+		// Parse response
+		var directoryDecodeErr = json.NewDecoder(response.Body).Decode(&directoryData)
+		response.Body.Close()
+		if (directoryDecodeErr != nil) {
+			logger.StdErr.Panicln(directoryDecodeErr)
+		}
+	}
+
+	// Throw error if contacts access has not been granted
+	if (contactsData.Error != nil) {
+		return (nil, contactsData.Error)
+	} else if (directoryData.Error != nil && directoryData.Error.Code == 403) {
+		// Need to check if code is 403 because error 400 occurs when user is not a GSuite user (which is okay and should not throw an error)
+		return (nil, directoryData.Error)
+	}
+
+	// Format list of contacts search results
+	var contactList = go_interop.SliceEmpty[models.User]()
+	for _, result := range contactsData.Results {
+		var userProfile models.User
+		userProfile.FirstName = result.Person.Names[0].GivenName
+		userProfile.LastName = result.Person.Names[0].FamilyName
+		if (go_interop.SliceFrom(result.Person.Photos, 0).Size() > 0) {
+			userProfile.Picture = result.Person.Photos[0].Url
+		}
+
+		for _, personEmail := range result.Person.EmailAddresses {
+			userProfile.Email = personEmail.Value
+			contactList = go_interop.SliceAppend(contactList, userProfile)
+		}
+	}
+	for _, person := range directoryData.People {
+		var userProfile models.User
+		userProfile.FirstName = person.Names[0].GivenName
+		userProfile.LastName = person.Names[0].FamilyName
+		if (go_interop.SliceFrom(person.Photos, 0).Size() > 0) {
+			userProfile.Picture = person.Photos[0].Url
+		}
+
+		for _, personEmail := range person.EmailAddresses {
+			userProfile.Email = personEmail.Value
+			contactList = go_interop.SliceAppend(contactList, userProfile)
+		}
+	}
+
+	return (contactList, nil)
+}

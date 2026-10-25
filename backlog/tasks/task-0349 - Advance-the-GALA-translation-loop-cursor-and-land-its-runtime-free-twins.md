@@ -4,7 +4,7 @@ title: Advance the GALA translation loop cursor and land its runtime-free twins
 status: In Progress
 assignee: []
 created_date: '2026-10-05 08:44'
-updated_date: '2026-10-10 17:47'
+updated_date: '2026-10-25 13:19'
 labels: []
 dependencies: []
 references:
@@ -440,6 +440,32 @@ Run the `gala-loop` skill one iteration at a time, taking the next entry from th
 **Next:** cursor entry 2 is `observability/readiness.go` then `observability/transport.go`.
 
 **State:** changes are in the worktree, not committed: `server/observability/provider.gala`, `provider.go`, `provider_recorder.go`, `server/GALA.md`, `.agents/skills/gala-from-go/references/constructs.md`, and this task's notes.
+
+## Iteration 16 — eight-twin batch (2026-10-25)
+
+**Provenance:** `gala` `GALA version 0.93.0` at `/nix/store/v0jxpys9mxb58dvdp3np8bywpchbyppa-gala-0.93.0/bin/gala`; flake rev `8ba02b2b18eca7ca3bc410f5e467b112366bdf6c` matches `server/GALA_COMPILER` (extraction `0.93.0 6368c093…`), so no bump. The user asked for a faster batch because a full `verify.sh` run is the expensive step, so one verifier run covers eight independent candidates instead of one per candidate; each twin still keeps its Go-facing surface and the batch is committed as one change.
+
+**Landed (8 twins):**
+- `observability/transport.gala` -> `transport.go`; sibling `transport_extra.go` keeps `(*Recorder).Transport`; `defer span.End()` moves through `resource.Bracket`.
+- `services/auth/auth.gala` -> `auth.go`; sibling `auth_extra.go` keeps the tagged `GoogleIdTokenInfo`, `RefreshAccessTokenData`, and the `chan`/`recover` refresh members.
+- `services/calendar/types.gala` -> `types.go` (runtime-free; `match` with a block per arm and a final `case _`).
+- `services/contacts/contacts.gala` -> `contacts.gala` output `contacts.go`; `contacts_extra.go` holds the tagged People API structs.
+- `services/listmonk/listmonk.gala` -> `listmonk.go`; `listmonk_extra.go` holds the tagged subscriber-search structs.
+- `services/microsoftgraph/microsoftgraph.gala` -> `microsoftgraph.go` (runtime-free); `microsoftgraph_extra.go` holds `UserInfo` and the Graph response.
+- `services/gcloud/tasks.gala` -> `tasks.go` (nested protobuf literals, `MapEmpty[int, *timestamppb.Timestamp]()`, map-index assignment).
+- `mockprovider/main.gala` -> `main.go` (constants to vars, `MapEmpty`/`MapPut`/`SliceOf`, `() => {}` closuress).
+
+**Construct facts re-derived on the pinned compiler:** a `Bracket` release over `Close() error` needs `FromError(r.Body.Close())`; an error result list takes `Success`/`Failure` while a concrete pointer error lowers from a tuple; empty named map literals (`http.Header{}`, `url.Values{}`) are direct; a match arm with `return` must be a block and a non-sealed match needs `case _`; `.Size()` on a string is a rune count so `ByteSize()` was used for the byte check in `contacts`; keyed literals of sibling-declared types build.
+
+**Evidence:** `server/scripts/gala/verify.sh` -> OK (38 twins), 38/38 byte-identical double transpiles, gofmt clean, no `martianoff/gala`; `go build ./...` and `go vet ./...` green; canonical Compose sequence `server-route-test` green across every package (`routes` 9.155s, `postgres` 10.004s, `services/auth` 0.173s, `observability` 0.164s, `services/gcloud` 0.046s, `microsoftgraph` 0.014s).
+
+**Ledger:** registry 30 -> 38 sources and 16 -> 23 packages; cursor rewritten to the remaining models group and the `services/calendar` provider files; batch prose records the construct facts. `constructs.md` gained the match-arm-block, empty-named-map-literal, and Bracket-release notes.
+
+**Caveat:** `.gitignore`'s `listmonk/` pattern ignores new files under `server/services/listmonk/`, so `listmonk.gala` and `listmonk_extra.go` were force-added; the tracked `listmonk.go` is unaffected.
+
+**Next:** cursor entry 1 stays the models trio; entry 2 is `services/calendar/ics_calendar.go`, then the other provider files; `services/calendar/calendar.go` stays handwritten on the channel/recover findings.
+
+**State:** committed as the batch commit on `rewrite-in-gala`; the pre-existing unrelated edits were left untouched.
 <!-- SECTION:NOTES:END -->
 
 ## Comments

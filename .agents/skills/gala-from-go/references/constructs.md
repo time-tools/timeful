@@ -112,6 +112,8 @@ A Go function literal written with the Go spelling is not a lambda; only the GAL
 | `match` default         | a `switch` with no `default`                      | `case _ => ...` on a non-sealed value; a sealed type's exhaustive match needs no default | workaround | `GALA-E0003` | `gala explain GALA-E0003`, then transpile the same match with and without `case _` |
 | `match` on a struct     | `switch p.Type { case ...: }`                     | a struct pattern, which calls its synthesized `Unapply`         | workaround | —          | transpile a struct pattern on a `val` field and on a `var` field separately |
 
+A `match` arm whose body is a statement can be written as `case X => { ... }`; a bare `case X => return v` is a parse error because the arm position parses as an expression, so wrap the return (or the assignment) in a block (checked 2026-10-25).
+
 A value-used `match` or `if` expression lowers to an immediately invoked Go closure with no runtime import, as long as its patterns are literals, stable identifiers, guards, or `_`; a typed pattern or an extractor pattern names the runtime.
 Read the import block before relying on that, because one typed arm changes the whole file's imports.
 
@@ -181,6 +183,9 @@ The container type decides which spelling applies, not whether the file is style
 | `HashMap` lookup     | `m[k]`                                          | `m.Get(k)`, or a `Some`/`None` match                                         | workaround | —          | transpile the lookup and read the emitted spelling                        |
 | map or slice type in an expression | `EmptyHashMap[string, []byte]()`   | name a GALA type such as `Array[T]` or `HashMap[K, V]`; text is `string`     | workaround | `GALA-E0040` | `gala explain GALA-E0040`, then transpile the expression                 |
 
+An empty literal of a named map type is direct rather than a helper: `http.Header{}` and `url.Values{}` emit the same `Type{}` literal, so a nil-header guard or an OAuth form payload can keep its exact spelling, while a populated `map[K]V{...}` still goes through `MapEmpty`/`MapPut` (checked 2026-10-25).
+A named map type also keeps its methods: `url.Values{}.Set(key, value)` is a plain Go method call and can build a values payload one entry at a time.
+
 ## Errors And Failure
 
 | Construct                   | Go                                    | GALA                                                          | Status      | Code       | Check                                                                 |
@@ -219,6 +224,7 @@ A partial type-argument list is its own failure: it emits the transpiler's own t
 A function-typed result cannot be spelled as an explicit type argument at all: `resource.Bracket[context.CancelFunc, func()]` is a parse error, so name the type (`type CloseFn func()`) and pass it, or omit both arguments and annotate the binding (`var closeFn func() = resource.Bracket(cancel, release, body)`), which infers the result from the annotation (checked 2026-10-10 on rev `cd2fdcb5`).
 A `Bracket` body cannot return nothing: a bare `return` with a trailing void call as the body's last statement leaves `A` nothing to bind and emits `return c.JSON(...)` inside a resultless lambda, which Go rejects, so give the body an explicit result (`return true`) when only its side effects matter (checked 2026-10-10 on rev `cd2fdcb5`, `main.gala`'s `initHealthRoute`).
 `Bracket` releases on every exit path, but it does not re-raise a passed-through panic the way Go's `defer` does: the body's panic becomes a `Try` Failure holding the runtime's unexported `panicError`, the release still runs, and re-raising the Failure delivers that error to an outer `recover`, so a `string` panic arrives as a `*panicError` rather than a `string`, with `Unwrap`/`errors.Is`/`errors.As` still reaching the original (checked 2026-10-10 on rev `cd2fdcb5`).
+A `Bracket` release lambda over an error-returning `Close` has to spell the call as `FromError(r.Body.Close())`; a bare `r.Body.Close()` is refused because the void lambda cannot discard the returned error (checked 2026-10-25).
 The body's parameter still binds correctly, which is what makes this hard to see in the source; transpile the form you intend to use and read the emitted function's own signature, because a clean transpile here is not evidence of a correct one.
 
 The `Spawn` asymmetry is documented in `gala explain GALA-E0037`'s own escape-hatch section, in the runtime source, and in the concurrency-safety document; what is missing is the caveat in the best-practices document and in the forbidden-keyword table, which present `Spawn` as a plain drop-in for `go f()`, so there is nothing to file about the behaviour.
