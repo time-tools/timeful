@@ -1,0 +1,255 @@
+/* The /analytics group contains all the routes to track analytics */
+package routes
+
+import (
+	"fmt"
+	"net/http"
+	"os"
+	"strconv"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"timeful/server/accounts"
+	"timeful/server/logger"
+	pgstore "timeful/server/postgres"
+	"timeful/server/slackbot"
+)
+
+import "martianoff/gala/go_interop"
+
+// BasicAuth middleware for analytics routes
+func AnalyticsBasicAuth() gin.HandlerFunc {
+	return (c) => {
+		var analyticsUsername = os.Getenv("ANALYTICS_USERNAME")
+		var analyticsPassword = os.Getenv("ANALYTICS_PASSWORD")
+		var user, pass, hasAuth = c.Request.BasicAuth()
+
+		if (!hasAuth || user != analyticsUsername || pass != analyticsPassword) {
+			c.Header("WWW-Authenticate", `Basic realm="Restricted"`)
+			var body = gin.H{}
+			body["error"] = "Unauthorized"
+			c.AbortWithStatusJSON(http.StatusUnauthorized, body)
+			return
+		}
+		c.Next()
+	}
+}
+
+func InitAnalytics(router *gin.RouterGroup) {
+	var analyticsRouter = router.Group("/analytics")
+
+	analyticsRouter.POST("/scanned-poster", scannedPoster)
+	analyticsRouter.GET("/monthly-active-event-creators", AnalyticsBasicAuth(), getMonthlyActiveEventCreators)
+	analyticsRouter.GET("/monthly-active-event-creators-with-more-than-x-events", AnalyticsBasicAuth(), getMonthlyActiveEventCreatorsWithMoreThanXEvents)
+	analyticsRouter.GET("/user/:email", AnalyticsBasicAuth(), getUserByEmail)
+}
+
+// @Summary Notifies us when poster QR code has been scanned
+// @Tags analytics
+// @Accept json
+// @Produce json
+// @Param payload body object{url=string,location=models.Location} true "Object containing the location that poster was scanned from and the url that was scanned"
+// @Success 200
+// @Router /analytics/scanned-poster [post]
+func scannedPoster(c *gin.Context) {
+	var payload = newScannedPosterPayload()
+	var bindErr = c.BindJSON(&payload)
+	if (bindErr != nil) {
+		return
+	}
+
+	if (payload.Location != nil) {
+		slackbot.SendTextMessage(
+			fmt.Sprintf(":face_with_monocle: Poster was scanned :face_with_monocle:\n*Location:* %s, %s, %s\n*URL:* %s",
+				payload.Location.City,
+				payload.Location.State,
+				payload.Location.CountryCode,
+				payload.Url,
+			),
+		)
+	} else {
+		slackbot.SendTextMessage(
+			fmt.Sprintf(":face_with_monocle: Poster was scanned :face_with_monocle:\n*URL:* %s", payload.Url),
+		)
+	}
+
+	c.JSON(http.StatusOK, gin.H{})
+}
+
+// @Summary Gets the daily count of monthly active event creators over a date range
+// @Tags analytics
+// @Accept json
+// @Produce json
+// @Param startDate query string true "Start date (YYYY-MM-DD) for the range"
+// @Param endDate query string true "End date (YYYY-MM-DD) for the range"
+// @Param timezoneOffset query integer true "Client's timezone offset in minutes from UTC (e.g., -420 for UTC-7)"
+// @Success 200 {array} object{date=string,count=int}
+// @Failure 400 {object} object{error=string} "Invalid date format, range, or timezone offset"
+// @Failure 500 {object} object{error=string} "Internal server error"
+// @Router /analytics/monthly-active-event-creators [get]
+func getMonthlyActiveEventCreators(c *gin.Context) {
+	var startDateStr = c.Query("startDate")
+	var endDateStr = c.Query("endDate")
+	var timezoneOffsetStr = c.Query("timezoneOffset")
+
+	if (startDateStr == "" || endDateStr == "" || timezoneOffsetStr == "") {
+		var body = gin.H{}
+		body["error"] = "startDate, endDate, and timezoneOffset query parameters are required"
+		c.JSON(http.StatusBadRequest, body)
+		return
+	}
+
+	var timezoneOffset, offsetErr = strconv.Atoi(timezoneOffsetStr)
+	if (offsetErr != nil) {
+		var body = gin.H{}
+		body["error"] = "Invalid timezoneOffset format. Must be an integer representing minutes."
+		c.JSON(http.StatusBadRequest, body)
+		return
+	}
+	var location = time.FixedZone("UserOffset", -timezoneOffset*60)
+
+	var layout = "2006-01-02"
+	var startDate, startErr = time.Parse(layout, startDateStr)
+	if (startErr != nil) {
+		var body = gin.H{}
+		body["error"] = "Invalid startDate format. Use YYYY-MM-DD"
+		c.JSON(http.StatusBadRequest, body)
+		return
+	}
+	var endDate, endErr = time.Parse(layout, endDateStr)
+	if (endErr != nil) {
+		var body = gin.H{}
+		body["error"] = "Invalid endDate format. Use YYYY-MM-DD"
+		c.JSON(http.StatusBadRequest, body)
+		return
+	}
+
+	if (endDate.Before(startDate)) {
+		var body = gin.H{}
+		body["error"] = "endDate cannot be before startDate"
+		c.JSON(http.StatusBadRequest, body)
+		return
+	}
+
+	var repository, repoErr = pgstore.DefaultRepository()
+	if (repoErr != nil) {
+		logger.StdErr.Panicln(repoErr)
+	}
+
+	var results, countErr = repository.CountDistinctMonthlyActiveEventCreatorsByDay(c.Request.Context(), analyticsDayEnds(startDate, endDate, location))
+	if (countErr != nil) {
+		logger.StdErr.Printf("monthly active event creators failed: %v", countErr)
+		var body = gin.H{}
+		body["error"] = "failed to load monthly active event creators"
+		c.JSON(http.StatusInternalServerError, body)
+		return
+	}
+
+	c.JSON(http.StatusOK, results)
+}
+
+// analyticsDayEnds returns the inclusive per-day reporting instants from
+// startDate through endDate at 23:59:59 in the client's fixed offset.
+func analyticsDayEnds(startDate time.Time, endDate time.Time, location *time.Location) []time.Time {
+	var dayEnds = go_interop.SliceEmpty[time.Time]()
+	for d := startDate; !d.After(endDate); d = d.AddDate(0, 0, 1) {
+		var year, month, day = d.Date()
+		dayEnds = go_interop.SliceAppend(dayEnds, time.Date(year, month, day, 23, 59, 59, 0, location))
+	}
+	return dayEnds
+}
+
+// @Summary Gets the daily count of monthly active event creators over a date range with more than x events
+// @Tags analytics
+// @Accept json
+// @Produce json
+// @Param startDate query string true "Start date (YYYY-MM-DD) for the range"
+// @Param endDate query string true "End date (YYYY-MM-DD) for the range"
+// @Param timezoneOffset query integer true "Client's timezone offset in minutes from UTC (e.g., -420 for UTC-7)"
+// @Success 200 {array} object{date=string,count=int}
+// @Failure 400 {object} object{error=string} "Invalid date format, range, or timezone offset"
+// @Failure 500 {object} object{error=string} "Internal server error"
+// @Router /analytics/monthly-active-event-creators-with-more-than-x-events [get]
+func getMonthlyActiveEventCreatorsWithMoreThanXEvents(c *gin.Context) {
+	var startDateStr = c.Query("startDate")
+	var endDateStr = c.Query("endDate")
+	var timezoneOffsetStr = c.Query("timezoneOffset")
+	var xStr = c.Query("x")
+
+	if (startDateStr == "" || endDateStr == "" || timezoneOffsetStr == "" || xStr == "") {
+		var body = gin.H{}
+		body["error"] = "startDate, endDate, timezoneOffset, and x query parameters are required"
+		c.JSON(http.StatusBadRequest, body)
+		return
+	}
+
+	var x, xErr = strconv.Atoi(xStr)
+	if (xErr != nil) {
+		var body = gin.H{}
+		body["error"] = "Invalid x format. Must be an integer."
+		c.JSON(http.StatusBadRequest, body)
+		return
+	}
+
+	var timezoneOffset, offsetErr = strconv.Atoi(timezoneOffsetStr)
+	if (offsetErr != nil) {
+		var body = gin.H{}
+		body["error"] = "Invalid timezoneOffset format. Must be an integer representing minutes."
+		c.JSON(http.StatusBadRequest, body)
+		return
+	}
+	var location = time.FixedZone("UserOffset", -timezoneOffset*60)
+
+	var layout = "2006-01-02"
+	var startDate, startErr = time.Parse(layout, startDateStr)
+	if (startErr != nil) {
+		var body = gin.H{}
+		body["error"] = "Invalid startDate format. Use YYYY-MM-DD"
+		c.JSON(http.StatusBadRequest, body)
+		return
+	}
+	var endDate, endErr = time.Parse(layout, endDateStr)
+	if (endErr != nil) {
+		var body = gin.H{}
+		body["error"] = "Invalid endDate format. Use YYYY-MM-DD"
+		c.JSON(http.StatusBadRequest, body)
+		return
+	}
+
+	if (endDate.Before(startDate)) {
+		var body = gin.H{}
+		body["error"] = "endDate cannot be before startDate"
+		c.JSON(http.StatusBadRequest, body)
+		return
+	}
+
+	var repository, repoErr = pgstore.DefaultRepository()
+	if (repoErr != nil) {
+		logger.StdErr.Panicln(repoErr)
+	}
+
+	var results, countErr = repository.CountDistinctMonthlyActiveEventCreatorsWithMoreThanXEventsByDay(
+		c.Request.Context(), analyticsDayEnds(startDate, endDate, location), x)
+	if (countErr != nil) {
+		logger.StdErr.Printf("monthly active event creators with more than x events failed: %v", countErr)
+		var body = gin.H{}
+		body["error"] = "failed to load monthly active event creators"
+		c.JSON(http.StatusInternalServerError, body)
+		return
+	}
+
+	c.JSON(http.StatusOK, results)
+}
+
+// @Summary Gets the user by email
+// @Tags analytics
+// @Accept json
+// @Produce json
+// @Param email path string true "User email"
+// @Success 200 {object} models.User
+// @Router /analytics/user/{email} [get]
+func getUserByEmail(c *gin.Context) {
+	var email = c.Param("email")
+	var user = accounts.UserByEmail(email)
+	c.JSON(http.StatusOK, user)
+}

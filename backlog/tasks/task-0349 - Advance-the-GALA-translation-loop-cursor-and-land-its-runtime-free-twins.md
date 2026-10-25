@@ -4,7 +4,7 @@ title: Advance the GALA translation loop cursor and land its runtime-free twins
 status: In Progress
 assignee: []
 created_date: '2026-10-05 08:44'
-updated_date: '2026-10-25 14:46'
+updated_date: '2026-10-25 15:14'
 labels: []
 dependencies: []
 references:
@@ -103,6 +103,27 @@ Run the `gala-loop` skill one iteration at a time, taking the next entry from th
 4. Per twin: `server/scripts/gala/verify.sh`, `go build ./...` in `server/`, and the canonical Compose test sequence in `server/README.md`; regenerate `server/docs` with `swag init` when annotations are involved.
 5. Record finding changes and any no-workaround blocker per the loop before moving on.
 6. Commit only task-relevant files; leave the pre-existing `backlog/backlog.md` modification alone.
+
+## Iteration 20 — fourth batch: five twins (2026-10-25)
+
+**Provenance:** `gala` `GALA version 0.93.0` at `/nix/store/v0jxpys9mxb58dvdp3np8bywpchbyppa-gala-0.93.0/bin/gala`; flake rev `8ba02b2b18eca7ca3bc410f5e467b112366bdf6c` matches `server/GALA_COMPILER` (extraction `0.93.0 6368c093…`), so no bump. The user asked for ten more files, then narrowed the scope to what is realistically landable; five candidates were taken and one `verify.sh` run covers them.
+
+**Landed (5 twins):**
+- `routes/event_timed_slots.gala` -> `event_timed_slots.go`; `event_timed_slots_extra.go` keeps the tagged `timedEventPayloadFields`.
+- `observability/metrics.gala` -> `metrics.go`; `metrics_extra.go` keeps `PoolStats` and the two `*Recorder` metric-building methods.
+- `routes/analytics.gala` -> `analytics.go`; `analytics_extra.go` keeps `scannedPosterPayload` and its constructor.
+- `routes/identity.gala` -> `identity.go`; `identity_extra.go` keeps `visitor`, `newVisitor`, `hashBytes`, and the association request bodies.
+- `routes/owner.gala` -> `owner.go`; `owner_extra.go` keeps `archiveEventInput`, its constructor, and `replaceEvent`.
+
+**Construct facts re-derived on the pinned compiler:** a `struct{}` membership set that never leaves one function is `map[K]bool`; `sha256.Sum256`'s `[32]byte` digest stays behind a sibling `hashBytes` and the 32-byte secret is `go_interop.SliceWithSize[byte](32)`; a local binding named after a package type makes the generated `std.Failure[*T]{}` name the local (`visitor` -> `visitorRecord`); `var _ = f()` is `GALA-E0060`; a `(bool, error)` list cannot use `return a, b`; populated `gin.H{...}` is `gin.H{}` plus index assignment; a `gin.HandlerFunc` closure infers `*gin.Context`; cross-`.gala`-file calls resolve once the callee file exists.
+
+**Evidence:** `server/scripts/gala/verify.sh` -> OK (63 twins) in 14m18s (63/63 byte-identical double transpiles, `gofmt` 63 checked, orphan scan over 211 Go files, `go build ./...` ok); `go vet ./...` clean; the canonical isolated Compose sequence passes (`routes` 4.695s, `observability` 0.501s, `postgres` 12.970s); `swag init --parseDependency` regenerated `server/docs` byte-identically.
+
+**Ledger:** registry 58 -> 63 sources (packages stay 26); the cursor drops the four landed `routes`/`observability` entries and now lists `routes/transfers.go`, `routes/auth.go`, `routes/user.go`/`routes/event_routes.go`, and the `postgres` free-function splits; the `struct{}` and fixed-array findings record the `map[K]bool` and `hashBytes` substitutions; a new finding row records the type-shadowing defect; `constructs.md` gained the shadowing and blank-result rows plus the local-set and cross-file prose; a batch prose section records every construct fact.
+
+**Next:** cursor entry 2 is `routes/transfers.go`.
+
+**State:** committed as the fourth batch commit; no generated file hand-edited and no test relaxed.
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes

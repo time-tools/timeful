@@ -1,0 +1,45 @@
+package observability
+
+import (
+	"time"
+
+	"go.opentelemetry.io/otel/sdk/metric"
+	otelruntime "go.opentelemetry.io/contrib/instrumentation/runtime"
+)
+
+import "martianoff/gala/go_interop"
+
+var requestDurationMetric = "http.server.request.duration"
+var readinessMetric = "timeful.service.readiness"
+var poolConnectionsMetric = "db.client.connection.count"
+var poolMaxConnectionsMetric = "db.client.connection.max"
+
+var metricExportInterval = 60 * time.Second
+var metricExportTimeout = 10 * time.Second
+
+var poolUsedState = "used"
+var poolIdleState = "idle"
+
+// requestDurationBoundaries are the OpenTelemetry semantic-convention HTTP
+// duration buckets, in seconds.
+var requestDurationBoundaries = go_interop.SliceOf(0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1, 2.5, 5, 7.5, 10)
+
+func requestDurationView() metric.View {
+	return metric.NewView(
+		metric.Instrument{
+			Name: requestDurationMetric,
+		},
+		metric.Stream{
+			Aggregation: metric.AggregationExplicitBucketHistogram{
+				Boundaries: requestDurationBoundaries,
+			},
+		},
+	)
+}
+
+func startRuntimeMetrics(provider *metric.MeterProvider) error {
+	if (provider == nil) {
+		return nil
+	}
+	return otelruntime.Start(otelruntime.WithMeterProvider(provider))
+}

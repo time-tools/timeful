@@ -1,0 +1,207 @@
+package routes
+
+import (
+	"errors"
+	"sort"
+	"time"
+
+	"timeful/server/models"
+)
+
+import "martianoff/gala/go_interop"
+
+var errActiveSlotOutsideEnabled = errors.New("active-slots-must-be-enabled")
+var errIncompleteTimedEventContract = errors.New("incomplete-timed-event-contract")
+var errInvalidEventTimezone = errors.New("invalid-event-timezone")
+var errInvalidSlotGeneration = errors.New("invalid-slot-generation")
+var errInvalidSelectedDay = errors.New("invalid-selected-day")
+
+func normalizeDateTimes(values []models.DateTime) []models.DateTime {
+	if (values.Size() == 0) {
+		return go_interop.SliceEmpty[models.DateTime]()
+	}
+
+	var seen = go_interop.MapEmpty[int64, bool]()
+	var normalized = go_interop.SliceWithCapacity[models.DateTime](values.Size())
+	for _, value := range values {
+		var ms = int64(value)
+		if (seen[ms]) {
+			continue
+		}
+		seen[ms] = true
+		normalized = go_interop.SliceAppend(normalized, value)
+	}
+
+	sort.Slice(normalized, (i, j) => normalized[i].Time().Before(normalized[j].Time()))
+
+	return normalized
+}
+
+// normalizeTimedEventPayloadFields validates the canonical timed-event contract.
+// The enabled slot domain is not persisted: it is derived as the full civil day
+// of each generation day, and active slots are validated against that derived
+// domain.
+func normalizeTimedEventPayloadFields(fields timedEventPayloadFields) (timedEventPayloadFields, error) {
+	if (fields.ActiveSlots == nil || fields.EventTimezone == nil || fields.SlotGeneration == nil || fields.TimedRecurrence == nil) {
+		return Failure(errIncompleteTimedEventContract)
+	}
+	if (*fields.EventTimezone == "" || fields.SlotGeneration.TimeIncrementMinutes <= 0 || fields.SlotGeneration.StartTimeLocal == "" || fields.SlotGeneration.EndTimeLocal == "" || (fields.TimedRecurrence.Kind != "specific_dates" && fields.TimedRecurrence.Kind != "weekly") || fields.TimedRecurrence.StartOnMonday == nil) {
+		return Failure(errIncompleteTimedEventContract)
+	}
+
+	var enabledSlots, deriveErr = deriveEnabledSlots(fields)
+	if (deriveErr != nil) {
+		return Failure(deriveErr)
+	}
+	var activeSlots = normalizeDateTimes(fields.ActiveSlots)
+
+	var enabledLookup = go_interop.MapEmpty[int64, bool]()
+	for _, slot := range enabledSlots {
+		enabledLookup[int64(slot)] = true
+	}
+	for _, slot := range activeSlots {
+		if (!enabledLookup[int64(slot)]) {
+			return Failure(errActiveSlotOutsideEnabled)
+		}
+	}
+
+	var result = fields
+	result.ActiveSlots = activeSlots
+
+	return Success(result)
+}
+
+// discardActiveSlotsOutsideEnabledDomain applies the wipe rule to
+// fields.ActiveSlots against the domain derived from the same fields, instead
+// of rejecting them.
+func discardActiveSlotsOutsideEnabledDomain(fields timedEventPayloadFields) ([]models.DateTime, error) {
+	var enabledSlots, deriveErr = deriveEnabledSlots(fields)
+	if (deriveErr != nil) {
+		return Failure(deriveErr)
+	}
+	var enabled = go_interop.MapEmpty[int64, bool]()
+	for _, slot := range enabledSlots {
+		enabled[int64(slot)] = true
+	}
+	var kept = go_interop.SliceWithCapacity[models.DateTime](fields.ActiveSlots.Size())
+	for _, slot := range fields.ActiveSlots {
+		if (enabled[int64(slot)]) {
+			kept = go_interop.SliceAppend(kept, slot)
+		}
+	}
+	return Success(normalizeDateTimes(kept))
+}
+
+// deriveEnabledSlots regenerates the enabled slot domain from picked dates
+// (specific-dates) or the anchor week (weekly), the event timezone, and the
+// slot-generation settings.
+func deriveEnabledSlots(fields timedEventPayloadFields) ([]models.DateTime, error) {
+	var location, locationErr = time.LoadLocation(*fields.EventTimezone)
+	if (locationErr != nil) {
+		return Failure(errInvalidEventTimezone)
+	}
+
+	var _, startErr = parseLocalTime(fields.SlotGeneration.StartTimeLocal)
+	if (startErr != nil) {
+		return Failure(errInvalidSlotGeneration)
+	}
+	var _, endErr = parseLocalTime(fields.SlotGeneration.EndTimeLocal)
+	if (endErr != nil) {
+		return Failure(errInvalidSlotGeneration)
+	}
+	var increment = fields.SlotGeneration.TimeIncrementMinutes
+
+	var days, daysErr = generationDays(fields.TimedRecurrence, fields.ActiveSlots, location)
+	if (daysErr != nil) {
+		return Failure(daysErr)
+	}
+
+	var generated []models.DateTime
+	for _, day := range days {
+		var start = time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, location)
+		var nextDay = day.AddDate(0, 0, 1)
+		var end = time.Date(nextDay.Year(), nextDay.Month(), nextDay.Day(), 0, 0, 0, 0, location)
+		for current := start; current.Before(end); current = current.Add(time.Duration(increment) * time.Minute) {
+			generated = go_interop.SliceAppend(generated, models.NewDateTimeFromTime(current.UTC()))
+		}
+	}
+
+	return Success(normalizeDateTimes(generated))
+}
+
+func generationDays(recurrence *models.TimedRecurrence, activeSlots []models.DateTime, location *time.Location) ([]time.Time, error) {
+	recurrence.Kind match {
+		case "specific_dates" => {
+			var days = go_interop.SliceWithCapacity[time.Time](recurrence.SelectedDays.Size())
+			for _, raw := range recurrence.SelectedDays {
+				var day, dayErr = time.Parse("2006-01-02", raw)
+				if (dayErr != nil) {
+					return Failure(errInvalidSelectedDay)
+				}
+				days = go_interop.SliceAppend(days, day)
+			}
+			return Success(days)
+		}
+		case "weekly" => {
+			return Success(weeklyAnchorDays(recurrence, weeklyAnchorInstant(activeSlots, location)))
+		}
+		case _ => {
+			return Failure(errIncompleteTimedEventContract)
+		}
+	}
+}
+
+// weeklyAnchorInstant returns the instant whose week anchors the derived
+// domain: the earliest active slot, or time.Now() in the event timezone when
+// there are no active slots (no anchor can be recovered in that case).
+func weeklyAnchorInstant(activeSlots []models.DateTime, location *time.Location) time.Time {
+	if (activeSlots.Size() == 0) {
+		return time.Now().In(location)
+	}
+
+	var earliest = activeSlots[0].Time()
+	for _, slot := range go_interop.SliceFrom(activeSlots, 1) {
+		if (slot.Time().Before(earliest)) {
+			earliest = slot.Time()
+		}
+	}
+
+	return earliest.In(location)
+}
+
+// weeklyAnchorDays ports the day-of-week math from eventEditorSchedule.ts.
+func weeklyAnchorDays(recurrence *models.TimedRecurrence, anchor time.Time) []time.Time {
+	var startOnMonday = recurrence.StartOnMonday != nil && *recurrence.StartOnMonday
+	var indexes = go_interop.SliceWithCapacity[int](recurrence.SelectedDaysOfWeek.Size())
+	for _, dayIndex := range recurrence.SelectedDaysOfWeek {
+		if (startOnMonday && dayIndex == 0) {
+			continue
+		}
+		if (!startOnMonday && dayIndex == 7) {
+			continue
+		}
+		indexes = go_interop.SliceAppend(indexes, dayIndex)
+	}
+	sort.Ints(indexes)
+
+	var anchorWeekday = int(anchor.Weekday())
+	var days = go_interop.SliceWithCapacity[time.Time](indexes.Size())
+	for _, dayIndex := range indexes {
+		var targetWeekday = dayIndex % 7
+		var daysUntil = (targetWeekday - anchorWeekday + 7) % 7
+		days = go_interop.SliceAppend(days, anchor.AddDate(0, 0, daysUntil))
+	}
+
+	return days
+}
+
+func parseLocalTime(value string) (time.Time, error) {
+	for _, layout := range go_interop.SliceOf("15:04:05", "15:04") {
+		var parsed, parseErr = time.Parse(layout, value)
+		if (parseErr == nil) {
+			return Success(parsed)
+		}
+	}
+
+	return Failure(errors.New("invalid local time"))
+}
