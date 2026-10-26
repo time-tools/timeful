@@ -3,6 +3,7 @@
 // The /events group contains all the routes to get and edit events
 package routes
 
+import "go.gala.fyi/stdlib/std"
 import (
 	"bytes"
 	"encoding/json"
@@ -69,6 +70,9 @@ func rejectLegacyTimedScheduleFields(c *gin.Context) error {
 
 //line events.gala:49
 func InitEvents(router *gin.RouterGroup) {
+	if router == nil {
+		panic("InitEvents: parameter router is a Ptr[gin.RouterGroup], but the caller passed nil")
+	}
 //line events.gala:50
 	var eventRouter = router.Group("/events")
 //line events.gala:52
@@ -115,14 +119,12 @@ func InitEvents(router *gin.RouterGroup) {
 // on the collectEmails setting and owner status.
 func stripSensitiveUserFields(user *models.User) {
 //line events.gala:76
-	if user == nil {
+	std.OptionPtrOf(user).ForEach(func(found *models.User) {
 //line events.gala:77
-		return
-	}
+		found.CalendarAccounts = nil
+//line events.gala:78
+		found.CalendarOptions = nil
 //line events.gala:79
-	user.CalendarAccounts = nil
-//line events.gala:80
-	user.CalendarOptions = nil
-//line events.gala:81
-	user.PrimaryAccountKey = nil
+		found.PrimaryAccountKey = nil
+	})
 }

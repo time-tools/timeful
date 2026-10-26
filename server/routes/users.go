@@ -2,6 +2,7 @@
 
 package routes
 
+import "go.gala.fyi/stdlib/std"
 import (
 	"github.com/gin-gonic/gin"
 	"net/http"
@@ -13,6 +14,9 @@ import (
 
 //line users.gala:13
 func InitUsers(router *gin.RouterGroup) {
+	if router == nil {
+		panic("InitUsers: parameter router is a Ptr[gin.RouterGroup], but the caller passed nil")
+	}
 //line users.gala:14
 	var usersRouter = router.Group("/users")
 //line users.gala:18
@@ -33,7 +37,7 @@ func getPublicUserProfile(c *gin.Context) {
 //line users.gala:29
 	var user = accounts.UserByPlatformIdentityID(platformIdentityID)
 //line users.gala:30
-	if user == nil {
+	if std.OptionPtrOf(user).IsEmpty() {
 //line users.gala:31
 		c.JSON(http.StatusNotFound, responses.Error{Error: errs.UserDoesNotExist})
 //line users.gala:32

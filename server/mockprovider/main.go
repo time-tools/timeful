@@ -81,6 +81,9 @@ func main() {
 func requireMethod(method string, handler http.HandlerFunc) http.HandlerFunc {
 //line main.gala:58
 	return func(w http.ResponseWriter, r *http.Request) {
+		if r == nil {
+			panic("lambda: parameter r is a Ptr[http.Request], but the caller passed nil")
+		}
 //line main.gala:59
 		if r.Method != method {
 //line main.gala:60
@@ -97,6 +100,9 @@ func requireMethod(method string, handler http.HandlerFunc) http.HandlerFunc {
 func writeJSON(body any) http.HandlerFunc {
 //line main.gala:68
 	return func(w http.ResponseWriter, r *http.Request) {
+		if r == nil {
+			panic("lambda: parameter r is a Ptr[http.Request], but the caller passed nil")
+		}
 //line main.gala:69
 		w.Header().Set("Content-Type", "application/json")
 //line main.gala:70

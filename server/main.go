@@ -53,11 +53,17 @@ func init() {
 func initHealthRoute(apiRouter *gin.RouterGroup) {
 //line main.gala:39
 	apiRouter.GET("/health/live", func(c *gin.Context) {
+		if c == nil {
+			panic("lambda: parameter c is a Ptr[gin.Context], but the caller passed nil")
+		}
 //line main.gala:40
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 //line main.gala:43
 	apiRouter.GET("/health", func(c *gin.Context) {
+		if c == nil {
+			panic("lambda: parameter c is a Ptr[gin.Context], but the caller passed nil")
+		}
 //line main.gala:44
 		var ctx, cancel = context.WithTimeout(c.Request.Context(), 2*time.Second)
 //line main.gala:45

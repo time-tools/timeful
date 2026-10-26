@@ -55,9 +55,9 @@ func (t queryTracer) TraceQueryStart(ctx context.Context, connection *pgx.Conn, 
 //line tracing.gala:34
 	var attributes = go_interop.SliceOf(attribute.String("db.system.name", "postgresql"), attribute.String("db.operation.name", operation))
 //line tracing.gala:38
-	if connection != nil {
+	std.OptionPtrOf(connection).ForEach(func(conn *pgx.Conn) {
 //line tracing.gala:39
-		var config = connection.Config()
+		var config = conn.Config()
 //line tracing.gala:40
 		if config.Database != "" {
 //line tracing.gala:41
@@ -68,7 +68,7 @@ func (t queryTracer) TraceQueryStart(ctx context.Context, connection *pgx.Conn, 
 //line tracing.gala:44
 			attributes = go_interop.SliceAppend(attributes, attribute.String("server.address", config.Host))
 		}
-	}
+	})
 //line tracing.gala:47
 	var nextCtx, _ = t.tracer.Start(ctx, operation, trace.WithSpanKind(trace.SpanKindClient), trace.WithAttributes(attributes...))
 //line tracing.gala:51

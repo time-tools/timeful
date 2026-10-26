@@ -38,6 +38,9 @@ var errorCodePattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 // without waiting on OpenObserve.
 func RequestMiddleware(recorder *Recorder) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if c == nil {
+			panic("lambda: parameter c is a Ptr[gin.Context], but the caller passed nil")
+		}
 //line middleware.gala:32
 		var started = time.Now()
 //line middleware.gala:33

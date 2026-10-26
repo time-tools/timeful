@@ -14,7 +14,7 @@ import (
 	"martianoff/gala/resource"
 )
 
-func (cal *OutlookCalendar) GetCalendarList() (map[string]models.SubCalendar, error) {
+func (cal Ptr[OutlookCalendar]) GetCalendarList() (map[string]models.SubCalendar, error) {
 	var response = services.CallApi(nil, &cal.OAuth2CalendarAuth, "GET", fmt.Sprintf("%s/me/calendars?$select=id,name", providerconfig.MicrosoftGraphAPIBaseURL()), nil)
 
 	return resource.Bracket(response, (r) => { FromError(r.Body.Close()) }, (r) => {
@@ -41,7 +41,7 @@ func (cal *OutlookCalendar) GetCalendarList() (map[string]models.SubCalendar, er
 	})
 }
 
-func (cal *OutlookCalendar) GetCalendarEvents(calendarId string, timeMin time.Time, timeMax time.Time) ([]models.CalendarEvent, error) {
+func (cal Ptr[OutlookCalendar]) GetCalendarEvents(calendarId string, timeMin time.Time, timeMax time.Time) ([]models.CalendarEvent, error) {
 	var requestUrl = fmt.Sprintf("%s/me/calendars/%s/calendarview?startdatetime=%s&enddatetime=%s&$select=id,subject,start,end,showAs",
 		providerconfig.MicrosoftGraphAPIBaseURL(),
 		calendarId,

@@ -43,7 +43,7 @@ func resolveSessionPlatformIdentity(ctx context.Context, repo *pgstore.Repositor
 // @Success 200
 // @Failure 401
 // @Router /auth/visitor-identities [post]
-func associateVisitorIdentities(c *gin.Context) {
+func associateVisitorIdentities(c Ptr[gin.Context]) {
 	var sessionValue = sessions.Default(c).Get("userId")
 	var platformIdentityID = sessionValue match {
 		case id: string => id
@@ -138,7 +138,7 @@ func issueCredential(ctx context.Context, repo *pgstore.Repository, visitorID st
 	return Success(credential.ID + "." + value)
 }
 
-func setCredentialCookie(c *gin.Context, eventID string, publicID string, credential string) {
+func setCredentialCookie(c Ptr[gin.Context], eventID string, publicID string, credential string) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     credentialCookieName(eventID),
 		Value:    publicID + "." + credential,
@@ -150,11 +150,11 @@ func setCredentialCookie(c *gin.Context, eventID string, publicID string, creden
 	})
 }
 
-func provenCredential(c *gin.Context, repo *pgstore.Repository, visitor *pgstore.EventVisitorIdentity, eventID string) (*pgstore.EventVisitorCredential, error) {
+func provenCredential(c Ptr[gin.Context], repo *pgstore.Repository, visitor *pgstore.EventVisitorIdentity, eventID string) (*pgstore.EventVisitorCredential, error) {
 	return provenCredentialCookie(c, repo, visitor, credentialCookieName(eventID))
 }
 
-func provenCredentialCookie(c *gin.Context, repo *pgstore.Repository, visitor *pgstore.EventVisitorIdentity, name string) (*pgstore.EventVisitorCredential, error) {
+func provenCredentialCookie(c Ptr[gin.Context], repo *pgstore.Repository, visitor *pgstore.EventVisitorIdentity, name string) (*pgstore.EventVisitorCredential, error) {
 	var cookie, cookieErr = c.Cookie(name)
 	if (cookieErr != nil) {
 		return Success(nil)
@@ -177,7 +177,7 @@ func provenCredentialCookie(c *gin.Context, repo *pgstore.Repository, visitor *p
 }
 
 // The public identifier selects a visitor but never proves control of it.
-func resolveVisitor(c *gin.Context, repo *pgstore.Repository, event *pgstore.Event) (*visitor, error) {
+func resolveVisitor(c Ptr[gin.Context], repo *pgstore.Repository, event *pgstore.Event) (*visitor, error) {
 	var owner, ownerErr = resolveOwner(c, repo, event)
 	if (ownerErr != nil) {
 		return Failure(ownerErr)
@@ -281,7 +281,7 @@ func resolveVisitor(c *gin.Context, repo *pgstore.Repository, event *pgstore.Eve
 	return Success(result)
 }
 
-func (v *visitor) controls(ctx context.Context, repo *pgstore.Repository, visitorID string) (bool, error) {
+func (v Ptr[visitor]) controls(ctx context.Context, repo *pgstore.Repository, visitorID string) (bool, error) {
 	if (v.grantedVisitorID == visitorID || (v.authorized && v.identity.ID == visitorID)) {
 		return Success(true)
 	}
@@ -296,7 +296,7 @@ func (v *visitor) controls(ctx context.Context, repo *pgstore.Repository, visito
 // the acting authorized visitor, then the signed-in account's associated
 // visitors. A visitor whose identity is not determined by the first two rules
 // and has no platform identity is unauthorized.
-func (v *visitor) controlsBatch(ctx context.Context, repo *pgstore.Repository, visitorIDs []string) (map[string]bool, error) {
+func (v Ptr[visitor]) controlsBatch(ctx context.Context, repo *pgstore.Repository, visitorIDs []string) (map[string]bool, error) {
 	var authorized = go_interop.MapWithCapacity[string, bool](visitorIDs.Size())
 	var lookup = go_interop.SliceWithCapacity[string](visitorIDs.Size())
 	for _, visitorID := range visitorIDs {

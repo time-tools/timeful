@@ -25,7 +25,7 @@ import (
 //
 // This documentation lives here rather than in doc.go so it stays with the
 // declaration it documents.
-func AuthRequired() gin.HandlerFunc = (c *gin.Context) => {
+func AuthRequired() gin.HandlerFunc = (c Ptr[gin.Context]) => {
 	val platformIdentityID = sessionIdentityID(c)
 	if platformIdentityID == "" {
 		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.NotSignedIn})

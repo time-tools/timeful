@@ -48,6 +48,9 @@ func SendMessageWithType(message *commands.Response, messageType SlackbotMessage
 
 //line slackbot.gala:38
 func InitSlackbot(router *gin.RouterGroup) {
+	if router == nil {
+		panic("InitSlackbot: parameter router is a Ptr[gin.RouterGroup], but the caller passed nil")
+	}
 //line slackbot.gala:39
 	var slackbotRouter = router.Group("/slackbot")
 //line slackbot.gala:41

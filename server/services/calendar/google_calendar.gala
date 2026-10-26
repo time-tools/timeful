@@ -60,7 +60,7 @@ func (cal GoogleCalendar) GetCalendarList() (map[string]models.SubCalendar, erro
 	})
 }
 
-func (cal *GoogleCalendar) GetCalendarEvents(calendarId string, timeMin time.Time, timeMax time.Time) ([]models.CalendarEvent, error) {
+func (cal Ptr[GoogleCalendar]) GetCalendarEvents(calendarId string, timeMin time.Time, timeMax time.Time) ([]models.CalendarEvent, error) {
 	var min, _ = timeMin.MarshalText()
 	var max, _ = timeMax.MarshalText()
 	var req, _ = http.NewRequest(

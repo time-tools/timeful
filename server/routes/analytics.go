@@ -49,6 +49,9 @@ func AnalyticsBasicAuth() gin.HandlerFunc {
 
 //line analytics.gala:38
 func InitAnalytics(router *gin.RouterGroup) {
+	if router == nil {
+		panic("InitAnalytics: parameter router is a Ptr[gin.RouterGroup], but the caller passed nil")
+	}
 //line analytics.gala:39
 	var analyticsRouter = router.Group("/analytics")
 //line analytics.gala:41

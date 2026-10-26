@@ -10,7 +10,7 @@ import (
 	"timeful/server/responses"
 )
 
-func InitUsers(router *gin.RouterGroup) {
+func InitUsers(router Ptr[gin.RouterGroup]) {
 	val usersRouter = router.Group("/users")
 
 	// Public profile for invite screens, ads, etc. (no auth). Must be registered
@@ -24,10 +24,10 @@ func InitUsers(router *gin.RouterGroup) {
 // @Param userId path string true "User ID"
 // @Success 200 {object} models.User
 // @Router /users/{userId} [get]
-func getPublicUserProfile(c *gin.Context) {
+func getPublicUserProfile(c Ptr[gin.Context]) {
 	val platformIdentityID = c.Param("userId")
 	val user = accounts.UserByPlatformIdentityID(platformIdentityID)
-	if user == nil {
+	if (OptionPtrOf(user).IsEmpty()) {
 		c.JSON(http.StatusNotFound, responses.Error{Error: errs.UserDoesNotExist})
 		return
 	}

@@ -24,15 +24,39 @@ import "go.gala.fyi/stdlib/resource"
 // traced. A nil or disabled recorder leaves the transport untouched.
 func InstrumentDefaultTransport(recorder *Recorder) {
 //line transport.gala:23
-	if recorder == nil || recorder.tracer == nil {
+	{
+		obj := std.OptionPtrOf(recorder).MatchView()
+		{
+			_tmp_1 := std.None[*Recorder]{}.Unapply(obj)
+			if _tmp_1 {
 //line transport.gala:24
-		return
-	}
+				return
+			} else {
+				_tmp_2 := std.Some[*Recorder]{}.Unapply(obj)
+				_tmp_3 := _tmp_2.IsDefined()
+				var _tmp_4 *Recorder
+				if _tmp_3 {
+					_tmp_4 = _tmp_2.Get()
+				}
+				_ = _tmp_4
+				found := _tmp_4
+				if _tmp_3 {
 //line transport.gala:26
-	http.DefaultTransport = recorder.Transport(http.DefaultTransport)
+					if found.tracer == nil {
+//line transport.gala:27
+						return
+					}
+//line transport.gala:29
+					http.DefaultTransport = found.Transport(http.DefaultTransport)
+				} else {
+					panic("unreachable")
+				}
+			}
+		}
+	}
 }
 
-//line transport.gala:28
+//line transport.gala:33
 
 // tracingTransport records one bounded client span per outbound request.
 type tracingTransport struct {
@@ -48,7 +72,7 @@ func (s tracingTransport) Equal(other tracingTransport) bool {
 	return std.Equal(s.base, other.base) && std.Equal(s.tracer, other.tracer) && std.Equal(s.propagator, other.propagator)
 }
 
-//line transport.gala:35
+//line transport.gala:40
 
 // Transport returns a RoundTripper that records one bounded client span per
 // outbound request. The span carries the method, scheme, host, port, status
@@ -57,39 +81,42 @@ func (s tracingTransport) Equal(other tracingTransport) bool {
 // reach the exported telemetry (QR-004). Any 4xx or 5xx response marks the span
 // status as Error, matching otelhttp's client-span behavior.
 func (t *tracingTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	if t == nil {
+		panic("tracingTransport.RoundTrip: receiver t is a Ptr[observability.tracingTransport], but the caller passed nil")
+	}
 	var _goResult std.Try[*http.Response] = func() std.Try[*http.Response] {
-//line transport.gala:43
+//line transport.gala:48
 		var ctx, span = t.tracer.Start(request.Context(), request.Method, trace.WithSpanKind(trace.SpanKindClient), trace.WithAttributes(outboundRequestAttributes(request)...))
-//line transport.gala:47
+//line transport.gala:52
 		return resource.Bracket(span, func(s trace.Span) {
 			s.End()
 		}, func(s trace.Span) std.Try[*http.Response] {
-//line transport.gala:48
+//line transport.gala:53
 			if request.Header == nil {
-//line transport.gala:49
+//line transport.gala:54
 				request.Header = http.Header{}
 			}
-//line transport.gala:51
-			t.propagator.Inject(ctx, propagation.HeaderCarrier(request.Header))
-//line transport.gala:53
-			var response, err = t.base.RoundTrip(request)
-//line transport.gala:54
-			if err != nil {
-//line transport.gala:55
-				span.SetAttributes(attribute.String("error.type", classifyTransportError(err)))
 //line transport.gala:56
-				span.SetStatus(codes.Error, "")
-//line transport.gala:57
-				return std.Failure[*http.Response]{}.Apply(err)
-			}
+			t.propagator.Inject(ctx, propagation.HeaderCarrier(request.Header))
+//line transport.gala:58
+			var response, err = t.base.RoundTrip(request)
 //line transport.gala:59
-			span.SetAttributes(attribute.Int("http.response.status_code", response.StatusCode))
+			if err != nil {
 //line transport.gala:60
-			if response.StatusCode >= 400 {
+				span.SetAttributes(attribute.String("error.type", classifyTransportError(err)))
 //line transport.gala:61
 				span.SetStatus(codes.Error, "")
+//line transport.gala:62
+				return std.Failure[*http.Response]{}.Apply(err)
 			}
-//line transport.gala:63
+//line transport.gala:64
+			span.SetAttributes(attribute.Int("http.response.status_code", response.StatusCode))
+//line transport.gala:65
+			if response.StatusCode >= 400 {
+//line transport.gala:66
+				span.SetStatus(codes.Error, "")
+			}
+//line transport.gala:68
 			return std.Success[*http.Response]{}.Apply(response)
 		})
 	}()
@@ -99,61 +126,61 @@ func (t *tracingTransport) RoundTrip(request *http.Request) (*http.Response, err
 	return _goResult.Get(), nil
 }
 
-//line transport.gala:67
-func outboundRequestAttributes(request *http.Request) []attribute.KeyValue {
-//line transport.gala:68
-	var attributes = go_interop.SliceOf(attribute.String("http.request.method", request.Method))
-//line transport.gala:71
-	if request.URL == nil {
 //line transport.gala:72
+func outboundRequestAttributes(request *http.Request) []attribute.KeyValue {
+//line transport.gala:73
+	var attributes = go_interop.SliceOf(attribute.String("http.request.method", request.Method))
+//line transport.gala:76
+	if request.URL == nil {
+//line transport.gala:77
 		return attributes
 	}
-//line transport.gala:74
+//line transport.gala:79
 	if request.URL.Scheme != "" {
-//line transport.gala:75
+//line transport.gala:80
 		attributes = go_interop.SliceAppend(attributes, attribute.String("url.scheme", request.URL.Scheme))
 	}
-//line transport.gala:77
+//line transport.gala:82
 	if request.URL.Hostname() != "" {
-//line transport.gala:78
+//line transport.gala:83
 		attributes = go_interop.SliceAppend(attributes, attribute.String("server.address", request.URL.Hostname()))
 	}
-//line transport.gala:80
+//line transport.gala:85
 	if request.URL.Port() != "" {
-//line transport.gala:81
+//line transport.gala:86
 		var parsed, parseErr = strconv.Atoi(request.URL.Port())
-//line transport.gala:82
+//line transport.gala:87
 		if parseErr == nil {
-//line transport.gala:83
+//line transport.gala:88
 			attributes = go_interop.SliceAppend(attributes, attribute.Int("server.port", parsed))
 		}
 	}
-//line transport.gala:86
+//line transport.gala:91
 	return attributes
 }
 
-//line transport.gala:88
+//line transport.gala:93
 
 // classifyTransportError maps a transport failure to a coarse class. The error
 // text is never used because it can embed the full request URL.
 func classifyTransportError(err error) string {
-//line transport.gala:92
+//line transport.gala:97
 	if errors.Is(err, context.DeadlineExceeded) {
-//line transport.gala:93
+//line transport.gala:98
 		return "timeout"
 	}
-//line transport.gala:95
+//line transport.gala:100
 	if errors.Is(err, context.Canceled) {
-//line transport.gala:96
+//line transport.gala:101
 		return "canceled"
 	}
-//line transport.gala:98
+//line transport.gala:103
 	var netError net.Error
-//line transport.gala:99
+//line transport.gala:104
 	if errors.As(err, &netError) && netError.Timeout() {
-//line transport.gala:100
+//line transport.gala:105
 		return "timeout"
 	}
-//line transport.gala:102
+//line transport.gala:107
 	return "transport_error"
 }

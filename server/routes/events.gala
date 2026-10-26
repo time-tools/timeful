@@ -14,7 +14,7 @@ import (
 
 import "martianoff/gala/go_interop"
 
-func rejectLegacyTimedScheduleFields(c *gin.Context) error {
+func rejectLegacyTimedScheduleFields(c Ptr[gin.Context]) error {
 	var body, readErr = io.ReadAll(c.Request.Body)
 	if (readErr != nil) {
 		return readErr
@@ -46,7 +46,7 @@ func rejectLegacyTimedScheduleFields(c *gin.Context) error {
 	return nil
 }
 
-func InitEvents(router *gin.RouterGroup) {
+func InitEvents(router Ptr[gin.RouterGroup]) {
 	var eventRouter = router.Group("/events")
 
 	eventRouter.POST("", createEvent)
@@ -73,10 +73,9 @@ func InitEvents(router *gin.RouterGroup) {
 // Email is NOT stripped here as callers handle email visibility separately based
 // on the collectEmails setting and owner status.
 func stripSensitiveUserFields(user *models.User) {
-	if (user == nil) {
-		return
-	}
-	user.CalendarAccounts = nil
-	user.CalendarOptions = nil
-	user.PrimaryAccountKey = nil
+	OptionPtrOf(user).ForEach((found) => {
+		found.CalendarAccounts = nil
+		found.CalendarOptions = nil
+		found.PrimaryAccountKey = nil
+	})
 }

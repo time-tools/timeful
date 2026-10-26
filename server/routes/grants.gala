@@ -14,7 +14,7 @@ import (
 
 func grantCookieName(eventID string) string = "timeful_grant_" + eventID
 
-func provenGrant(c *gin.Context, repo *pgstore.Repository, event *pgstore.Event) (*pgstore.EventVisitorIdentity, *pgstore.EventVisitorCredential, error) {
+func provenGrant(c Ptr[gin.Context], repo *pgstore.Repository, event *pgstore.Event) (*pgstore.EventVisitorIdentity, *pgstore.EventVisitorCredential, error) {
 	var cookie, cookieErr = c.Cookie(grantCookieName(event.ShortID))
 	if (cookieErr != nil) {
 		return Success((nil, nil))
@@ -47,7 +47,7 @@ func provenGrant(c *gin.Context, repo *pgstore.Repository, event *pgstore.Event)
 // @Success 200 {object} object{confirmationRequired=bool}
 // @Failure 403
 // @Router /events/{eventId}/grant-association [post]
-func grantAssociation(c *gin.Context) {
+func grantAssociation(c Ptr[gin.Context]) {
 	var repo = defaultRepository(c)
 	if (repo == nil) {
 		return

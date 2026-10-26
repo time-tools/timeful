@@ -752,50 +752,47 @@ func canonicalGroupResponseName(supplied string, value *models.Response) string 
 		return name
 	}
 //line group.gala:456
-	if value == nil {
-//line group.gala:457
-		return ""
-	}
-//line group.gala:459
-	return canonicalGuestName(value.Name)
+	return std.OptionPtr_Map(std.OptionPtrOf(value), func(found *models.Response) string {
+		return canonicalGuestName(found.Name)
+	}).GetOrElse("")
 }
 
-//line group.gala:461
+//line group.gala:458
 
 // setGroupDecline writes the attendee decline state for the respondent's
 // account email. A respondent with no resolved account, or who is not an
 // attendee, is left untouched. Responding clears the decline state and leaving
 // sets it, matching legacy group behavior.
 func setGroupDecline(ctx context.Context, tx *postgres.Repository, eventID string, stored *postgres.Response, visitor *visitor, declined bool) error {
-//line group.gala:467
+//line group.gala:464
 	var email = ""
-//line group.gala:468
+//line group.gala:465
 	if visitor != nil && visitor.platformIdentityID != "" {
-//line group.gala:469
+//line group.gala:466
 		email = accountEmail(ctx, visitor.platformIdentityID)
 	}
-//line group.gala:471
+//line group.gala:468
 	if email == "" && stored != nil && stored.PlatformIdentityID != nil {
-//line group.gala:472
+//line group.gala:469
 		email = accountEmail(ctx, *stored.PlatformIdentityID)
 	}
-//line group.gala:474
+//line group.gala:471
 	if email == "" {
-//line group.gala:475
+//line group.gala:472
 		return nil
 	}
-//line group.gala:477
+//line group.gala:474
 	var err = tx.SetAttendeeDeclined(ctx, eventID, email, declined)
-//line group.gala:478
+//line group.gala:475
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-//line group.gala:479
+//line group.gala:476
 		return err
 	}
-//line group.gala:481
+//line group.gala:478
 	return nil
 }
 
-//line group.gala:483
+//line group.gala:480
 
 // mutateGroupResponse applies the explicit-selection contract to an
 // availability group. Account respondents persist with their account identity;
@@ -805,271 +802,271 @@ func setGroupDecline(ctx context.Context, tx *postgres.Repository, eventID strin
 // calendars, copied calendar preferences, and the day-window merged manual
 // availability are persisted in the response payload.
 func mutateGroupResponse(c *gin.Context, repository *postgres.Repository, event *postgres.Event, visitor *visitor, input responseInput, operation string) {
-//line group.gala:492
+//line group.gala:489
 	var publicID = input.ResponseID
-//line group.gala:493
+//line group.gala:490
 	var manualAvailability, decodeErr = decodeGroupManualAvailability(input.ManualAvailability)
-//line group.gala:494
+//line group.gala:491
 	if decodeErr != nil {
-//line group.gala:495
+//line group.gala:492
 		c.JSON(http.StatusBadRequest, responses.Error{Error: "invalid-manual-availability"})
-//line group.gala:496
+//line group.gala:493
 		return
 	}
-//line group.gala:498
+//line group.gala:495
 	var eventValue, eventErr = eventModel(event)
-//line group.gala:499
+//line group.gala:496
 	if eventErr != nil {
-//line group.gala:500
+//line group.gala:497
 		c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed-to-serialize-event"})
-//line group.gala:501
+//line group.gala:498
 		return
 	}
-//line group.gala:503
+//line group.gala:500
 	var manualWindow = time.Duration(0)
-//line group.gala:504
+//line group.gala:501
 	if eventValue.Duration != nil {
-//line group.gala:505
+//line group.gala:502
 		manualWindow = time.Duration(*eventValue.Duration) * time.Hour
 	}
-//line group.gala:507
+//line group.gala:504
 	var txErr = repository.WithTransaction(c.Request.Context(), func(ctx context.Context, tx *postgres.Repository) error {
-//line group.gala:508
+//line group.gala:505
 		var locked, lockErr = tx.LockEvent(ctx, event.ID)
-//line group.gala:509
+//line group.gala:506
 		if lockErr != nil {
-//line group.gala:510
+//line group.gala:507
 			return lockErr
 		}
-//line group.gala:512
+//line group.gala:509
 		var writableErr = writableEvent(locked)
-//line group.gala:513
+//line group.gala:510
 		if writableErr != nil {
-//line group.gala:514
+//line group.gala:511
 			return writableErr
 		}
-//line group.gala:516
+//line group.gala:513
 		var stored = &postgres.Response{EventID: event.ID, EventVisitorIdentityID: visitor.identity.ID}
-//line group.gala:517
+//line group.gala:514
 		var value *models.Response
-//line group.gala:518
+//line group.gala:515
 		if input.CreateResponse {
-//line group.gala:519
+//line group.gala:516
 			if !visitor.authorized {
-//line group.gala:520
+//line group.gala:517
 				return newGuestForbidden("visitor-credential-required")
 			}
 		} else {
-//line group.gala:523
+//line group.gala:520
 			var getErr error
-//line group.gala:524
+//line group.gala:521
 			stored, getErr = tx.GetResponseByPublicID(ctx, event.ID, input.ResponseID)
-//line group.gala:525
+//line group.gala:522
 			if getErr != nil {
-//line group.gala:526
+//line group.gala:523
 				return getErr
 			}
-//line group.gala:528
-			var authorized, authErr = visitor.controls(ctx, tx, stored.EventVisitorIdentityID)
-//line group.gala:529
+//line group.gala:525
+			var authorized, authErr = std.RequirePtr(visitor).controls(ctx, tx, stored.EventVisitorIdentityID)
+//line group.gala:526
 			if authErr != nil {
-//line group.gala:530
+//line group.gala:527
 				return authErr
 			}
-//line group.gala:532
+//line group.gala:529
 			if !authorized {
-//line group.gala:533
+//line group.gala:530
 				return newGuestForbidden("response-credential-required")
 			}
-//line group.gala:535
+//line group.gala:532
 			var responseErr error
-//line group.gala:536
+//line group.gala:533
 			value, _, responseErr = responseModel(*stored)
-//line group.gala:537
+//line group.gala:534
 			if responseErr != nil {
-//line group.gala:538
+//line group.gala:535
 				return responseErr
 			}
 		}
-//line group.gala:541
+//line group.gala:538
 		if value == nil {
-//line group.gala:542
+//line group.gala:539
 			value = &models.Response{}
 		}
-//line group.gala:544
+//line group.gala:541
 		if operation == "delete" {
-//line group.gala:545
+//line group.gala:542
 			var deleteErr = tx.DeleteResponse(ctx, stored.ID)
-//line group.gala:546
+//line group.gala:543
 			if deleteErr != nil {
-//line group.gala:547
+//line group.gala:544
 				return deleteErr
 			}
-//line group.gala:549
+//line group.gala:546
 			var adjustErr = tx.AdjustEventResponseCount(ctx, locked.ID, -1)
-//line group.gala:550
+//line group.gala:547
 			if adjustErr != nil {
-//line group.gala:551
+//line group.gala:548
 				return adjustErr
 			}
-//line group.gala:553
+//line group.gala:550
 			return setGroupDecline(ctx, tx, locked.ID, stored, visitor, true)
 		}
-//line group.gala:555
+//line group.gala:552
 		if operation == "rename" {
-//line group.gala:556
+//line group.gala:553
 			var validated = respondents.ValidateGuestName(input.NewName)
-//line group.gala:557
+//line group.gala:554
 			if validated.Code != respondents.GuestNameValid {
-//line group.gala:558
+//line group.gala:555
 				return newGuestNameError(guestNameValidationErrorMessage(validated.Code))
 			}
-//line group.gala:560
+//line group.gala:557
 			value.Name = validated.Name
 		} else {
-//line group.gala:562
+//line group.gala:559
 			if input.CreateResponse {
-//line group.gala:563
+//line group.gala:560
 				if visitor.platformIdentityID != "" {
-//line group.gala:564
+//line group.gala:561
 					var platformIdentityID = visitor.platformIdentityID
-//line group.gala:565
+//line group.gala:562
 					stored.RespondentKind = postgres.RespondentKindAccount
-//line group.gala:566
+//line group.gala:563
 					stored.PlatformIdentityID = &platformIdentityID
-//line group.gala:567
+//line group.gala:564
 					value.Email = accountEmail(ctx, visitor.platformIdentityID)
 				} else {
-//line group.gala:569
+//line group.gala:566
 					var guestErr = applyGroupGuestName(stored, value, input.Name)
-//line group.gala:570
+//line group.gala:567
 					if guestErr != nil {
-//line group.gala:571
+//line group.gala:568
 						return guestErr
 					}
-//line group.gala:573
+//line group.gala:570
 					value.Email = input.Email
 				}
 			} else {
-//line group.gala:576
+//line group.gala:573
 				{
 					obj := stored.RespondentKind
 					if obj == postgres.RespondentKindAccount {
-//line group.gala:581
+//line group.gala:578
 						if (stored.PlatformIdentityID == nil || *stored.PlatformIdentityID == "") && visitor.platformIdentityID != "" {
-//line group.gala:582
+//line group.gala:579
 							var platformIdentityID = visitor.platformIdentityID
-//line group.gala:583
+//line group.gala:580
 							stored.PlatformIdentityID = &platformIdentityID
 						}
-//line group.gala:585
+//line group.gala:582
 						if stored.PlatformIdentityID != nil && *stored.PlatformIdentityID != "" {
-//line group.gala:586
+//line group.gala:583
 							value.Email = accountEmail(ctx, *stored.PlatformIdentityID)
 						}
 					} else {
-//line group.gala:590
+//line group.gala:587
 						var guestErr = applyGroupGuestName(stored, value, input.Name)
-//line group.gala:591
+//line group.gala:588
 						if guestErr != nil {
-//line group.gala:592
+//line group.gala:589
 							return guestErr
 						}
-//line group.gala:594
+//line group.gala:591
 						value.Email = input.Email
 					}
 				}
 			}
-//line group.gala:598
+//line group.gala:595
 			value.Availability, value.IfNeeded = normalizeTimedResponseAvailabilitySlots(input.Availability, input.IfNeeded)
-//line group.gala:599
+//line group.gala:596
 			var existing = groupManualAvailability(nil)
-//line group.gala:600
+//line group.gala:597
 			if value.ManualAvailability != nil {
-//line group.gala:601
+//line group.gala:598
 				existing = *value.ManualAvailability
 			}
-//line group.gala:603
+//line group.gala:600
 			var merged = mergeGroupManualAvailability(manualWindow, existing, manualAvailability)
-//line group.gala:604
+//line group.gala:601
 			value.ManualAvailability = &merged
-//line group.gala:605
+//line group.gala:602
 			value.UseCalendarAvailability = input.UseCalendarAvailability
-//line group.gala:606
+//line group.gala:603
 			value.EnabledCalendars = input.EnabledCalendars
-//line group.gala:607
+//line group.gala:604
 			value.CalendarOptions = input.CalendarOptions
 		}
-//line group.gala:609
+//line group.gala:606
 		var payload, marshalErr = json.Marshal(value)
-//line group.gala:610
+//line group.gala:607
 		if marshalErr != nil {
-//line group.gala:611
+//line group.gala:608
 			return marshalErr
 		}
-//line group.gala:613
+//line group.gala:610
 		stored.Payload = payload
-//line group.gala:614
+//line group.gala:611
 		if input.CreateResponse {
-//line group.gala:615
+//line group.gala:612
 			var createErr = tx.CreateResponse(ctx, stored)
-//line group.gala:616
+//line group.gala:613
 			if createErr != nil {
-//line group.gala:617
+//line group.gala:614
 				return createErr
 			}
-//line group.gala:619
+//line group.gala:616
 			publicID = stored.PublicID
-//line group.gala:620
+//line group.gala:617
 			var countErr = tx.AdjustEventResponseCount(ctx, locked.ID, 1)
-//line group.gala:621
+//line group.gala:618
 			if countErr != nil {
-//line group.gala:622
+//line group.gala:619
 				return countErr
 			}
 		} else {
-//line group.gala:625
+//line group.gala:622
 			var updateErr = tx.UpdateResponse(ctx, stored)
-//line group.gala:626
+//line group.gala:623
 			if updateErr != nil {
-//line group.gala:627
+//line group.gala:624
 				return updateErr
 			}
 		}
-//line group.gala:630
+//line group.gala:627
 		if operation == "save" {
-//line group.gala:631
+//line group.gala:628
 			return setGroupDecline(ctx, tx, locked.ID, stored, visitor, false)
 		}
-//line group.gala:633
+//line group.gala:630
 		return nil
 	})
-//line group.gala:635
+//line group.gala:632
 	if txErr != nil {
-//line group.gala:636
+//line group.gala:633
 		mutationError(c, txErr)
-//line group.gala:637
+//line group.gala:634
 		return
 	}
-//line group.gala:639
+//line group.gala:636
 	c.JSON(http.StatusOK, gin.H{"responseId": publicID, "eventVisitorId": visitor.identity.PublicID})
 }
 
-//line group.gala:642
+//line group.gala:639
 func applyGroupGuestName(stored *postgres.Response, value *models.Response, supplied string) error {
-//line group.gala:643
+//line group.gala:640
 	var validated = respondents.ValidateGuestName(canonicalGroupResponseName(supplied, value))
-//line group.gala:644
+//line group.gala:641
 	if validated.Code != respondents.GuestNameValid {
-//line group.gala:645
+//line group.gala:642
 		return newGuestNameError(guestNameValidationErrorMessage(validated.Code))
 	}
-//line group.gala:647
+//line group.gala:644
 	stored.RespondentKind = postgres.RespondentKindGuest
-//line group.gala:648
+//line group.gala:645
 	stored.PlatformIdentityID = nil
-//line group.gala:649
+//line group.gala:646
 	value.Name = validated.Name
-//line group.gala:650
+//line group.gala:647
 	return nil
 }

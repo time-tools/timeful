@@ -28,7 +28,7 @@ var errorCodePattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 // log record inherits, captures only the bounded JSON error field of failed
 // responses, and hands the completion to the recorder, which enqueues it
 // without waiting on OpenObserve.
-func RequestMiddleware(recorder *Recorder) gin.HandlerFunc = (c) => {
+func RequestMiddleware(recorder *Recorder) gin.HandlerFunc = (c Ptr[gin.Context]) => {
 	var started = time.Now()
 	var requestID = newRequestID()
 	c.Set(requestIDContextKey, requestID)
@@ -57,7 +57,7 @@ func RequestMiddleware(recorder *Recorder) gin.HandlerFunc = (c) => {
 	span.End()
 }
 
-func requestRoute(c *gin.Context) string {
+func requestRoute(c Ptr[gin.Context]) string {
 	var route = c.FullPath()
 	if (route != "") {
 		return route

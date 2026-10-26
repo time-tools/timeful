@@ -18,6 +18,9 @@ import (
 
 //line apple_calendar.gala:18
 func (cal *AppleCalendar) GetCalendarList() (map[string]models.SubCalendar, error) {
+	if cal == nil {
+		panic("AppleCalendar.GetCalendarList: receiver cal is a Ptr[calendar.AppleCalendar], but the caller passed nil")
+	}
 	var _goResult std.Try[map[string]models.SubCalendar] = func() std.Try[map[string]models.SubCalendar] {
 //line apple_calendar.gala:19
 		var webdavClient, caldavClient, clientsErr = cal.getClients()
@@ -73,6 +76,9 @@ func (cal *AppleCalendar) GetCalendarList() (map[string]models.SubCalendar, erro
 
 //line apple_calendar.gala:56
 func (cal *AppleCalendar) GetCalendarEvents(calendarId string, timeMin time.Time, timeMax time.Time) ([]models.CalendarEvent, error) {
+	if cal == nil {
+		panic("AppleCalendar.GetCalendarEvents: receiver cal is a Ptr[calendar.AppleCalendar], but the caller passed nil")
+	}
 	var _goResult std.Try[[]models.CalendarEvent] = func() std.Try[[]models.CalendarEvent] {
 //line apple_calendar.gala:57
 		var _, caldavClient, clientsErr = cal.getClients()

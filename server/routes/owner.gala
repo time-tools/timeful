@@ -34,7 +34,7 @@ func issueOwnerToken(ctx context.Context, repo *pgstore.Repository, event *pgsto
 	return Success(token)
 }
 
-func setOwnerCookie(c *gin.Context, eventID string, token string) {
+func setOwnerCookie(c Ptr[gin.Context], eventID string, token string) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     ownerCookieName(eventID),
 		Value:    token,
@@ -48,7 +48,7 @@ func setOwnerCookie(c *gin.Context, eventID string, token string) {
 
 // authorizeOwner runs under the event row lock, serializing takeover
 // with protected mutations. Token proof never changes response ownership.
-func authorizeOwner(c *gin.Context, repo *pgstore.Repository, event *pgstore.Event) (bool, error) {
+func authorizeOwner(c Ptr[gin.Context], repo *pgstore.Repository, event *pgstore.Event) (bool, error) {
 	if (event.IsDeleted) {
 		return Failure(pgx.ErrNoRows)
 	}
@@ -116,7 +116,7 @@ func authorizeOwner(c *gin.Context, repo *pgstore.Repository, event *pgstore.Eve
 	return Success(allowed)
 }
 
-func resolveOwner(c *gin.Context, repo *pgstore.Repository, event *pgstore.Event) (bool, error) {
+func resolveOwner(c Ptr[gin.Context], repo *pgstore.Repository, event *pgstore.Event) (bool, error) {
 	var authorized = false
 	var runErr = repo.WithTransaction(c.Request.Context(), (ctx context.Context, tx *pgstore.Repository) => {
 		var locked, lockErr = tx.LockEvent(ctx, event.ID)
@@ -147,7 +147,7 @@ func writableEvent(event *pgstore.Event) error {
 	return nil
 }
 
-func ownerMutation(c *gin.Context, allowArchived bool, mutate func(context.Context, *pgstore.Repository, *pgstore.Event) error) bool {
+func ownerMutation(c Ptr[gin.Context], allowArchived bool, mutate func(context.Context, *pgstore.Repository, *pgstore.Event) error) bool {
 	var repo = defaultRepository(c)
 	if (repo == nil) {
 		return false
@@ -195,7 +195,7 @@ func ownerMutation(c *gin.Context, allowArchived bool, mutate func(context.Conte
 // @Failure 403 {object} responses.Error "Owner authority required or event archived"
 // @Failure 404 {object} responses.Error "Event not found"
 // @Router /events/{eventId}/archive [post]
-func archiveEvent(c *gin.Context) {
+func archiveEvent(c Ptr[gin.Context]) {
 	var input = newArchiveEventInput()
 	var bindErr = c.BindJSON(&input)
 	if (bindErr != nil) {
@@ -215,7 +215,7 @@ func archiveEvent(c *gin.Context) {
 // @Failure 403 {object} responses.Error "Owner authority required or event archived"
 // @Failure 404 {object} responses.Error "Event not found"
 // @Router /events/{eventId} [delete]
-func deleteEvent(c *gin.Context) {
+func deleteEvent(c Ptr[gin.Context]) {
 	ownerMutation(c, true, (ctx context.Context, tx *pgstore.Repository, event *pgstore.Event) => {
 		return tx.SetEventDeleted(ctx, event.ID, true)
 	})

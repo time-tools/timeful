@@ -251,7 +251,7 @@ func groupOwnerName(ctx context.Context, ownerPlatformIdentityID *string) string
 // @Param eventId path string true "Event ID"
 // @Success 200
 // @Router /events/{eventId}/decline [post]
-func declineInvite(c *gin.Context) {
+func declineInvite(c Ptr[gin.Context]) {
 	var declined = true
 	var body, readErr = io.ReadAll(c.Request.Body)
 	if (readErr == nil && go_interop.SliceFrom(bytes.TrimSpace(body), 0).Size() > 0) {
@@ -453,10 +453,7 @@ func canonicalGroupResponseName(supplied string, value *models.Response) string 
 	if (name != "") {
 		return name
 	}
-	if (value == nil) {
-		return ""
-	}
-	return canonicalGuestName(value.Name)
+	return OptionPtrOf(value).Map((found) => canonicalGuestName(found.Name)).GetOrElse("")
 }
 
 // setGroupDecline writes the attendee decline state for the respondent's
@@ -488,7 +485,7 @@ func setGroupDecline(ctx context.Context, tx *postgres.Repository, eventID strin
 // the decline state (leaving the group). Calendar-derived mode, selected
 // calendars, copied calendar preferences, and the day-window merged manual
 // availability are persisted in the response payload.
-func mutateGroupResponse(c *gin.Context, repository *postgres.Repository, event *postgres.Event, visitor *visitor, input responseInput, operation string) {
+func mutateGroupResponse(c Ptr[gin.Context], repository *postgres.Repository, event *postgres.Event, visitor *visitor, input responseInput, operation string) {
 	var publicID = input.ResponseID
 	var manualAvailability, decodeErr = decodeGroupManualAvailability(input.ManualAvailability)
 	if (decodeErr != nil) {
@@ -525,7 +522,7 @@ func mutateGroupResponse(c *gin.Context, repository *postgres.Repository, event 
 			if (getErr != nil) {
 				return getErr
 			}
-			var authorized, authErr = visitor.controls(ctx, tx, stored.EventVisitorIdentityID)
+			var authorized, authErr = RequirePtr(visitor).controls(ctx, tx, stored.EventVisitorIdentityID)
 			if (authErr != nil) {
 				return authErr
 			}

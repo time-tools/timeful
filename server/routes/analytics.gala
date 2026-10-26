@@ -35,7 +35,7 @@ func AnalyticsBasicAuth() gin.HandlerFunc {
 	}
 }
 
-func InitAnalytics(router *gin.RouterGroup) {
+func InitAnalytics(router Ptr[gin.RouterGroup]) {
 	var analyticsRouter = router.Group("/analytics")
 
 	analyticsRouter.POST("/scanned-poster", scannedPoster)
@@ -51,7 +51,7 @@ func InitAnalytics(router *gin.RouterGroup) {
 // @Param payload body object{url=string,location=models.Location} true "Object containing the location that poster was scanned from and the url that was scanned"
 // @Success 200
 // @Router /analytics/scanned-poster [post]
-func scannedPoster(c *gin.Context) {
+func scannedPoster(c Ptr[gin.Context]) {
 	var payload = newScannedPosterPayload()
 	var bindErr = c.BindJSON(&payload)
 	if (bindErr != nil) {
@@ -87,7 +87,7 @@ func scannedPoster(c *gin.Context) {
 // @Failure 400 {object} object{error=string} "Invalid date format, range, or timezone offset"
 // @Failure 500 {object} object{error=string} "Internal server error"
 // @Router /analytics/monthly-active-event-creators [get]
-func getMonthlyActiveEventCreators(c *gin.Context) {
+func getMonthlyActiveEventCreators(c Ptr[gin.Context]) {
 	var startDateStr = c.Query("startDate")
 	var endDateStr = c.Query("endDate")
 	var timezoneOffsetStr = c.Query("timezoneOffset")
@@ -170,7 +170,7 @@ func analyticsDayEnds(startDate time.Time, endDate time.Time, location *time.Loc
 // @Failure 400 {object} object{error=string} "Invalid date format, range, or timezone offset"
 // @Failure 500 {object} object{error=string} "Internal server error"
 // @Router /analytics/monthly-active-event-creators-with-more-than-x-events [get]
-func getMonthlyActiveEventCreatorsWithMoreThanXEvents(c *gin.Context) {
+func getMonthlyActiveEventCreatorsWithMoreThanXEvents(c Ptr[gin.Context]) {
 	var startDateStr = c.Query("startDate")
 	var endDateStr = c.Query("endDate")
 	var timezoneOffsetStr = c.Query("timezoneOffset")
@@ -248,7 +248,7 @@ func getMonthlyActiveEventCreatorsWithMoreThanXEvents(c *gin.Context) {
 // @Param email path string true "User email"
 // @Success 200 {object} models.User
 // @Router /analytics/user/{email} [get]
-func getUserByEmail(c *gin.Context) {
+func getUserByEmail(c Ptr[gin.Context]) {
 	var email = c.Param("email")
 	var user = accounts.UserByEmail(email)
 	c.JSON(http.StatusOK, user)

@@ -15,7 +15,7 @@ import (
 	"martianoff/gala/go_interop"
 )
 
-func (cal *AppleCalendar) GetCalendarList() (map[string]models.SubCalendar, error) {
+func (cal Ptr[AppleCalendar]) GetCalendarList() (map[string]models.SubCalendar, error) {
 	var webdavClient, caldavClient, clientsErr = cal.getClients()
 	if (clientsErr != nil) {
 		return Failure(clientsErr)
@@ -53,7 +53,7 @@ func (cal *AppleCalendar) GetCalendarList() (map[string]models.SubCalendar, erro
 	return Success(filteredCalendars)
 }
 
-func (cal *AppleCalendar) GetCalendarEvents(calendarId string, timeMin time.Time, timeMax time.Time) ([]models.CalendarEvent, error) {
+func (cal Ptr[AppleCalendar]) GetCalendarEvents(calendarId string, timeMin time.Time, timeMax time.Time) ([]models.CalendarEvent, error) {
 	var _, caldavClient, clientsErr = cal.getClients()
 	if (clientsErr != nil) {
 		return Failure(clientsErr)
@@ -133,7 +133,7 @@ func (cal *AppleCalendar) GetCalendarEvents(calendarId string, timeMin time.Time
 	return Success(filteredEvents)
 }
 
-func (cal *AppleCalendar) getClients() (*webdav.Client, *caldav.Client, error) {
+func (cal Ptr[AppleCalendar]) getClients() (*webdav.Client, *caldav.Client, error) {
 	// The Apple app password arrives decrypted from the PostgreSQL repository,
 	// which owns encryption at rest; request paths never see the legacy AES-CFB
 	// value.

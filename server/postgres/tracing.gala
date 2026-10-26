@@ -35,15 +35,15 @@ func (t queryTracer) TraceQueryStart(ctx context.Context, connection *pgx.Conn, 
 		attribute.String("db.system.name", "postgresql"),
 		attribute.String("db.operation.name", operation),
 	)
-	if (connection != nil) {
-		val config = connection.Config()
+	OptionPtrOf(connection).ForEach((conn) => {
+		val config = conn.Config()
 		if (config.Database != "") {
 			attributes = go_interop.SliceAppend(attributes, attribute.String("db.namespace", config.Database))
 		}
 		if (config.Host != "") {
 			attributes = go_interop.SliceAppend(attributes, attribute.String("server.address", config.Host))
 		}
-	}
+	})
 	var nextCtx, _ = t.tracer.Start(ctx, operation,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(attributes...),

@@ -18,6 +18,9 @@ import (
 
 //line outlook_calendar.gala:17
 func (cal *OutlookCalendar) GetCalendarList() (map[string]models.SubCalendar, error) {
+	if cal == nil {
+		panic("OutlookCalendar.GetCalendarList: receiver cal is a Ptr[calendar.OutlookCalendar], but the caller passed nil")
+	}
 	var _goResult std.Try[map[string]models.SubCalendar] = func() std.Try[map[string]models.SubCalendar] {
 //line outlook_calendar.gala:18
 		var response = services.CallApi(nil, &cal.OAuth2CalendarAuth, "GET", fmt.Sprintf("%s/me/calendars?$select=id,name", providerconfig.MicrosoftGraphAPIBaseURL()), nil)
@@ -59,6 +62,9 @@ func (cal *OutlookCalendar) GetCalendarList() (map[string]models.SubCalendar, er
 
 //line outlook_calendar.gala:44
 func (cal *OutlookCalendar) GetCalendarEvents(calendarId string, timeMin time.Time, timeMax time.Time) ([]models.CalendarEvent, error) {
+	if cal == nil {
+		panic("OutlookCalendar.GetCalendarEvents: receiver cal is a Ptr[calendar.OutlookCalendar], but the caller passed nil")
+	}
 	var _goResult std.Try[[]models.CalendarEvent] = func() std.Try[[]models.CalendarEvent] {
 //line outlook_calendar.gala:45
 		var requestUrl = fmt.Sprintf("%s/me/calendars/%s/calendarview?startdatetime=%s&enddatetime=%s&$select=id,subject,start,end,showAs", providerconfig.MicrosoftGraphAPIBaseURL(), calendarId, timeMin.Format(time.RFC3339), timeMax.Format(time.RFC3339))

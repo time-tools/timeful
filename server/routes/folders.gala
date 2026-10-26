@@ -17,7 +17,7 @@ var folderIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-f
 
 func validFolderID(id string) bool = folderIDPattern.MatchString(id)
 
-func InitFolders(router *gin.RouterGroup) {
+func InitFolders(router Ptr[gin.RouterGroup]) {
 	var folderRouter = router.Group("/user/folders")
 	folderRouter.Use(middleware.AuthRequired())
 
@@ -35,7 +35,7 @@ func InitFolders(router *gin.RouterGroup) {
 // @Failure 400 {object} map[string]string "Invalid user ID"
 // @Failure 500 {object} map[string]string "Failed to get folders"
 // @Router /user/folders [get]
-func GetAllFolders(c *gin.Context) {
+func GetAllFolders(c Ptr[gin.Context]) {
 	var platformIdentityID, ok = folderPlatformIdentityID(c)
 	if (!ok) {
 		return
@@ -63,7 +63,7 @@ func GetAllFolders(c *gin.Context) {
 // @Failure 404 {object} map[string]string "Folder not found"
 // @Failure 500 {object} map[string]string "Failed to get events in folder"
 // @Router /user/folders/{folderId} [get]
-func GetFolder(c *gin.Context) {
+func GetFolder(c Ptr[gin.Context]) {
 	var platformIdentityID, ok = folderPlatformIdentityID(c)
 	if (!ok) {
 		return
@@ -95,7 +95,7 @@ func GetFolder(c *gin.Context) {
 // @Failure 400 {object} map[string]string "Invalid user ID or request body"
 // @Failure 500 {object} map[string]string "Failed to create folder"
 // @Router /user/folders [post]
-func CreateFolder(c *gin.Context) {
+func CreateFolder(c Ptr[gin.Context]) {
 	var body = newFolderCreateBody()
 
 	var bindErr = c.ShouldBindJSON(body)
@@ -138,7 +138,7 @@ func CreateFolder(c *gin.Context) {
 // @Failure 404 {object} map[string]string "Folder not found"
 // @Failure 500 {object} map[string]string "Failed to update folder"
 // @Router /user/folders/{folderId} [patch]
-func UpdateFolder(c *gin.Context) {
+func UpdateFolder(c Ptr[gin.Context]) {
 	var body = newFolderUpdateBody()
 
 	var bindErr = c.ShouldBindJSON(body)
@@ -178,7 +178,7 @@ func UpdateFolder(c *gin.Context) {
 // @Failure 404 {object} map[string]string "Folder not found"
 // @Failure 500 {object} map[string]string "Failed to delete folder"
 // @Router /user/folders/{folderId} [delete]
-func DeleteFolder(c *gin.Context) {
+func DeleteFolder(c Ptr[gin.Context]) {
 	var platformIdentityID, ok = folderPlatformIdentityID(c)
 	if (!ok) {
 		return

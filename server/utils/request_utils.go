@@ -24,5 +24,8 @@ func ParseArrayQueryParam(s string) []string {
 
 //line request_utils.gala:17
 func GetOrigin(c *gin.Context) string {
+	if c == nil {
+		panic("GetOrigin: parameter c is a Ptr[gin.Context], but the caller passed nil")
+	}
 	return c.Request.Header.Get("Origin")
 }

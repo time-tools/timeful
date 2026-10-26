@@ -17,6 +17,9 @@ import (
 
 //line ics_calendar.gala:17
 func (cal *ICSCalendar) GetCalendarList() (map[string]models.SubCalendar, error) {
+	if cal == nil {
+		panic("ICSCalendar.GetCalendarList: receiver cal is a Ptr[calendar.ICSCalendar], but the caller passed nil")
+	}
 	var _goResult std.Try[map[string]models.SubCalendar] = func() std.Try[map[string]models.SubCalendar] {
 //line ics_calendar.gala:18
 		var calendars = go_interop.MapEmpty[string, models.SubCalendar]()
@@ -33,6 +36,9 @@ func (cal *ICSCalendar) GetCalendarList() (map[string]models.SubCalendar, error)
 
 //line ics_calendar.gala:26
 func (cal *ICSCalendar) GetCalendarEvents(calendarId string, timeMin time.Time, timeMax time.Time) ([]models.CalendarEvent, error) {
+	if cal == nil {
+		panic("ICSCalendar.GetCalendarEvents: receiver cal is a Ptr[calendar.ICSCalendar], but the caller passed nil")
+	}
 	var _goResult std.Try[[]models.CalendarEvent] = func() std.Try[[]models.CalendarEvent] {
 //line ics_calendar.gala:28
 		var resp, fetchErr = http.Get(cal.FeedURL)

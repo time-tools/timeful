@@ -65,13 +65,14 @@ func HasValidGuestName(input string) bool {
 func SanitizeDisplayNamePart(input string) string = normalizeName(input)
 
 func SanitizeUserDisplayName(user *models.User) (string, string, string) {
-	if (user == nil) {
-		return ("", "", "")
+	OptionPtrOf(user) match {
+		case None() => { return ("", "", "") }
+		case Some(found) => {
+			var firstName = SanitizeDisplayNamePart(found.FirstName)
+			var lastName = SanitizeDisplayNamePart(found.LastName)
+			var displayName = strings.TrimSpace(strings.Join(go_interop.SliceOf(firstName, lastName), " "))
+
+			return (firstName, lastName, displayName)
+		}
 	}
-
-	var firstName = SanitizeDisplayNamePart(user.FirstName)
-	var lastName = SanitizeDisplayNamePart(user.LastName)
-	var displayName = strings.TrimSpace(strings.Join(go_interop.SliceOf(firstName, lastName), " "))
-
-	return (firstName, lastName, displayName)
 }

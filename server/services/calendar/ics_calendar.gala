@@ -14,7 +14,7 @@ import (
 	"martianoff/gala/resource"
 )
 
-func (cal *ICSCalendar) GetCalendarList() (map[string]models.SubCalendar, error) {
+func (cal Ptr[ICSCalendar]) GetCalendarList() (map[string]models.SubCalendar, error) {
 	var calendars = go_interop.MapEmpty[string, models.SubCalendar]()
 	go_interop.MapPut(calendars, "default", models.SubCalendar{
 		Name:    cal.Label,
@@ -23,7 +23,7 @@ func (cal *ICSCalendar) GetCalendarList() (map[string]models.SubCalendar, error)
 	return Success(calendars)
 }
 
-func (cal *ICSCalendar) GetCalendarEvents(calendarId string, timeMin time.Time, timeMax time.Time) ([]models.CalendarEvent, error) {
+func (cal Ptr[ICSCalendar]) GetCalendarEvents(calendarId string, timeMin time.Time, timeMax time.Time) ([]models.CalendarEvent, error) {
 	// Fetch the data and ensure the fetch was successful
 	var resp, fetchErr = http.Get(cal.FeedURL)
 	if (fetchErr != nil) {

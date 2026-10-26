@@ -8,11 +8,11 @@ import (
 import "martianoff/gala/go_interop"
 
 // Send a message to the current channel that received a message
-func sendMessage(s *discordgo.Session, m *discordgo.MessageCreate, message string) {
+func sendMessage(s Ptr[discordgo.Session], m Ptr[discordgo.MessageCreate], message string) {
 	s.ChannelMessageSend(m.ChannelID, message)
 }
 
-func sendEmbed(s *discordgo.Session, m *discordgo.MessageCreate, embedMessage *discordgo.MessageEmbed) {
+func sendEmbed(s Ptr[discordgo.Session], m Ptr[discordgo.MessageCreate], embedMessage Ptr[discordgo.MessageEmbed]) {
 	s.ChannelMessageSendEmbed(m.ChannelID, embedMessage)
 }
 

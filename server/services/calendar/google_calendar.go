@@ -79,6 +79,9 @@ func (cal GoogleCalendar) GetCalendarList() (map[string]models.SubCalendar, erro
 
 //line google_calendar.gala:63
 func (cal *GoogleCalendar) GetCalendarEvents(calendarId string, timeMin time.Time, timeMax time.Time) ([]models.CalendarEvent, error) {
+	if cal == nil {
+		panic("GoogleCalendar.GetCalendarEvents: receiver cal is a Ptr[calendar.GoogleCalendar], but the caller passed nil")
+	}
 	var _goResult std.Try[[]models.CalendarEvent] = func() std.Try[[]models.CalendarEvent] {
 //line google_calendar.gala:64
 		var min, _ = timeMin.MarshalText()

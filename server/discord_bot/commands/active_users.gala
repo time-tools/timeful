@@ -13,7 +13,7 @@ import (
 	"timeful/server/utils"
 )
 
-func executeActiveUsers(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
+func executeActiveUsers(s Ptr[discordgo.Session], m Ptr[discordgo.MessageCreate], args []string) {
 	// Parse args
 	var list = false
 	var days = 7

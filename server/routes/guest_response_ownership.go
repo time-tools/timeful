@@ -2,6 +2,7 @@
 
 package routes
 
+import "go.gala.fyi/stdlib/std"
 import (
 	"timeful/server/models"
 	"timeful/server/respondents"
@@ -20,5 +21,26 @@ func hasValidGuestName(name string) bool {
 // A nil response, or one owned by an account, is always exposed; a guest
 // response is exposed only when it carries a valid guest name.
 func shouldExposeGuestSignUpResponsePayload(_ string, response *models.SignUpResponse) bool {
-	return response == nil || !response.UserId.IsZero() || hasValidGuestName(response.Name)
+	return func(obj std.Option[*models.SignUpResponse]) bool {
+		{
+			_tmp_1 := std.None[*models.SignUpResponse]{}.Unapply(obj)
+			if _tmp_1 {
+				return true
+			} else {
+				_tmp_2 := std.Some[*models.SignUpResponse]{}.Unapply(obj)
+				_tmp_3 := _tmp_2.IsDefined()
+				var _tmp_4 *models.SignUpResponse
+				if _tmp_3 {
+					_tmp_4 = _tmp_2.Get()
+				}
+				_ = _tmp_4
+				found := _tmp_4
+				if _tmp_3 {
+					return !found.UserId.IsZero() || hasValidGuestName(found.Name)
+				} else {
+					panic("unreachable")
+				}
+			}
+		}
+	}(std.OptionPtrOf(response).MatchView())
 }

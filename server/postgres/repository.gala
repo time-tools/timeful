@@ -30,12 +30,12 @@ type rowScanner interface {
 	Scan(dest ...any) error
 }
 
-func NewRepository(pool *pgxpool.Pool) *Repository = &Repository{db: pool}
+func NewRepository(pool *pgxpool.Pool) Ptr[Repository] = &Repository{db: pool}
 
 // NewRepositoryFromTx binds a repository to an existing transaction so a caller
 // that owns the transaction can compose repository operations with its own SQL
 // in one atomic unit of work.
-func NewRepositoryFromTx(tx pgx.Tx) *Repository = &Repository{db: tx}
+func NewRepositoryFromTx(tx pgx.Tx) Ptr[Repository] = &Repository{db: tx}
 
 // DefaultRepository uses the package-global pool initialized by Init.
 func DefaultRepository() (*Repository, error) {

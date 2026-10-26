@@ -216,7 +216,7 @@ func UpdateCalendarAccessToken(ctx context.Context, platformIdentityID string, c
 // calendarAccountToStorage translates the internal user-shaped connection into
 // its storage form. Provider secrets stay plaintext here; the repository
 // encrypts them at rest.
-func calendarAccountToStorage(calendarKey string, account models.CalendarAccount) *postgres.CalendarAccount {
+func calendarAccountToStorage(calendarKey string, account models.CalendarAccount) Ptr[postgres.CalendarAccount] {
 	var converted = &postgres.CalendarAccount{
 		CalendarKey:  calendarKey,
 		CalendarType: string(account.CalendarType),

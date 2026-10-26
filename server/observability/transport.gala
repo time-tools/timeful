@@ -20,10 +20,15 @@ import "martianoff/gala/resource"
 // request made through http.DefaultClient, http.Get, and http.PostForm is
 // traced. A nil or disabled recorder leaves the transport untouched.
 func InstrumentDefaultTransport(recorder *Recorder) {
-	if (recorder == nil || recorder.tracer == nil) {
-		return
+	OptionPtrOf(recorder) match {
+		case None() => { return }
+		case Some(found) => {
+			if (found.tracer == nil) {
+				return
+			}
+			http.DefaultTransport = found.Transport(http.DefaultTransport)
+		}
 	}
-	http.DefaultTransport = recorder.Transport(http.DefaultTransport)
 }
 
 // tracingTransport records one bounded client span per outbound request.
@@ -39,7 +44,7 @@ struct tracingTransport(
 // headers, bodies, or error text, so token-bearing URLs and credentials cannot
 // reach the exported telemetry (QR-004). Any 4xx or 5xx response marks the span
 // status as Error, matching otelhttp's client-span behavior.
-func (t *tracingTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+func (t Ptr[tracingTransport]) RoundTrip(request *http.Request) (*http.Response, error) {
 	var ctx, span = t.tracer.Start(request.Context(), request.Method,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(outboundRequestAttributes(request)...),

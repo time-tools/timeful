@@ -4,48 +4,37 @@ package routes
 
 import "go.gala.fyi/stdlib/std"
 import (
-	"go.gala.fyi/stdlib/go_interop"
 	"timeful/server/models"
 	"timeful/server/respondents"
 )
 
-//line respondent_identity.gala:10
+//line respondent_identity.gala:8
 func cloneUser(user *models.User) *models.User {
-//line respondent_identity.gala:11
-	if user == nil {
-//line respondent_identity.gala:12
-		return nil
-	}
-//line respondent_identity.gala:15
+//line respondent_identity.gala:9
 	var clone = *user
-//line respondent_identity.gala:16
+//line respondent_identity.gala:10
 	return &clone
 }
 
-//line respondent_identity.gala:19
+//line respondent_identity.gala:13
 func sanitizedResponseUser(user *models.User) *models.User {
-//line respondent_identity.gala:20
+//line respondent_identity.gala:14
 	var sanitized = cloneUser(user)
-//line respondent_identity.gala:21
-	if sanitized == nil {
-//line respondent_identity.gala:22
-		return nil
-	}
-//line respondent_identity.gala:25
+//line respondent_identity.gala:15
 	var firstName, lastName, _ = respondents.SanitizeUserDisplayName(sanitized)
-//line respondent_identity.gala:26
+//line respondent_identity.gala:16
 	sanitized.FirstName = firstName
-//line respondent_identity.gala:27
+//line respondent_identity.gala:17
 	sanitized.LastName = lastName
-//line respondent_identity.gala:29
+//line respondent_identity.gala:19
 	return sanitized
 }
 
-//line respondent_identity.gala:32
+//line respondent_identity.gala:22
 func canonicalGuestName(name string) string {
-//line respondent_identity.gala:33
+//line respondent_identity.gala:23
 	var validation = respondents.ValidateGuestName(name)
-//line respondent_identity.gala:34
+//line respondent_identity.gala:24
 	{
 		if validation.Code != respondents.GuestNameValid {
 			return ""
@@ -55,7 +44,7 @@ func canonicalGuestName(name string) string {
 	}
 }
 
-//line respondent_identity.gala:37
+//line respondent_identity.gala:27
 func guestNameValidationErrorMessage(code respondents.GuestNameValidationCode) string {
 	return func(obj respondents.GuestNameValidationCode) string {
 		if obj == respondents.GuestNameRequired {
@@ -72,7 +61,7 @@ func guestNameValidationErrorMessage(code respondents.GuestNameValidationCode) s
 	}(code)
 }
 
-//line respondent_identity.gala:44
+//line respondent_identity.gala:34
 
 // populateSignUpResponsePayloadIdentity resolves the response identity key and
 // promotes the live account profile when one exists. liveUsers carries the
@@ -81,16 +70,16 @@ func guestNameValidationErrorMessage(code respondents.GuestNameValidationCode) s
 // the wire shape never gains an account shape it did not have before.
 func populateSignUpResponsePayloadIdentity(response *models.SignUpResponse, liveUsers map[string]*models.User) (string, bool) {
 	var _goResult std.Tuple[string, bool] = func() std.Tuple[string, bool] {
-//line respondent_identity.gala:51
-		if response == nil {
-//line respondent_identity.gala:52
+//line respondent_identity.gala:41
+		if std.OptionPtrOf(response).IsEmpty() {
+//line respondent_identity.gala:42
 			return std.Tuple[string, bool]{V1: std.NewImmutable(""), V2: std.NewImmutable(false)}
 		}
-//line respondent_identity.gala:55
+//line respondent_identity.gala:45
 		if !response.UserId.IsZero() {
-//line respondent_identity.gala:56
+//line respondent_identity.gala:46
 			var lookupKey = response.UserId.String()
-//line respondent_identity.gala:57
+//line respondent_identity.gala:47
 			func(obj std.Option[*models.User]) {
 				{
 					_tmp_1 := std.Some[*models.User]{}.Unapply(obj)
@@ -101,31 +90,36 @@ func populateSignUpResponsePayloadIdentity(response *models.SignUpResponse, live
 					}
 					_ = _tmp_3
 					liveUser := _tmp_3
-					if _tmp_2 && liveUser != nil {
+					if _tmp_2 {
 						response.User = sanitizedResponseUser(liveUser)
 					} else {
-//line respondent_identity.gala:60
-						var fallbackName = respondents.NormalizeGuestName(response.Name)
-//line respondent_identity.gala:61
-						response.User = &models.User{Id: response.UserId, FirstName: fallbackName, Email: response.Email}
+						_tmp_4 := std.None[*models.User]{}.Unapply(obj)
+						if _tmp_4 {
+//line respondent_identity.gala:50
+							var fallbackName = respondents.NormalizeGuestName(response.Name)
+//line respondent_identity.gala:51
+							response.User = &models.User{Id: response.UserId, FirstName: fallbackName, Email: response.Email}
+						} else {
+							panic("unreachable")
+						}
 					}
 				}
-			}(go_interop.OptionFromMap(liveUsers, lookupKey))
-//line respondent_identity.gala:68
+			}(std.OptionPtrOf(liveUsers[lookupKey]).MatchView())
+//line respondent_identity.gala:58
 			return std.Tuple[string, bool]{V1: std.NewImmutable(lookupKey), V2: std.NewImmutable(true)}
 		}
-//line respondent_identity.gala:71
+//line respondent_identity.gala:61
 		var name = canonicalGuestName(response.Name)
-//line respondent_identity.gala:72
+//line respondent_identity.gala:62
 		if name == "" {
-//line respondent_identity.gala:73
+//line respondent_identity.gala:63
 			return std.Tuple[string, bool]{V1: std.NewImmutable(""), V2: std.NewImmutable(false)}
 		}
-//line respondent_identity.gala:76
+//line respondent_identity.gala:66
 		response.Name = name
-//line respondent_identity.gala:77
+//line respondent_identity.gala:67
 		response.User = &models.User{FirstName: name, Email: response.Email}
-//line respondent_identity.gala:81
+//line respondent_identity.gala:71
 		return std.Tuple[string, bool]{V1: std.NewImmutable(name), V2: std.NewImmutable(true)}
 	}()
 	return _goResult.V1.Get(), _goResult.V2.Get()

@@ -55,7 +55,7 @@ func main() {
 }
 
 func requireMethod(method string, handler http.HandlerFunc) http.HandlerFunc {
-	return (w http.ResponseWriter, r *http.Request) => {
+	return (w http.ResponseWriter, r Ptr[http.Request]) => {
 		if (r.Method != method) {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -65,7 +65,7 @@ func requireMethod(method string, handler http.HandlerFunc) http.HandlerFunc {
 }
 
 func writeJSON(body any) http.HandlerFunc {
-	return (w http.ResponseWriter, r *http.Request) => {
+	return (w http.ResponseWriter, r Ptr[http.Request]) => {
 		w.Header().Set("Content-Type", "application/json")
 		var encodeErr = json.NewEncoder(w).Encode(body)
 		if (encodeErr != nil) {
@@ -78,7 +78,7 @@ func writeJSON(body any) http.HandlerFunc {
 // monotonically increasing access token so a refresh persists an observably new
 // value, and a valid three-part id_token so the Google add-account path can read
 // the provider email without signature verification.
-func handleToken(w http.ResponseWriter, r *http.Request) {
+func handleToken(w http.ResponseWriter, r Ptr[http.Request]) {
 	var parseErr = r.ParseForm()
 	if (parseErr != nil) {
 		http.Error(w, "invalid form", http.StatusBadRequest)
@@ -100,7 +100,7 @@ func handleToken(w http.ResponseWriter, r *http.Request) {
 	writeJSON(response)(w, r)
 }
 
-func handleGoogleCalendarList(w http.ResponseWriter, r *http.Request) {
+func handleGoogleCalendarList(w http.ResponseWriter, r Ptr[http.Request]) {
 	var primary = go_interop.MapEmpty[string, any]()
 	go_interop.MapPut[string, any](primary, "id", "primary")
 	go_interop.MapPut[string, any](primary, "summary", "Primary")
@@ -115,13 +115,13 @@ func handleGoogleCalendarList(w http.ResponseWriter, r *http.Request) {
 	writeJSON(body)(w, r)
 }
 
-func handleEmptyGoogleEvents(w http.ResponseWriter, r *http.Request) {
+func handleEmptyGoogleEvents(w http.ResponseWriter, r Ptr[http.Request]) {
 	var body = go_interop.MapEmpty[string, any]()
 	go_interop.MapPut[string, any](body, "items", go_interop.SliceEmpty[any]())
 	writeJSON(body)(w, r)
 }
 
-func handleMicrosoftUserInfo(w http.ResponseWriter, r *http.Request) {
+func handleMicrosoftUserInfo(w http.ResponseWriter, r Ptr[http.Request]) {
 	var body = go_interop.MapEmpty[string, any]()
 	go_interop.MapPut[string, any](body, "givenName", "Mock")
 	go_interop.MapPut[string, any](body, "surname", "Calendar")
@@ -129,7 +129,7 @@ func handleMicrosoftUserInfo(w http.ResponseWriter, r *http.Request) {
 	writeJSON(body)(w, r)
 }
 
-func handleMicrosoftCalendarList(w http.ResponseWriter, r *http.Request) {
+func handleMicrosoftCalendarList(w http.ResponseWriter, r Ptr[http.Request]) {
 	var primary = go_interop.MapEmpty[string, any]()
 	go_interop.MapPut[string, any](primary, "id", "primary")
 	go_interop.MapPut[string, any](primary, "name", "Primary")
@@ -141,7 +141,7 @@ func handleMicrosoftCalendarList(w http.ResponseWriter, r *http.Request) {
 	writeJSON(body)(w, r)
 }
 
-func handleEmptyMicrosoftEvents(w http.ResponseWriter, r *http.Request) {
+func handleEmptyMicrosoftEvents(w http.ResponseWriter, r Ptr[http.Request]) {
 	var body = go_interop.MapEmpty[string, any]()
 	go_interop.MapPut[string, any](body, "value", go_interop.SliceEmpty[any]())
 	writeJSON(body)(w, r)

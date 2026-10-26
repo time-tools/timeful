@@ -8,7 +8,7 @@ import (
 	"timeful/server/postgres"
 )
 
-func executeNumUsers(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
+func executeNumUsers(s Ptr[discordgo.Session], m Ptr[discordgo.MessageCreate], args []string) {
 	val repository = postgres.DefaultRepository().OnFailure((err) => logger.StdErr.Panicln(err)).Get()
 	val n = repository.CountAccounts(context.Background()).OnFailure((err) => logger.StdErr.Panicln(err)).Get()
 

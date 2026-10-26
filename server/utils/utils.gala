@@ -142,13 +142,13 @@ func Coalesce[T any](args ...*T) T {
 }
 
 // Return a pointer to true
-func TruePtr() *bool {
+func TruePtr() Ptr[bool] {
 	var b = true
 	return &b
 }
 
 // Return a pointer to false
-func FalsePtr() *bool {
+func FalsePtr() Ptr[bool] {
 	var b = false
 	return &b
 }

@@ -92,18 +92,36 @@ func SanitizeDisplayNamePart(input string) string {
 func SanitizeUserDisplayName(user *models.User) (string, string, string) {
 	var _goResult std.Tuple3[string, string, string] = func() std.Tuple3[string, string, string] {
 //line identity.gala:68
-		if user == nil {
+		return func(obj std.Option[*models.User]) std.Tuple3[string, string, string] {
+			{
+				_tmp_1 := std.None[*models.User]{}.Unapply(obj)
+				if _tmp_1 {
 //line identity.gala:69
-			return std.Tuple3[string, string, string]{V1: std.NewImmutable(""), V2: std.NewImmutable(""), V3: std.NewImmutable("")}
-		}
+					return std.Tuple3[string, string, string]{V1: std.NewImmutable(""), V2: std.NewImmutable(""), V3: std.NewImmutable("")}
+				} else {
+					_tmp_2 := std.Some[*models.User]{}.Unapply(obj)
+					_tmp_3 := _tmp_2.IsDefined()
+					var _tmp_4 *models.User
+					if _tmp_3 {
+						_tmp_4 = _tmp_2.Get()
+					}
+					_ = _tmp_4
+					found := _tmp_4
+					if _tmp_3 {
+//line identity.gala:71
+						var firstName = SanitizeDisplayNamePart(found.FirstName)
 //line identity.gala:72
-		var firstName = SanitizeDisplayNamePart(user.FirstName)
+						var lastName = SanitizeDisplayNamePart(found.LastName)
 //line identity.gala:73
-		var lastName = SanitizeDisplayNamePart(user.LastName)
-//line identity.gala:74
-		var displayName = strings.TrimSpace(strings.Join(go_interop.SliceOf(firstName, lastName), " "))
-//line identity.gala:76
-		return std.Tuple3[string, string, string]{V1: std.NewImmutable(firstName), V2: std.NewImmutable(lastName), V3: std.NewImmutable(displayName)}
+						var displayName = strings.TrimSpace(strings.Join(go_interop.SliceOf(firstName, lastName), " "))
+//line identity.gala:75
+						return std.Tuple3[string, string, string]{V1: std.NewImmutable(firstName), V2: std.NewImmutable(lastName), V3: std.NewImmutable(displayName)}
+					} else {
+						panic("unreachable")
+					}
+				}
+			}
+		}(std.OptionPtrOf(user).MatchView())
 	}()
 	return _goResult.V1.Get(), _goResult.V2.Get(), _goResult.V3.Get()
 }

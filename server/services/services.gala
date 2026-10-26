@@ -11,20 +11,20 @@ import (
 )
 
 func CallApi(user *models.User, calendarAuth *models.OAuth2CalendarAuth, method string, url string, body *map[string]any) *http.Response {
-	if user != nil {
-		auth.RefreshUserTokenIfNecessary(user, nil)
-	}
+	OptionPtrOf(user).ForEach((found) => auth.RefreshUserTokenIfNecessary(found, nil))
 
 	// Pass a literal nil body rather than a nil *bytes.Buffer, which would be a
 	// non-nil io.Reader.
-	var req *http.Request
-	if (body != nil) {
-		val bodyBytes, _ = json.Marshal(body)
-		val created, _ = http.NewRequest(method, url, bytes.NewBuffer(bodyBytes))
-		req = created
-	} else {
-		val created, _ = http.NewRequest(method, url, nil)
-		req = created
+	var req = OptionPtrOf(body) match {
+		case Some(payload) => {
+			val bodyBytes, _ = json.Marshal(payload)
+			val created, _ = http.NewRequest(method, url, bytes.NewBuffer(bodyBytes))
+			RequirePtr(created)
+		}
+		case None() => {
+			val created, _ = http.NewRequest(method, url, nil)
+			RequirePtr(created)
+		}
 	}
 	req.Header.Set("Authorization", s"Bearer ${calendarAuth.AccessToken}")
 

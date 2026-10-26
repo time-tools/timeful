@@ -23,6 +23,9 @@ func validFolderID(id string) bool {
 
 //line folders.gala:20
 func InitFolders(router *gin.RouterGroup) {
+	if router == nil {
+		panic("InitFolders: parameter router is a Ptr[gin.RouterGroup], but the caller passed nil")
+	}
 //line folders.gala:21
 	var folderRouter = router.Group("/user/folders")
 //line folders.gala:22
@@ -49,6 +52,9 @@ func InitFolders(router *gin.RouterGroup) {
 // @Failure 500 {object} map[string]string "Failed to get folders"
 // @Router /user/folders [get]
 func GetAllFolders(c *gin.Context) {
+	if c == nil {
+		panic("GetAllFolders: parameter c is a Ptr[gin.Context], but the caller passed nil")
+	}
 //line folders.gala:39
 	var platformIdentityID, ok = folderPlatformIdentityID(c)
 //line folders.gala:40
@@ -88,6 +94,9 @@ func GetAllFolders(c *gin.Context) {
 // @Failure 500 {object} map[string]string "Failed to get events in folder"
 // @Router /user/folders/{folderId} [get]
 func GetFolder(c *gin.Context) {
+	if c == nil {
+		panic("GetFolder: parameter c is a Ptr[gin.Context], but the caller passed nil")
+	}
 //line folders.gala:67
 	var platformIdentityID, ok = folderPlatformIdentityID(c)
 //line folders.gala:68
@@ -134,6 +143,9 @@ func GetFolder(c *gin.Context) {
 // @Failure 500 {object} map[string]string "Failed to create folder"
 // @Router /user/folders [post]
 func CreateFolder(c *gin.Context) {
+	if c == nil {
+		panic("CreateFolder: parameter c is a Ptr[gin.Context], but the caller passed nil")
+	}
 //line folders.gala:99
 	var body = newFolderCreateBody()
 //line folders.gala:101
@@ -188,6 +200,9 @@ func CreateFolder(c *gin.Context) {
 // @Failure 500 {object} map[string]string "Failed to update folder"
 // @Router /user/folders/{folderId} [patch]
 func UpdateFolder(c *gin.Context) {
+	if c == nil {
+		panic("UpdateFolder: parameter c is a Ptr[gin.Context], but the caller passed nil")
+	}
 //line folders.gala:142
 	var body = newFolderUpdateBody()
 //line folders.gala:144
@@ -245,6 +260,9 @@ func UpdateFolder(c *gin.Context) {
 // @Failure 500 {object} map[string]string "Failed to delete folder"
 // @Router /user/folders/{folderId} [delete]
 func DeleteFolder(c *gin.Context) {
+	if c == nil {
+		panic("DeleteFolder: parameter c is a Ptr[gin.Context], but the caller passed nil")
+	}
 //line folders.gala:182
 	var platformIdentityID, ok = folderPlatformIdentityID(c)
 //line folders.gala:183

@@ -1,27 +1,17 @@
 package routes
 
 import (
-	"martianoff/gala/go_interop"
-
 	"timeful/server/models"
 	"timeful/server/respondents"
 )
 
-func cloneUser(user *models.User) *models.User {
-	if (user == nil) {
-		return nil
-	}
-
+func cloneUser(user Ptr[models.User]) Ptr[models.User] {
 	var clone = *user
 	return &clone
 }
 
-func sanitizedResponseUser(user *models.User) *models.User {
+func sanitizedResponseUser(user Ptr[models.User]) Ptr[models.User] {
 	val sanitized = cloneUser(user)
-	if (sanitized == nil) {
-		return nil
-	}
-
 	val firstName, lastName, _ = respondents.SanitizeUserDisplayName(sanitized)
 	sanitized.FirstName = firstName
 	sanitized.LastName = lastName
@@ -48,15 +38,15 @@ func guestNameValidationErrorMessage(code respondents.GuestNameValidationCode) s
 // (including a failed batch read) falls back to the stored response identity so
 // the wire shape never gains an account shape it did not have before.
 func populateSignUpResponsePayloadIdentity(response *models.SignUpResponse, liveUsers map[string]*models.User) (string, bool) {
-	if (response == nil) {
+	if (OptionPtrOf(response).IsEmpty()) {
 		return ("", false)
 	}
 
 	if !response.UserId.IsZero() {
 		val lookupKey = response.UserId.String()
-		go_interop.OptionFromMap(liveUsers, lookupKey) match {
-			case Some(liveUser) if liveUser != nil => response.User = sanitizedResponseUser(liveUser)
-			case _ => {
+		OptionPtrOf(liveUsers[lookupKey]) match {
+			case Some(liveUser) => response.User = sanitizedResponseUser(liveUser)
+			case None() => {
 				val fallbackName = respondents.NormalizeGuestName(response.Name)
 				response.User = &models.User{
 					Id:        response.UserId,

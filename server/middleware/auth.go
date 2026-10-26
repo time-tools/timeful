@@ -33,6 +33,9 @@ import (
 // declaration it documents.
 func AuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if c == nil {
+			panic("lambda: parameter c is a Ptr[gin.Context], but the caller passed nil")
+		}
 //line auth.gala:29
 		var platformIdentityID = sessionIdentityID(c)
 //line auth.gala:30

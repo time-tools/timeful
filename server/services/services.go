@@ -16,26 +16,40 @@ import (
 //line services.gala:13
 func CallApi(user *models.User, calendarAuth *models.OAuth2CalendarAuth, method string, url string, body *map[string]any) *http.Response {
 //line services.gala:14
-	if user != nil {
-//line services.gala:15
-		auth.RefreshUserTokenIfNecessary(user, nil)
-	}
+	std.OptionPtrOf(user).ForEach(func(found *models.User) {
+		auth.RefreshUserTokenIfNecessary(found, nil)
+	})
+//line services.gala:18
+	var req = func(obj std.Option[*map[string]any]) *http.Request {
+		{
+			_tmp_1 := std.Some[*map[string]any]{}.Unapply(obj)
+			_tmp_2 := _tmp_1.IsDefined()
+			var _tmp_3 *map[string]any
+			if _tmp_2 {
+				_tmp_3 = _tmp_1.Get()
+			}
+			_ = _tmp_3
+			payload := _tmp_3
+			if _tmp_2 {
 //line services.gala:20
-	var req *http.Request
+				var bodyBytes, _ = json.Marshal(payload)
 //line services.gala:21
-	if body != nil {
+				var created, _ = http.NewRequest(method, url, bytes.NewBuffer(bodyBytes))
 //line services.gala:22
-		var bodyBytes, _ = json.Marshal(body)
-//line services.gala:23
-		var created, _ = http.NewRequest(method, url, bytes.NewBuffer(bodyBytes))
-//line services.gala:24
-		req = created
-	} else {
+				return std.RequirePtr(created)
+			} else {
+				_tmp_4 := std.None[*map[string]any]{}.Unapply(obj)
+				if _tmp_4 {
+//line services.gala:25
+					var created, _ = http.NewRequest(method, url, nil)
 //line services.gala:26
-		var created, _ = http.NewRequest(method, url, nil)
-//line services.gala:27
-		req = created
-	}
+					return std.RequirePtr(created)
+				} else {
+					panic("unreachable")
+				}
+			}
+		}
+	}(std.OptionPtrOf(body).MatchView())
 //line services.gala:29
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", calendarAuth.AccessToken))
 //line services.gala:31
