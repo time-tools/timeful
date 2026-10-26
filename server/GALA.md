@@ -184,6 +184,26 @@ A local `val` is a plain Go variable except for one pointer case: a `val` bound 
 `OptionPtrOf` and `RequirePtr` are language builtins and are written unqualified; the transpiler emits the `std.` qualifier itself.
 An explicit `std.OptionPtrOf` or `std.RequirePtr` call is a plain Go call returning a nullable `*T`, not the boundary conversion (checked 2026-10-25 on rev `8ba02b2b`).
 
+### Fifth batch: auth, transfers, and the event-route helpers (2026-10-26)
+
+A fifth batch on the same compiler landed five more twins under one verifier run, at the user's request, because the full `verify.sh` pass is the expensive step.
+The batch is `postgres/otp`, `postgres/identities`, `routes/auth`, `routes/transfers`, and `routes/event_routes`; `routes/event_routes` is a free-function split, and every twin keeps its Go-facing names, signatures, tags, and wire shapes.
+
+The construct facts the batch settled on the pinned compiler:
+
+- A tagged request body stays in a handwritten sibling behind a constructor: `var payload = newSignInPayload()` followed by `c.BindJSON(&payload)` emits the same pointer binding, and the `.gala` file never names the sibling's field list.
+- A blank result binds directly: `var _, signInErr = signInHelper(...)` and `var account, _, resolveErr = accounts.ResolveForSignIn(...)` emit Go's `_` slots unchanged.
+- A `(string, []byte, error)` body returns `Success((value, hash))`, and the generated wrapper unwraps the `std.Tuple` into the declared three-result list.
+- `FromError` yields `std.Try[std.Void]` rather than `error`, so a closure whose result the Go boundary types as `error` returns the raw call (`return tx.CreateAccessTransfer(ctx, transfer)`) and the emitted body is the plain call.
+- A `match` over an `any` session value lowers to `std.As[string]`, and a `match` over the action string lowers to an ordered `if obj == ...` chain, so the original `switch` arm order and default survive.
+- `go_interop.OptionFromMap(integrations.Accounts, canonicalKey)` used as a value needs its binding annotated (`var oldSubCalendars *map[string]models.SubCalendar = ... match {...}`), because the `nil` arm otherwise gives the match no type.
+- `sha256.Sum256`'s `[32]byte` result stays behind the existing `routes/identity_extra.go` `hashBytes` helper, `transferUserAgent`'s `[]rune` truncation stays handwritten in `transfers_extra.go`, and the byte-sized buffers are `go_interop.SliceWithSize[byte]`.
+- `make([]T, 0, len(xs))` with `append` is `go_interop.SliceWithCapacity[T](xs.Size())` with `SliceAppend`, which `signupBlocksFromModels`, `signupBlocksFromInput`, and `filterResponseSlots` use.
+- `routes/event_routes.gala` carries the two request-context loaders, the event and response model converters, the signup block converters, the slot filters, `dereference`, `eventPayload`, and `canonicalSignupResponseName`; `event_routes_extra.go` keeps the handlers, the tagged wire types, the `signupInstant` unmarshaler, the `struct{}` slot-set filter, and the signup and response renderers.
+- `routes/auth.gala` and `routes/transfers.gala` carry their handler annotations, so `swag init --parseDependency` still finds every endpoint.
+
+The batch's evidence is one full `verify.sh` run reporting `OK (68 twins)`, a module-wide `go build ./...` and `go vet ./...`, the canonical Compose backend sequence from [`README.md`](README.md), and `swag init --parseDependency` regenerating `server/docs` byte-identically.
+
 ## Compiler
 
 The translation target is the `gala` compiler the dev shell puts on `PATH`, and every committed twin regenerates byte-identically under it.
@@ -245,7 +265,7 @@ A rev mismatch is resolved by a bump iteration and never by translating across i
 
 ## Twin registry
 
-Sixty-three `.gala` sources across twenty-six packages carry a committed twin.
+Sixty-eight `.gala` sources across twenty-six packages carry a committed twin.
 `stdlib` means the generated Go imports the adopted runtime; `runtime-free` means it names no runtime package and no `martianoff/gala` either.
 Every row regenerates with `cd server/<dir> && gala transpile --stdlib-module go.gala.fyi/stdlib -i <name>.gala -o <name>.go`; a handwritten sibling has no command because it is not generated.
 
@@ -314,11 +334,17 @@ Every row regenerates with `cd server/<dir> && gala transpile --stdlib-module go
 | `routes`                  | `routes/identity.gala`                        | `routes/identity.go`                        | `routes/identity_extra.go` (`visitor`, `newVisitor`, `hashBytes`, `visitorIdentityInput`, `visitorIdentityItem`, `newVisitorIdentityInput`)                                                                                                 | stdlib       |
 | `routes`                  | `routes/owner.gala`                           | `routes/owner.go`                           | `routes/owner_extra.go` (`archiveEventInput`, `newArchiveEventInput`, `replaceEvent`)                                                                                                                                                       | stdlib       |
 | `observability`           | `observability/metrics.gala`                  | `observability/metrics.go`                  | `observability/metrics_extra.go` (`PoolStats`, `(*Recorder).buildInstruments`, `(*Recorder).registerPoolMetrics`)                                                                                                                           | stdlib       |
+| `postgres`                | `postgres/otp.gala`                           | `postgres/otp.go`                           | `postgres/otp_methods.go` (the four challenge methods, the two constants, and the three error values)                                                                                                                                          | stdlib       |
+| `postgres`                | `postgres/identities.gala`                    | `postgres/identities.go`                    | `postgres/identities_methods.go` (the platform, visitor, credential, and event methods)                                                                                                                                                        | runtime-free |
+| `routes`                  | `routes/auth.gala`                            | `routes/auth.go`                            | `routes/auth_extra.go` (the four request-body structs and their constructors)                                                                                                                                                                 | stdlib       |
+| `routes`                  | `routes/transfers.gala`                       | `routes/transfers.go`                       | `routes/transfers_extra.go` (the transfer-action body and `transferUserAgent`'s rune slicing)                                                                                                                                                  | stdlib       |
+| `routes`                  | `routes/event_routes.gala`                    | `routes/event_routes.go`                    | `routes/event_routes_extra.go` (the handlers, wire types, signup and response renderers, and the `struct{}` slot filter)                                                                                                                       | stdlib       |
 
 `scripts/gala/verify.sh` checks that every one of them regenerates byte-identically under `--stdlib-module go.gala.fyi/stdlib`, imports only the adopted `go.gala.fyi/stdlib/...` runtime and never `martianoff/gala`, is `gofmt`-clean, and keeps `go build ./...` green.
 Adding a twin means adding its registry row here and passing `verify.sh`.
 
-The six runtime-free rows keep that form for a Go-facing name rather than for style: `errs` declares only exported string vars that Go callers read, `logger` only exported mutable loggers, `utils/array_utils.go` has no binding at all (`Find` takes a `[]T`), `discord_bot/commands/help.go`'s `help` is read by the handwritten `index.go` while its `message` accumulator stays a `var`, `slackbot/slackbot.go` declares no runtime construct at all, and `accounts/delete.go`'s two generated entry points only delegate through the sibling's `Deleter`, so its generated Go names no runtime package.
+The runtime-free rows keep that form for a Go-facing name rather than for style: `errs` declares only exported string vars that Go callers read, `logger` only exported mutable loggers, `utils/array_utils.go` has no binding at all (`Find` takes a `[]T`), `discord_bot/commands/help.go`'s `help` is read by the handwritten `index.go` while its `message` accumulator stays a `var`, `slackbot/slackbot.go` declares no runtime construct at all, and `accounts/delete.go`'s two generated entry points only delegate through the sibling's `Deleter`, so its generated Go names no runtime package.
+`postgres/identities.gala` is runtime-free for the same kind of reason: its two validators only call `models.ParseUUID` and return a plain bool, so its generated Go names no runtime package.
 `routes/guest_response_ownership.gala` left that list in the pointer pass: its nil guard now uses `OptionPtrOf`, so the generated Go imports `std` while `guestOwnershipModeToken` stays a plain package `var` for its Go test.
 Package-level `Command` vars in the bot command files stay `var` because `index.go`/`utils.go` read them, and `postgres`'s SQL query strings stay `var` because `postgres/dailylogs_methods.go` reads them.
 The migrated twins keep `var` at exactly those Go-facing names: `eventid`'s `canonicalShortID` and `observability/redact`'s patterns became `val` because nothing outside their `.gala` files reads them, while e.g. `routes/respondent_identity.gala`'s `clone` stayed `var` because its address is taken.
@@ -428,13 +454,11 @@ An entry whose candidates stay blocked records the compiler rev its blockers wer
 A fixed blocker moves the candidate forward; a persistent blocker with no workaround becomes a Backlog task and a probe, and the candidate stays.
 
 1. `models/set.go`, `models/location.go`, `models/event.go` — all three are blocked on `struct{}` and tags with no dependency among them, and the listed order is by size and blocker count (`set.go` is three lines, `location.go` thirteen, `event.go` the tag-heavy one); blockers last re-verified on rev `8ba02b2b` (2026-10-25) with probes at `scripts/gala/probes/models-*`; `models/datetime.go` and `models/uuid.go` are migrated (the runtime-synthesized `Hash`/`Compare` replaced the siblings in TASK-0353.03), with uuid's fixed-size `[16]byte` helpers still in `models/uuid_extra.go`.
-2. `routes/transfers.go` — a whole-file candidate after the fourth batch: `transferSecret` already returns the token and digest, `createTransfer` binds a tagged body that would move to a sibling, and `transferAction` is a handler over `provenGrant` and the transfer repository methods.
-   Neither the file nor its tagged bodies were transpiled, so the loop re-checks its constructs first.
-3. `routes/auth.go` — `signIn`, `signInMobile`, `signInHelper`, `signOut`, `getStatus`, `generateOtpCode`, `checkEmail`, `sendOtp`, and `verifyOtp`; its three anonymous request bodies move to a sibling, and `signInHelper`'s provider fan-out is the member to triage first.
-4. `routes/user.go`, then `routes/event_routes.go` — the two largest handler files, ordered by size; `event_routes.go` holds the channel and `recover` members (`routes/group_extra.go`'s finding covers the same shape) and every response-identity helper, so a split that leaves those members handwritten is the expected verdict.
-5. `postgres/otp.go`, then `postgres/identities.go` — free-function splits only: `otp.go`'s five OTP helpers and `identities.go`'s two validators are the movable members, because a `*Repository` method declared in a `.gala` file makes the receiver's method set GALA-resolved and hides the eighteen methods `postgres/repository_methods.go` declares, so the methods stay handwritten until the whole receiver moves together.
-6. `observability/metrics.go` is landed, and the remaining `observability` siblings are boundary members rather than candidates.
-7. `services/calendar/calendar.go`'s two `recover`-guarded broadcast helpers and `GetUsersCalendarEvents` stay handwritten until the channel/recover findings close; the four provider files landed on 2026-10-25 and no new candidate depends on them.
+2. `routes/user.go` — the largest remaining handler file after the fifth batch: its eight anonymous request bodies move to a sibling behind constructors, its `addCalendarAccountArgs` construction stays in a sibling behind a constructor, and its `userInterface.(*models.User)` assertions keep the plain `utils.GetAuthUser` panic behavior; the loop re-checks its constructs first.
+3. `observability/metrics.go` is landed, and the remaining `observability` siblings are boundary members rather than candidates.
+4. `services/calendar/calendar.go`'s two `recover`-guarded broadcast helpers and `GetUsersCalendarEvents` stay handwritten until the channel/recover findings close; the four provider files landed on 2026-10-25.
+
+The fifth batch removed `routes/auth`, `routes/transfers`, `routes/event_routes`, `postgres/otp`, and `postgres/identities` from the cursor.
 
 ## Stop conditions
 

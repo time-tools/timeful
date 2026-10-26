@@ -1,0 +1,54 @@
+package postgres
+
+import (
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/base64"
+	"strings"
+)
+
+import "martianoff/gala/go_interop"
+
+// normalizeOtpEmail applies the same case folding the route applies so the
+// unique email key always describes the same challenge.
+func normalizeOtpEmail(email string) string = strings.ToLower(strings.TrimSpace(email))
+
+// hashOtpCode returns the versionless salted one-way hash stored in
+// otp_challenges.code_hash as base64(salt):base64(HMAC-SHA256(salt, code)). The
+// salt is per challenge, and the code is never stored in readable form.
+func hashOtpCode(code string) (string, error) {
+	var salt = go_interop.SliceWithSize[byte](otpHashSaltLength)
+	var _, readErr = rand.Read(salt)
+	if (readErr != nil) {
+		return Failure(readErr)
+	}
+	return Success(encodeOtpHash(salt, otpDigest(salt, code)))
+}
+
+func otpDigest(salt []byte, code string) []byte {
+	var mac = hmac.New(sha256.New, salt)
+	mac.Write(go_interop.ToBytes(code))
+	return mac.Sum(nil)
+}
+
+func encodeOtpHash(salt []byte, digest []byte) string = base64.StdEncoding.EncodeToString(salt) + ":" + base64.StdEncoding.EncodeToString(digest)
+
+// otpCodeMatches recomputes the hash from the stored salt and compares in
+// constant time. A malformed stored hash is a non-match, never an error.
+func otpCodeMatches(stored string, code string) bool {
+	var saltPart, digestPart, ok = strings.Cut(stored, ":")
+	if (!ok) {
+		return false
+	}
+	var salt, saltErr = base64.StdEncoding.DecodeString(saltPart)
+	if (saltErr != nil) {
+		return false
+	}
+	var expected, digestErr = base64.StdEncoding.DecodeString(digestPart)
+	if (digestErr != nil) {
+		return false
+	}
+	return subtle.ConstantTimeCompare(otpDigest(salt, code), expected) == 1
+}

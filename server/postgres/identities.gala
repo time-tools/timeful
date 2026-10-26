@@ -1,0 +1,19 @@
+package postgres
+
+import (
+	"timeful/server/models"
+)
+
+// validPlatformIdentityID reports whether a value is the canonical wire form of
+// a platform identity UUID. Non-canonical session values resolve to no account
+// instead of reaching PostgreSQL as an invalid uuid literal.
+func validPlatformIdentityID(value string) bool = validUUID(value)
+
+// validUUID reports whether a client-supplied identifier is the canonical UUID
+// wire form. Opaque identifiers are validated in the repository before they
+// reach a uuid bind, so a non-canonical value keeps reporting pgx.ErrNoRows
+// instead of surfacing a PostgreSQL 22P02 cast error to routes.
+func validUUID(value string) bool {
+	var _, ok = models.ParseUUID(value)
+	return ok
+}

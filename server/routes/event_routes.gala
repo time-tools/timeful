@@ -1,0 +1,202 @@
+package routes
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
+	"timeful/server/errs"
+	"timeful/server/models"
+	pgstore "timeful/server/postgres"
+	"timeful/server/responses"
+	"timeful/server/utils"
+)
+
+import "martianoff/gala/go_interop"
+
+func defaultRepository(c Ptr[gin.Context]) *pgstore.Repository {
+	var repository, repoErr = pgstore.DefaultRepository()
+	if (repoErr != nil) {
+		c.JSON(http.StatusServiceUnavailable, responses.Error{Error: "event-store-unavailable"})
+		return nil
+	}
+	return repository
+}
+
+func loadEvent(c Ptr[gin.Context], repository *pgstore.Repository) *pgstore.Event {
+	var event, eventErr = repository.GetEventByShortID(c.Request.Context(), c.Param("eventId"))
+	if (errors.Is(eventErr, pgx.ErrNoRows) || (eventErr == nil && event.IsDeleted)) {
+		c.JSON(http.StatusNotFound, responses.Error{Error: errs.EventNotFound})
+		return nil
+	}
+	if (eventErr != nil) {
+		c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed-to-load-event"})
+		return nil
+	}
+	return event
+}
+
+func eventModel(event *pgstore.Event) (models.Event, error) {
+	var value models.Event
+	var unmarshalErr = json.Unmarshal(event.Payload, &value)
+	if (unmarshalErr != nil) {
+		return Failure(unmarshalErr)
+	}
+	value.Id = models.ZeroUUID()
+	value.ShortId = &event.ShortID
+	value.OwnerId = models.ZeroUUID()
+	value.IsArchived = &event.IsArchived
+	value.IsDeleted = &event.IsDeleted
+	value.Name = event.Name
+	value.Type = models.EventType(event.Type)
+	if (event.Type == pgstore.EventTypeSignup) {
+		value.Type = models.SPECIFIC_DATES
+		value.IsSignUpForm = utils.TruePtr()
+	}
+	value.ScheduleVersion = event.ScheduleVersion
+	value.NumResponses = &event.NumResponses
+	value.CreatorPosthogId = event.CreatorPosthogID
+	return Success(value)
+}
+
+func responseModel(stored pgstore.Response) (*models.Response, string, error) {
+	var value models.Response
+	var unmarshalErr = json.Unmarshal(stored.Payload, &value)
+	if (unmarshalErr != nil) {
+		return Failure(unmarshalErr)
+	}
+	value.UserId = models.ZeroUUID()
+	value.User = nil
+	value.GuestId = ""
+	value.GuestEditToken = ""
+	value.GuestEditPolicy = ""
+	value.GuestOwnershipMode = ""
+	return Success((&value, stored.PublicID))
+}
+
+// canonicalSignupBlockID forwards a client block identity only when it is the
+// canonical UUID form of a stored identity; every other value is an opaque
+// client identifier and maps to a new block.
+func canonicalSignupBlockID(id string) string {
+	var _, ok = models.ParseUUID(id)
+	if (!ok) {
+		return ""
+	}
+	return id
+}
+
+func signupBlocksFromModels(blocks []models.SignUpBlock) []pgstore.SignupBlock {
+	var converted = go_interop.SliceWithCapacity[pgstore.SignupBlock](blocks.Size())
+	for _, block := range blocks {
+		converted = go_interop.SliceAppend(converted, pgstore.SignupBlock{
+			Name:      block.Name,
+			Capacity:  block.Capacity,
+			StartDate: signupModelInstant(block.StartDate),
+			EndDate:   signupModelInstant(block.EndDate),
+		})
+	}
+	return converted
+}
+
+func signupBlocksFromInput(blocks []signupBlockInput) []pgstore.SignupBlock {
+	var converted = go_interop.SliceWithCapacity[pgstore.SignupBlock](blocks.Size())
+	for _, block := range blocks {
+		converted = go_interop.SliceAppend(converted, pgstore.SignupBlock{
+			ID:        canonicalSignupBlockID(block.ID),
+			Name:      block.Name,
+			Capacity:  block.Capacity,
+			StartDate: signupInputInstant(block.StartDate),
+			EndDate:   signupInputInstant(block.EndDate),
+		})
+	}
+	return converted
+}
+
+func signupModelInstant(value *models.DateTime) *time.Time {
+	if (value == nil) {
+		return nil
+	}
+	var instant = value.Time()
+	return &instant
+}
+
+func signupInputInstant(value *signupInstant) *time.Time {
+	if (value == nil) {
+		return nil
+	}
+	return value.Value
+}
+
+func dereference(value *string) string {
+	if (value == nil) {
+		return ""
+	}
+	return *value
+}
+
+func eventPayload(event *pgstore.Event, responseMap map[string]*publicResponse) (map[string]any, error) {
+	var value, modelErr = eventModel(event)
+	if (modelErr != nil) {
+		return Failure(modelErr)
+	}
+	value.ResponsesMap = nil
+	var payload, marshalErr = value.MarshalAPIJSON()
+	if (marshalErr != nil) {
+		return Failure(marshalErr)
+	}
+	var result map[string]any
+	var unmarshalErr = json.Unmarshal(payload, &result)
+	if (unmarshalErr != nil) {
+		return Failure(unmarshalErr)
+	}
+	result["responses"] = responseMap
+	result["_id"] = event.ShortID
+	result["shortId"] = event.ShortID
+	result["ownerId"] = models.ZeroUUID().String()
+	return Success(result)
+}
+
+func filterResponseSlots(slots []models.DateTime, minimum time.Time, maximum time.Time) []models.DateTime {
+	var filtered = go_interop.SliceWithCapacity[models.DateTime](slots.Size())
+	for _, slot := range slots {
+		if (!slot.Time().Before(minimum) && !slot.Time().After(maximum)) {
+			filtered = go_interop.SliceAppend(filtered, slot)
+		}
+	}
+	return filtered
+}
+
+func activeSlotSetsEqual(left []models.DateTime, right []models.DateTime) bool {
+	var normalizedLeft = normalizeDateTimes(left)
+	var normalizedRight = normalizeDateTimes(right)
+	if (normalizedLeft.Size() != normalizedRight.Size()) {
+		return false
+	}
+	for index := range normalizedLeft {
+		if (normalizedLeft[index] != normalizedRight[index]) {
+			return false
+		}
+	}
+	return true
+}
+
+// canonicalSignupResponseName resolves the guest name for a signup mutation,
+// preferring the supplied name and falling back to the stored canonical name so
+// an explicit-selection edit can omit the unchanged name.
+func canonicalSignupResponseName(supplied string, stored *pgstore.SignupResponse) string {
+	var name = canonicalGuestName(supplied)
+	if (name != "") {
+		return name
+	}
+	if (stored == nil) {
+		return ""
+	}
+	if (stored.CanonicalGuestName != nil) {
+		return *stored.CanonicalGuestName
+	}
+	return canonicalGuestName(stored.Name)
+}
