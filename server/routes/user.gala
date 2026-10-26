@@ -1,0 +1,757 @@
+/* The /user group contains all the routes to get all the information about the currently signed in user */
+package routes
+
+import (
+	"encoding/json"
+	"errors"
+	"log"
+	"net/http"
+	"strings"
+
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
+	"timeful/server/accounts"
+	"timeful/server/errs"
+	"timeful/server/eventid"
+	"timeful/server/logger"
+	"timeful/server/middleware"
+	"timeful/server/models"
+	"timeful/server/postgres"
+	"timeful/server/responses"
+	"timeful/server/services/auth"
+	"timeful/server/services/calendar"
+	"timeful/server/services/contacts"
+	"timeful/server/services/microsoftgraph"
+	"timeful/server/utils"
+)
+
+import "martianoff/gala/go_interop"
+
+func InitUser(router Ptr[gin.RouterGroup]) {
+	var userRouter = router.Group("/user")
+	userRouter.Use(middleware.AuthRequired())
+
+	userRouter.GET("/profile", getProfile)
+	userRouter.PATCH("/name", updateName)
+	userRouter.PATCH("/calendar-options", updateCalendarOptions)
+	userRouter.GET("/events", getEvents)
+	userRouter.POST("/events/:eventId/set-folder", setEventFolder)
+	userRouter.GET("/calendars", getCalendars)
+	userRouter.POST("/add-google-calendar-account", addGoogleCalendarAccount)
+	userRouter.POST("/add-apple-calendar-account", addAppleCalendarAccount)
+	userRouter.POST("/add-outlook-calendar-account", addOutlookCalendarAccount)
+	userRouter.POST("/add-ics-calendar-account", addICSCalendarAccount)
+	userRouter.DELETE("/remove-calendar-account", removeCalendarAccount)
+	userRouter.POST("/toggle-calendar", toggleCalendar)
+	userRouter.POST("/toggle-sub-calendar", toggleSubCalendar)
+	userRouter.GET("/searchContacts", searchContacts)
+	userRouter.DELETE("", deleteUser)
+}
+
+// @Summary Gets the user's profile
+// @Tags user
+// @Produce json
+// @Success 200 {object} models.User "A user profile object"
+// @Router /user/profile [get]
+func getProfile(c Ptr[gin.Context]) {
+	var user = utils.GetAuthUser(c)
+
+	// The usage counter is authoritative.
+	var account = utils.GetAuthAccount(c)
+	if (account == nil) {
+		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
+		return
+	}
+	var repository, repoErr = postgres.DefaultRepository()
+	if (repoErr != nil) {
+		logger.StdErr.Panicln(repoErr)
+	}
+	// Sign-in activity is recorded in the daily log using the
+	// authoritative account identifier and timezone offset.
+	var recordErr = repository.RecordDailyUserLogMembership(c.Request.Context(), account.PlatformIdentityID, account.TimezoneOffset)
+	if (recordErr != nil) {
+		logger.StdErr.Panicln(recordErr)
+	}
+
+	c.JSON(http.StatusOK, user)
+}
+
+// @Summary Updates the user's name
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param payload body object{firstName=string,lastName=string} true "Object containing the updated name"
+// @Success 200
+// @Router /user/name [patch]
+func updateName(c Ptr[gin.Context]) {
+	var payload = newUpdateNamePayload()
+	var bindErr = c.BindJSON(&payload)
+	if (bindErr != nil) {
+		return
+	}
+
+	var account = utils.GetAuthAccount(c)
+	if (account == nil) {
+		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
+		return
+	}
+	account.FirstName = payload.FirstName
+	account.LastName = payload.LastName
+	account.HasCustomName = utils.TruePtr()
+
+	// The profile is authoritative; this path does not write it.
+	var updateErr = accounts.UpdateProfile(c.Request.Context(), account)
+	if (updateErr != nil) {
+		logger.StdErr.Panicln(updateErr)
+	}
+
+	c.JSON(http.StatusOK, gin.H{})
+}
+
+// @Summary Updates the user's calendar options
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param payload body object{bufferTime=models.BufferTimeOptions,workingHours=models.WorkingHoursOptions} true "Object containing the updated options"
+// @Success 200
+// @Router /user/calendar-options [patch]
+func updateCalendarOptions(c Ptr[gin.Context]) {
+	var payload = newCalendarOptionsPayload()
+	var bindErr = c.BindJSON(&payload)
+	if (bindErr != nil) {
+		return
+	}
+
+	var authUser = utils.GetAuthUser(c)
+
+	// Set default values for calendar options if nil
+	if (authUser.CalendarOptions == nil) {
+		authUser.CalendarOptions = &models.CalendarOptions{
+			BufferTime: models.BufferTimeOptions{
+				Enabled: false,
+				Time:    15,
+			},
+			WorkingHours: models.WorkingHoursOptions{
+				Enabled:   false,
+				StartTime: 9,
+				EndTime:   17,
+			},
+		}
+	}
+
+	// Update calendar options
+	if (payload.BufferTime != nil) {
+		authUser.CalendarOptions.BufferTime = *payload.BufferTime
+	}
+	if (payload.WorkingHours != nil) {
+		authUser.CalendarOptions.WorkingHours = *payload.WorkingHours
+	}
+
+	// Calendar preferences are authoritative.
+	var authAccount = utils.GetAuthAccount(c)
+	if (authAccount == nil) {
+		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
+		return
+	}
+	var saveErr = accounts.SaveCalendarPreferences(c.Request.Context(), authAccount.PlatformIdentityID, accounts.CalendarPreferences{
+		PrimaryAccountKey: authUser.PrimaryAccountKey,
+		TokenOrigin:       authUser.TokenOrigin,
+		CalendarOptions:   authUser.CalendarOptions,
+	})
+	if (saveErr != nil) {
+		logger.StdErr.Panicln(saveErr)
+	}
+
+	c.JSON(http.StatusOK, gin.H{})
+}
+
+// @Summary Gets all the user's events
+// @Description Returns an array containing all the user's events
+// @Tags user
+// @Produce json
+// @Success 200 {object} []models.Event
+// @Router /user/events [get]
+func getEvents(c Ptr[gin.Context]) {
+	var user = utils.GetAuthUser(c)
+	var userId = user.Id
+
+	var repository = defaultRepository(c)
+	if (repository == nil) {
+		return
+	}
+	var dashboardEvents, listErr = repository.ListDashboardEvents(c.Request.Context(), userId.String(), user.Email)
+	if (listErr != nil) {
+		c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed-to-load-events"})
+		return
+	}
+	var result = go_interop.SliceWithCapacity[any](go_interop.SliceFrom(dashboardEvents, 0).Size())
+	for _, item := range dashboardEvents {
+		var payload, dashboardErr = dashboardEvent(item.Event, item.Owned, userId.String(), item.Responded && item.Member)
+		if (dashboardErr != nil) {
+			logger.StdErr.Panicln(dashboardErr)
+		}
+		result = go_interop.SliceAppend[any](result, payload)
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+// dashboardEvent renders an event in the dashboard wire
+// shape. The canonical public identifier is exposed as both _id and shortId so
+// the frontend opens the event without a store prefix and uses it as a stable
+// list key. ownerId carries the account identifier only for owned events;
+// responded-only events stay anonymous. Group entries carry the derived
+// responded state the dashboard sets.
+func dashboardEvent(event postgres.Event, owned bool, platformIdentityID string, responded bool) (map[string]any, error) {
+	var eventCopy = event
+	var value, modelErr = eventModel(&eventCopy)
+	if (modelErr != nil) {
+		return Failure(modelErr)
+	}
+	value.ResponsesMap = nil
+	value.HasResponded = nil
+	var encoded, marshalErr = value.MarshalAPIJSON()
+	if (marshalErr != nil) {
+		return Failure(marshalErr)
+	}
+	var result = go_interop.MapEmpty[string, any]()
+	var unmarshalErr = json.Unmarshal(encoded, &result)
+	if (unmarshalErr != nil) {
+		return Failure(unmarshalErr)
+	}
+	result["_id"] = event.ShortID
+	result["shortId"] = event.ShortID
+	var ownerID = models.ZeroUUID().String()
+	if (owned) {
+		var _, validOwnerID = models.ParseUUID(platformIdentityID)
+		if (validOwnerID) {
+			ownerID = platformIdentityID
+		}
+	}
+	result["ownerId"] = ownerID
+	if (event.Type == postgres.EventTypeGroup) {
+		result["hasResponded"] = responded
+	}
+	return Success(result)
+}
+
+// @Summary Sets the folder for the specified event
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param eventId path string true "The ID of the event to set the folder for"
+// @Param payload body object{folderId=string} true "The ID of the folder to set the event to"
+// @Success 200
+// @Router /user/events/{eventId}/set-folder [post]
+func setEventFolder(c Ptr[gin.Context]) {
+	var eventID = c.Param("eventId")
+	if (!eventid.Canonical(eventID)) {
+		var invalidEventBody = gin.H{}
+		invalidEventBody["error"] = "Invalid event ID"
+		c.JSON(http.StatusBadRequest, invalidEventBody)
+		return
+	}
+
+	var payload = newSetEventFolderBody()
+	var bindErr = c.ShouldBindJSON(&payload)
+	if (bindErr != nil) {
+		var bindBody = gin.H{}
+		bindBody["error"] = bindErr.Error()
+		c.JSON(http.StatusBadRequest, bindBody)
+		return
+	}
+
+	var sessionValue = sessions.Default(c).Get("userId")
+	var platformIdentityID = sessionValue match {
+		case id: string => id
+		case _ => ""
+	}
+	if (platformIdentityID == "") {
+		var invalidUserBody = gin.H{}
+		invalidUserBody["error"] = "Invalid user ID"
+		c.JSON(http.StatusBadRequest, invalidUserBody)
+		return
+	}
+
+	var folderId *string
+	if (payload.FolderId != nil) {
+		if (!validFolderID(*payload.FolderId)) {
+			var invalidFolderBody = gin.H{}
+			invalidFolderBody["error"] = "Invalid folder ID"
+			c.JSON(http.StatusBadRequest, invalidFolderBody)
+			return
+		}
+		folderId = payload.FolderId
+	}
+
+	var repository = defaultRepository(c)
+	if (repository == nil) {
+		return
+	}
+
+	var event, loadErr = repository.GetEventByShortID(c.Request.Context(), eventID)
+	if (errors.Is(loadErr, pgx.ErrNoRows) || (loadErr == nil && event.IsDeleted)) {
+		c.JSON(http.StatusNotFound, responses.Error{Error: errs.EventNotFound})
+		return
+	}
+	if (loadErr != nil) {
+		c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed-to-load-event"})
+		return
+	}
+	var eventIDValue = event.ID
+	var member = postgres.FolderMember{EventID: &eventIDValue}
+
+	var assignErr = repository.AssignEventToFolder(c.Request.Context(), platformIdentityID, folderId, member)
+	if (errors.Is(assignErr, pgx.ErrNoRows)) {
+		var folderNotFoundBody = gin.H{}
+		folderNotFoundBody["error"] = "Folder not found"
+		c.JSON(http.StatusNotFound, folderNotFoundBody)
+		return
+	}
+	if (assignErr != nil) {
+		var assignBody = gin.H{}
+		assignBody["error"] = "Failed to add event to folder"
+		c.JSON(http.StatusInternalServerError, assignBody)
+		return
+	}
+
+	c.Status(http.StatusOK)
+}
+
+// @Summary Gets the user's calendar events
+// @Description Gets the user's calendar events between "timeMin" and "timeMax"
+// @Tags user
+// @Produce json
+// @Param timeMin query string true "Lower bound for event's start time to filter by"
+// @Param timeMax query string true "Upper bound for event's end time to filter by"
+// @Param accounts query string false "Comma separated list of accounts to fetch calendar events from"
+// @Success 200 {object} map[string]calendar.CalendarEventsWithError
+// @Router /user/calendars [get]
+func getCalendars(c Ptr[gin.Context]) {
+	// Bind query parameters
+	var payload = newCalendarsQuery()
+	var bindErr = c.Bind(&payload)
+	if (bindErr != nil) {
+		return
+	}
+
+	var requestedAccounts []string
+	if (payload.Accounts.ByteSize() == 0) {
+		requestedAccounts = go_interop.SliceEmpty[string]()
+	} else {
+		requestedAccounts = utils.ParseArrayQueryParam(payload.Accounts)
+	}
+	var accountsSet = utils.ArrayToSet(requestedAccounts)
+	var user = utils.GetAuthUser(c)
+
+	var calendarEvents, editedCalendarAccounts = calendar.GetUsersCalendarEvents(user, accountsSet, payload.TimeMin, payload.TimeMax)
+
+	if (editedCalendarAccounts) {
+		// The provider refresh may add or drop sub-calendars; persist the
+		// reconciled set.
+		var authAccount = utils.GetAuthAccount(c)
+		if (authAccount != nil) {
+			for calendarAccountKey, calendarAccount := range user.CalendarAccounts {
+				if (calendarAccount.SubCalendars == nil) {
+					continue
+				}
+				var syncErr = accounts.SyncCalendarSubCalendars(c.Request.Context(), authAccount.PlatformIdentityID, calendarAccountKey, *calendarAccount.SubCalendars)
+				if (syncErr != nil) {
+					logger.StdErr.Panicln(syncErr)
+				}
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, calendarEvents)
+}
+
+// @Summary Adds a new calendar account
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param payload body object{code=string,scope=string} true "Object containing the Google authorization code and scope"
+// @Success 200
+// @Router /user/add-google-calendar-account [post]
+func addGoogleCalendarAccount(c Ptr[gin.Context]) {
+	var payload = newOAuthCalendarCodePayload()
+	var bindErr = c.BindJSON(&payload)
+	if (bindErr != nil) {
+		return
+	}
+
+	// Get tokens
+	var tokens = auth.GetTokensFromAuthCode(payload.Code, payload.Scope, utils.GetOrigin(c), models.GoogleCalendarType)
+
+	// Get user info from JWT
+	var claims = utils.ParseJWT(tokens.IdToken)
+	var email, _ = claims.GetStr("email")
+	var picture, _ = claims.GetStr("picture")
+
+	// Get access token expire time
+	var accessTokenExpireDate = utils.GetAccessTokenExpireDate(tokens.ExpiresIn)
+
+	var calendarAuth = &models.OAuth2CalendarAuth{
+		AccessToken:           tokens.AccessToken,
+		AccessTokenExpireDate: models.NewDateTimeFromTime(accessTokenExpireDate),
+		RefreshToken:          tokens.RefreshToken,
+	}
+
+	addCalendarAccount(c, newAddCalendarAccountArgs(models.GoogleCalendarType, calendarAuth, nil, nil, email, picture))
+
+	c.JSON(http.StatusOK, gin.H{})
+}
+
+// @Summary Adds an apple calendar account
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param payload body object{email=string,password=string} true "Object containing the email and app password of the apple account"
+// @Success 200
+// @Router /user/add-apple-calendar-account [post]
+func addAppleCalendarAccount(c Ptr[gin.Context]) {
+	var payload = newAppleCalendarCredentialsPayload()
+	var bindErr = c.BindJSON(&payload)
+	if (bindErr != nil) {
+		return
+	}
+
+	// The repository encrypts the app password at rest, so the route
+	// passes plaintext and the provider consumes plaintext.
+	var appleAuth = &models.AppleCalendarAuth{
+		Email:    payload.Email,
+		Password: payload.Password,
+	}
+
+	// Check if the provided credentials are valid
+	var calendarProvider = &calendar.AppleCalendar{
+		AppleCalendarAuth: *appleAuth,
+	}
+	var _, providerErr = calendarProvider.GetCalendarList()
+	if (providerErr != nil) {
+		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.InvalidCredentials})
+		return
+	}
+
+	addCalendarAccount(c, newAddCalendarAccountArgs(models.AppleCalendarType, nil, appleAuth, nil, payload.Email, ""))
+
+	c.JSON(http.StatusOK, gin.H{})
+}
+
+// @Summary Adds a new outlook calendar account
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param payload body object{code=string,scope=string} true "Object containing the Outlook authorization code and scope"
+// @Success 200
+// @Router /user/add-outlook-calendar-account [post]
+func addOutlookCalendarAccount(c Ptr[gin.Context]) {
+	var payload = newOAuthCalendarCodePayload()
+	var bindErr = c.BindJSON(&payload)
+	if (bindErr != nil) {
+		return
+	}
+
+	// Get auth user
+	var authUser = utils.GetAuthUser(c)
+
+	// Get tokens
+	var tokens = auth.GetTokensFromAuthCode(payload.Code, payload.Scope, utils.GetOrigin(c), models.OutlookCalendarType)
+
+	// Get access token expire time
+	var accessTokenExpireDate = utils.GetAccessTokenExpireDate(tokens.ExpiresIn)
+
+	// Construct calendarAuth object
+	var calendarAuth = &models.OAuth2CalendarAuth{
+		AccessToken:           tokens.AccessToken,
+		AccessTokenExpireDate: models.NewDateTimeFromTime(accessTokenExpireDate),
+		RefreshToken:          tokens.RefreshToken,
+		Scope:                 payload.Scope,
+	}
+
+	// Get user info
+	var userInfo = microsoftgraph.GetUserInfo(authUser, calendarAuth)
+
+	addCalendarAccount(c, newAddCalendarAccountArgs(models.OutlookCalendarType, calendarAuth, nil, nil, userInfo.Email, ""))
+
+	c.JSON(http.StatusOK, gin.H{})
+}
+
+// @Summary Adds an ICS calendar account
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param payload body object{feedUrl=string,label=string} true "Object containing the feed URL and label of the ICS calendar"
+// @Success 200
+// @Router /user/add-ics-calendar-account [post]
+func addICSCalendarAccount(c Ptr[gin.Context]) {
+	var payload = newICSCalendarCredentialsPayload()
+	var bindErr = c.BindJSON(&payload)
+	if (bindErr != nil) {
+		return
+	}
+
+	var icsAuth = &models.ICSCalendarAuth{
+		FeedURL: payload.FeedURL,
+		Label:   payload.Label,
+	}
+
+	// Check if the provided feed URL is reachable
+	var calendarProvider = &calendar.ICSCalendar{
+		ICSCalendarAuth: *icsAuth,
+	}
+	var _, providerErr = calendarProvider.GetCalendarList()
+	if (providerErr != nil) {
+		c.JSON(http.StatusBadRequest, responses.Error{Error: "Invalid ICS feed URL"})
+		return
+	}
+
+	addCalendarAccount(c, newAddCalendarAccountArgs(models.ICSCalendarType, nil, nil, icsAuth, payload.Label, ""))
+
+	c.JSON(http.StatusOK, gin.H{})
+}
+
+// Implements the shared functionality for adding a calendar account
+func addCalendarAccount(c Ptr[gin.Context], args addCalendarAccountArgs) {
+	// Get auth user
+	var authUser = utils.GetAuthUser(c)
+
+	var ident = args.email
+	if (args.calendarType != models.ICSCalendarType) {
+		ident = utils.NormalizeEmail(args.email)
+	} else {
+		ident = strings.TrimSpace(args.email)
+	}
+
+	// Create calendar account object
+	var calendarAccount = models.CalendarAccount{
+		CalendarType: args.calendarType,
+
+		Email:   ident,
+		Picture: args.picture,
+		Enabled: utils.TruePtr(), // Workaround to pass a boolean pointer
+	}
+	args.calendarType match {
+		case models.GoogleCalendarType => {
+			calendarAccount.OAuth2CalendarAuth = args.oAuth2CalendarAuth
+		}
+		case models.OutlookCalendarType => {
+			calendarAccount.OAuth2CalendarAuth = args.oAuth2CalendarAuth
+		}
+		case models.AppleCalendarType => {
+			calendarAccount.AppleCalendarAuth = args.appleCalendarAuth
+		}
+		case models.ICSCalendarType => {
+			calendarAccount.ICSCalendarAuth = args.icsCalendarAuth
+		}
+		case _ => {}
+	}
+	var canonicalKey = utils.GetCalendarAccountKey(ident, args.calendarType)
+
+	// Set subcalendars map based on whether calendar account already exists
+	var existingAccount, hasExistingAccount = go_interop.MapGet(authUser.CalendarAccounts, canonicalKey)
+	var existingSubCalendars *map[string]models.SubCalendar = nil
+	if (hasExistingAccount) {
+		existingSubCalendars = existingAccount.SubCalendars
+	}
+	if (existingSubCalendars != nil) {
+		calendarAccount.SubCalendars = existingSubCalendars
+	} else {
+		var subCalendars, listErr = calendar.GetCalendarProvider(calendarAccount).GetCalendarList()
+		if (listErr == nil) {
+			calendarAccount.SubCalendars = &subCalendars
+		}
+	}
+
+	if (authUser.CalendarAccounts == nil) {
+		authUser.CalendarAccounts = go_interop.MapEmpty[string, models.CalendarAccount]()
+	}
+	authUser.CalendarAccounts[canonicalKey] = calendarAccount
+
+	// Calendar connections are authoritative; the profile is never
+	// written from this path.
+	var authAccount = utils.GetAuthAccount(c)
+	if (authAccount == nil) {
+		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
+		return
+	}
+	var saveErr = accounts.SaveCalendarAccount(c.Request.Context(), authAccount.PlatformIdentityID, canonicalKey, calendarAccount)
+	if (saveErr != nil) {
+		logger.StdErr.Panicln(saveErr)
+	}
+}
+
+// @Summary Removes an existing calendar account
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param payload body object{email=string,calendarType=models.CalendarType} true "Object containing the email + type of the calendar account to remove"
+// @Success 200
+// @Router /user/remove-calendar-account [delete]
+func removeCalendarAccount(c Ptr[gin.Context]) {
+	var payload = newRemoveCalendarAccountPayload()
+	var bindErr = c.BindJSON(&payload)
+	if (bindErr != nil) {
+		return
+	}
+
+	var calendarAccountKey = utils.GetCalendarAccountKey(payload.Email, payload.CalendarType)
+
+	// Calendar connections are authoritative.
+	var authAccount = utils.GetAuthAccount(c)
+	if (authAccount == nil) {
+		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
+		return
+	}
+	var deleteErr = accounts.DeleteCalendarAccount(c.Request.Context(), authAccount.PlatformIdentityID, calendarAccountKey)
+	if (deleteErr != nil) {
+		logger.StdErr.Panicln(deleteErr)
+	}
+
+	c.JSON(http.StatusOK, gin.H{})
+}
+
+// @Summary Toggles whether the specified calendar is enabled or disabled for the user
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param payload body object{calendarAccountKey=string,enabled=bool} true "Email of calendar account and whether to enable it"
+// @Success 200
+// @Router /user/toggle-calendar [post]
+func toggleCalendar(c Ptr[gin.Context]) {
+	var payload = newToggleCalendarPayload()
+	var bindErr = c.Bind(&payload)
+	if (bindErr != nil) {
+		logger.StdErr.Panicln(bindErr)
+		return
+	}
+
+	// Update enabled status for the specified account
+	var authUser = utils.GetAuthUser(c)
+	var calendarAccountKey = utils.GetCalendarAccountKey(payload.Email, payload.CalendarType)
+	if (go_interop.MapContains(authUser.CalendarAccounts, calendarAccountKey)) {
+		var authAccount = utils.GetAuthAccount(c)
+		if (authAccount == nil) {
+			c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
+			return
+		}
+		var enableErr = accounts.SetCalendarAccountEnabled(c.Request.Context(), authAccount.PlatformIdentityID, calendarAccountKey, *payload.Enabled)
+		if (enableErr != nil) {
+			logger.StdErr.Panicln(enableErr)
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{})
+}
+
+// @Summary Toggles whether the specified sub-calendar is enabled or disabled for the user
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param payload body object{calendarAccountKey=string,subCalendarId=string,enabled=bool} true "Email of calendar account, the sub calendar id, and whether to enable it"
+// @Success 200
+// @Router /user/toggle-sub-calendar [post]
+func toggleSubCalendar(c Ptr[gin.Context]) {
+	var payload = newToggleSubCalendarPayload()
+	var bindErr = c.Bind(&payload)
+	if (bindErr != nil) {
+		logger.StdErr.Panicln(bindErr)
+		return
+	}
+
+	// Update enabled status for the specified sub calendar
+	var authUser = utils.GetAuthUser(c)
+	var calendarAccountKey = utils.GetCalendarAccountKey(payload.Email, payload.CalendarType)
+	var calendarAccount, hasCalendarAccount = go_interop.MapGet(authUser.CalendarAccounts, calendarAccountKey)
+	if (hasCalendarAccount && calendarAccount.SubCalendars != nil) {
+		if (go_interop.MapContains(*calendarAccount.SubCalendars, payload.SubCalendarId)) {
+			var authAccount = utils.GetAuthAccount(c)
+			if (authAccount == nil) {
+				c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
+				return
+			}
+			var enableErr = accounts.SetSubCalendarEnabled(c.Request.Context(), authAccount.PlatformIdentityID, calendarAccountKey, payload.SubCalendarId, *payload.Enabled)
+			if (enableErr != nil) {
+				logger.StdErr.Panicln(enableErr)
+				return
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{})
+}
+
+// @Summary Searches the user's contacts based on the given query
+// @Tags user
+// @Produce json
+// @Param query query string true "Query to search for"
+// @Success 200 {object} []models.User
+// @Router /user/searchContacts [get]
+func searchContacts(c Ptr[gin.Context]) {
+	// Bind query parameters
+	var payload = newSearchContactsQuery()
+	var bindErr = c.Bind(&payload)
+	if (bindErr != nil) {
+		return
+	}
+
+	var user = utils.GetAuthUser(c)
+
+	var foundContacts, googleError = contacts.SearchContacts(user, payload.Query)
+	if (googleError != nil) {
+		c.JSON(googleError.Code, responses.Error{Error: *googleError})
+		return
+	}
+
+	c.JSON(http.StatusOK, foundContacts)
+}
+
+// @Summary Deletes the currently signed in user
+// @Description Requires the account email address as confirmation. Deletion is permanent and immediate: the account profile, platform identity, calendar connections, and historical user logs are removed, and events the account organized survive with ownership released.
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param payload body object{email=string} true "The account email address that must match the signed-in account"
+// @Success 200
+// @Failure 400 {object} responses.Error "The supplied email does not match the account"
+// @Router /user [delete]
+func deleteUser(c Ptr[gin.Context]) {
+	var payload = newDeleteUserPayload()
+	var bindErr = c.BindJSON(&payload)
+	if (bindErr != nil) {
+		c.JSON(http.StatusBadRequest, responses.Error{Error: errs.AccountEmailMismatch})
+		return
+	}
+
+	var account = utils.GetAuthAccount(c)
+	if (account == nil) {
+		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
+		return
+	}
+	if (!strings.EqualFold(strings.TrimSpace(payload.Email), strings.TrimSpace(account.Email))) {
+		c.JSON(http.StatusBadRequest, responses.Error{Error: errs.AccountEmailMismatch})
+		return
+	}
+
+	// The deletion transaction removes the account authority,
+	// platform identity, calendar connections, responses, folders, and
+	// daily-log membership. The session is cleared only after the whole unit
+	// succeeds, so a failure leaves the visitor signed in and able to retry.
+	var deleteErr = accounts.DeleteAccount(c.Request.Context(), account.PlatformIdentityID)
+	if (deleteErr != nil) {
+		log.Printf("account deletion failed for %s: %v", account.PlatformIdentityID, deleteErr)
+		c.JSON(http.StatusInternalServerError, responses.Error{Error: "account-deletion-failed"})
+		return
+	}
+
+	var session = sessions.Default(c)
+	session.Delete("userId")
+	var sessionErr = session.Save()
+	if (sessionErr != nil) {
+		logger.StdErr.Panicln(sessionErr)
+	}
+
+	c.JSON(http.StatusOK, gin.H{})
+}

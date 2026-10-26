@@ -1,0 +1,32 @@
+package postgres
+
+// This file carries the attendee queries and row scanner of the former
+// attendees.go. Attendee and every *Repository method stay handwritten in
+// attendees_extra.go: a method declared on Repository in a .gala file makes
+// Repository's method set GALA-resolved, which hides the eighteen methods that
+// repository_methods.go declares.
+
+// attendeeColumns names the attendee columns every attendee query selects.
+var attendeeColumns = `id, event_id, email, platform_identity_id, declined, created_at, updated_at`
+
+// listAttendeesQuery lists one event's email-keyed memberships in write order.
+var listAttendeesQuery = `SELECT ` + attendeeColumns + `
+FROM event_attendees WHERE event_id = $1 ORDER BY created_at, id`
+
+// nonDeclinedAttendeeEmailExistsQuery answers the group viewer invitee check
+// with one EXISTS over event_attendees (event_id, lower(email)) instead of a
+// scan of the loaded attendee list. It ignores declined memberships and matches
+// the dashboard membership predicate exactly.
+var nonDeclinedAttendeeEmailExistsQuery = `SELECT EXISTS (
+    SELECT 1 FROM event_attendees
+    WHERE event_id = $1 AND declined IS NOT TRUE AND lower(email) = lower($2)
+)`
+
+func scanAttendee(row rowScanner) (*Attendee, error) {
+	var attendee = &Attendee{}
+	var scanErr = row.Scan(&attendee.ID, &attendee.EventID, &attendee.Email, &attendee.PlatformIdentityID, &attendee.Declined, &attendee.CreatedAt, &attendee.UpdatedAt)
+	if (scanErr != nil) {
+		return Failure(scanErr)
+	}
+	return Success(attendee)
+}

@@ -1,0 +1,109 @@
+package postgres
+
+import (
+	"errors"
+	"fmt"
+	"strings"
+
+	"timeful/server/respondents"
+)
+
+import "martianoff/gala/go_interop"
+
+// ErrSignupCapacityExceeded reports that at least one requested block is already
+// at capacity. The mutation is rejected atomically, so no partial response or
+// block membership is written.
+var ErrSignupCapacityExceeded = errors.New("signup block capacity exceeded")
+
+// ErrSignupBlockNotFound reports that a requested block does not belong to the
+// signup form event.
+var ErrSignupBlockNotFound = errors.New("signup block does not belong to the event")
+
+var signupBlockColumns = `id, event_id, name, capacity, start_date, end_date, position, created_at, updated_at`
+
+// signupResponseColumns lists the response columns without membership. Full
+// response reads append signupResponseBlockIDsColumn and end with BlockIDs.
+var signupResponseColumns = `id, public_id, event_id, event_visitor_identity_id, respondent_kind, platform_identity_id, canonical_guest_name, name, email, created_at, updated_at`
+
+// signupResponseBlockIDsColumn aggregates a response's claimed block identities
+// in their stored position order so reads reproduce the write order. Position
+// alone is not unique, so the block identity is the deterministic tie-break.
+var signupResponseBlockIDsColumn = `COALESCE(ARRAY(
+    SELECT membership.block_id::text
+    FROM event_signup_response_blocks membership
+    WHERE membership.response_id = event_signup_responses.id
+    ORDER BY membership.position, membership.block_id
+), '{}'::text[])`
+
+var signupResponseSelectColumns = signupResponseColumns + `, ` + signupResponseBlockIDsColumn
+
+func scanSignupBlock(row rowScanner) (*SignupBlock, error) {
+	var block = &SignupBlock{}
+	var scanErr = row.Scan(&block.ID, &block.EventID, &block.Name, &block.Capacity, &block.StartDate, &block.EndDate, &block.Position, &block.CreatedAt, &block.UpdatedAt)
+	if (scanErr != nil) {
+		return Failure(scanErr)
+	}
+	return Success(block)
+}
+
+func scanSignupResponse(row rowScanner) (*SignupResponse, error) {
+	var response = &SignupResponse{}
+	var scanErr = row.Scan(&response.ID, &response.PublicID, &response.EventID, &response.EventVisitorIdentityID, &response.RespondentKind, &response.PlatformIdentityID, &response.CanonicalGuestName, &response.Name, &response.Email, &response.CreatedAt, &response.UpdatedAt, &response.BlockIDs)
+	if (scanErr != nil) {
+		return Failure(scanErr)
+	}
+	return Success(response)
+}
+
+// normalizeSignupResponseIdentity resolves the respondent kind and enforces the
+// identity rules: account responses carry a platform identity uuid, and guest
+// responses carry a canonical guest name produced by the shared normalizer.
+func normalizeSignupResponseIdentity(response *SignupResponse) error {
+	if (response.RespondentKind == "") {
+		if (response.PlatformIdentityID != nil && *response.PlatformIdentityID != "") {
+			response.RespondentKind = RespondentKindAccount
+		} else {
+			response.RespondentKind = RespondentKindGuest
+		}
+	} else if (response.RespondentKind != RespondentKindAccount && response.RespondentKind != RespondentKindGuest) {
+		return fmt.Errorf("unsupported signup respondent kind %q", response.RespondentKind)
+	}
+	if (response.RespondentKind == RespondentKindAccount) {
+		if (response.PlatformIdentityID == nil || *response.PlatformIdentityID == "") {
+			return errors.New("account signup response requires a platform identity ID")
+		}
+		response.CanonicalGuestName = nil
+		return nil
+	}
+	response.PlatformIdentityID = nil
+	var guestName = response.Name
+	if (guestName == "" && response.CanonicalGuestName != nil) {
+		guestName = *response.CanonicalGuestName
+	}
+	var canonical = respondents.NormalizeGuestName(guestName)
+	if (canonical == "") {
+		return errors.New("guest signup response requires a name")
+	}
+	response.Name = canonical
+	response.CanonicalGuestName = &canonical
+	return nil
+}
+
+// normalizeSignupBlockIDs trims, drops empty entries, and deduplicates block
+// identities so a response cannot claim the same block twice.
+func normalizeSignupBlockIDs(blockIDs []string) []string {
+	var seen = go_interop.MapWithCapacity[string, bool](blockIDs.Size())
+	var result = go_interop.SliceWithCapacity[string](blockIDs.Size())
+	for _, blockID := range blockIDs {
+		var trimmed = strings.TrimSpace(blockID)
+		if (trimmed == "") {
+			continue
+		}
+		if (seen[trimmed]) {
+			continue
+		}
+		seen[trimmed] = true
+		result = go_interop.SliceAppend(result, trimmed)
+	}
+	return result
+}

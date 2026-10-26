@@ -1,0 +1,55 @@
+package postgres
+
+import (
+	"github.com/jackc/pgx/v5"
+)
+
+import "martianoff/gala/go_interop"
+import "martianoff/gala/resource"
+
+// This file carries the folder query and row scanner of the former folders.go.
+// Folder, FolderMember, and every *Repository method stay handwritten in
+// folders_extra.go: a method declared on Repository in a .gala file makes
+// Repository's method set GALA-resolved, which hides the eighteen methods that
+// repository_methods.go declares.
+
+// folderSelect returns every folder column plus the member columns a caller
+// needs to rebuild a folder and its members.
+var folderSelect = `SELECT f.id, f.platform_identity_id, f.name, f.color, f.is_deleted, f.created_at, f.updated_at,
+       fe.event_id, e.short_id
+FROM folders f
+LEFT JOIN folder_events fe ON fe.folder_id = f.id
+LEFT JOIN events e ON e.id = fe.event_id`
+
+func scanFolders(rows pgx.Rows) ([]Folder, error) {
+	return resource.Bracket(rows, (pending) => { pending.Close() }, (pending) => {
+		var folders = go_interop.SliceWithSize[Folder](0)
+		var indexByID = go_interop.MapEmpty[string, int]()
+		for pending.Next() {
+			var folder Folder
+			var eventID, shortID *string
+			var scanErr = pending.Scan(&folder.ID, &folder.PlatformIdentityID, &folder.Name, &folder.Color, &folder.IsDeleted, &folder.CreatedAt, &folder.UpdatedAt, &eventID, &shortID)
+			if (scanErr != nil) {
+				return Failure(scanErr)
+			}
+			var index = 0
+			go_interop.OptionFromMap(indexByID, folder.ID) match {
+				case Some(found) => { index = found }
+				case None() => {
+					folder.Members = go_interop.SliceWithSize[FolderMember](0)
+					folders = go_interop.SliceAppend(folders, folder)
+					index = folders.Size() - 1
+					indexByID[folder.ID] = index
+				}
+			}
+			if (eventID != nil) {
+				folders[index].Members = go_interop.SliceAppend(folders[index].Members, FolderMember{EventID: eventID, EventShortID: shortID})
+			}
+		}
+		var rowsErr = pending.Err()
+		if (rowsErr != nil) {
+			return Failure(rowsErr)
+		}
+		return Success(folders)
+	})
+}

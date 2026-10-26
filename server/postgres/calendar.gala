@@ -1,0 +1,182 @@
+package postgres
+
+import (
+	"time"
+
+	"github.com/jackc/pgx/v5"
+)
+
+// This file carries the declarations and free functions of the former
+// calendar.go. The exported Calendar* structs, encodedCalendarSecrets, and
+// every *Repository method stay handwritten in calendar_extra.go: a GALA struct
+// declaration widens the Go surface of an exported type with Copy/Equal/
+// Unapply/StructMeta helpers and std.Immutable fields, and a method declared on
+// Repository in a .gala file makes Repository's GALA method set its complete
+// one, which hides the methods the package's handwritten files declare.
+
+// Provider types stored in calendar_accounts.calendar_type.
+var CalendarTypeGoogle = "google"
+
+var CalendarTypeOutlook = "outlook"
+
+var CalendarTypeApple = "apple"
+
+var CalendarTypeICS = "ics"
+
+var calendarAccountColumns = `a.id, a.platform_identity_id, a.calendar_key, a.calendar_type, a.email, a.picture, a.enabled,
+ c.oauth_access_token_ciphertext, c.oauth_refresh_token_ciphertext, c.oauth_access_token_expires_at, c.oauth_scope, c.apple_password_ciphertext, c.ics_feed_url_ciphertext,
+ a.created_at, a.updated_at`
+
+var calendarAccountFrom = `FROM calendar_accounts a
+ LEFT JOIN calendar_account_credentials c ON c.calendar_account_id = a.id`
+
+var calendarSubCalendarColumns = `id, calendar_account_id, sub_calendar_id, name, enabled, created_at, updated_at`
+
+// validCalendarType reports whether calendarType is one of the provider types
+// the schema admits.
+func validCalendarType(calendarType string) bool = calendarType match {
+	case CalendarTypeGoogle | CalendarTypeOutlook | CalendarTypeApple | CalendarTypeICS => true
+	case _ => false
+}
+
+// guardPlatformIdentityID validates the canonical platform identity UUID form
+// without a database round trip. Statements that imply identity liveness (an
+// insert into an identity-keyed table, or a row-scoped update that maps zero
+// rows to pgx.ErrNoRows) merge the liveness requirement themselves, so a
+// non-canonical value still reports pgx.ErrNoRows before reaching PostgreSQL.
+func guardPlatformIdentityID(platformIdentityID string) error {
+	if (!validPlatformIdentityID(platformIdentityID)) {
+		return pgx.ErrNoRows
+	}
+	return nil
+}
+
+func validTokenOrigin(tokenOrigin string) bool = tokenOrigin match {
+	case "ios" | "android" | "web" => true
+	case _ => false
+}
+
+func scanCalendarSubCalendar(row rowScanner) (*CalendarSubCalendar, error) {
+	var sub = &CalendarSubCalendar{}
+	var scanErr = row.Scan(&sub.ID, &sub.CalendarAccountID, &sub.SubCalendarID, &sub.Name, &sub.Enabled, &sub.CreatedAt, &sub.UpdatedAt)
+	if (scanErr != nil) {
+		return Failure(scanErr)
+	}
+	return Success(sub)
+}
+
+// encodeCalendarSecrets encrypts only non-empty secrets. An empty secret is
+// absent, so it is stored as NULL and needs no key.
+func encodeCalendarSecrets(account *CalendarAccount) (encodedCalendarSecrets, error) {
+	var secrets = encodedCalendarSecrets{}
+	if (!account.requiresEncryption()) {
+		return Success(secrets)
+	}
+	var codec, codecErr = credentialCodecFromEnvironment()
+	if (codecErr != nil) {
+		return Failure(codecErr)
+	}
+	if (account.OAuth2 != nil) {
+		var accessToken, accessTokenErr = encryptCalendarSecret(codec, account.OAuth2.AccessToken)
+		if (accessTokenErr != nil) {
+			return Failure(accessTokenErr)
+		}
+		secrets.accessToken = accessToken
+		var refreshToken, refreshTokenErr = encryptCalendarSecret(codec, account.OAuth2.RefreshToken)
+		if (refreshTokenErr != nil) {
+			return Failure(refreshTokenErr)
+		}
+		secrets.refreshToken = refreshToken
+	}
+	if (account.Apple != nil) {
+		var applePassword, applePasswordErr = encryptCalendarSecret(codec, account.Apple.Password)
+		if (applePasswordErr != nil) {
+			return Failure(applePasswordErr)
+		}
+		secrets.applePassword = applePassword
+	}
+	if (account.ICS != nil) {
+		var icsFeedURL, icsFeedURLErr = encryptCalendarSecret(codec, account.ICS.FeedURL)
+		if (icsFeedURLErr != nil) {
+			return Failure(icsFeedURLErr)
+		}
+		secrets.icsFeedURL = icsFeedURL
+	}
+	return Success(secrets)
+}
+
+func encryptCalendarSecret(codec *credentialCodec, value string) (*string, error) {
+	if (value == "") {
+		return Success(nil)
+	}
+	var encrypted, encryptErr = RequirePtr(codec).encrypt(value)
+	if (encryptErr != nil) {
+		return Failure(encryptErr)
+	}
+	return Success(&encrypted)
+}
+
+func decodeCalendarCredentials(account *CalendarAccount, accessToken *string, refreshToken *string, expiresAt *time.Time, scope *string, applePassword *string, icsFeedURL *string) error {
+	var needsCodec = accessToken != nil || refreshToken != nil || applePassword != nil || icsFeedURL != nil
+	var codec *credentialCodec
+	if (needsCodec) {
+		var resolved, resolveErr = credentialCodecFromEnvironment()
+		if (resolveErr != nil) {
+			return resolveErr
+		}
+		codec = resolved
+	}
+	if (accessToken != nil || refreshToken != nil || expiresAt != nil || scope != nil) {
+		var token, tokenErr = decryptCalendarSecret(codec, accessToken)
+		if (tokenErr != nil) {
+			return tokenErr
+		}
+		var refresh, refreshErr = decryptCalendarSecret(codec, refreshToken)
+		if (refreshErr != nil) {
+			return refreshErr
+		}
+		account.OAuth2 = &CalendarOAuth2Credentials{AccessToken: token, RefreshToken: refresh, AccessTokenExpiresAt: expiresAt, Scope: dereference(scope)}
+	}
+	if (applePassword != nil) {
+		var password, passwordErr = decryptCalendarSecret(codec, applePassword)
+		if (passwordErr != nil) {
+			return passwordErr
+		}
+		account.Apple = &CalendarAppleCredentials{Password: password}
+	}
+	if (icsFeedURL != nil) {
+		var feedURL, feedURLErr = decryptCalendarSecret(codec, icsFeedURL)
+		if (feedURLErr != nil) {
+			return feedURLErr
+		}
+		account.ICS = &CalendarICSCredentials{FeedURL: feedURL}
+	}
+	return nil
+}
+
+// decryptCalendarSecret surfaces a decryption failure as an error and never
+// substitutes an empty credential.
+func decryptCalendarSecret(codec *credentialCodec, ciphertext *string) (string, error) {
+	if (ciphertext == nil) {
+		return Success("")
+	}
+	if (codec == nil) {
+		return Failure(ErrEncryptionKeyUnavailable)
+	}
+	return RequirePtr(codec).decrypt(*ciphertext)
+}
+
+func dereference(value *string) string {
+	if (value == nil) {
+		return ""
+	}
+	return *value
+}
+
+func stringPointer(value string) *string {
+	if (value == "") {
+		return nil
+	}
+	var stored = value
+	return &stored
+}

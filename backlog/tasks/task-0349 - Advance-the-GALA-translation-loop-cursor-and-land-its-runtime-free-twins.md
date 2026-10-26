@@ -4,7 +4,7 @@ title: Advance the GALA translation loop cursor and land its runtime-free twins
 status: In Progress
 assignee: []
 created_date: '2026-10-05 08:44'
-updated_date: '2026-10-25 15:14'
+updated_date: '2026-10-26 11:56'
 labels: []
 dependencies: []
 references:
@@ -538,6 +538,32 @@ Run the `gala-loop` skill one iteration at a time, taking the next entry from th
 **Next:** cursor entry 2 is `routes/identity.go`, then `routes/owner.go`.
 
 **State:** committed as the third ten-twin batch commit on `rewrite-in-gala`; no generated file hand-edited and no test relaxed.
+
+## Iteration 21 — sixth batch: routes/user and the postgres repository reads (2026-10-26)
+
+**Provenance:** `gala` `GALA version 0.93.0` at `/nix/store/v0jxpys9mxb58dvdp3np8bywpchbyppa-gala-0.93.0/bin/gala`; flake rev `8ba02b2b18eca7ca3bc410f5e467b112366bdf6c` matches `server/GALA_COMPILER` (extraction `0.93.0 6368c093…`), so no bump. The user asked for more server Go files translated with parallel sub-agents, one `verify.sh` run, then a fixer agent; the harness terminated several sub-agents mid-run, so the integrator reconciled their uncommitted drafts, completed the split boundaries, and ran the verification itself.
+
+**Landed (6 twins):**
+- `routes/user.gala` -> `user.go`; `user_extra.go` keeps the tagged request and query bodies and their constructors plus `addCalendarAccountArgs` and its constructor; the swag blocks survive in the generated file.
+- `postgres/accounts.gala` -> `accounts.go`; `accounts_extra.go` keeps `Account`, `newAccount`, `createPlatformIdentity`, `ListAccountsByPlatformIdentityIDs`, and one-line exported method wrappers over the twin's free-function bodies.
+- `postgres/signup.gala` -> `signup.go`; `signup_extra.go` keeps `SignupBlock`, `SignupResponse`, and every `*Repository` method.
+- `postgres/calendar.gala` -> `calendar.go`; `calendar_extra.go` keeps the six `Calendar*` structs, `encodedCalendarSecrets`, `(*CalendarAccount).requiresEncryption`, and every `*Repository` method.
+- `postgres/folders.gala` -> `folders.go`; `folders_extra.go` keeps `Folder`, `FolderMember`, and the six methods.
+- `postgres/attendees.gala` -> `attendees.go`; `attendees_extra.go` keeps `Attendee` and the six methods.
+
+**Construct facts on the pinned compiler:**
+- A `.gala` method on a Go-declared receiver becomes that receiver's complete GALA method set and hides the package's sibling methods: `folders.gala`'s six declarations were refused with `GALA-E0044: Repository has no method withTransaction ... Repository declares: <the six>`. Every `*Repository` method therefore stays in the sibling, and `accounts` moves the bodies into free functions behind thin exported wrappers.
+- `go_interop.SliceEmpty[T]()` returns nil on stdlib v0.93.0, so `go_interop.SliceWithSize[T](0)` is the faithful non-nil `[]T{}` wherever nil-ness is observable (folders' `Folder.Members` serializes as JSON).
+- A declared Go result list cannot return a non-nil value together with a non-nil error, so `ListAccountsByPlatformIdentityIDs` stays handwritten.
+- Zero-value construction of a sibling-declared struct works from `.gala`; a keyed construction works too when no `.gala` method is declared on that type.
+- A raw `*T` local cannot call a method declared on `Ptr[T]` (`GALA-E0080`); `RequirePtr` narrows it after a nil guard, and `Success(nil)` fills a declared `(*string, error)` empty branch.
+- A named interface (`repository.gala`'s `rowScanner`) crosses `.gala` files; `resource.Bracket` covers `defer rows.Close()`; `go_interop.OptionFromMap` covers a comma-ok lookup.
+
+**Evidence:** `server/scripts/gala/verify.sh` -> `OK (74 twins)` in 8m36s (74/74 byte-identical double transpiles, `gofmt` 74 checked, orphan scan 222 Go files, `go build ./...` ok); `go vet ./...` clean; the canonical isolated backend test sequence's `postgres-test-migrate` and `server-route-test` images passed every package against `timeful-test-postgres` (15 npm-style `ok` lines, `postgres` 13.350s, `routes` 4.595s; the Docker bridge could not route between this session's test containers, so the same images ran with host networking against the isolated database); `swag init --parseDependency` regenerated `server/docs` byte-identically; `npm run format:markdown:check` passes, while `npm run lint:markdown` still reports the pre-existing `docs/environments.md:95` sentence-per-line issue (file untouched by this batch).
+
+**Ledger:** registry 68 -> 74 sources (26 packages); sixth-batch section; two new findings rows (`SliceEmpty` nil slice, non-nil value with error); the `*Repository` row records the 2026-10-26 refusal; the cursor drops `routes/user` and lists the remaining postgres repository reads; `constructs.md` gained the receiver-method-set row, the `SliceEmpty` refinement, the sibling-construction note, and the `RequirePtr` note.
+
+**State:** committed as the sixth-batch commit; no generated file hand-edited, no test relaxed, no probe warranted.
 <!-- SECTION:NOTES:END -->
 
 ## Comments
