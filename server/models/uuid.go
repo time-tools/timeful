@@ -3,8 +3,21 @@
 package models
 
 import "go.gala.fyi/stdlib/std"
+import (
+	"crypto/rand"
+	"encoding/json"
+	"errors"
+	"strings"
+)
+import "go.gala.fyi/stdlib/go_interop"
 
-//line uuid.gala:2
+//line uuid.gala:13
+var zeroUUIDValue = "00000000-0000-0000-0000-000000000000"
+
+//line uuid.gala:15
+var lowerHexDigits = "0123456789abcdef"
+
+//line uuid.gala:16
 
 // ZeroUUID returns the all-zero UUID sentinel the API emits for a zero account
 // identity. It is surfaced to clients for an absent account identity (for
@@ -15,7 +28,7 @@ func ZeroUUID() UUID {
 	return UUID(zeroUUIDValue)
 }
 
-//line uuid.gala:9
+//line uuid.gala:23
 
 // UUID is a canonical lowercase hyphenated RFC 9562 UUID string. Its JSON
 // representation is that canonical form, and its empty value serializes as the
@@ -30,24 +43,190 @@ func (s UUID) Compare(other UUID) int {
 	return std.CompareString(string(s), string(other))
 }
 
-//line uuid.gala:15
+//line uuid.gala:29
 
 // String returns the canonical lowercase hyphenated form, mapping the empty
 // value to the all-zero sentinel.
 func (id UUID) String() string {
-//line uuid.gala:19
+//line uuid.gala:33
 	if id == "" {
-//line uuid.gala:20
+//line uuid.gala:34
 		return zeroUUIDValue
 	}
-//line uuid.gala:22
+//line uuid.gala:36
 	return string(id)
 }
 
-//line uuid.gala:24
+//line uuid.gala:38
 
 // IsZero reports whether the identifier is the empty or all-zero sentinel
 // value.
 func (id UUID) IsZero() bool {
-	return id == "" || id == zeroUUIDValue
+	return id == "" || id == UUID(zeroUUIDValue)
+}
+
+//line uuid.gala:42
+
+// MarshalJSON emits the canonical lowercase hyphenated string, including the
+// all-zero sentinel.
+func (id UUID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(id.String())
+}
+
+//line uuid.gala:46
+
+// MarshalText emits the canonical form so UUID keeps working as a JSON map key.
+func (id UUID) MarshalText() ([]byte, error) {
+	var _goResult std.Try[[]byte] = std.Success[[]byte]{}.Apply(go_interop.ToBytes(id.String()))
+	if _goResult.IsFailure() {
+		return *new([]byte), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
+}
+
+//line uuid.gala:49
+
+// UnmarshalJSON accepts a canonical lowercase hyphenated UUID string, an empty
+// string (the zero sentinel), or null. Uppercase, compact, braced, and extended
+// JSON forms are rejected so only the canonical wire form decodes.
+func (id *UUID) UnmarshalJSON(data []byte) error {
+//line uuid.gala:54
+	if string(data) == "null" {
+//line uuid.gala:55
+		return nil
+	}
+//line uuid.gala:57
+	var raw string
+//line uuid.gala:58
+	var err = json.Unmarshal(data, &raw)
+//line uuid.gala:59
+	if err != nil {
+//line uuid.gala:60
+		return err
+	}
+//line uuid.gala:62
+	if raw == "" {
+//line uuid.gala:63
+		*id = UUID(zeroUUIDValue)
+//line uuid.gala:64
+		return nil
+	}
+//line uuid.gala:66
+	var value, ok = ParseUUID(raw)
+//line uuid.gala:67
+	if !ok {
+//line uuid.gala:68
+		return errors.New("invalid canonical UUID")
+	}
+//line uuid.gala:70
+	*id = value
+//line uuid.gala:71
+	return nil
+}
+
+//line uuid.gala:73
+
+// UnmarshalText accepts the canonical form when UUID is a JSON map key. It
+// rejects the empty string; only UnmarshalJSON maps empty values to the zero
+// sentinel.
+func (id *UUID) UnmarshalText(data []byte) error {
+//line uuid.gala:78
+	var value, ok = ParseUUID(string(data))
+//line uuid.gala:79
+	if !ok {
+//line uuid.gala:80
+		return errors.New("invalid canonical UUID")
+	}
+//line uuid.gala:82
+	*id = value
+//line uuid.gala:83
+	return nil
+}
+
+//line uuid.gala:85
+
+// ParseUUID validates the canonical lowercase hyphenated RFC 9562 form and
+// returns it unchanged. No uppercase, compact, braced, or extended variant is
+// accepted.
+func ParseUUID(value string) (UUID, bool) {
+	var _goResult std.Tuple[UUID, bool] = func() std.Tuple[UUID, bool] {
+//line uuid.gala:90
+		if len(value) != 36 {
+//line uuid.gala:91
+			return std.Tuple[UUID, bool]{V1: std.NewImmutable(UUID("")), V2: std.NewImmutable(false)}
+		}
+//line uuid.gala:93
+		for index, char := range value {
+//line uuid.gala:94
+			{
+				obj := index
+				if obj == 8 || obj == 13 || obj == 18 || obj == 23 {
+//line uuid.gala:96
+					if char != '-' {
+//line uuid.gala:97
+						return std.Tuple[UUID, bool]{V1: std.NewImmutable(UUID("")), V2: std.NewImmutable(false)}
+					}
+				} else {
+//line uuid.gala:101
+					if !isLowerHex(char) {
+//line uuid.gala:102
+						return std.Tuple[UUID, bool]{V1: std.NewImmutable(UUID("")), V2: std.NewImmutable(false)}
+					}
+				}
+			}
+		}
+//line uuid.gala:107
+		return std.Tuple[UUID, bool]{V1: std.NewImmutable(UUID(value)), V2: std.NewImmutable(true)}
+	}()
+	return _goResult.V1.Get(), _goResult.V2.Get()
+}
+
+//line uuid.gala:110
+func isLowerHex(char rune) bool {
+	return (char >= '0' && char <= '9') || (char >= 'a' && char <= 'f')
+}
+
+//line uuid.gala:111
+
+// NewUUID returns a fresh random version-4 UUID. Account identifiers are minted
+// by the platform_identities uuidv7() default, so account creation never calls
+// it; tests and other non-account identifiers use it for uniqueness.
+func NewUUID() UUID {
+//line uuid.gala:116
+	var value = go_interop.SliceWithSize[byte](16)
+//line uuid.gala:117
+	var _, err = rand.Read(value)
+//line uuid.gala:118
+	if err != nil {
+//line uuid.gala:119
+		panic(err)
+	}
+//line uuid.gala:121
+	value[6] = (value[6] & 0x0f) | 0x40
+//line uuid.gala:122
+	value[8] = (value[8] & 0x3f) | 0x80
+//line uuid.gala:123
+	return UUID(formatUUID(value))
+}
+
+//line uuid.gala:126
+func formatUUID(value []byte) string {
+//line uuid.gala:127
+	var builder strings.Builder
+//line uuid.gala:128
+	builder.Grow(36)
+//line uuid.gala:129
+	for index, b := range value {
+//line uuid.gala:130
+		if index == 4 || index == 6 || index == 8 || index == 10 {
+//line uuid.gala:131
+			builder.WriteByte('-')
+		}
+//line uuid.gala:133
+		builder.WriteByte(lowerHexDigits[b>>4])
+//line uuid.gala:134
+		builder.WriteByte(lowerHexDigits[b&0x0f])
+	}
+//line uuid.gala:136
+	return builder.String()
 }

@@ -15,32 +15,33 @@ import (
 	"timeful/server/postgres"
 	"timeful/server/utils"
 )
+import "go.gala.fyi/stdlib/go_interop"
 
-//line active_users.gala:16
-func executeActiveUsers(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
 //line active_users.gala:18
-	var list = false
-//line active_users.gala:19
-	var days = 7
+func executeActiveUsers(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
 //line active_users.gala:20
-	if len(args) >= 1 {
+	var list = false
 //line active_users.gala:21
-		if args[0] == "true" {
+	var days = 7
 //line active_users.gala:22
+	if len(args) >= 1 {
+//line active_users.gala:23
+		if args[0] == "true" {
+//line active_users.gala:24
 			list = true
 		} else if args[0] == "false" {
-//line active_users.gala:24
+//line active_users.gala:26
 			list = false
 		} else {
-//line active_users.gala:26
+//line active_users.gala:28
 			sendMessage(s, m, fmt.Sprintf("LIST=%s is not a valid boolean!", args[0]))
-//line active_users.gala:27
+//line active_users.gala:29
 			return
 		}
 	}
-//line active_users.gala:30
+//line active_users.gala:32
 	if len(args) >= 2 {
-//line active_users.gala:31
+//line active_users.gala:33
 		{
 			obj := std.GoTry(strconv.Atoi(args[1]))
 			{
@@ -63,9 +64,9 @@ func executeActiveUsers(s *discordgo.Session, m *discordgo.MessageCreate, args [
 					}
 					_ = _tmp_6
 					if _tmp_5 {
-//line active_users.gala:34
+//line active_users.gala:36
 						sendMessage(s, m, fmt.Sprintf("DAYS=%s is not a valid number!", args[1]))
-//line active_users.gala:35
+//line active_users.gala:37
 						return
 					} else {
 						panic("gala: a std.Try matched none of its cases: it is a zero value, which a sealed type without a default case does not have")
@@ -74,74 +75,151 @@ func executeActiveUsers(s *discordgo.Session, m *discordgo.MessageCreate, args [
 			}
 		}
 	}
-//line active_users.gala:43
-	var startDate = utils.GetDateAtTime(time.Now().AddDate(0, 0, -days), "00:00:00")
 //line active_users.gala:45
+	var startDate = utils.GetDateAtTime(time.Now().AddDate(0, 0, -days), "00:00:00")
+//line active_users.gala:47
 	var repository = std.GoTry(postgres.DefaultRepository()).OnFailure(func(err error) {
 		logger.StdErr.Panicln(err)
 	}).Get()
-//line active_users.gala:46
+//line active_users.gala:48
 	var logs = std.GoTry(repository.ListActiveUserDays(context.Background(), startDate, time.Now())).OnFailure(func(err error) {
 		logger.StdErr.Panicln(err)
 	}).Get()
-//line active_users.gala:49
-	var dayStrings = activeUsersDayStrings()
 //line active_users.gala:51
-	if list {
+	var dayStrings = activeUsersDayStrings()
 //line active_users.gala:53
-		sendMessage(s, m, "Active Users:\n")
-//line active_users.gala:54
-		var message = ""
+	if list {
 //line active_users.gala:55
-		for _, log := range logs {
+		sendMessage(s, m, "Active Users:\n")
 //line active_users.gala:56
-			var date = log.LogDate
+		var message = ""
 //line active_users.gala:57
-			message += dayStrings[date.Weekday()] + " "
+		for _, log := range logs {
 //line active_users.gala:58
-			message += utils.GetDateString(date) + " | "
+			var date = log.LogDate
 //line active_users.gala:59
-			message += fmt.Sprintf("Count: %d\n", activeUsersMembersCount(log))
+			message += dayStrings[date.Weekday()] + " "
+//line active_users.gala:60
+			message += utils.GetDateString(date) + " | "
 //line active_users.gala:61
+			message += fmt.Sprintf("Count: %d\n", activeUsersMembersCount(log))
+//line active_users.gala:63
 			for _, user := range log.Members {
-//line active_users.gala:62
+//line active_users.gala:64
 				message += fmt.Sprintf("\t- %s %s (%s)\n", user.FirstName, user.LastName, user.Email)
 			}
 		}
-//line active_users.gala:66
+//line active_users.gala:68
 		for _, msg := range splitLongMessage(message, "```") {
-//line active_users.gala:67
+//line active_users.gala:69
 			sendMessage(s, m, msg)
 		}
 	} else {
-//line active_users.gala:73
-		var labels = activeUsersEmptyLabels()
-//line active_users.gala:74
-		var data = activeUsersEmptyData()
 //line active_users.gala:75
-		for i := activeUsersLogsCount(logs) - 1; i >= 0; i-- {
+		var labels = activeUsersEmptyLabels()
 //line active_users.gala:76
-			labels = activeUsersAppendLabel(labels, utils.GetDateString(std.NewImmutable(logs).Get()[i].LogDate))
+		var data = activeUsersEmptyData()
 //line active_users.gala:77
+		for i := activeUsersLogsCount(logs) - 1; i >= 0; i-- {
+//line active_users.gala:78
+			labels = activeUsersAppendLabel(labels, utils.GetDateString(std.NewImmutable(logs).Get()[i].LogDate))
+//line active_users.gala:79
 			data = activeUsersAppendCount(data, activeUsersMembersCount(logs[i]))
 		}
-//line active_users.gala:81
+//line active_users.gala:83
 		var chart = activeUsersChart(labels, data)
-//line active_users.gala:82
-		var jsonStr, _ = json.Marshal(chart)
 //line active_users.gala:84
-		var encodedChart = url.PathEscape(string(jsonStr))
-//line active_users.gala:85
-		var chartUrl = fmt.Sprintf("https://quickchart.io/chart?c=%s&backgroundColor=white", encodedChart)
+		var jsonStr, _ = json.Marshal(chart)
 //line active_users.gala:86
+		var encodedChart = url.PathEscape(string(jsonStr))
+//line active_users.gala:87
+		var chartUrl = fmt.Sprintf("https://quickchart.io/chart?c=%s&backgroundColor=white", encodedChart)
+//line active_users.gala:88
 		var chartEmbed = &discordgo.MessageEmbed{Title: "Active Users", Image: &discordgo.MessageEmbedImage{URL: chartUrl}}
-//line active_users.gala:93
+//line active_users.gala:95
 		sendEmbed(s, m, chartEmbed)
 	}
 }
 
-//line active_users.gala:97
+//line active_users.gala:99
 var activeUsers Command = Command{Name: "!active_users", Description: `Gets the number of active users in the database, based on last sign in date. 
   - if LIST is true, it will list the name/email of all users, otherwise, it will show a bar graph
   - DAYS is the amount of days since last sign in
   `, Usage: "!active_users [LIST=false] [DAYS=7]", Execute: executeActiveUsers}
+
+//line active_users.gala:109
+func activeUsersDayStrings() []string {
+	return go_interop.SliceOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+}
+
+//line active_users.gala:111
+func activeUsersEmptyLabels() []string {
+	return go_interop.SliceWithSize[string](0)
+}
+
+//line active_users.gala:113
+func activeUsersEmptyData() []int {
+	return go_interop.SliceWithSize[int](0)
+}
+
+//line active_users.gala:115
+func activeUsersAppendLabel(labels []string, label string) []string {
+	return go_interop.SliceAppend(labels, label)
+}
+
+//line active_users.gala:117
+func activeUsersAppendCount(data []int, count int) []int {
+	return go_interop.SliceAppend(data, count)
+}
+
+//line active_users.gala:119
+func activeUsersLogsCount(logs []postgres.DailyUserLog) int {
+	return len(logs)
+}
+
+//line active_users.gala:121
+func activeUsersMembersCount(log postgres.DailyUserLog) int {
+	return len(log.Members)
+}
+
+//line active_users.gala:123
+func activeUsersChart(labels []string, data []int) map[string]any {
+//line active_users.gala:124
+	var chart = go_interop.MapEmpty[string, any]()
+//line active_users.gala:125
+	chart["type"] = "bar"
+//line active_users.gala:126
+	var chartData = go_interop.MapEmpty[string, any]()
+//line active_users.gala:127
+	chartData["labels"] = labels
+//line active_users.gala:128
+	var dataset = go_interop.MapEmpty[string, any]()
+//line active_users.gala:129
+	dataset["label"] = "Active Users"
+//line active_users.gala:130
+	dataset["data"] = data
+//line active_users.gala:131
+	chartData["datasets"] = go_interop.SliceOf[any](dataset)
+//line active_users.gala:132
+	chart["data"] = chartData
+//line active_users.gala:133
+	var options = go_interop.MapEmpty[string, any]()
+//line active_users.gala:134
+	var scales = go_interop.MapEmpty[string, any]()
+//line active_users.gala:135
+	var yAxis = go_interop.MapEmpty[string, any]()
+//line active_users.gala:136
+	var ticks = go_interop.MapEmpty[string, any]()
+//line active_users.gala:137
+	ticks["stepSize"] = 1
+//line active_users.gala:138
+	yAxis["ticks"] = ticks
+//line active_users.gala:139
+	scales["yAxes"] = go_interop.SliceOf[any](yAxis)
+//line active_users.gala:140
+	options["scales"] = scales
+//line active_users.gala:141
+	chart["options"] = options
+//line active_users.gala:142
+	return chart
+}

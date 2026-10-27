@@ -14,32 +14,33 @@ import (
 	"timeful/server/postgres"
 	"timeful/server/utils"
 )
+import "go.gala.fyi/stdlib/go_interop"
 
-//line active_users.gala:15
-func executeActiveUsers(args []string, webhookUrl string) {
 //line active_users.gala:17
-	var list = false
-//line active_users.gala:18
-	var days = 7
+func executeActiveUsers(args []string, webhookUrl string) {
 //line active_users.gala:19
-	if len(args) >= 1 {
+	var list = false
 //line active_users.gala:20
-		if args[0] == "true" {
+	var days = 7
 //line active_users.gala:21
+	if len(args) >= 1 {
+//line active_users.gala:22
+		if args[0] == "true" {
+//line active_users.gala:23
 			list = true
 		} else if args[0] == "false" {
-//line active_users.gala:23
+//line active_users.gala:25
 			list = false
 		} else {
-//line active_users.gala:25
+//line active_users.gala:27
 			SendRawMessage(newResponse("ephemeral", fmt.Sprintf("LIST=%s is not a valid boolean!", args[0])), webhookUrl)
-//line active_users.gala:26
+//line active_users.gala:28
 			return
 		}
 	}
-//line active_users.gala:29
+//line active_users.gala:31
 	if len(args) >= 2 {
-//line active_users.gala:30
+//line active_users.gala:32
 		{
 			obj := std.GoTry(strconv.Atoi(args[1]))
 			{
@@ -62,9 +63,9 @@ func executeActiveUsers(args []string, webhookUrl string) {
 					}
 					_ = _tmp_6
 					if _tmp_5 {
-//line active_users.gala:33
+//line active_users.gala:35
 						SendRawMessage(newResponse("ephemeral", fmt.Sprintf("DAYS=%s is not a valid number!", args[1])), webhookUrl)
-//line active_users.gala:34
+//line active_users.gala:36
 						return
 					} else {
 						panic("gala: a std.Try matched none of its cases: it is a zero value, which a sealed type without a default case does not have")
@@ -73,72 +74,167 @@ func executeActiveUsers(args []string, webhookUrl string) {
 			}
 		}
 	}
-//line active_users.gala:42
-	var startDate = utils.GetDateAtTime(time.Now().AddDate(0, 0, -days), "00:00:00")
 //line active_users.gala:44
+	var startDate = utils.GetDateAtTime(time.Now().AddDate(0, 0, -days), "00:00:00")
+//line active_users.gala:46
 	var repository = std.GoTry(postgres.DefaultRepository()).OnFailure(func(err error) {
 		logger.StdErr.Panicln(err)
 	}).Get()
-//line active_users.gala:45
+//line active_users.gala:47
 	var logs = std.GoTry(repository.ListActiveUserDays(context.Background(), startDate, time.Now())).OnFailure(func(err error) {
 		logger.StdErr.Panicln(err)
 	}).Get()
-//line active_users.gala:48
-	var dayStrings = activeUsersDayStrings()
 //line active_users.gala:50
-	if list {
+	var dayStrings = activeUsersDayStrings()
 //line active_users.gala:52
-		SendRawMessage(newResponse("in_channel", "Active Users:\n"), webhookUrl)
-//line active_users.gala:53
-		var message = ""
+	if list {
 //line active_users.gala:54
-		for _, log := range logs {
+		SendRawMessage(newResponse("in_channel", "Active Users:\n"), webhookUrl)
 //line active_users.gala:55
-			var date = log.LogDate
+		var message = ""
 //line active_users.gala:56
-			message += dayStrings[date.Weekday()] + " "
+		for _, log := range logs {
 //line active_users.gala:57
-			message += utils.GetDateString(date) + " | "
+			var date = log.LogDate
 //line active_users.gala:58
-			message += fmt.Sprintf("Count: %d\n", activeUsersMembersCount(log))
+			message += dayStrings[date.Weekday()] + " "
+//line active_users.gala:59
+			message += utils.GetDateString(date) + " | "
 //line active_users.gala:60
+			message += fmt.Sprintf("Count: %d\n", activeUsersMembersCount(log))
+//line active_users.gala:62
 			for _, user := range log.Members {
-//line active_users.gala:61
+//line active_users.gala:63
 				message += fmt.Sprintf("\t- %s %s (%s)\n", user.FirstName, user.LastName, user.Email)
 			}
 		}
-//line active_users.gala:65
+//line active_users.gala:67
 		for _, msg := range splitLongMessage(message, "```") {
-//line active_users.gala:66
+//line active_users.gala:68
 			SendRawMessage(newResponse("in_channel", msg), webhookUrl)
 		}
 	} else {
-//line active_users.gala:72
-		var labels = activeUsersEmptyLabels()
-//line active_users.gala:73
-		var data = activeUsersEmptyData()
 //line active_users.gala:74
-		for i := activeUsersLogsCount(logs) - 1; i >= 0; i-- {
+		var labels = activeUsersEmptyLabels()
 //line active_users.gala:75
-			labels = activeUsersAppendLabel(labels, utils.GetDateString(std.NewImmutable(logs).Get()[i].LogDate))
+		var data = activeUsersEmptyData()
 //line active_users.gala:76
+		for i := activeUsersLogsCount(logs) - 1; i >= 0; i-- {
+//line active_users.gala:77
+			labels = activeUsersAppendLabel(labels, utils.GetDateString(std.NewImmutable(logs).Get()[i].LogDate))
+//line active_users.gala:78
 			data = activeUsersAppendCount(data, activeUsersMembersCount(logs[i]))
 		}
-//line active_users.gala:80
+//line active_users.gala:82
 		var chart = activeUsersChart(labels, data)
-//line active_users.gala:81
-		var jsonStr, _ = json.Marshal(chart)
 //line active_users.gala:83
+		var jsonStr, _ = json.Marshal(chart)
+//line active_users.gala:85
 		var encodedChart = url.PathEscape(string(jsonStr))
-//line active_users.gala:84
-		var chartUrl = fmt.Sprintf("https://quickchart.io/chart?c=%s&backgroundColor=white", encodedChart)
 //line active_users.gala:86
+		var chartUrl = fmt.Sprintf("https://quickchart.io/chart?c=%s&backgroundColor=white", encodedChart)
+//line active_users.gala:88
 		SendRawMessage(activeUsersChartResponse(chartUrl), webhookUrl)
 	}
 }
 
-//line active_users.gala:90
+//line active_users.gala:92
 var activeUsers Command = Command{Name: "/active_users", Description: `Gets the number of active users in the database, based on last sign in date. 
   - if LIST is true, it will list the name/email of all users, otherwise, it will show a bar graph
   - DAYS is the amount of days since last sign in
   `, Usage: "/active_users [LIST=false] [DAYS=7]", Execute: executeActiveUsers}
+
+//line active_users.gala:102
+func activeUsersDayStrings() []string {
+	return go_interop.SliceOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+}
+
+//line active_users.gala:104
+func activeUsersEmptyLabels() []string {
+	return go_interop.SliceWithSize[string](0)
+}
+
+//line active_users.gala:106
+func activeUsersEmptyData() []int {
+	return go_interop.SliceWithSize[int](0)
+}
+
+//line active_users.gala:108
+func activeUsersAppendLabel(labels []string, label string) []string {
+	return go_interop.SliceAppend(labels, label)
+}
+
+//line active_users.gala:110
+func activeUsersAppendCount(data []int, count int) []int {
+	return go_interop.SliceAppend(data, count)
+}
+
+//line active_users.gala:112
+func activeUsersLogsCount(logs []postgres.DailyUserLog) int {
+	return len(logs)
+}
+
+//line active_users.gala:114
+func activeUsersMembersCount(log postgres.DailyUserLog) int {
+	return len(log.Members)
+}
+
+//line active_users.gala:116
+func activeUsersChart(labels []string, data []int) map[string]any {
+//line active_users.gala:117
+	var chart = go_interop.MapEmpty[string, any]()
+//line active_users.gala:118
+	chart["type"] = "bar"
+//line active_users.gala:119
+	var chartData = go_interop.MapEmpty[string, any]()
+//line active_users.gala:120
+	chartData["labels"] = labels
+//line active_users.gala:121
+	var dataset = go_interop.MapEmpty[string, any]()
+//line active_users.gala:122
+	dataset["label"] = "Active Users"
+//line active_users.gala:123
+	dataset["data"] = data
+//line active_users.gala:124
+	chartData["datasets"] = go_interop.SliceOf[any](dataset)
+//line active_users.gala:125
+	chart["data"] = chartData
+//line active_users.gala:126
+	var options = go_interop.MapEmpty[string, any]()
+//line active_users.gala:127
+	var scales = go_interop.MapEmpty[string, any]()
+//line active_users.gala:128
+	var yAxis = go_interop.MapEmpty[string, any]()
+//line active_users.gala:129
+	var ticks = go_interop.MapEmpty[string, any]()
+//line active_users.gala:130
+	ticks["stepSize"] = 1
+//line active_users.gala:131
+	yAxis["ticks"] = ticks
+//line active_users.gala:132
+	scales["yAxes"] = go_interop.SliceOf[any](yAxis)
+//line active_users.gala:133
+	options["scales"] = scales
+//line active_users.gala:134
+	chart["options"] = options
+//line active_users.gala:135
+	return chart
+}
+
+//line active_users.gala:138
+func activeUsersChartResponse(chartUrl string) *Response {
+//line active_users.gala:139
+	var response = newResponse("in_channel", "")
+//line active_users.gala:140
+	var block = go_interop.MapEmpty[string, any]()
+//line active_users.gala:141
+	block["type"] = "image"
+//line active_users.gala:142
+	block["image_url"] = chartUrl
+//line active_users.gala:143
+	block["alt_text"] = "Active users chart"
+//line active_users.gala:144
+	response.Blocks = go_interop.SliceOf(block)
+//line active_users.gala:145
+	return response
+}

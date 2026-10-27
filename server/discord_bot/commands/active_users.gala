@@ -13,6 +13,8 @@ import (
 	"timeful/server/utils"
 )
 
+import "martianoff/gala/go_interop"
+
 func executeActiveUsers(s Ptr[discordgo.Session], m Ptr[discordgo.MessageCreate], args []string) {
 	// Parse args
 	var list = false
@@ -102,4 +104,40 @@ var activeUsers Command = Command{
   `,
 	Usage:   "!active_users [LIST=false] [DAYS=7]",
 	Execute: executeActiveUsers,
+}
+
+func activeUsersDayStrings() []string = go_interop.SliceOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+
+func activeUsersEmptyLabels() []string = go_interop.SliceWithSize[string](0)
+
+func activeUsersEmptyData() []int = go_interop.SliceWithSize[int](0)
+
+func activeUsersAppendLabel(labels []string, label string) []string = go_interop.SliceAppend(labels, label)
+
+func activeUsersAppendCount(data []int, count int) []int = go_interop.SliceAppend(data, count)
+
+func activeUsersLogsCount(logs []postgres.DailyUserLog) int = logs.Size()
+
+func activeUsersMembersCount(log postgres.DailyUserLog) int = log.Members.Size()
+
+func activeUsersChart(labels []string, data []int) map[string]any {
+	var chart = go_interop.MapEmpty[string, any]()
+	chart["type"] = "bar"
+	var chartData = go_interop.MapEmpty[string, any]()
+	chartData["labels"] = labels
+	var dataset = go_interop.MapEmpty[string, any]()
+	dataset["label"] = "Active Users"
+	dataset["data"] = data
+	chartData["datasets"] = go_interop.SliceOf[any](dataset)
+	chart["data"] = chartData
+	var options = go_interop.MapEmpty[string, any]()
+	var scales = go_interop.MapEmpty[string, any]()
+	var yAxis = go_interop.MapEmpty[string, any]()
+	var ticks = go_interop.MapEmpty[string, any]()
+	ticks["stepSize"] = 1
+	yAxis["ticks"] = ticks
+	scales["yAxes"] = go_interop.SliceOf[any](yAxis)
+	options["scales"] = scales
+	chart["options"] = options
+	return chart
 }

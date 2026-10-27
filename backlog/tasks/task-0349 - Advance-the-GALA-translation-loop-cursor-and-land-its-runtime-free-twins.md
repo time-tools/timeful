@@ -607,6 +607,25 @@ Run the `gala-loop` skill one iteration at a time, taking the next entry from th
 **Ledger:** registry 77 -> 78 sources; ninth-batch section; two new findings rows (named-slice `.Size()`, deferred rollback panic propagation); the `const` row gains the swag-enum reason; cursor entries 4 and 5 collapse to `models/calendar.go`; `constructs.md` gains the deref-assignment row and the three notes.
 
 **State:** committed as `feat(gala): move the last postgres method bodies into their twins`; no generated file hand-edited and no test relaxed.
+
+## Iteration 24 — tenth batch: five expired sibling reasons (2026-10-27)
+
+**Provenance:** `gala` `GALA version 0.93.0` at `/nix/store/v0jxpys9mxb58dvdp3np8bywpchbyppa-gala-0.93.0/bin/gala`; flake rev `8ba02b2b18eca7ca3bc410f5e467b112366bdf6c` matches `server/GALA_COMPILER` (extraction `0.93.0 6368c093…`), so no bump. The user asked for four or more files, so one `verify.sh` run covers the batch.
+
+**Landed (5 sibling files retired, 0 new twins):**
+- `models/datetime_extra.go` deleted; `MarshalJSON` and the pointer-receiver `UnmarshalJSON` moved to `models/datetime.gala` (`*DateTime` receiver, so no entry check is emitted).
+- `models/uuid_extra.go` deleted; the JSON/text marshalers, `ParseUUID`, `isLowerHex`, `NewUUID`, and `formatUUID` moved to `models/uuid.gala`, with `zeroUUIDValue`/`lowerHexDigits` as package vars; `formatUUID` takes `[]byte` because its only caller moved with it, and the exported signatures and produced bytes are unchanged.
+- `routes/events_extra.go` deleted; `normalizeTimedResponseAvailabilitySlots` moved to `routes/events.gala` with local `map[models.DateTime]bool` dedup sets.
+- `discord_bot/commands/active_users_extra.go` deleted; its eight helpers moved to `discord_bot/commands/active_users.gala`.
+- `slackbot/commands/active_users_extra.go` deleted; its nine helpers, including `activeUsersChartResponse`, moved to `slackbot/commands/active_users.gala`.
+
+**Construct facts re-derived on the pinned compiler:** `.Size()` on a plain `[]T` field lowers to Go's `len` even when the element type is declared in another package's handwritten sibling; `SliceOf[any](m)` keeps the `[]any{map[string]any{...}}` JSON shape where the inferred form would narrow it; a non-error `MarshalText` body in an `([]byte, error)` list takes `Success(...)`; a raw `*T` receiver keeps the nil-receiver null branch and emits no entry check; and moving a callee from a Go sibling into a `.gala` file left `routes/group.go` byte-identical.
+
+**Evidence:** `server/scripts/gala/verify.sh --check` -> `OK (78 twins)` in 2m01s (78/78 byte-identical double transpiles, `gofmt` 78 checked, orphan scan 218 Go files, `go build ./...` ok); `go build ./...` and `go vet ./...` clean; the canonical isolated Compose sequence's `postgres-test-bootstrap` exited 2 on its `psql` to `postgres-test`, so the bootstrap, migrate, and `server-route-test` images ran with host networking against the isolated database (`postgres` 8.384s, `routes` 3.354s, every other package ok); the migrate image reported `no migrations to run` at `20260919000000` and re-applied the grants; `go test ./models/ ./eventid/ ./respondents/` passes on the host and the container suite passes; `swag` was not rerun because no annotation, handler, or swagger-visible type moved; `npm run format:markdown:check` passes.
+
+**Ledger:** registry stays 78 sources, with the five sibling cells now `—` (`models/datetime`, `models/uuid`, `routes/events`, `discord_bot/commands/active_users`, and `slackbot/commands/active_users`, whose row keeps `utils_extra.go`); a tenth-batch section records the construct facts and evidence; the defined-scalar and fixed-array rows and the uuid/datetime prose now record the fold and the `[]byte` form; the cursor keeps its four blocked entries and gains the tenth-batch retirement note.
+
+**State:** committed as `feat(gala): fold five expired GALA siblings into their twins`; no generated file hand-edited, no test relaxed, and no probe warranted.
 <!-- SECTION:NOTES:END -->
 
 ## Comments

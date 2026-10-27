@@ -1,5 +1,19 @@
 package models
 
+import (
+	"crypto/rand"
+	"encoding/json"
+	"errors"
+	"strings"
+)
+
+import "martianoff/gala/go_interop"
+import . "martianoff/gala/go_builtins"
+
+var zeroUUIDValue = "00000000-0000-0000-0000-000000000000"
+
+var lowerHexDigits = "0123456789abcdef"
+
 // ZeroUUID returns the all-zero UUID sentinel the API emits for a zero account
 // identity. It is surfaced to clients for an absent account identity (for
 // example the guest userId) and for unowned events, so the wire format must
@@ -24,4 +38,100 @@ func (id UUID) String() string {
 
 // IsZero reports whether the identifier is the empty or all-zero sentinel
 // value.
-func (id UUID) IsZero() bool = id == "" || id == zeroUUIDValue
+func (id UUID) IsZero() bool = id == "" || id == UUID(zeroUUIDValue)
+
+// MarshalJSON emits the canonical lowercase hyphenated string, including the
+// all-zero sentinel.
+func (id UUID) MarshalJSON() ([]byte, error) = json.Marshal(id.String())
+
+// MarshalText emits the canonical form so UUID keeps working as a JSON map key.
+func (id UUID) MarshalText() ([]byte, error) = Success(go_interop.ToBytes(id.String()))
+
+// UnmarshalJSON accepts a canonical lowercase hyphenated UUID string, an empty
+// string (the zero sentinel), or null. Uppercase, compact, braced, and extended
+// JSON forms are rejected so only the canonical wire form decodes.
+func (id *UUID) UnmarshalJSON(data []byte) error {
+	if (string(data) == "null") {
+		return nil
+	}
+	var raw string
+	var err = json.Unmarshal(data, &raw)
+	if (err != nil) {
+		return err
+	}
+	if (raw == "") {
+		*id = UUID(zeroUUIDValue)
+		return nil
+	}
+	var value, ok = ParseUUID(raw)
+	if (!ok) {
+		return errors.New("invalid canonical UUID")
+	}
+	*id = value
+	return nil
+}
+
+// UnmarshalText accepts the canonical form when UUID is a JSON map key. It
+// rejects the empty string; only UnmarshalJSON maps empty values to the zero
+// sentinel.
+func (id *UUID) UnmarshalText(data []byte) error {
+	var value, ok = ParseUUID(string(data))
+	if (!ok) {
+		return errors.New("invalid canonical UUID")
+	}
+	*id = value
+	return nil
+}
+
+// ParseUUID validates the canonical lowercase hyphenated RFC 9562 form and
+// returns it unchanged. No uppercase, compact, braced, or extended variant is
+// accepted.
+func ParseUUID(value string) (UUID, bool) {
+	if (value.ByteSize() != 36) {
+		return (UUID(""), false)
+	}
+	for index, char := range value {
+		index match {
+			case 8 | 13 | 18 | 23 => {
+				if (char != '-') {
+					return (UUID(""), false)
+				}
+			}
+			case _ => {
+				if (!isLowerHex(char)) {
+					return (UUID(""), false)
+				}
+			}
+		}
+	}
+	return (UUID(value), true)
+}
+
+func isLowerHex(char rune) bool = (char >= '0' && char <= '9') || (char >= 'a' && char <= 'f')
+
+// NewUUID returns a fresh random version-4 UUID. Account identifiers are minted
+// by the platform_identities uuidv7() default, so account creation never calls
+// it; tests and other non-account identifiers use it for uniqueness.
+func NewUUID() UUID {
+	var value = go_interop.SliceWithSize[byte](16)
+	var _, err = rand.Read(value)
+	if (err != nil) {
+		Panic(err)
+	}
+	value[6] = (value[6] & 0x0f) | 0x40
+	value[8] = (value[8] & 0x3f) | 0x80
+	return UUID(formatUUID(value))
+}
+
+func formatUUID(value []byte) string {
+	var builder strings.Builder
+	builder.Grow(36)
+	for index, b := range value {
+		if (index == 4 || index == 6 || index == 8 || index == 10) {
+			builder.WriteByte('-')
+		}
+		builder.WriteByte(lowerHexDigits[b>>4])
+		builder.WriteByte(lowerHexDigits[b&0x0f])
+	}
+	return builder.String()
+}

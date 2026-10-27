@@ -128,3 +128,54 @@ func stripSensitiveUserFields(user *models.User) {
 		found.PrimaryAccountKey = nil
 	})
 }
+
+//line events.gala:82
+
+// normalizeTimedResponseAvailabilitySlots keeps the first occurrence of each
+// slot and drops every repeated slot; ifNeeded also drops any slot already
+// present in availability. The dedup sets never leave the function, so their
+// element type is unobservable and each one is a map[models.DateTime]bool.
+func normalizeTimedResponseAvailabilitySlots(availability []models.DateTime, ifNeeded []models.DateTime) ([]models.DateTime, []models.DateTime) {
+	var _goResult std.Tuple[[]models.DateTime, []models.DateTime] = func() std.Tuple[[]models.DateTime, []models.DateTime] {
+//line events.gala:88
+		var normalizedAvailability = go_interop.SliceWithCapacity[models.DateTime](len(availability))
+//line events.gala:89
+		var availabilitySet = go_interop.MapWithCapacity[models.DateTime, bool](len(availability))
+//line events.gala:90
+		for _, slot := range availability {
+//line events.gala:91
+			if availabilitySet[slot] {
+//line events.gala:92
+				continue
+			}
+//line events.gala:94
+			availabilitySet[slot] = true
+//line events.gala:95
+			normalizedAvailability = go_interop.SliceAppend(normalizedAvailability, slot)
+		}
+//line events.gala:97
+		var normalizedIfNeeded = go_interop.SliceWithCapacity[models.DateTime](len(ifNeeded))
+//line events.gala:98
+		var ifNeededSet = go_interop.MapWithCapacity[models.DateTime, bool](len(ifNeeded))
+//line events.gala:99
+		for _, slot := range ifNeeded {
+//line events.gala:100
+			if availabilitySet[slot] {
+//line events.gala:101
+				continue
+			}
+//line events.gala:103
+			if ifNeededSet[slot] {
+//line events.gala:104
+				continue
+			}
+//line events.gala:106
+			ifNeededSet[slot] = true
+//line events.gala:107
+			normalizedIfNeeded = go_interop.SliceAppend(normalizedIfNeeded, slot)
+		}
+//line events.gala:109
+		return std.Tuple[[]models.DateTime, []models.DateTime]{V1: std.NewImmutable(normalizedAvailability), V2: std.NewImmutable(normalizedIfNeeded)}
+	}()
+	return _goResult.V1.Get(), _goResult.V2.Get()
+}

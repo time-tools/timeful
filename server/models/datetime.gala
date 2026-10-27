@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // DateTime is a canonical millisecond-precision instant. Its JSON representation
 // is an RFC3339 string for values and a millisecond integer when used as a map
@@ -15,3 +18,21 @@ func (d DateTime) IsZero() bool = d == 0
 
 // NewDateTimeFromTime converts a time into millisecond precision.
 func NewDateTimeFromTime(value time.Time) DateTime = DateTime(value.UnixMilli())
+
+// MarshalJSON emits an RFC3339 UTC timestamp.
+func (d DateTime) MarshalJSON() ([]byte, error) = json.Marshal(d.Time().UTC())
+
+// UnmarshalJSON accepts an RFC3339 timestamp or null, matching the driver
+// behavior the wire format was built on.
+func (d *DateTime) UnmarshalJSON(data []byte) error {
+	if (string(data) == "null") {
+		return nil
+	}
+	var value time.Time
+	var err = json.Unmarshal(data, &value)
+	if (err != nil) {
+		return err
+	}
+	*d = NewDateTimeFromTime(value)
+	return nil
+}

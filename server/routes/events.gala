@@ -79,3 +79,32 @@ func stripSensitiveUserFields(user *models.User) {
 		found.PrimaryAccountKey = nil
 	})
 }
+
+// normalizeTimedResponseAvailabilitySlots keeps the first occurrence of each
+// slot and drops every repeated slot; ifNeeded also drops any slot already
+// present in availability. The dedup sets never leave the function, so their
+// element type is unobservable and each one is a map[models.DateTime]bool.
+func normalizeTimedResponseAvailabilitySlots(availability []models.DateTime, ifNeeded []models.DateTime) ([]models.DateTime, []models.DateTime) {
+	var normalizedAvailability = go_interop.SliceWithCapacity[models.DateTime](availability.Size())
+	var availabilitySet = go_interop.MapWithCapacity[models.DateTime, bool](availability.Size())
+	for _, slot := range availability {
+		if (availabilitySet[slot]) {
+			continue
+		}
+		availabilitySet[slot] = true
+		normalizedAvailability = go_interop.SliceAppend(normalizedAvailability, slot)
+	}
+	var normalizedIfNeeded = go_interop.SliceWithCapacity[models.DateTime](ifNeeded.Size())
+	var ifNeededSet = go_interop.MapWithCapacity[models.DateTime, bool](ifNeeded.Size())
+	for _, slot := range ifNeeded {
+		if (availabilitySet[slot]) {
+			continue
+		}
+		if (ifNeededSet[slot]) {
+			continue
+		}
+		ifNeededSet[slot] = true
+		normalizedIfNeeded = go_interop.SliceAppend(normalizedIfNeeded, slot)
+	}
+	return (normalizedAvailability, normalizedIfNeeded)
+}
