@@ -99,6 +99,40 @@ func ValidateBaseUrl() error {
 	return baseErr
 }
 
+// CORSOrigins returns the canonical application origin and any configured
+// additional origins, de-duplicated after normalization. The dedup set is a
+// local map[string]bool rather than the original map[string]struct{}, because
+// the empty-struct type expression has no GALA spelling and nothing outside
+// this function observes the element type.
+func CORSOrigins(additionalOrigins string) ([]string, error) {
+	var baseUrl, baseErr = normalizedBaseUrl(os.Getenv("APP_BASE_URL"))
+	if (baseErr != nil) {
+		return Failure(baseErr)
+	}
+
+	var origins = go_interop.SliceOf(baseUrl)
+	var seen = go_interop.MapEmpty[string, bool]()
+	seen[baseUrl] = true
+	for _, origin := range strings.Split(additionalOrigins, ",") {
+		if (strings.TrimSpace(origin) == "") {
+			continue
+		}
+
+		var normalizedOrigin, originErr = normalizedBaseUrl(origin)
+		if (originErr != nil) {
+			return Failure(fmt.Errorf("CORS_ORIGINS contains an invalid origin: %w", originErr))
+		}
+		if (seen[normalizedOrigin]) {
+			continue
+		}
+
+		seen[normalizedOrigin] = true
+		origins = go_interop.SliceAppend(origins, normalizedOrigin)
+	}
+
+	return Success(origins)
+}
+
 // GetListmonkOtpFromAddress returns the configured sender for Listmonk OTP emails.
 func GetListmonkOtpFromAddress() (string, error) {
 	var fromAddress = strings.TrimSpace(os.Getenv("LISTMONK_OTP_FROM_ADDRESS"))

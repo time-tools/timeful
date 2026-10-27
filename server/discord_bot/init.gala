@@ -16,6 +16,15 @@ var bot *discordgo.Session
 var listeningChannel *discordgo.Channel
 var commandMap = newCommandMap()
 
+// newCommandMap builds the package-level command map as a non-nil empty Go map,
+// because a GALA map literal is not a language construct and the command
+// registry inserts into the map after init.
+func newCommandMap() map[string]commands.Command = go_interop.MapEmpty[string, commands.Command]()
+
+// argsFrom returns the arguments after the command name. GALA has no slice
+// expression, so the tail is taken with the go_interop slice view.
+func argsFrom(args []string, index int) []string = go_interop.SliceFrom(args, index)
+
 func listeningChannelName() string {
 	val configuredChannel = os.Getenv("DISCORD_BOT_CHANNEL")
 	if (configuredChannel != "") configuredChannel

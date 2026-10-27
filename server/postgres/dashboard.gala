@@ -1,0 +1,129 @@
+package postgres
+
+import (
+	"context"
+	"errors"
+
+	"github.com/jackc/pgx/v5"
+)
+
+import "martianoff/gala/go_interop"
+import "martianoff/gala/resource"
+
+// This file carries the dashboard query and its row scanner, formerly in
+// dashboard.go. DashboardEvent stays handwritten in dashboard_extra.go because
+// a GALA struct declaration would add Copy, Equal, Unapply, a
+// NewDashboardEvent constructor, and StructMeta_DashboardEvent to this
+// package's Go-facing surface. The *Repository method is a one-line wrapper
+// there for the method-set reason recorded on postgres/folders.gala.
+
+// listDashboardEventsQuery returns every non-deleted event the account owns,
+// has responded to, or is invited to as a group attendee. The supporting-index
+// forced-plan test runs this statement directly so the membership access path
+// cannot drift from production.
+var listDashboardEventsQuery = `SELECT e.id, e.short_id, e.owner_edit_token_hash, e.owner_platform_identity_id, e.owner_event_visitor_identity_id, e.name, e.type, e.is_archived, e.is_deleted, e.num_responses, e.schedule_version, e.creator_posthog_id, e.created_at, e.updated_at, e.payload,
+       COALESCE(e.owner_platform_identity_id = $1, FALSE) AS owned,
+       (EXISTS (
+          SELECT 1
+          FROM event_responses r
+          WHERE r.event_id = e.id
+            AND (r.platform_identity_id = $1 OR EXISTS (
+              SELECT 1 FROM event_visitor_identities v
+              WHERE v.id = r.event_visitor_identity_id AND v.platform_identity_id = $1
+            ))
+       ) OR EXISTS (
+          SELECT 1
+          FROM event_signup_responses sr
+          WHERE sr.event_id = e.id
+            AND (sr.platform_identity_id = $1 OR EXISTS (
+              SELECT 1 FROM event_visitor_identities sv
+              WHERE sv.id = sr.event_visitor_identity_id AND sv.platform_identity_id = $1
+            ))
+       )) AS responded,
+       ($2 <> '' AND EXISTS (
+          SELECT 1
+          FROM event_attendees a
+          WHERE a.event_id = e.id
+            AND a.declined IS NOT TRUE
+            AND lower(a.email) = lower($2)
+       )) AS member
+FROM events e
+WHERE e.is_deleted = FALSE
+  AND (
+    e.owner_platform_identity_id = $1
+    OR EXISTS (
+      SELECT 1
+      FROM event_responses r
+      WHERE r.event_id = e.id
+        AND (r.platform_identity_id = $1 OR EXISTS (
+          SELECT 1 FROM event_visitor_identities v
+          WHERE v.id = r.event_visitor_identity_id AND v.platform_identity_id = $1
+        ))
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM event_signup_responses sr
+      WHERE sr.event_id = e.id
+        AND (sr.platform_identity_id = $1 OR EXISTS (
+          SELECT 1 FROM event_visitor_identities sv
+          WHERE sv.id = sr.event_visitor_identity_id AND sv.platform_identity_id = $1
+        ))
+    )
+    OR ($2 <> '' AND EXISTS (
+      SELECT 1
+      FROM event_attendees a
+      WHERE a.event_id = e.id
+        AND a.declined IS NOT TRUE
+        AND lower(a.email) = lower($2)
+    ))
+  )
+ORDER BY e.created_at DESC, e.id DESC`
+
+// listDashboardEvents resolves every non-deleted event the account owns, has
+// responded to, or is invited to as a group attendee into one deduplicated
+// list, newest first.
+func listDashboardEvents(r *Repository, ctx context.Context, platformIdentityID string, email string) ([]DashboardEvent, error) {
+	if (platformIdentityID == "") {
+		return Failure(errors.New("account platform identity ID is required"))
+	}
+	var rows, queryErr = r.db.Query(ctx, listDashboardEventsQuery, platformIdentityID, email)
+	if (queryErr != nil) {
+		return Failure(queryErr)
+	}
+	return resource.Bracket(rows, (pending) => { pending.Close() }, (pending) => {
+		var events = go_interop.SliceWithSize[DashboardEvent](0)
+		for pending.Next() {
+			var item DashboardEvent
+			var scanErr = pending.Scan(
+				&item.Event.ID,
+				&item.Event.ShortID,
+				&item.Event.OwnerEditTokenHash,
+				&item.Event.OwnerPlatformIdentityID,
+				&item.Event.OwnerEventVisitorIdentityID,
+				&item.Event.Name,
+				&item.Event.Type,
+				&item.Event.IsArchived,
+				&item.Event.IsDeleted,
+				&item.Event.NumResponses,
+				&item.Event.ScheduleVersion,
+				&item.Event.CreatorPosthogID,
+				&item.Event.CreatedAt,
+				&item.Event.UpdatedAt,
+				&item.Event.Payload,
+				&item.Owned,
+				&item.Responded,
+				&item.Member,
+			)
+			if (scanErr != nil) {
+				return Failure(scanErr)
+			}
+			item.Event.Payload = decodePayload(item.Event.Payload)
+			events = go_interop.SliceAppend(events, item)
+		}
+		var rowsErr = pending.Err()
+		if (rowsErr != nil) {
+			return Failure(rowsErr)
+		}
+		return Success(events)
+	})
+}

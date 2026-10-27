@@ -1,10 +1,6 @@
 package utils
 
 import (
-	"fmt"
-	"os"
-	"strings"
-
 	"github.com/gin-gonic/gin"
 	"timeful/server/models"
 	pgstore "timeful/server/postgres"
@@ -30,36 +26,4 @@ func GetAuthAccount(c *gin.Context) *pgstore.Account {
 	}
 	account, _ := accountInterface.(*pgstore.Account)
 	return account
-}
-
-// CORSOrigins returns the canonical application origin and any configured additional origins.
-//
-// The dedup set stays handwritten because map[string]struct{} is the struct{}
-// finding; the origin normalization it calls lives in utils.gala.
-func CORSOrigins(additionalOrigins string) ([]string, error) {
-	baseUrl, err := normalizedBaseUrl(os.Getenv("APP_BASE_URL"))
-	if err != nil {
-		return nil, err
-	}
-
-	origins := []string{baseUrl}
-	seen := map[string]struct{}{baseUrl: {}}
-	for _, origin := range strings.Split(additionalOrigins, ",") {
-		if strings.TrimSpace(origin) == "" {
-			continue
-		}
-
-		normalizedOrigin, err := normalizedBaseUrl(origin)
-		if err != nil {
-			return nil, fmt.Errorf("CORS_ORIGINS contains an invalid origin: %w", err)
-		}
-		if _, exists := seen[normalizedOrigin]; exists {
-			continue
-		}
-
-		seen[normalizedOrigin] = struct{}{}
-		origins = append(origins, normalizedOrigin)
-	}
-
-	return origins, nil
 }

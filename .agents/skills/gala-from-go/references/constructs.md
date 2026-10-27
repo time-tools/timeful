@@ -59,6 +59,9 @@ A `var` with no initializer, and a struct field a literal or call leaves out, ta
 A type with no default value (`Try`, `Either`, a sealed type without a `default case`, or a struct holding one) is `GALA-E0075` when a value is needed without one written.
 A `struct` declaration's fields are all required at construction unless a field declares a default (`var added []string = nil`); an omitted field is `GALA-E0045` even when the equivalent Go keyed literal may omit it.
 A declared Go result list cannot name its results: `func F() (used int, idle int, max int)` is a parse error while `func F() (int, int, int)` transpiles through the `std.Tuple3` lowering (checked 2026-10-10 on rev `cd2fdcb5`, `postgres/tracing.gala`'s `ConnectionStats`), and result names are not part of the Go function type, so the Go-facing signature is unchanged.
+Two bare values are not a return either: `return value, err` is a parse error, so a `Success`/`Failure` body is the only spelling and a `Failure` carries no value at all, which zeroes the result on the error path while the Go original returns the value it built.
+That drop is unobservable only where every caller checks the error before reading the value, so check the callers before translating a member whose last statement is `return value, rows.Err()`; one caller that publishes the value without checking keeps the body handwritten (re-derived 2026-10-27 on rev `8ba02b2b`, `postgres/transfers.gala`'s `ListTransferRequests` stayed in the sibling while the analytics and dashboard counters moved).
+The same drop applies through a `resource.Bracket` body: its result type is `std.Try[T]`, so a bracketed member loses the value even when the enclosing function declares a Go result list.
 A blank slot binds directly: `var _, second = f()` and `var first, _, third = f()` emit Go's `_` placeholders (checked 2026-10-26 on rev `8ba02b2b`, `routes/auth.gala`).
 `references/gaps.md` and the traps section of `SKILL.md` say what each one costs.
 
@@ -195,6 +198,7 @@ The container type decides which spelling applies, not whether the file is style
 | map or slice type in an expression | `EmptyHashMap[string, []byte]()`   | name a GALA type such as `Array[T]` or `HashMap[K, V]`; text is `string`     | workaround | `GALA-E0040` | `gala explain GALA-E0040`, then transpile the expression                 |
 
 An empty literal of a named map type is direct rather than a helper: `http.Header{}` and `url.Values{}` emit the same `Type{}` literal, so a nil-header guard or an OAuth form payload can keep its exact spelling, while a populated `map[K]V{...}` still goes through `MapEmpty`/`MapPut` (checked 2026-10-25).
+`go_interop.MapEmpty[K, V]()` emits `make(map[K]V)` and so a non-nil empty map, which reproduces `map[K]V{}` exactly and keeps a later insert from panicking; its slice counterpart `SliceEmpty` is the nil one (checked 2026-10-27 on rev `8ba02b2b`, stdlib v0.93.0, `discord_bot/init.gala`'s `newCommandMap`).
 An `OptionFromMap` used as a value needs the binding's type written out when an arm yields `nil`: `var oldSubCalendars *map[string]models.SubCalendar = go_interop.OptionFromMap(accounts, key) match { case Some(existing) => existing.SubCalendars; case None() => nil }`; without it the transpiler reports `GALA-E0068` (`cannot infer the type of this match`) and asks for the value type (verified 2026-10-26 on rev `8ba02b2b`, `routes/auth.gala`).
 A named map type also keeps its methods: `url.Values{}.Set(key, value)` is a plain Go method call and can build a values payload one entry at a time.
 

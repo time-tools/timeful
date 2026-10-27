@@ -3,11 +3,20 @@ package middleware
 import (
 	"net/http"
 
+	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"timeful/server/accounts"
 	"timeful/server/errs"
 	"timeful/server/responses"
 )
+
+// sessionIdentityID returns the platform identity UUID stored on the session.
+// The empty string means the session value is absent or is not a string, the
+// same two cases AuthRequired rejects.
+func sessionIdentityID(c Ptr[gin.Context]) string = sessions.Default(c).Get("userId") match {
+	case id: string => id
+	case _ => ""
+}
 
 // AuthRequired rejects a request that carries no usable session identity.
 //

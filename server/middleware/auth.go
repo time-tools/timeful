@@ -6,6 +6,7 @@ import "timeful/server/models"
 import "timeful/server/postgres"
 import "go.gala.fyi/stdlib/std"
 import (
+	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"timeful/server/accounts"
@@ -13,7 +14,25 @@ import (
 	"timeful/server/responses"
 )
 
-//line auth.gala:11
+//line auth.gala:12
+
+// sessionIdentityID returns the platform identity UUID stored on the session.
+// The empty string means the session value is absent or is not a string, the
+// same two cases AuthRequired rejects.
+func sessionIdentityID(c *gin.Context) string {
+	return func(obj any) string {
+		{
+			id, _tmp_1 := std.As[string](obj)
+			if _tmp_1 {
+				return id
+			} else {
+				return ""
+			}
+		}
+	}(sessions.Default(c).Get("userId"))
+}
+
+//line auth.gala:20
 
 // AuthRequired rejects a request that carries no usable session identity.
 //
@@ -36,63 +55,63 @@ func AuthRequired() gin.HandlerFunc {
 		if c == nil {
 			panic("lambda: parameter c is a Ptr[gin.Context], but the caller passed nil")
 		}
-//line auth.gala:29
+//line auth.gala:38
 		var platformIdentityID = sessionIdentityID(c)
-//line auth.gala:30
+//line auth.gala:39
 		if platformIdentityID == "" {
-//line auth.gala:31
+//line auth.gala:40
 			c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.NotSignedIn})
-//line auth.gala:32
+//line auth.gala:41
 			c.Abort()
-//line auth.gala:33
+//line auth.gala:42
 			return
 		}
-//line auth.gala:36
+//line auth.gala:45
 		{
 			obj := std.GoTry(accounts.Resolve(c.Request.Context(), platformIdentityID))
 			{
-				_tmp_1 := std.Success[*postgres.Account]{}.Unapply(obj)
-				_tmp_2 := _tmp_1.IsDefined()
-				var _tmp_3 *postgres.Account
-				if _tmp_2 {
-					_tmp_3 = _tmp_1.Get()
+				_tmp_2 := std.Success[*postgres.Account]{}.Unapply(obj)
+				_tmp_3 := _tmp_2.IsDefined()
+				var _tmp_4 *postgres.Account
+				if _tmp_3 {
+					_tmp_4 = _tmp_2.Get()
 				}
-				_ = _tmp_3
-				account := _tmp_3
-				if _tmp_2 {
-//line auth.gala:38
+				_ = _tmp_4
+				account := _tmp_4
+				if _tmp_3 {
+//line auth.gala:47
 					{
 						obj := std.GoTry(accounts.LoadSessionUser(c.Request.Context(), account))
 						{
-							_tmp_4 := std.Success[*models.User]{}.Unapply(obj)
-							_tmp_5 := _tmp_4.IsDefined()
-							var _tmp_6 *models.User
-							if _tmp_5 {
-								_tmp_6 = _tmp_4.Get()
+							_tmp_5 := std.Success[*models.User]{}.Unapply(obj)
+							_tmp_6 := _tmp_5.IsDefined()
+							var _tmp_7 *models.User
+							if _tmp_6 {
+								_tmp_7 = _tmp_5.Get()
 							}
-							_ = _tmp_6
-							user := _tmp_6
-							if _tmp_5 {
-//line auth.gala:40
+							_ = _tmp_7
+							user := _tmp_7
+							if _tmp_6 {
+//line auth.gala:49
 								c.Set("authUser", user)
-//line auth.gala:41
+//line auth.gala:50
 								c.Set("authAccount", account)
-//line auth.gala:42
+//line auth.gala:51
 								c.Next()
 							} else {
-								_tmp_7 := std.Failure[*models.User]{}.Unapply(obj)
-								_tmp_8 := _tmp_7.IsDefined()
-								var _tmp_9 error
-								if _tmp_8 {
-									_tmp_9 = _tmp_7.Get()
+								_tmp_8 := std.Failure[*models.User]{}.Unapply(obj)
+								_tmp_9 := _tmp_8.IsDefined()
+								var _tmp_10 error
+								if _tmp_9 {
+									_tmp_10 = _tmp_8.Get()
 								}
-								_ = _tmp_9
-								if _tmp_8 {
-//line auth.gala:45
+								_ = _tmp_10
+								if _tmp_9 {
+//line auth.gala:54
 									c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed to load account integration data"})
-//line auth.gala:46
+//line auth.gala:55
 									c.Abort()
-//line auth.gala:47
+//line auth.gala:56
 									return
 								} else {
 									panic("gala: a std.Try matched none of its cases: it is a zero value, which a sealed type without a default case does not have")
@@ -101,19 +120,19 @@ func AuthRequired() gin.HandlerFunc {
 						}
 					}
 				} else {
-					_tmp_10 := std.Failure[*postgres.Account]{}.Unapply(obj)
-					_tmp_11 := _tmp_10.IsDefined()
-					var _tmp_12 error
-					if _tmp_11 {
-						_tmp_12 = _tmp_10.Get()
+					_tmp_11 := std.Failure[*postgres.Account]{}.Unapply(obj)
+					_tmp_12 := _tmp_11.IsDefined()
+					var _tmp_13 error
+					if _tmp_12 {
+						_tmp_13 = _tmp_11.Get()
 					}
-					_ = _tmp_12
-					if _tmp_11 {
-//line auth.gala:52
+					_ = _tmp_13
+					if _tmp_12 {
+//line auth.gala:61
 						c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.UserDoesNotExist})
-//line auth.gala:53
+//line auth.gala:62
 						c.Abort()
-//line auth.gala:54
+//line auth.gala:63
 						return
 					} else {
 						panic("gala: a std.Try matched none of its cases: it is a zero value, which a sealed type without a default case does not have")

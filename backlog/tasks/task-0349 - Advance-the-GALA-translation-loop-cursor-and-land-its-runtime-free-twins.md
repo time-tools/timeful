@@ -4,7 +4,7 @@ title: Advance the GALA translation loop cursor and land its runtime-free twins
 status: In Progress
 assignee: []
 created_date: '2026-10-05 08:44'
-updated_date: '2026-10-26 11:56'
+updated_date: '2026-10-27 08:28'
 labels: []
 dependencies: []
 references:
@@ -564,6 +564,29 @@ Run the `gala-loop` skill one iteration at a time, taking the next entry from th
 **Ledger:** registry 68 -> 74 sources (26 packages); sixth-batch section; two new findings rows (`SliceEmpty` nil slice, non-nil value with error); the `*Repository` row records the 2026-10-26 refusal; the cursor drops `routes/user` and lists the remaining postgres repository reads; `constructs.md` gained the receiver-method-set row, the `SliceEmpty` refinement, the sibling-construction note, and the `RequirePtr` note.
 
 **State:** committed as the sixth-batch commit; no generated file hand-edited, no test relaxed, no probe warranted.
+
+## Iteration 22 — seventh batch: the repository reads and four stale siblings (2026-10-27)
+
+**Provenance:** `gala` `GALA version 0.93.0` at `/nix/store/v0jxpys9mxb58dvdp3np8bywpchbyppa-gala-0.93.0/bin/gala`; flake rev `8ba02b2b18eca7ca3bc410f5e467b112366bdf6c` matches `server/GALA_COMPILER` (extraction `0.93.0 6368c093…`), so no bump. The user asked for the next five or more files, so one `verify.sh` run covers the whole batch and it is committed as one change.
+
+**Landed (3 new twins, plus four sibling-only files retired):**
+- `postgres/transfers.gala` -> `transfers.go`; `transfers_extra.go` keeps `AccessTransfer`, `TransferRequest`, eight one-line method wrappers, and `ListTransferRequests`'s body.
+- `postgres/dashboard.gala` -> `dashboard.go`; `dashboard_extra.go` keeps `DashboardEvent` and its method wrapper.
+- `postgres/analytics.gala` -> `analytics.go`; `analytics_extra.go` keeps the two method wrappers and the four former constants are package vars.
+- `appenv/appenv_port.go` deleted after `ResolvePort` moved into `appenv/appenv.gala`.
+- `middleware/auth_session.go` deleted after `sessionIdentityID` moved into `middleware/auth.gala`.
+- `discord_bot/interop.go` deleted after `newCommandMap` and `argsFrom` moved into `discord_bot/init.gala`.
+- `utils/utils_extra.go` reduced to the two auth accessors after `CORSOrigins` moved into `utils/utils.gala`.
+
+**Construct facts re-derived on the pinned compiler:** `return value, err` is a parse error in a declared Go result list and a `Failure` drops the value, so the test is the caller rather than the shape: unobservable when every caller checks the error before reading the value (the analytics counters, the dashboard list, the transfer row locks and source reads moved), while `ListTransferRequests` kept its body because the transfer-status branch publishes its slice before checking `statusErr`; a `resource.Bracket` body is a `std.Try`, so a bracketed `(value, error)` member loses the value even with a declared result list; `go_interop.SliceWithCapacity[int64](dayEnds.Size())` emits the capacity-hinted `make`, and former consts that concatenate other consts move to package vars intact; the four retired siblings' recorded reasons had expired — `ResolvePort`'s runtime-import reason ended with TASK-0353, `sessionIdentityID`'s typed match lowers to a plain `std.As` switch in a file that already imports `std`, `go_interop.MapEmpty` emits `make(map[K]V)` and so reproduces a map literal exactly (unlike the nil `SliceEmpty`), and `CORSOrigins`' local `map[string]struct{}` became a local `map[string]bool` under the local-set substitute.
+
+**Evidence:** `server/scripts/gala/verify.sh` -> `OK (77 twins)` in 11m32s (77/77 byte-identical double transpiles, `gofmt` 77 checked, orphan scan 222 Go files, `go build ./...` ok); `go vet ./...` clean; the canonical isolated backend test sequence's `postgres-test-migrate` and `server-route-test` images passed every package against `timeful-test-postgres` (`postgres` 12.110s, `routes` 4.974s, every other package ok), with the same host-networking fallback as the sixth batch because this session's Docker bridge could not route between the test containers; the migrate image reported `no migrations to run` at version `20260919000000` and re-applied the table and default-privilege grants; `swag init --parseDependency` regenerated `server/docs` byte-identically; `prettier --check server/GALA.md` passes.
+
+**Ledger:** registry 74 -> 77 sources (packages stay 26); a seventh-batch prose section records the construct facts and the evidence; the value+error finding row now records the caller test; the cursor drops the three landed postgres reads and points at the postgres method-body files next; `constructs.md` gained the two-bare-values/`Failure`-drops-the-value note and the `MapEmpty` non-nil note.
+
+**Next:** cursor entry 4 is `postgres/dailylogs_methods.go`, `postgres/identities_methods.go`, `postgres/otp_methods.go`, then `postgres/repository_methods.go` and the method halves of the remaining `postgres/*_extra.go` files.
+
+**State:** committed as the seventh-batch commit on `rewrite-in-gala`; no generated file hand-edited, no test relaxed, no probe warranted.
 <!-- SECTION:NOTES:END -->
 
 ## Comments

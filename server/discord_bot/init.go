@@ -25,11 +25,28 @@ var listeningChannel *discordgo.Channel
 //line init.gala:17
 var commandMap = newCommandMap()
 
-//line init.gala:19
+//line init.gala:18
+
+// newCommandMap builds the package-level command map as a non-nil empty Go map,
+// because a GALA map literal is not a language construct and the command
+// registry inserts into the map after init.
+func newCommandMap() map[string]commands.Command {
+	return go_interop.MapEmpty[string, commands.Command]()
+}
+
+//line init.gala:23
+
+// argsFrom returns the arguments after the command name. GALA has no slice
+// expression, so the tail is taken with the go_interop slice view.
+func argsFrom(args []string, index int) []string {
+	return go_interop.SliceFrom(args, index)
+}
+
+//line init.gala:28
 func listeningChannelName() string {
-//line init.gala:20
+//line init.gala:29
 	var configuredChannel = os.Getenv("DISCORD_BOT_CHANNEL")
-//line init.gala:21
+//line init.gala:30
 	{
 		if configuredChannel != "" {
 			return configuredChannel
@@ -45,85 +62,85 @@ func listeningChannelName() string {
 	}
 }
 
-//line init.gala:26
+//line init.gala:35
 func Init() {
-//line init.gala:27
+//line init.gala:36
 	var token = os.Getenv("DISCORD_BOT_TOKEN")
-//line init.gala:28
+//line init.gala:37
 	var guildId = os.Getenv("GUILD_ID")
-//line init.gala:29
+//line init.gala:38
 	var botSession, err = discordgo.New("Bot " + token)
-//line init.gala:30
+//line init.gala:39
 	bot = botSession
-//line init.gala:31
+//line init.gala:40
 	if err != nil {
-//line init.gala:32
+//line init.gala:41
 		logger.StdErr.Panicln(err)
 	}
-//line init.gala:35
+//line init.gala:44
 	var u = std.GoTry(bot.User("@me")).OnFailure(func(err error) {
 		logger.StdErr.Panicln(err)
 	}).Get()
-//line init.gala:36
+//line init.gala:45
 	BotId = u.ID
-//line init.gala:38
+//line init.gala:47
 	std.FromError(bot.Open()).OnFailure(func(err error) {
 		logger.StdErr.Panicln(err)
 	})
-//line init.gala:39
+//line init.gala:48
 	logger.StdOut.Println("Discord bot initialized")
-//line init.gala:41
+//line init.gala:50
 	var channelName = listeningChannelName()
-//line init.gala:42
+//line init.gala:51
 	var channels, _ = bot.GuildChannels(guildId)
-//line init.gala:43
+//line init.gala:52
 	for _, channel := range channels {
-//line init.gala:44
+//line init.gala:53
 		if channel.Name == channelName {
-//line init.gala:45
+//line init.gala:54
 			listeningChannel = channel
-//line init.gala:46
+//line init.gala:55
 			break
 		}
 	}
-//line init.gala:50
+//line init.gala:59
 	commands.Init()
-//line init.gala:51
+//line init.gala:60
 	for _, command := range commands.Commands {
-//line init.gala:52
+//line init.gala:61
 		commandMap[command.Name] = command
 	}
-//line init.gala:55
+//line init.gala:64
 	bot.AddHandler(messageHandler)
 }
 
-//line init.gala:58
+//line init.gala:67
 func SendMessage(message string) {
-//line init.gala:59
+//line init.gala:68
 	_, _ = bot.ChannelMessageSend(listeningChannel.ID, message)
 }
 
-//line init.gala:62
-func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
-//line init.gala:63
-	if m.ChannelID != listeningChannel.ID {
-//line init.gala:64
-		return
-	}
-//line init.gala:66
-	if m.Author.ID == BotId {
-//line init.gala:67
-		return
-	}
-//line init.gala:70
-	var re = regexp.MustCompile(" +")
 //line init.gala:71
-	var args = re.Split(m.Content, -1)
+func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 //line init.gala:72
-	var commandName = args[0]
+	if m.ChannelID != listeningChannel.ID {
 //line init.gala:73
-	args = argsFrom(args, 1)
+		return
+	}
 //line init.gala:75
+	if m.Author.ID == BotId {
+//line init.gala:76
+		return
+	}
+//line init.gala:79
+	var re = regexp.MustCompile(" +")
+//line init.gala:80
+	var args = re.Split(m.Content, -1)
+//line init.gala:81
+	var commandName = args[0]
+//line init.gala:82
+	args = argsFrom(args, 1)
+//line init.gala:84
 	go_interop.OptionFromMap(commandMap, commandName).ForEach(func(command commands.Command) {
 		command.Execute(s, m, args)
 	})

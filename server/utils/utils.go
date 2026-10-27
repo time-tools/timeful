@@ -152,24 +152,79 @@ func ValidateBaseUrl() error {
 
 //line utils.gala:101
 
+// CORSOrigins returns the canonical application origin and any configured
+// additional origins, de-duplicated after normalization. The dedup set is a
+// local map[string]bool rather than the original map[string]struct{}, because
+// the empty-struct type expression has no GALA spelling and nothing outside
+// this function observes the element type.
+func CORSOrigins(additionalOrigins string) ([]string, error) {
+	var _goResult std.Try[[]string] = func() std.Try[[]string] {
+//line utils.gala:108
+		var baseUrl, baseErr = normalizedBaseUrl(os.Getenv("APP_BASE_URL"))
+//line utils.gala:109
+		if baseErr != nil {
+//line utils.gala:110
+			return std.Failure[[]string]{}.Apply(baseErr)
+		}
+//line utils.gala:113
+		var origins = go_interop.SliceOf(baseUrl)
+//line utils.gala:114
+		var seen = go_interop.MapEmpty[string, bool]()
+//line utils.gala:115
+		seen[baseUrl] = true
+//line utils.gala:116
+		for _, origin := range strings.Split(additionalOrigins, ",") {
+//line utils.gala:117
+			if strings.TrimSpace(origin) == "" {
+//line utils.gala:118
+				continue
+			}
+//line utils.gala:121
+			var normalizedOrigin, originErr = normalizedBaseUrl(origin)
+//line utils.gala:122
+			if originErr != nil {
+//line utils.gala:123
+				return std.Failure[[]string]{}.Apply(fmt.Errorf("CORS_ORIGINS contains an invalid origin: %w", originErr))
+			}
+//line utils.gala:125
+			if seen[normalizedOrigin] {
+//line utils.gala:126
+				continue
+			}
+//line utils.gala:129
+			seen[normalizedOrigin] = true
+//line utils.gala:130
+			origins = go_interop.SliceAppend(origins, normalizedOrigin)
+		}
+//line utils.gala:133
+		return std.Success[[]string]{}.Apply(origins)
+	}()
+	if _goResult.IsFailure() {
+		return *new([]string), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
+}
+
+//line utils.gala:135
+
 // GetListmonkOtpFromAddress returns the configured sender for Listmonk OTP emails.
 func GetListmonkOtpFromAddress() (string, error) {
 	var _goResult std.Try[string] = func() std.Try[string] {
-//line utils.gala:104
+//line utils.gala:138
 		var fromAddress = strings.TrimSpace(os.Getenv("LISTMONK_OTP_FROM_ADDRESS"))
-//line utils.gala:105
+//line utils.gala:139
 		if fromAddress == "" {
-//line utils.gala:106
+//line utils.gala:140
 			return std.Failure[string]{}.Apply(errors.New("LISTMONK_OTP_FROM_ADDRESS is required when sending OTP emails"))
 		}
-//line utils.gala:109
+//line utils.gala:143
 		var _, mailErr = mail.ParseAddress(fromAddress)
-//line utils.gala:110
+//line utils.gala:144
 		if mailErr != nil {
-//line utils.gala:111
+//line utils.gala:145
 			return std.Failure[string]{}.Apply(fmt.Errorf("LISTMONK_OTP_FROM_ADDRESS is invalid: %w", mailErr))
 		}
-//line utils.gala:114
+//line utils.gala:148
 		return std.Success[string]{}.Apply(fromAddress)
 	}()
 	if _goResult.IsFailure() {
@@ -178,27 +233,27 @@ func GetListmonkOtpFromAddress() (string, error) {
 	return _goResult.Get(), nil
 }
 
-//line utils.gala:117
+//line utils.gala:151
 func normalizedBaseUrl(value string) (string, error) {
 	var _goResult std.Try[string] = func() std.Try[string] {
-//line utils.gala:118
+//line utils.gala:152
 		var parsed, parseErr = url.Parse(strings.TrimSpace(value))
-//line utils.gala:119
+//line utils.gala:153
 		if parseErr != nil || parsed.Scheme == "" || parsed.Host == "" {
-//line utils.gala:120
+//line utils.gala:154
 			return std.Failure[string]{}.Apply(errors.New("APP_BASE_URL must be an absolute HTTP(S) origin"))
 		}
-//line utils.gala:122
+//line utils.gala:156
 		if parsed.Scheme != "http" && parsed.Scheme != "https" {
-//line utils.gala:123
+//line utils.gala:157
 			return std.Failure[string]{}.Apply(errors.New("APP_BASE_URL must use the http or https scheme"))
 		}
-//line utils.gala:125
+//line utils.gala:159
 		if parsed.User != nil || (parsed.Path != "" && parsed.Path != "/") || parsed.RawQuery != "" || parsed.Fragment != "" {
-//line utils.gala:126
+//line utils.gala:160
 			return std.Failure[string]{}.Apply(errors.New("APP_BASE_URL must not include credentials, a path, query, or fragment"))
 		}
-//line utils.gala:128
+//line utils.gala:162
 		return std.Success[string]{}.Apply(parsed.Scheme + "://" + parsed.Host)
 	}()
 	if _goResult.IsFailure() {
@@ -207,65 +262,65 @@ func normalizedBaseUrl(value string) (string, error) {
 	return _goResult.Get(), nil
 }
 
-//line utils.gala:130
+//line utils.gala:164
 
 // Returns the value of the first non nil pointer in `args`.
 // Otherwise, just return the zero value
 func Coalesce[T any](args ...*T) T {
-//line utils.gala:134
+//line utils.gala:168
 	for _, candidate := range args {
-//line utils.gala:135
+//line utils.gala:169
 		if candidate != nil {
-//line utils.gala:136
+//line utils.gala:170
 			return *candidate
 		}
 	}
-//line utils.gala:140
+//line utils.gala:174
 	var zero T
-//line utils.gala:141
+//line utils.gala:175
 	return zero
 }
 
-//line utils.gala:143
+//line utils.gala:177
 
 // Return a pointer to true
 func TruePtr() *bool {
-//line utils.gala:146
+//line utils.gala:180
 	var b = true
-//line utils.gala:147
+//line utils.gala:181
 	return &b
 }
 
-//line utils.gala:149
+//line utils.gala:183
 
 // Return a pointer to false
 func FalsePtr() *bool {
-//line utils.gala:152
+//line utils.gala:186
 	var b = false
-//line utils.gala:153
+//line utils.gala:187
 	return &b
 }
 
-//line utils.gala:155
+//line utils.gala:189
 
 // NormalizeEmail returns the email in a canonical form for lookups and storage (trim + ASCII lower).
 func NormalizeEmail(email string) string {
-//line utils.gala:158
+//line utils.gala:192
 	return strings.ToLower(strings.TrimSpace(email))
 }
 
-//line utils.gala:160
+//line utils.gala:194
 
 // GetCalendarAccountKey builds the canonical map key for calendarAccounts. Email-like identifiers are trimmed and lowercased;
 // ICS uses the feed label as the first segment and is only trimmed, not lowercased.
 func GetCalendarAccountKey(ident string, calendarType models.CalendarType) string {
-//line utils.gala:164
+//line utils.gala:198
 	var keyPart = strings.TrimSpace(ident)
-//line utils.gala:165
+//line utils.gala:199
 	if calendarType != models.ICSCalendarType {
-//line utils.gala:166
+//line utils.gala:200
 		keyPart = NormalizeEmail(keyPart)
 	}
-//line utils.gala:168
+//line utils.gala:202
 	return fmt.Sprintf("%s_%s", keyPart, calendarType)
 }

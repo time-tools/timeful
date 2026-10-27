@@ -4,11 +4,13 @@ package appenv
 
 import "go.gala.fyi/stdlib/std"
 import (
+	"fmt"
 	"os"
+	"strconv"
 	"strings"
 )
 
-//line appenv.gala:7
+//line appenv.gala:9
 
 // Environment is the application environment selected by APP_ENV.
 type Environment string
@@ -20,24 +22,24 @@ func (s Environment) Compare(other Environment) int {
 	return std.CompareString(string(s), string(other))
 }
 
-//line appenv.gala:11
+//line appenv.gala:13
 var Development Environment = "development"
 
-//line appenv.gala:12
+//line appenv.gala:14
 var Test Environment = "test"
 
-//line appenv.gala:13
+//line appenv.gala:15
 var Staging Environment = "staging"
 
-//line appenv.gala:14
+//line appenv.gala:16
 var Production Environment = "production"
 
-//line appenv.gala:16
+//line appenv.gala:18
 func normalize(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 
-//line appenv.gala:18
+//line appenv.gala:20
 func Parse(value string) Environment {
 	return func(obj Environment) Environment {
 		if obj == Test {
@@ -52,17 +54,17 @@ func Parse(value string) Environment {
 	}(Environment(normalize(value)))
 }
 
-//line appenv.gala:25
+//line appenv.gala:27
 func Current() Environment {
 	return Parse(os.Getenv("APP_ENV"))
 }
 
-//line appenv.gala:27
+//line appenv.gala:29
 func IsProductionLike(env Environment) bool {
 	return env == Staging || env == Production
 }
 
-//line appenv.gala:29
+//line appenv.gala:31
 func ShouldUseReleaseMode(ginMode string, env Environment) bool {
 	return func(obj string) bool {
 		{
@@ -81,7 +83,7 @@ func ShouldUseReleaseMode(ginMode string, env Environment) bool {
 	}(normalize(ginMode))
 }
 
-//line appenv.gala:35
+//line appenv.gala:37
 func Port(env Environment) string {
 	return func(obj Environment) string {
 		if obj == Test {
@@ -94,4 +96,33 @@ func Port(env Environment) string {
 			return "3002"
 		}
 	}(env)
+}
+
+//line appenv.gala:43
+
+// ResolvePort returns the configured APP_PORT override when it is a valid TCP
+// port, and the environment's default port otherwise.
+func ResolvePort(env Environment, override string) (string, error) {
+	var _goResult std.Try[string] = func() std.Try[string] {
+//line appenv.gala:47
+		var value = strings.TrimSpace(override)
+//line appenv.gala:48
+		if value == "" {
+//line appenv.gala:49
+			return std.Success[string]{}.Apply(Port(env))
+		}
+//line appenv.gala:52
+		var port, portErr = strconv.Atoi(value)
+//line appenv.gala:53
+		if portErr != nil || port < 1 || port > 65535 {
+//line appenv.gala:54
+			return std.Failure[string]{}.Apply(fmt.Errorf("APP_PORT must be an integer between 1 and 65535, got %q", override))
+		}
+//line appenv.gala:57
+		return std.Success[string]{}.Apply(value)
+	}()
+	if _goResult.IsFailure() {
+		return *new(string), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
 }
