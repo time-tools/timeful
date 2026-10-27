@@ -6,7 +6,7 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-10-05 09:26'
-updated_date: '2026-10-05 09:37'
+updated_date: '2026-10-27 14:24'
 labels: []
 dependencies: []
 references:
@@ -139,6 +139,16 @@ Do not file a new gap report for the three constructs `gaps.md` marks answered.
 
 **Checks:** `npm run format:markdown` reformatted `server/GALA.md`; the change is documentation-only, so unit/e2e tests, Swagger, `fmt:check`, and the code knowledge-graph refresh are not applicable. No generated twin, test, signature, tag, or wire format changed.
 <!-- SECTION:NOTES:END -->
+
+## Comments
+
+<!-- COMMENTS:BEGIN -->
+author: TASK-0369
+created: 2026-10-27 14:24
+---
+Superseded by TASK-0369 (2026-10-27): block-form struct declarations accept an interpreted-string Go tag, so struct tags are not a wall. The 2026-10-05 “no upstream action for tags” decision no longer applies; the documentation defect is filed as https://github.com/martianoff/gala/issues/885. Fixed-size arrays and `struct{}` remain non-reportable.
+---
+<!-- COMMENTS:END -->
 
 ## Final Summary
 

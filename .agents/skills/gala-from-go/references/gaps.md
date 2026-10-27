@@ -80,12 +80,24 @@ The substitute is to keep the comment in the `.gala` source, which is where it s
 A handwritten sibling cannot supply a lost declaration comment, because the only spelling is a bodiless re-declaration and that is a Go error; a *package* comment is the exception, because it needs no adjacency, so a handwritten `doc.go` carries it and `go doc` picks it up.
 That dropped-comment shape was filed as upstream [#619](https://github.com/martianoff/gala/issues/619), and its reproduction was a two-file minimal case whose emitted Go was asserted to lack the annotation.
 
+## Boundary Gaps Without A Report
+
+A block-form struct is the documented Go-shaped declaration, but it always gains `Copy`, `Equal`, `Unapply`, and `StructMeta_X`.
+A caller that needs the exact Go type cannot use it, and the only substitute is keeping the struct in a handwritten sibling, which preserves the caller but not the translation.
+That is a boundary gap, but whether it is worth a report depends on the caller: the added members are additive, and a repository that accepts them has no gap.
+File the opt-out request only when the Go-facing API must stay exact.
+The tag is not this gap: the block form preserves the tag (see [Constructs That Were Never Gaps](#constructs-that-were-never-gaps)).
+
 ## Constructs That Were Never Gaps
 
 These are listed because each one was recorded as blocked before it was checked against the language or a probe, and the reasoning is what stops them coming back.
 
 A Go function literal inside a composite literal is a parse error in the Go spelling only.
 A GALA lambda in that position transpiles and builds, so the construct was never missing and there was nothing to file.
+
+A struct tag on a block-form declaration was recorded as a gap because the probe tested the shorthand form only.
+`type Location struct { var CountryCode string "json:\"country_code\"" }` transpiles, and the emitted Go carries the exact tag; `json.Marshal` of the generated struct matches the handwritten struct's bytes.
+The shorthand form and a raw-string tag are parse errors, so the working spelling is an interpreted string with escaped quotes, and the tag is a `workaround` row in [`constructs.md`](constructs.md).
 
 Assignment to a `:=` binding is a documented semantic, not a gap.
 The language specification states that `:=` bindings are immutable, and the rejection is that rule working as written; `var` is the mutable form and the migration is mechanical.
@@ -254,7 +266,7 @@ Do not file these, and do not spend a report slot on them.
 The first four are the ones that look like walls and are not; each has already been filed and answered upstream, and re-filing one spends the credibility a real gap needs.
 
 - A construct with a `workaround` row in [`constructs.md`](constructs.md), which is where the replacement spelling is.
-- A construct with an `answered` row there: `switch`, struct tags, embedded fields, anonymous and `struct{}` types, fixed-size arrays, type assertions, `interface{}`, `goto`, a method on a defined type, the `if` initializer, `recover`, multi-value returns, channel types, grouped parameters, and nested functions.
+- A construct with an `answered` row there: `switch`, embedded fields, anonymous and `struct{}` types, fixed-size arrays, type assertions, `interface{}`, `goto`, a method on a defined type, the `if` initializer, `recover`, multi-value returns, channel types, grouped parameters, and nested functions.
   `select` is the exception this list used to cover wholesale: its timeout and first-wins shapes are answered, while a multiplex over channels the function does not own is a language gap, so file that shape and only that shape (see [`constructs.md`](constructs.md)'s control-flow note).
 - A construct with a `semantic` row there, such as assigning to a `:=` binding.
 - A construct whose `gala explain GALA-Exxxx` page already states the fix, which is a documented answer rather than a gap.
