@@ -12,10 +12,20 @@ regenerate byte-identically, on a twin whose generated Go imports the banned
 martianoff/gala runtime, on a `gofmt -l` hit, on an orphaned generated twin, or
 on a failing `go build ./...`.
 
+The transpiles run through `gala transpile-package`, one shared invocation per
+source directory, so the compiler builds a package's Go type information once
+instead of once per twin.  Every twin is still checked independently; a twin
+whose output is absent from a failed shared invocation is retried on its own
+with `gala transpile`, keeping its path and compiler diagnostic while the rest
+of the package and the remaining packages are still verified.
+
 Progress is printed per twin and per phase.  Every run also writes a
 timestamped log to server/.gala/verify.log; --log FILE moves it and --no-log
-disables it.  --verbose adds each command and the compiler output of a twin
-that passed.
+disables it.  --verbose adds each shared compiler command and the compiler
+output of a package or a retried twin.
+
+The regression check is `python3 server/scripts/gala/test_verify.py`; it stubs
+`gala` in a temporary fixture and does not need the real compiler.
 """
 
 from __future__ import annotations
@@ -31,6 +41,7 @@ import sys
 import tempfile
 import time
 from collections.abc import Iterator, Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -124,6 +135,37 @@ def first_line(path: Path) -> str:
             return handle.readline().rstrip("\n")
     except OSError:
         return ""
+
+
+def group_sources(sources: Sequence[Path]) -> list[list[Path]]:
+    """Group sorted twins into the source directories the compiler batches.
+
+    The sources are sorted by path, so a directory's twins are contiguous.  A
+    shared `gala transpile-package` call covers one directory; every directory
+    holds one GALA package in this repository, and the compiler resolves the
+    package's siblings from the directory itself (`--scan`), so a directory
+    whose files belong to two packages is still handled correctly.
+    """
+    groups: list[list[Path]] = []
+    for rel in sources:
+        if groups and groups[-1][0].parent == rel.parent:
+            groups[-1].append(rel)
+        else:
+            groups.append([rel])
+    return groups
+
+
+@dataclass
+class PackageBatch:
+    """The result of one shared `gala transpile-package` invocation."""
+
+    code: int
+    output: str
+    outputs: dict[Path, Path]
+
+    def output_for(self, rel: Path) -> Path:
+        """Return the scratch output path reserved for one twin."""
+        return self.outputs[rel]
 
 
 def parse_provenance(text: str) -> dict[str, str]:
@@ -418,8 +460,10 @@ class Verifier:
         self.discovered = len(sources)
         reporter.line(f"found {plural(len(sources), '.gala source')} under server/")
         width = len(str(len(sources))) if sources else 1
-        for index, rel in enumerate(sources, 1):
-            self.check_twin(index, len(sources), width, rel)
+        total = len(sources)
+        positions = {rel: index for index, rel in enumerate(sources, 1)}
+        for group in group_sources(sources):
+            self.check_package(group, positions, total, width)
 
         parts = [
             f"{self.discovered} discovered",
@@ -445,30 +489,34 @@ class Verifier:
             style="green" if ok else "red",
         )
 
-    def check_twin(self, index: int, total: int, width: int, rel: Path) -> None:
-        reporter = self.reporter
-        rel_text = rel.as_posix()
+    def twin_prefix(self, index: int, total: int, width: int, rel: Path) -> str:
         percent = int(index * 100 / total) if total else 100
-        prefix = f"[{index:>{width}}/{total} {percent:>3}%] {rel_text} ... "
+        return f"[{index:>{width}}/{total} {percent:>3}%] {rel.as_posix()} ... "
 
-        twin_rel = rel.with_suffix(".go")
-        twin = self.server_dir / twin_rel
-        twin_text = twin_rel.as_posix()
-        if not twin.is_file():
-            reporter.progress_start(prefix)
-            reporter.progress_end(prefix, "MISSING", style="red")
-            self.problem(
-                "MISSING",
-                f"{rel_text} has no committed twin at {twin_text}",
-                indent=4,
-            )
-            self.counts["missing"] += 1
-            return
+    def scratch_path(self, rel: Path) -> Path:
+        """Return the scratch file reserved for one twin's regenerated output."""
+        name = rel.as_posix().replace("/", "_").replace(".", "_") + ".go"
+        return self.scratch_dir / name
 
-        scratch = self.scratch_dir / (
-            rel_text.replace("/", "_").replace(".", "_") + ".go"
-        )
-        argv = [
+    def package_command(
+        self, rels: Sequence[Path], outputs: dict[Path, Path]
+    ) -> list[str]:
+        """Build the shared transpile-package command for one directory."""
+        return [
+            "gala",
+            "transpile-package",
+            "--scan",
+            "--stdlib-module",
+            STDLIB_MODULE,
+            "--inputs",
+            ",".join(rel.name for rel in rels),
+            "--outputs",
+            ",".join(str(outputs[rel]) for rel in rels),
+        ]
+
+    def twin_command(self, rel: Path, scratch: Path) -> list[str]:
+        """Build the single-file fallback command for one twin."""
+        return [
             "gala",
             "transpile",
             "--stdlib-module",
@@ -478,12 +526,80 @@ class Verifier:
             "-o",
             str(scratch),
         ]
-        if self.args.verbose:
-            reporter.line(f"    $ {format_command(argv)}", style="dim")
-        reporter.progress_start(prefix)
-        code, output = run_captured(reporter, argv, self.server_dir / rel.parent)
-        if code != 0:
+
+    def check_package(
+        self,
+        rels: Sequence[Path],
+        positions: dict[Path, int],
+        total: int,
+        width: int,
+    ) -> None:
+        """Verify one source directory through one shared compiler invocation."""
+        reporter = self.reporter
+        needs_compiler = any(
+            (self.server_dir / rel.with_suffix(".go")).is_file() for rel in rels
+        )
+        first_prefix = self.twin_prefix(positions[rels[0]], total, width, rels[0])
+        batch: PackageBatch | None = None
+        if needs_compiler:
+            outputs = {rel: self.scratch_path(rel) for rel in rels}
+            argv = self.package_command(rels, outputs)
+            if self.args.verbose:
+                reporter.line(f"    $ {format_command(argv)}", style="dim")
+            reporter.progress_start(first_prefix)
+            code, output = run_captured(
+                reporter, argv, self.server_dir / rels[0].parent
+            )
+            batch = PackageBatch(code=code, output=output, outputs=outputs)
+            if code != 0 and not self.args.verbose:
+                reporter.record(output)
+
+        for index, rel in enumerate(rels):
+            if index == 0 and batch is not None:
+                prefix = first_prefix
+            else:
+                prefix = self.twin_prefix(positions[rel], total, width, rel)
+                reporter.progress_start(prefix)
+            self.check_twin(rel, prefix, batch)
+
+        if self.args.verbose and batch is not None and batch.output.strip():
+            reporter.block(batch.output.rstrip("\n"), style="dim")
+
+    def check_twin(self, rel: Path, prefix: str, batch: PackageBatch | None) -> None:
+        reporter = self.reporter
+        rel_text = rel.as_posix()
+
+        twin_rel = rel.with_suffix(".go")
+        twin = self.server_dir / twin_rel
+        twin_text = twin_rel.as_posix()
+        if not twin.is_file():
+            reporter.progress_end(prefix, "MISSING", style="red")
+            self.problem(
+                "MISSING",
+                f"{rel_text} has no committed twin at {twin_text}",
+                indent=4,
+            )
+            self.counts["missing"] += 1
+            return
+
+        scratch = (
+            batch.output_for(rel) if batch is not None else self.scratch_path(rel)
+        )
+        retried = False
+        argv: list[str] = []
+        output = ""
+        if batch is not None and scratch.is_file():
+            code = 0
+        else:
+            retried = True
+            argv = self.twin_command(rel, scratch)
+            code, output = run_captured(
+                reporter, argv, self.server_dir / rel.parent
+            )
+        if code != 0 or not scratch.is_file():
             reporter.progress_end(prefix, "TRANSPILE", style="red")
+            if retried and self.args.verbose:
+                reporter.line(f"    $ {format_command(argv)}", style="dim")
             self.problem(
                 "TRANSPILE",
                 f"{rel_text} does not transpile",
@@ -495,8 +611,6 @@ class Verifier:
 
         self.twin_count += 1
         self.gofmt_targets.append(twin)
-        if self.args.verbose and output.strip():
-            reporter.block(output, style="dim")
 
         issues: list[tuple[str, str]] = []
         try:
@@ -537,6 +651,11 @@ class Verifier:
         else:
             reporter.progress_end(prefix, "ok", style="green")
             self.counts["ok"] += 1
+
+        if retried and self.args.verbose:
+            reporter.line(f"    $ {format_command(argv)}", style="dim")
+            if output.strip():
+                reporter.block(output.rstrip("\n"), style="dim")
 
     def check_gofmt(self) -> None:
         reporter = self.reporter
@@ -637,7 +756,12 @@ class Verifier:
 def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="verify.sh",
-        description="Verify the committed GALA twins in server/.",
+        description=(
+            "Verify the committed GALA twins in server/.  Each source"
+            " directory's twins travel through one shared `gala"
+            " transpile-package` invocation and are still checked"
+            " independently."
+        ),
         epilog=(
             "The run log defaults to server/.gala/verify.log; every line carries"
             " a timestamp.  Exit codes: 0 verified, 1 verification failed,"
@@ -659,7 +783,10 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         "-v",
         "--verbose",
         action="store_true",
-        help="show each command and the compiler output of passing twins",
+        help=(
+            "show each shared compiler command and the compiler output of a"
+            " package or a twin retried on its own"
+        ),
     )
     logging_group = parser.add_mutually_exclusive_group()
     logging_group.add_argument(

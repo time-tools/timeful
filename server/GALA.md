@@ -13,6 +13,16 @@ Transpile from the package directory so the emitted `//line` directives stay rel
 The transpiler writes its analysis cache under `server/.gala/`, which is gitignored.
 A stale cache entry that survives a `.gala` source replacement can misorder an unrelated twin's emitted imports, so delete `server/.gala/` when a regeneration flips unexpectedly rather than treating the flip as a real drift.
 
+### Verifier invocation model (TASK-0367, 2026-10-27)
+
+`scripts/gala/verify.sh` gives every source directory one shared `gala transpile-package --scan --stdlib-module go.gala.fyi/stdlib` invocation and checks each returned file independently, so the compiler builds a package's Go type information once instead of once per twin.
+The per-twin contract is unchanged: every twin is checked for its committed generated file, byte identity in `--check` mode (or regeneration in `--write` mode), the banned `martianoff/gala` import, and `gofmt` eligibility, and its progress line still reports `ok`, `wrote`, `DRIFT`, `RUNTIME`, `MISSING`, or `TRANSPILE` with the same index, path, summary counts, and exit codes.
+When the shared invocation does not produce a twin's output, the verifier retries that twin alone with `gala transpile`, so its compiler diagnostic keeps its own path while the rest of the package and the remaining packages are still verified.
+`--verbose` prints the shared command and the compiler output of a package or a retried twin; the run log, `--log`, and `--no-log` are unchanged.
+
+On 2026-10-27 in this checkout (Linux 6.8.0-147-generic x86_64, Intel Core i7-1165G7, 8 CPUs) with GALA 0.93.0 and Go 1.26.7, a full `server/scripts/gala/verify.sh --check` pass reported `twins: 77 discovered, 77 transpiled, 77 ok` in 12m00s with the HEAD verifier and 4m14s with the shared invocation, making the twins phase 2.8x faster, while `gofmt`, the orphan scan, and `go build ./...` stayed unchanged.
+The regression check for the shared invocation and the per-twin failure attribution is `python3 server/scripts/gala/test_verify.py`, which stubs `gala` in a temporary git fixture and needs no real compiler.
+
 ### Adopted runtime (decided 2026-10-10)
 
 TASK-0353 decides that server twins adopt the published Go module `go.gala.fyi/stdlib` at the version paired with the pinned compiler, rather than staying runtime-free.
@@ -418,6 +428,7 @@ Every row regenerates with `cd server/<dir> && gala transpile --stdlib-module go
 | `postgres`                | `postgres/transfers.gala`                     | `postgres/transfers.go`                     | `postgres/transfers_extra.go` (`AccessTransfer`, `TransferRequest`, the eight method wrappers, and `ListTransferRequests`)                                                                                                                  | stdlib       |
 
 `scripts/gala/verify.sh` checks that every one of them regenerates byte-identically under `--stdlib-module go.gala.fyi/stdlib`, imports only the adopted `go.gala.fyi/stdlib/...` runtime and never `martianoff/gala`, is `gofmt`-clean, and keeps `go build ./...` green.
+The verifier batches each source directory through one shared `gala transpile-package` invocation (see the invocation model in the contract), while the per-row regeneration command still regenerates that row alone.
 Adding a twin means adding its registry row here and passing `verify.sh`.
 
 The runtime-free rows keep that form for a Go-facing name rather than for style: `errs` declares only exported string vars that Go callers read, `logger` only exported mutable loggers, `utils/array_utils.go` has no binding at all (`Find` takes a `[]T`), `discord_bot/commands/help.go`'s `help` is read by the handwritten `index.go` while its `message` accumulator stays a `var`, `slackbot/slackbot.go` declares no runtime construct at all, and `accounts/delete.go`'s two generated entry points only delegate through the sibling's `Deleter`, so its generated Go names no runtime package.
@@ -522,6 +533,7 @@ A report closed after the flake lock is fixed upstream but not yet in the pinned
 | [#740](https://github.com/martianoff/gala/issues/740)  | `gala transpile` cannot emit `go.gala.fyi/stdlib` imports                  | closed 2026-10-10      | fixed on the pinned rev by [PR #743](https://github.com/martianoff/gala/pull/743): `gala transpile --stdlib-module go.gala.fyi/stdlib` rewrites the imports (checked 2026-10-10); `verify.sh` applies the flag on every transpile since TASK-0353.01, and TASK-0353.03 completed the twin migration  |
 | [#749](https://github.com/martianoff/gala/issues/749)  | Differently named import alias loses a Go call's `(T, error)` signature    | closed 2026-10-10      | fixed since rev `014c2f23` by [PR #753](https://github.com/martianoff/gala/pull/753): an aliased `pgstore.DefaultRepository()` emits `std.GoTry` (verified 2026-10-18)                                                                                                                               |
 | [#750](https://github.com/martianoff/gala/issues/750)  | `go_interop.OptionFromMap(...).ForEach` leaks `T` over a sibling-typed map | closed 2026-10-10      | fixed since rev `014c2f23` by [PR #754](https://github.com/martianoff/gala/pull/754): an unannotated lambda over a `map[string]otherpkg.GALAStruct` emits `func(thing otherpkg.Thing)` (verified 2026-10-18)                                                                                         |
+| [#884](https://github.com/martianoff/gala/issues/884)  | Perf: one `go list` per Go import (1,551 per transpile)                    | open 2026-10-27        | unfixed on the pinned rev; the report proposes one `go list -export` pass plus an export-data importer instead of the per-import source importer (77-twin verify: 12m25s).                                                                                                                           |
 
 The loop re-checks a report's finding on the pinned compiler before relying on it, because "closed" and "in the pinned rev" are different claims.
 

@@ -31,7 +31,9 @@ server/scripts/gala/verify.sh --write  # regenerate the committed twins in place
 ```
 
 The script prints the compiler provenance recorded in `GALA_COMPILER`, requires every twin to regenerate byte-identically, checks `gofmt`, and runs `go build ./...`.
-Each run prints per-twin progress and writes a timestamped log to `server/.gala/verify.log`; `--verbose` shows every command, `--log FILE` moves the log, and `--no-log` disables it.
+It gives each source directory one shared `gala transpile-package` invocation, so the compiler's package analysis is built once per package instead of once per twin; a twin whose shared invocation produces no output is retried on its own, keeping its path and compiler diagnostic while the rest of the package still verifies.
+Each run prints per-twin progress and writes a timestamped log to `server/.gala/verify.log`; `--verbose` shows each shared compiler command, `--log FILE` moves the log, and `--no-log` disables it.
+The regression check is `python3 server/scripts/gala/test_verify.py`, which stubs `gala` and needs no real compiler.
 Server twins have adopted the published GALA stdlib: `server/go.mod` requires `go.gala.fyi/stdlib`, `verify.sh` transpiles every twin with `--stdlib-module go.gala.fyi/stdlib`, only `go.gala.fyi/stdlib/...` imports are allowed in generated Go, and `martianoff/gala` stays banned.
 Transpile from the package directory when working by hand, because the emitted `//line` directives name the path the transpiler was given, and never hand-edit a generated file:
 
