@@ -3,11 +3,15 @@
 package postgres
 
 import "go.gala.fyi/stdlib/std"
-import "github.com/jackc/pgx/v5"
+import (
+	"context"
+	"errors"
+	"github.com/jackc/pgx/v5"
+)
 import "go.gala.fyi/stdlib/go_interop"
 import "go.gala.fyi/stdlib/resource"
 
-//line folders.gala:15
+//line folders.gala:19
 
 // folderSelect returns every folder column plus the member columns a caller
 // needs to rebuild a folder and its members.
@@ -17,34 +21,34 @@ FROM folders f
 LEFT JOIN folder_events fe ON fe.folder_id = f.id
 LEFT JOIN events e ON e.id = fe.event_id`
 
-//line folders.gala:24
+//line folders.gala:28
 func scanFolders(rows pgx.Rows) ([]Folder, error) {
 	var _goResult std.Try[[]Folder] = func() std.Try[[]Folder] {
-//line folders.gala:25
+//line folders.gala:29
 		return resource.Bracket(rows, func(pending pgx.Rows) {
-//line folders.gala:25
+//line folders.gala:29
 			pending.Close()
 		}, func(pending pgx.Rows) std.Try[[]Folder] {
-//line folders.gala:26
-			var folders = go_interop.SliceWithSize[Folder](0)
-//line folders.gala:27
-			var indexByID = go_interop.MapEmpty[string, int]()
-//line folders.gala:28
-			for pending.Next() {
-//line folders.gala:29
-				var folder Folder
 //line folders.gala:30
-				var eventID, shortID *string
+			var folders = go_interop.SliceWithSize[Folder](0)
 //line folders.gala:31
-				var scanErr = pending.Scan(&folder.ID, &folder.PlatformIdentityID, &folder.Name, &folder.Color, &folder.IsDeleted, &folder.CreatedAt, &folder.UpdatedAt, &eventID, &shortID)
+			var indexByID = go_interop.MapEmpty[string, int]()
 //line folders.gala:32
-				if scanErr != nil {
+			for pending.Next() {
 //line folders.gala:33
+				var folder Folder
+//line folders.gala:34
+				var eventID, shortID *string
+//line folders.gala:35
+				var scanErr = pending.Scan(&folder.ID, &folder.PlatformIdentityID, &folder.Name, &folder.Color, &folder.IsDeleted, &folder.CreatedAt, &folder.UpdatedAt, &eventID, &shortID)
+//line folders.gala:36
+				if scanErr != nil {
+//line folders.gala:37
 					return std.Failure[[]Folder]{}.Apply(scanErr)
 				}
-//line folders.gala:35
+//line folders.gala:39
 				var index = 0
-//line folders.gala:36
+//line folders.gala:40
 				func(obj std.Option[int]) {
 					{
 						_tmp_1 := std.Some[int]{}.Unapply(obj)
@@ -56,18 +60,18 @@ func scanFolders(rows pgx.Rows) ([]Folder, error) {
 						_ = _tmp_3
 						found := _tmp_3
 						if _tmp_2 {
-//line folders.gala:37
+//line folders.gala:41
 							index = found
 						} else {
 							_tmp_4 := std.None[int]{}.Unapply(obj)
 							if _tmp_4 {
-//line folders.gala:39
+//line folders.gala:43
 								folder.Members = go_interop.SliceWithSize[FolderMember](0)
-//line folders.gala:40
+//line folders.gala:44
 								folders = go_interop.SliceAppend(folders, folder)
-//line folders.gala:41
+//line folders.gala:45
 								index = len(folders) - 1
-//line folders.gala:42
+//line folders.gala:46
 								indexByID[folder.ID] = index
 							} else {
 								panic("unreachable")
@@ -75,20 +79,20 @@ func scanFolders(rows pgx.Rows) ([]Folder, error) {
 						}
 					}
 				}(go_interop.OptionFromMap(indexByID, folder.ID))
-//line folders.gala:45
+//line folders.gala:49
 				if eventID != nil {
-//line folders.gala:46
+//line folders.gala:50
 					folders[index].Members = go_interop.SliceAppend(folders[index].Members, FolderMember{EventID: eventID, EventShortID: shortID})
 				}
 			}
-//line folders.gala:49
+//line folders.gala:53
 			var rowsErr = pending.Err()
-//line folders.gala:50
+//line folders.gala:54
 			if rowsErr != nil {
-//line folders.gala:51
+//line folders.gala:55
 				return std.Failure[[]Folder]{}.Apply(rowsErr)
 			}
-//line folders.gala:53
+//line folders.gala:57
 			return std.Success[[]Folder]{}.Apply(folders)
 		})
 	}()
@@ -96,4 +100,210 @@ func scanFolders(rows pgx.Rows) ([]Folder, error) {
 		return *new([]Folder), _goResult.GetError()
 	}
 	return _goResult.Get(), nil
+}
+
+//line folders.gala:60
+
+// CreateFolder inserts an account-scoped folder and returns its hidden identity
+// and timestamps.
+func createFolder(r *Repository, ctx context.Context, folder *Folder) error {
+//line folders.gala:64
+	if folder == nil || folder.PlatformIdentityID == "" {
+//line folders.gala:65
+		return errors.New("folder platform identity ID is required")
+	}
+//line folders.gala:67
+	return r.db.QueryRow(ctx, `INSERT INTO folders (platform_identity_id, name, color)
+VALUES ($1, $2, $3)
+RETURNING id, is_deleted, created_at, updated_at`, folder.PlatformIdentityID, folder.Name, folder.Color).Scan(&folder.ID, &folder.IsDeleted, &folder.CreatedAt, &folder.UpdatedAt)
+}
+
+//line folders.gala:71
+
+// ListFolders returns the account's non-deleted folders with their members. The
+// account scope is enforced in the query, so another account's folders are
+// never visible.
+func listFolders(r *Repository, ctx context.Context, platformIdentityID string) ([]Folder, error) {
+	var _goResult std.Try[[]Folder] = func() std.Try[[]Folder] {
+//line folders.gala:76
+		if platformIdentityID == "" {
+//line folders.gala:77
+			return std.Failure[[]Folder]{}.Apply(errors.New("folder platform identity ID is required"))
+		}
+//line folders.gala:79
+		var rows, queryErr = r.db.Query(ctx, folderSelect+`
+WHERE f.platform_identity_id = $1 AND f.is_deleted IS DISTINCT FROM TRUE
+ORDER BY f.created_at, f.id, fe.created_at, fe.id`, platformIdentityID)
+//line folders.gala:82
+		if queryErr != nil {
+//line folders.gala:83
+			return std.Failure[[]Folder]{}.Apply(queryErr)
+		}
+//line folders.gala:85
+		return std.GoTry(scanFolders(rows))
+	}()
+	if _goResult.IsFailure() {
+		return *new([]Folder), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
+}
+
+//line folders.gala:87
+
+// GetFolderByID returns one account-scoped folder and its members. A missing or
+// foreign folder is reported as pgx.ErrNoRows so the caller cannot distinguish
+// non-existence from another account's folder.
+func getFolderByID(r *Repository, ctx context.Context, folderID string, platformIdentityID string) (*Folder, error) {
+	var _goResult std.Try[*Folder] = func() std.Try[*Folder] {
+//line folders.gala:92
+		if folderID == "" || platformIdentityID == "" {
+//line folders.gala:93
+			return std.Failure[*Folder]{}.Apply(errors.New("folder ID and platform identity ID are required"))
+		}
+//line folders.gala:95
+		var rows, queryErr = r.db.Query(ctx, folderSelect+`
+WHERE f.id = $1 AND f.platform_identity_id = $2 AND f.is_deleted IS DISTINCT FROM TRUE
+ORDER BY fe.created_at, fe.id`, folderID, platformIdentityID)
+//line folders.gala:98
+		if queryErr != nil {
+//line folders.gala:99
+			return std.Failure[*Folder]{}.Apply(queryErr)
+		}
+//line folders.gala:101
+		var folders, scanErr = scanFolders(rows)
+//line folders.gala:102
+		if scanErr != nil {
+//line folders.gala:103
+			return std.Failure[*Folder]{}.Apply(scanErr)
+		}
+//line folders.gala:105
+		if len(folders) == 0 {
+//line folders.gala:106
+			return std.Failure[*Folder]{}.Apply(pgx.ErrNoRows)
+		}
+//line folders.gala:108
+		return std.Success[*Folder]{}.Apply(&folders[0])
+	}()
+	if _goResult.IsFailure() {
+		return *new(*Folder), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
+}
+
+//line folders.gala:110
+
+// UpdateFolder writes only the supplied fields for one account-scoped folder. A
+// missing or foreign folder is reported as pgx.ErrNoRows. Supplying neither
+// field is an existence check that leaves updated_at untouched.
+func updateFolder(r *Repository, ctx context.Context, folderID string, platformIdentityID string, name *string, color *string) error {
+//line folders.gala:115
+	if folderID == "" || platformIdentityID == "" {
+//line folders.gala:116
+		return errors.New("folder ID and platform identity ID are required")
+	}
+//line folders.gala:118
+	var id string
+//line folders.gala:119
+	return r.db.QueryRow(ctx, `UPDATE folders
+SET name = COALESCE($3, name),
+    color = COALESCE($4, color),
+    updated_at = CASE WHEN $3 IS NULL AND $4 IS NULL THEN updated_at ELSE clock_timestamp() END
+WHERE id = $1 AND platform_identity_id = $2 AND is_deleted IS DISTINCT FROM TRUE
+RETURNING id`, folderID, platformIdentityID, name, color).Scan(&id)
+}
+
+//line folders.gala:126
+
+// DeleteFolder soft-deletes one account-scoped folder, soft-deletes the
+// account's own PostgreSQL member events, and removes the memberships.
+func deleteFolder(r *Repository, ctx context.Context, folderID string, platformIdentityID string) error {
+//line folders.gala:130
+	if folderID == "" || platformIdentityID == "" {
+//line folders.gala:131
+		return errors.New("folder ID and platform identity ID are required")
+	}
+//line folders.gala:133
+	return r.withTransaction(ctx, func(ctx context.Context, tx *Repository) error {
+//line folders.gala:134
+		var id string
+//line folders.gala:135
+		var folderErr = tx.db.QueryRow(ctx, `UPDATE folders SET is_deleted = TRUE, updated_at = clock_timestamp()
+WHERE id = $1 AND platform_identity_id = $2 AND is_deleted IS DISTINCT FROM TRUE
+RETURNING id`, folderID, platformIdentityID).Scan(&id)
+//line folders.gala:138
+		if folderErr != nil {
+//line folders.gala:139
+			return folderErr
+		}
+//line folders.gala:141
+		var _, eventErr = tx.db.Exec(ctx, `UPDATE events SET is_deleted = TRUE, updated_at = clock_timestamp()
+WHERE id IN (
+    SELECT fe.event_id FROM folder_events fe
+    WHERE fe.folder_id = $1 AND fe.platform_identity_id = $2
+)
+AND owner_platform_identity_id = $2`, folderID, platformIdentityID)
+//line folders.gala:147
+		if eventErr != nil {
+//line folders.gala:148
+			return eventErr
+		}
+//line folders.gala:150
+		var _, removeErr = tx.db.Exec(ctx, `DELETE FROM folder_events WHERE folder_id = $1 AND platform_identity_id = $2`, folderID, platformIdentityID)
+//line folders.gala:151
+		return removeErr
+	})
+}
+
+//line folders.gala:154
+
+// AssignEventToFolder moves one event reference into an account-scoped folder,
+// or removes it when folderID is nil. A given account holds at most one
+// membership per event because the existing membership is deleted before the
+// new one is inserted in the same transaction.
+func assignEventToFolder(r *Repository, ctx context.Context, platformIdentityID string, folderID *string, member FolderMember) error {
+//line folders.gala:160
+	if platformIdentityID == "" {
+//line folders.gala:161
+		return errors.New("folder platform identity ID is required")
+	}
+//line folders.gala:163
+	if member.EventID == nil {
+//line folders.gala:164
+		return errors.New("folder member event reference is required")
+	}
+//line folders.gala:166
+	return r.withTransaction(ctx, func(ctx context.Context, tx *Repository) error {
+//line folders.gala:167
+		var _, deleteErr = tx.db.Exec(ctx, `DELETE FROM folder_events WHERE platform_identity_id = $1 AND event_id = $2`, platformIdentityID, *member.EventID)
+//line folders.gala:168
+		if deleteErr != nil {
+//line folders.gala:169
+			return deleteErr
+		}
+//line folders.gala:171
+		if folderID == nil {
+//line folders.gala:172
+			return nil
+		}
+//line folders.gala:174
+		var exists bool
+//line folders.gala:175
+		var checkErr = tx.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM folders
+WHERE id = $1 AND platform_identity_id = $2 AND is_deleted IS DISTINCT FROM TRUE)`, *folderID, platformIdentityID).Scan(&exists)
+//line folders.gala:177
+		if checkErr != nil {
+//line folders.gala:178
+			return checkErr
+		}
+//line folders.gala:180
+		if !exists {
+//line folders.gala:181
+			return pgx.ErrNoRows
+		}
+//line folders.gala:183
+		var _, insertErr = tx.db.Exec(ctx, `INSERT INTO folder_events (platform_identity_id, folder_id, event_id)
+VALUES ($1, $2, $3)`, platformIdentityID, *folderID, *member.EventID)
+//line folders.gala:185
+		return insertErr
+	})
 }

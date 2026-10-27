@@ -2,9 +2,17 @@
 
 package postgres
 
+import "go.gala.fyi/stdlib/std"
+import (
+	"context"
+	"errors"
+	"github.com/jackc/pgx/v5"
+)
 import "timeful/server/models"
+import "go.gala.fyi/stdlib/go_interop"
+import "go.gala.fyi/stdlib/resource"
 
-//line identities.gala:6
+//line identities.gala:23
 
 // validPlatformIdentityID reports whether a value is the canonical wire form of
 // a platform identity UUID. Non-canonical session values resolve to no account
@@ -13,15 +21,440 @@ func validPlatformIdentityID(value string) bool {
 	return validUUID(value)
 }
 
-//line identities.gala:11
+//line identities.gala:28
 
 // validUUID reports whether a client-supplied identifier is the canonical UUID
 // wire form. Opaque identifiers are validated in the repository before they
 // reach a uuid bind, so a non-canonical value keeps reporting pgx.ErrNoRows
 // instead of surfacing a PostgreSQL 22P02 cast error to routes.
 func validUUID(value string) bool {
-//line identities.gala:17
+//line identities.gala:34
 	var _, ok = models.ParseUUID(value)
-//line identities.gala:18
+//line identities.gala:35
 	return ok
+}
+
+//line identities.gala:37
+
+// insertPlatformIdentity inserts a new platform identity. The name is spelled
+// insertPlatformIdentity rather than createPlatformIdentity because
+// accounts_extra.go already declares createPlatformIdentity as the bridge that
+// lets accounts.gala reach the CreatePlatformIdentity method. The identity's
+// uuidv7() default supplies the account identifier, so sign-in stores no
+// separate external value.
+func insertPlatformIdentity(r *Repository, ctx context.Context) (*PlatformIdentity, error) {
+	var _goResult std.Try[*PlatformIdentity] = func() std.Try[*PlatformIdentity] {
+//line identities.gala:45
+		var value = &PlatformIdentity{}
+//line identities.gala:46
+		var scanErr = r.db.QueryRow(ctx, `INSERT INTO platform_identities DEFAULT VALUES
+ RETURNING id, created_at`).Scan(&value.ID, &value.CreatedAt)
+//line identities.gala:48
+		if scanErr != nil {
+//line identities.gala:49
+			return std.Failure[*PlatformIdentity]{}.Apply(scanErr)
+		}
+//line identities.gala:51
+		return std.Success[*PlatformIdentity]{}.Apply(value)
+	}()
+	if _goResult.IsFailure() {
+		return *new(*PlatformIdentity), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
+}
+
+//line identities.gala:53
+
+// getPlatformIdentity resolves the platform identity a sign-in session carries.
+// A value that is not a canonical UUID, and a uuid with no live identity such
+// as a deleted account's, both report no identity: there is no compatibility
+// lookup for the retired 24-character external identifier.
+func getPlatformIdentity(r *Repository, ctx context.Context, platformIdentityID string) (*PlatformIdentity, error) {
+	var _goResult std.Try[*PlatformIdentity] = func() std.Try[*PlatformIdentity] {
+//line identities.gala:59
+		if !validPlatformIdentityID(platformIdentityID) {
+//line identities.gala:60
+			return std.Failure[*PlatformIdentity]{}.Apply(pgx.ErrNoRows)
+		}
+//line identities.gala:62
+		var value = &PlatformIdentity{}
+//line identities.gala:63
+		var scanErr = r.db.QueryRow(ctx, `SELECT id, created_at FROM platform_identities WHERE id = $1`, platformIdentityID).Scan(&value.ID, &value.CreatedAt)
+//line identities.gala:64
+		if scanErr != nil {
+//line identities.gala:65
+			return std.Failure[*PlatformIdentity]{}.Apply(scanErr)
+		}
+//line identities.gala:67
+		return std.Success[*PlatformIdentity]{}.Apply(value)
+	}()
+	if _goResult.IsFailure() {
+		return *new(*PlatformIdentity), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
+}
+
+//line identities.gala:70
+func createEventVisitorIdentity(r *Repository, ctx context.Context, eventID string) (*EventVisitorIdentity, error) {
+	var _goResult std.Try[*EventVisitorIdentity] = func() std.Try[*EventVisitorIdentity] {
+//line identities.gala:71
+		var value = &EventVisitorIdentity{}
+//line identities.gala:72
+		var scanErr = r.db.QueryRow(ctx, `INSERT INTO event_visitor_identities (event_id) VALUES ($1)
+ RETURNING id, event_id, public_id, platform_identity_id, created_at`, eventID).Scan(&value.ID, &value.EventID, &value.PublicID, &value.PlatformIdentityID, &value.CreatedAt)
+//line identities.gala:74
+		if scanErr != nil {
+//line identities.gala:75
+			return std.Failure[*EventVisitorIdentity]{}.Apply(scanErr)
+		}
+//line identities.gala:77
+		return std.Success[*EventVisitorIdentity]{}.Apply(value)
+	}()
+	if _goResult.IsFailure() {
+		return *new(*EventVisitorIdentity), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
+}
+
+//line identities.gala:79
+
+// getEventVisitorIdentity resolves one visitor identity by its opaque public
+// identifier within an event. A non-canonical identifier resolves to no
+// identity instead of reaching the uuid column as an invalid literal.
+func getEventVisitorIdentity(r *Repository, ctx context.Context, eventID string, publicID string) (*EventVisitorIdentity, error) {
+	var _goResult std.Try[*EventVisitorIdentity] = func() std.Try[*EventVisitorIdentity] {
+//line identities.gala:84
+		if !validUUID(publicID) {
+//line identities.gala:85
+			return std.Failure[*EventVisitorIdentity]{}.Apply(pgx.ErrNoRows)
+		}
+//line identities.gala:87
+		var value = &EventVisitorIdentity{}
+//line identities.gala:88
+		var scanErr = r.db.QueryRow(ctx, `SELECT id, event_id, public_id, platform_identity_id, created_at
+ FROM event_visitor_identities WHERE event_id = $1 AND public_id = $2`, eventID, publicID).Scan(&value.ID, &value.EventID, &value.PublicID, &value.PlatformIdentityID, &value.CreatedAt)
+//line identities.gala:90
+		if scanErr != nil {
+//line identities.gala:91
+			return std.Failure[*EventVisitorIdentity]{}.Apply(scanErr)
+		}
+//line identities.gala:93
+		return std.Success[*EventVisitorIdentity]{}.Apply(value)
+	}()
+	if _goResult.IsFailure() {
+		return *new(*EventVisitorIdentity), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
+}
+
+//line identities.gala:95
+
+// associateEventVisitorIdentity must be called only after proving browser
+// authority. An association cannot be silently reassigned to another account.
+func associateEventVisitorIdentity(r *Repository, ctx context.Context, visitorID string, platformID string) error {
+//line identities.gala:99
+	var result, execErr = r.db.Exec(ctx, `UPDATE event_visitor_identities SET platform_identity_id = $2
+ WHERE id = $1 AND (platform_identity_id IS NULL OR platform_identity_id = $2)`, visitorID, platformID)
+//line identities.gala:101
+	if execErr == nil && result.RowsAffected() != 1 {
+//line identities.gala:102
+		return errors.New("visitor is associated with another platform identity")
+	}
+//line identities.gala:104
+	return execErr
+}
+
+//line identities.gala:107
+func createEventVisitorCredential(r *Repository, ctx context.Context, value *EventVisitorCredential) error {
+//line identities.gala:108
+	if value == nil || len(value.CredentialHash) != 32 {
+//line identities.gala:109
+		return errors.New("credential SHA-256 hash is required")
+	}
+//line identities.gala:111
+	if value.Kind == "" {
+//line identities.gala:112
+		value.Kind = CredentialKindBase
+	}
+//line identities.gala:114
+	return r.db.QueryRow(ctx, `INSERT INTO event_visitor_credentials (event_visitor_identity_id, credential_hash, kind, grants_owner)
+ VALUES ($1, $2, $3, $4) RETURNING id, created_at`, value.EventVisitorIdentityID, value.CredentialHash, value.Kind, value.GrantsOwner).Scan(&value.ID, &value.CreatedAt)
+}
+
+//line identities.gala:117
+
+// getEventVisitorCredential resolves one credential by its opaque identifier
+// within a visitor identity. A non-canonical identifier resolves to no
+// credential instead of reaching the uuid column as an invalid literal.
+func getEventVisitorCredential(r *Repository, ctx context.Context, visitorID string, credentialID string) (*EventVisitorCredential, error) {
+	var _goResult std.Try[*EventVisitorCredential] = func() std.Try[*EventVisitorCredential] {
+//line identities.gala:122
+		if !validUUID(credentialID) {
+//line identities.gala:123
+			return std.Failure[*EventVisitorCredential]{}.Apply(pgx.ErrNoRows)
+		}
+//line identities.gala:125
+		var value = &EventVisitorCredential{}
+//line identities.gala:126
+		var scanErr = r.db.QueryRow(ctx, `SELECT id, event_visitor_identity_id, credential_hash, created_at, revoked_at, kind, grants_owner
+ FROM event_visitor_credentials WHERE event_visitor_identity_id = $1 AND id = $2`, visitorID, credentialID).Scan(&value.ID, &value.EventVisitorIdentityID, &value.CredentialHash, &value.CreatedAt, &value.RevokedAt, &value.Kind, &value.GrantsOwner)
+//line identities.gala:128
+		if scanErr != nil {
+//line identities.gala:129
+			return std.Failure[*EventVisitorCredential]{}.Apply(scanErr)
+		}
+//line identities.gala:131
+		return std.Success[*EventVisitorCredential]{}.Apply(value)
+	}()
+	if _goResult.IsFailure() {
+		return *new(*EventVisitorCredential), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
+}
+
+//line identities.gala:134
+func revokeEventVisitorCredentials(r *Repository, ctx context.Context, visitorID string) error {
+//line identities.gala:135
+	var _, execErr = r.db.Exec(ctx, `UPDATE event_visitor_credentials SET revoked_at = clock_timestamp()
+ WHERE event_visitor_identity_id = $1 AND revoked_at IS NULL`, visitorID)
+//line identities.gala:137
+	return execErr
+}
+
+//line identities.gala:139
+
+// visitorBelongsToAccount reports whether one Event Visitor Identity is
+// associated with the given platform identity. A non-canonical identifier
+// belongs to no account.
+func visitorBelongsToAccount(r *Repository, ctx context.Context, visitorID string, platformIdentityID string) (bool, error) {
+	var _goResult std.Try[bool] = func() std.Try[bool] {
+//line identities.gala:144
+		if !validPlatformIdentityID(platformIdentityID) {
+//line identities.gala:145
+			return std.Success[bool]{}.Apply(false)
+		}
+//line identities.gala:147
+		var authorized bool
+//line identities.gala:148
+		var scanErr = r.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM event_visitor_identities
+ WHERE id = $1 AND platform_identity_id = $2)`, visitorID, platformIdentityID).Scan(&authorized)
+//line identities.gala:150
+		if scanErr != nil {
+//line identities.gala:151
+			return std.Failure[bool]{}.Apply(scanErr)
+		}
+//line identities.gala:153
+		return std.Success[bool]{}.Apply(authorized)
+	}()
+	if _goResult.IsFailure() {
+		return *new(bool), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
+}
+
+//line identities.gala:155
+
+// eventVisitorIdentitiesBelongingToAccount returns the subset of visitorIDs
+// associated with the platform identity. It answers batched authorization
+// reads with one query instead of one EXISTS per visitor. A non-canonical
+// platform identity owns no visitor.
+func eventVisitorIdentitiesBelongingToAccount(r *Repository, ctx context.Context, platformIdentityID string, visitorIDs []string) (map[string]bool, error) {
+	var _goResult std.Try[map[string]bool] = func() std.Try[map[string]bool] {
+//line identities.gala:161
+		var owned = go_interop.MapWithCapacity[string, bool](len(visitorIDs))
+//line identities.gala:162
+		if !validPlatformIdentityID(platformIdentityID) || len(visitorIDs) == 0 {
+//line identities.gala:163
+			return std.Success[map[string]bool]{}.Apply(owned)
+		}
+//line identities.gala:165
+		var validIDs = go_interop.SliceWithCapacity[string](len(visitorIDs))
+//line identities.gala:166
+		for _, visitorID := range visitorIDs {
+//line identities.gala:167
+			if validPlatformIdentityID(visitorID) {
+//line identities.gala:168
+				validIDs = go_interop.SliceAppend(validIDs, visitorID)
+			}
+		}
+//line identities.gala:171
+		if len(validIDs) == 0 {
+//line identities.gala:172
+			return std.Success[map[string]bool]{}.Apply(owned)
+		}
+//line identities.gala:174
+		var rows, queryErr = r.db.Query(ctx, `SELECT id FROM event_visitor_identities
+WHERE platform_identity_id = $1 AND id = ANY($2::uuid[])`, platformIdentityID, validIDs)
+//line identities.gala:176
+		if queryErr != nil {
+//line identities.gala:177
+			return std.Failure[map[string]bool]{}.Apply(queryErr)
+		}
+//line identities.gala:179
+		return resource.Bracket(rows, func(pending pgx.Rows) {
+//line identities.gala:179
+			pending.Close()
+		}, func(pending pgx.Rows) std.Try[map[string]bool] {
+//line identities.gala:180
+			for pending.Next() {
+//line identities.gala:181
+				var visitorID string
+//line identities.gala:182
+				var scanErr = pending.Scan(&visitorID)
+//line identities.gala:183
+				if scanErr != nil {
+//line identities.gala:184
+					return std.Failure[map[string]bool]{}.Apply(scanErr)
+				}
+//line identities.gala:186
+				owned[visitorID] = true
+			}
+//line identities.gala:188
+			var rowsErr = pending.Err()
+//line identities.gala:189
+			if rowsErr != nil {
+//line identities.gala:190
+				return std.Failure[map[string]bool]{}.Apply(rowsErr)
+			}
+//line identities.gala:192
+			return std.Success[map[string]bool]{}.Apply(owned)
+		})
+	}()
+	if _goResult.IsFailure() {
+		return *new(map[string]bool), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
+}
+
+//line identities.gala:195
+
+// eventVisitorHasResponse reports whether one Event Visitor Identity owns a
+// response on the event. It backs existence reads without loading every
+// response row.
+func eventVisitorHasResponse(r *Repository, ctx context.Context, eventID string, visitorID string) (bool, error) {
+	var _goResult std.Try[bool] = func() std.Try[bool] {
+//line identities.gala:200
+		var hasResponse bool
+//line identities.gala:201
+		var scanErr = r.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM event_responses
+ WHERE event_id = $1 AND event_visitor_identity_id = $2)`, eventID, visitorID).Scan(&hasResponse)
+//line identities.gala:203
+		if scanErr != nil {
+//line identities.gala:204
+			return std.Failure[bool]{}.Apply(scanErr)
+		}
+//line identities.gala:206
+		return std.Success[bool]{}.Apply(hasResponse)
+	}()
+	if _goResult.IsFailure() {
+		return *new(bool), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
+}
+
+//line identities.gala:208
+
+// getResponseByPublicID resolves one response by its opaque public identifier
+// within an event. A non-canonical identifier resolves to no response instead
+// of reaching the uuid column as an invalid literal.
+func getResponseByPublicID(r *Repository, ctx context.Context, eventID string, publicID string) (*Response, error) {
+	var _goResult std.Try[*Response] = func() std.Try[*Response] {
+//line identities.gala:213
+		if !validUUID(publicID) {
+//line identities.gala:214
+			return std.Failure[*Response]{}.Apply(pgx.ErrNoRows)
+		}
+//line identities.gala:216
+		var response, lookupErr = r.getResponse(ctx, `event_id = $1 AND public_id = $2`, eventID, publicID)
+//line identities.gala:217
+		if lookupErr != nil {
+//line identities.gala:218
+			return std.Failure[*Response]{}.Apply(lookupErr)
+		}
+//line identities.gala:220
+		return std.Success[*Response]{}.Apply(response)
+	}()
+	if _goResult.IsFailure() {
+		return *new(*Response), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
+}
+
+//line identities.gala:222
+
+// lockEvent serializes response count changes across concurrent requests and
+// returns the locked event, so callers need no second read.
+func lockEvent(r *Repository, ctx context.Context, eventID string) (*Event, error) {
+	var _goResult std.Try[*Event] = func() std.Try[*Event] {
+//line identities.gala:226
+		var event, scanErr = scanEvent(r.db.QueryRow(ctx, `SELECT `+eventColumns+` FROM events WHERE id = $1 FOR UPDATE`, eventID))
+//line identities.gala:227
+		if scanErr != nil {
+//line identities.gala:228
+			return std.Failure[*Event]{}.Apply(scanErr)
+		}
+//line identities.gala:230
+		return std.Success[*Event]{}.Apply(event)
+	}()
+	if _goResult.IsFailure() {
+		return *new(*Event), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
+}
+
+//line identities.gala:232
+
+// setEventOwnerToken is used only during event creation; existing EVCCs cannot
+// recover a token.
+func setEventOwnerToken(r *Repository, ctx context.Context, eventID string, hash []byte) error {
+//line identities.gala:236
+	if len(hash) != 32 {
+//line identities.gala:237
+		return errors.New("owner token SHA-256 hash is required")
+	}
+//line identities.gala:239
+	var _, execErr = r.db.Exec(ctx, `UPDATE events SET owner_edit_token_hash = $2 WHERE id = $1 AND owner_edit_token_hash IS NULL`, eventID, hash)
+//line identities.gala:240
+	return execErr
+}
+
+//line identities.gala:242
+
+// associateEventOwner must run under the event row lock after token proof. It
+// deliberately does not reassign any Event Visitor Identity or response.
+func associateEventOwner(r *Repository, ctx context.Context, eventID string, platformID string) error {
+//line identities.gala:246
+	var _, execErr = r.db.Exec(ctx, `UPDATE events SET owner_platform_identity_id = $2, updated_at = clock_timestamp() WHERE id = $1`, eventID, platformID)
+//line identities.gala:247
+	return execErr
+}
+
+//line identities.gala:249
+
+// eventOwnerBelongsToAccount reports whether an event is owned by the given
+// platform identity. A non-canonical identifier owns no event.
+func eventOwnerBelongsToAccount(r *Repository, ctx context.Context, eventID string, platformIdentityID string) (bool, error) {
+	var _goResult std.Try[bool] = func() std.Try[bool] {
+//line identities.gala:253
+		if !validPlatformIdentityID(platformIdentityID) {
+//line identities.gala:254
+			return std.Success[bool]{}.Apply(false)
+		}
+//line identities.gala:256
+		var authorized bool
+//line identities.gala:257
+		var scanErr = r.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM events
+ WHERE id = $1 AND owner_platform_identity_id = $2)`, eventID, platformIdentityID).Scan(&authorized)
+//line identities.gala:259
+		if scanErr != nil {
+//line identities.gala:260
+			return std.Failure[bool]{}.Apply(scanErr)
+		}
+//line identities.gala:262
+		return std.Success[bool]{}.Apply(authorized)
+	}()
+	if _goResult.IsFailure() {
+		return *new(bool), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
 }

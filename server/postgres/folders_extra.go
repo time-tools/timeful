@@ -2,18 +2,16 @@ package postgres
 
 import (
 	"context"
-	"errors"
 	"time"
-
-	"github.com/jackc/pgx/v5"
 )
 
-// The former folders.go's folderSelect query and scanFolders row scanner live in
-// folders.gala. The declarations and every *Repository method stay here because
-// a method declared on Repository in a .gala file makes Repository's method set
-// GALA-resolved and hides the eighteen methods repository_methods.go declares,
-// and because a GALA struct declaration emits Copy, Equal, Unapply, and
-// StructMeta helpers that import the GALA runtime.
+// The former folders.go's folderSelect query, scanFolders row scanner, and the
+// method bodies live in folders.gala. Folder, FolderMember, and the
+// *Repository wrappers stay here because a method declared on Repository in a
+// .gala file makes the GALA-declared set Repository's complete method set,
+// which hides the eighteen methods repository_methods.go declares, and because
+// a GALA struct declaration emits Copy, Equal, Unapply, and StructMeta helpers
+// that import the GALA runtime.
 
 // Folder is an account-owned container for member events. ID is a hidden
 // UUIDv7; PlatformIdentityID is the owning account's platform identity uuid.
@@ -46,93 +44,34 @@ type FolderMember struct {
 // CreateFolder inserts an account-scoped folder and returns its hidden identity
 // and timestamps.
 func (r *Repository) CreateFolder(ctx context.Context, folder *Folder) error {
-	if folder == nil || folder.PlatformIdentityID == "" {
-		return errors.New("folder platform identity ID is required")
-	}
-	return r.db.QueryRow(ctx, `INSERT INTO folders (platform_identity_id, name, color)
-VALUES ($1, $2, $3)
-RETURNING id, is_deleted, created_at, updated_at`, folder.PlatformIdentityID, folder.Name, folder.Color).Scan(&folder.ID, &folder.IsDeleted, &folder.CreatedAt, &folder.UpdatedAt)
+	return createFolder(r, ctx, folder)
 }
 
 // ListFolders returns the account's non-deleted folders with their members. The
 // account scope is enforced in the query, so another account's folders are
 // never visible.
 func (r *Repository) ListFolders(ctx context.Context, platformIdentityID string) ([]Folder, error) {
-	if platformIdentityID == "" {
-		return nil, errors.New("folder platform identity ID is required")
-	}
-	rows, err := r.db.Query(ctx, folderSelect+`
-WHERE f.platform_identity_id = $1 AND f.is_deleted IS DISTINCT FROM TRUE
-ORDER BY f.created_at, f.id, fe.created_at, fe.id`, platformIdentityID)
-	if err != nil {
-		return nil, err
-	}
-	return scanFolders(rows)
+	return listFolders(r, ctx, platformIdentityID)
 }
 
 // GetFolderByID returns one account-scoped folder and its members. A missing or
 // foreign folder is reported as pgx.ErrNoRows so the caller cannot distinguish
 // non-existence from another account's folder.
 func (r *Repository) GetFolderByID(ctx context.Context, folderID, platformIdentityID string) (*Folder, error) {
-	if folderID == "" || platformIdentityID == "" {
-		return nil, errors.New("folder ID and platform identity ID are required")
-	}
-	rows, err := r.db.Query(ctx, folderSelect+`
-WHERE f.id = $1 AND f.platform_identity_id = $2 AND f.is_deleted IS DISTINCT FROM TRUE
-ORDER BY fe.created_at, fe.id`, folderID, platformIdentityID)
-	if err != nil {
-		return nil, err
-	}
-	folders, err := scanFolders(rows)
-	if err != nil {
-		return nil, err
-	}
-	if len(folders) == 0 {
-		return nil, pgx.ErrNoRows
-	}
-	return &folders[0], nil
+	return getFolderByID(r, ctx, folderID, platformIdentityID)
 }
 
 // UpdateFolder writes only the supplied fields for one account-scoped folder. A
 // missing or foreign folder is reported as pgx.ErrNoRows. Supplying neither
 // field is an existence check that leaves updated_at untouched.
 func (r *Repository) UpdateFolder(ctx context.Context, folderID, platformIdentityID string, name, color *string) error {
-	if folderID == "" || platformIdentityID == "" {
-		return errors.New("folder ID and platform identity ID are required")
-	}
-	var id string
-	return r.db.QueryRow(ctx, `UPDATE folders
-SET name = COALESCE($3, name),
-    color = COALESCE($4, color),
-    updated_at = CASE WHEN $3 IS NULL AND $4 IS NULL THEN updated_at ELSE clock_timestamp() END
-WHERE id = $1 AND platform_identity_id = $2 AND is_deleted IS DISTINCT FROM TRUE
-RETURNING id`, folderID, platformIdentityID, name, color).Scan(&id)
+	return updateFolder(r, ctx, folderID, platformIdentityID, name, color)
 }
 
 // DeleteFolder soft-deletes one account-scoped folder, soft-deletes the
 // account's own PostgreSQL member events, and removes the memberships.
 func (r *Repository) DeleteFolder(ctx context.Context, folderID, platformIdentityID string) error {
-	if folderID == "" || platformIdentityID == "" {
-		return errors.New("folder ID and platform identity ID are required")
-	}
-	return r.withTransaction(ctx, func(ctx context.Context, tx *Repository) error {
-		var id string
-		if err := tx.db.QueryRow(ctx, `UPDATE folders SET is_deleted = TRUE, updated_at = clock_timestamp()
-WHERE id = $1 AND platform_identity_id = $2 AND is_deleted IS DISTINCT FROM TRUE
-RETURNING id`, folderID, platformIdentityID).Scan(&id); err != nil {
-			return err
-		}
-		if _, err := tx.db.Exec(ctx, `UPDATE events SET is_deleted = TRUE, updated_at = clock_timestamp()
-WHERE id IN (
-    SELECT fe.event_id FROM folder_events fe
-    WHERE fe.folder_id = $1 AND fe.platform_identity_id = $2
-)
-AND owner_platform_identity_id = $2`, folderID, platformIdentityID); err != nil {
-			return err
-		}
-		_, err := tx.db.Exec(ctx, `DELETE FROM folder_events WHERE folder_id = $1 AND platform_identity_id = $2`, folderID, platformIdentityID)
-		return err
-	})
+	return deleteFolder(r, ctx, folderID, platformIdentityID)
 }
 
 // AssignEventToFolder moves one event reference into an account-scoped folder,
@@ -140,29 +79,5 @@ AND owner_platform_identity_id = $2`, folderID, platformIdentityID); err != nil 
 // membership per event because the existing membership is deleted before the
 // new one is inserted in the same transaction.
 func (r *Repository) AssignEventToFolder(ctx context.Context, platformIdentityID string, folderID *string, member FolderMember) error {
-	if platformIdentityID == "" {
-		return errors.New("folder platform identity ID is required")
-	}
-	if member.EventID == nil {
-		return errors.New("folder member event reference is required")
-	}
-	return r.withTransaction(ctx, func(ctx context.Context, tx *Repository) error {
-		if _, err := tx.db.Exec(ctx, `DELETE FROM folder_events WHERE platform_identity_id = $1 AND event_id = $2`, platformIdentityID, *member.EventID); err != nil {
-			return err
-		}
-		if folderID == nil {
-			return nil
-		}
-		var exists bool
-		if err := tx.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM folders
-WHERE id = $1 AND platform_identity_id = $2 AND is_deleted IS DISTINCT FROM TRUE)`, *folderID, platformIdentityID).Scan(&exists); err != nil {
-			return err
-		}
-		if !exists {
-			return pgx.ErrNoRows
-		}
-		_, err := tx.db.Exec(ctx, `INSERT INTO folder_events (platform_identity_id, folder_id, event_id)
-VALUES ($1, $2, $3)`, platformIdentityID, *folderID, *member.EventID)
-		return err
-	})
+	return assignEventToFolder(r, ctx, platformIdentityID, folderID, member)
 }

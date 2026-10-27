@@ -169,6 +169,8 @@ The `:=` in a `for` init slot is the exception that reads as inconsistent, becau
 | comparison and arithmetic | `a == b`, `x + 1`     | the same                                                         | direct     | —          | transpile; `==` on a collection value is not the Go meaning            |
 | int literal separators   | `n := 4_000_000_000` | plain digits: `4000000000`                                       | workaround | parse error | transpile a literal with `_` separators, then the plain form           |
 
+A slice element is addressable as well: `&xs[i]` emits the same address expression and builds, which `postgres/folders.gala`'s `getFolderByID` relies on when it returns `Success(&folders[0])` after its empty check (checked 2026-10-27 on rev `8ba02b2b`), so the address-of row's list of operands is narrower than the compiler.
+
 A bare builtin is a hard error rather than a style violation, and the check is resolver-aware: a name the program declares itself is left alone.
 An `append(T(nil), src...)` clone is `go_interop.SliceCopy(src)`, with one difference to preserve deliberately: `SliceCopy` returns a non-nil empty slice for a non-nil empty input, while the append form returns nil, so a caller that distinguishes them needs the zero value guarded explicitly (checked 2026-10-10 on rev `cd2fdcb5`).
 Nearly every substitute in this table lives in a package `gala doc` cannot describe, so read the helper list from the transpiler's own diagnostic hint instead; [Pinning A Row](#pinning-a-row) says why that package is the exception.
