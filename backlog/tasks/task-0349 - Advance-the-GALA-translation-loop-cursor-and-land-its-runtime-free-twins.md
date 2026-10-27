@@ -4,7 +4,7 @@ title: Advance the GALA translation loop cursor and land its runtime-free twins
 status: In Progress
 assignee: []
 created_date: '2026-10-05 08:44'
-updated_date: '2026-10-27 08:28'
+updated_date: '2026-10-27 13:06'
 labels: []
 dependencies: []
 references:
@@ -587,6 +587,26 @@ Run the `gala-loop` skill one iteration at a time, taking the next entry from th
 **Next:** cursor entry 4 is `postgres/dailylogs_methods.go`, `postgres/identities_methods.go`, `postgres/otp_methods.go`, then `postgres/repository_methods.go` and the method halves of the remaining `postgres/*_extra.go` files.
 
 **State:** committed as the seventh-batch commit on `rewrite-in-gala`; no generated file hand-edited, no test relaxed, no probe warranted.
+
+## Iteration 23 — ninth batch: the last postgres method bodies and postgres constants (2026-10-27)
+
+**Provenance:** `gala` `GALA version 0.93.0` at `/nix/store/v0jxpys9mxb58dvdp3np8bywpchbyppa-gala-0.93.0/bin/gala`; flake rev `8ba02b2b18eca7ca3bc410f5e467b112366bdf6c` matches `server/GALA_COMPILER` (extraction `0.93.0 6368c093…`), so no bump. The user asked for four or more files, so one `verify.sh` run covers the batch.
+
+**Landed (4 files):**
+- `postgres/repository_methods.go`: sixteen of eighteen `*Repository` method bodies moved to `repository.gala` (`createEvent`, `getEvent`/`getEventByShortID`/`getEventByID`, `updateEvent`, `adjustEventResponseCount`, `setEventArchived`, `setEventDeleted`, `createResponse`, `getResponse`/`getResponseByID`/`getResponseByPlatformIdentityID`, `listResponses`, `updateResponse`, `deleteResponse`, `deleteAccountResponses`) behind one-line wrappers; `WithTransaction` and `withTransaction` stay in the sibling.
+- `postgres/signup_extra.go`: all eleven method bodies moved to `signup.gala` behind wrappers; `SignupBlock` and `SignupResponse` stay.
+- `postgres/calendar_extra.go`: nineteen method bodies moved to `calendar.gala` behind wrappers; the six `Calendar*` structs, `encodedCalendarSecrets`, and `(*CalendarAccount).requiresEncryption` stay.
+- `postgres/types.go`: the eight exported constants moved to `postgres/constants.gala` → `constants.go` as package vars (the `const` row).
+
+**Construct facts re-derived on the pinned compiler:** `*dst = *src` is direct; `.Size()` on a struct field of a named slice type is not lowered (`preferences.CalendarOptions.Size()` emitted a method call on `json.RawMessage`) and an explicitly typed `[]byte` local restores Go's `len`; `defer tx.Rollback(ctx)` around an arbitrary callback has no faithful spelling because `resource.Bracket` re-raises a body panic as a returned error, so the two transaction members stay handwritten; a GALA `struct` with `var` fields works as a Go map value (`map[string]blockClaim`); an unexported method and a package function may share a name (`readSignupResponseByID`); `int(tag.RowsAffected())`, `Bracket` over `pgx.Rows`, and variadic `values ...any` spreads work as pinned.
+
+**Reverted candidate:** `models/calendar.go` was translated as `models/calendar_type.gala` (`opaque type CalendarType string` plus four vars) and reverted after `swag init --parseDependency` rewrote three `server/docs` files: two `$ref: models.CalendarType` properties became plain `string` and the enum definition with `enum`/`x-enum-varnames` was deleted, because swag derives the enum from the `const` block. Restoring the file made the regeneration byte-identical. The candidate returns to the cursor, and the `const` finding row plus `constructs.md` now record the swag consequence.
+
+**Evidence:** `server/scripts/gala/verify.sh` -> `OK (78 twins)` in 2m36s (78/78 byte-identical double transpiles, `gofmt` 78 checked, orphan scan 223 Go files, `go build ./...` ok); `go build ./...` and `go vet ./...` clean; the canonical isolated Compose sequence passes via the migrate and `server-route-test` images (`postgres` 8.823s, `routes` 7.175s; host networking as in the sixth-eighth batches because the Docker bridge could not route between test containers), and the migrate image reported `no migrations to run` at `20260919000000` with the grants re-applied; `swag init --parseDependency` regenerates `server/docs` byte-identically; every moved SQL string and `.Scan(...)` argument list was diffed against the pre-move files byte-for-byte, and the preserved structs and transaction methods are unchanged.
+
+**Ledger:** registry 77 -> 78 sources; ninth-batch section; two new findings rows (named-slice `.Size()`, deferred rollback panic propagation); the `const` row gains the swag-enum reason; cursor entries 4 and 5 collapse to `models/calendar.go`; `constructs.md` gains the deref-assignment row and the three notes.
+
+**State:** committed as `feat(gala): move the last postgres method bodies into their twins`; no generated file hand-edited and no test relaxed.
 <!-- SECTION:NOTES:END -->
 
 ## Comments
