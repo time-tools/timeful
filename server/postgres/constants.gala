@@ -1,0 +1,22 @@
+package postgres
+
+// Event types stored in events.type. They are package variables rather than
+// constants because GALA has no constant declaration; every reader compares or
+// stores them at runtime and none uses one in a constant expression.
+var EventTypeSpecificDates = "specific_dates"
+
+var EventTypeDayOfWeek = "dow"
+
+var EventTypeSignup = "signup"
+
+var EventTypeGroup = "group"
+
+// Respondent kinds stored in event_responses.respondent_kind.
+var RespondentKindAccount = "account"
+
+var RespondentKindGuest = "guest"
+
+// Credential kinds stored in event_visitor_credentials.kind.
+var CredentialKindBase = "base"
+
+var CredentialKindGranted = "granted"

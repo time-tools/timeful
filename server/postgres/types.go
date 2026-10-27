@@ -7,15 +7,8 @@ import (
 	"time"
 )
 
-const (
-	EventTypeSpecificDates = "specific_dates"
-	EventTypeDayOfWeek     = "dow"
-	EventTypeSignup        = "signup"
-	EventTypeGroup         = "group"
-
-	RespondentKindAccount = "account"
-	RespondentKindGuest   = "guest"
-)
+// The event, respondent, and credential kind values live in the generated
+// constants.go as package variables.
 
 // Event is the storage aggregate for a PostgreSQL-owned anonymous poll.
 // ID is a hidden UUIDv7; ShortID is the sole public event identifier. Payload
@@ -71,11 +64,6 @@ type EventVisitorIdentity struct {
 	PlatformIdentityID *string
 	CreatedAt          time.Time
 }
-
-const (
-	CredentialKindBase    = "base"
-	CredentialKindGranted = "granted"
-)
 
 type EventVisitorCredential struct {
 	Kind                   string

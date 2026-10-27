@@ -13,14 +13,15 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 import "go.gala.fyi/stdlib/go_interop"
+import "go.gala.fyi/stdlib/resource"
 
-//line repository.gala:22
+//line repository.gala:27
 var crockfordBase32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
-//line repository.gala:24
+//line repository.gala:29
 var ErrPoolUninitialized = errors.New("postgresql pool is not initialized")
 
-//line repository.gala:25
+//line repository.gala:30
 
 // rowScanner names the anonymous `interface{ Scan(...any) error }` parameter
 // that scanEvent took from the Go original, because GALA has no syntax for an
@@ -29,12 +30,12 @@ type rowScanner interface {
 	Scan(dest ...any) error
 }
 
-//line repository.gala:33
+//line repository.gala:38
 func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{db: pool}
 }
 
-//line repository.gala:34
+//line repository.gala:39
 
 // NewRepositoryFromTx binds a repository to an existing transaction so a caller
 // that owns the transaction can compose repository operations with its own SQL
@@ -43,17 +44,17 @@ func NewRepositoryFromTx(tx pgx.Tx) *Repository {
 	return &Repository{db: tx}
 }
 
-//line repository.gala:39
+//line repository.gala:44
 
 // DefaultRepository uses the package-global pool initialized by Init.
 func DefaultRepository() (*Repository, error) {
 	var _goResult std.Try[*Repository] = func() std.Try[*Repository] {
-//line repository.gala:42
+//line repository.gala:47
 		if Pool == nil {
-//line repository.gala:43
+//line repository.gala:48
 			return std.Failure[*Repository]{}.Apply(ErrPoolUninitialized)
 		}
-//line repository.gala:45
+//line repository.gala:50
 		return std.Success[*Repository]{}.Apply(NewRepository(Pool))
 	}()
 	if _goResult.IsFailure() {
@@ -62,34 +63,34 @@ func DefaultRepository() (*Repository, error) {
 	return _goResult.Get(), nil
 }
 
-//line repository.gala:47
+//line repository.gala:52
 
 // WithTransaction runs fn against the package-global pool in one transaction.
 func WithTransaction(ctx context.Context, fn func(context.Context, *Repository) error) error {
-//line repository.gala:50
+//line repository.gala:55
 	var repository, repoErr = DefaultRepository()
-//line repository.gala:51
+//line repository.gala:56
 	if repoErr != nil {
-//line repository.gala:52
+//line repository.gala:57
 		return repoErr
 	}
-//line repository.gala:54
+//line repository.gala:59
 	return repository.WithTransaction(ctx, fn)
 }
 
-//line repository.gala:57
+//line repository.gala:62
 func GenerateShortID() (string, error) {
 	var _goResult std.Try[string] = func() std.Try[string] {
-//line repository.gala:58
+//line repository.gala:63
 		var value = go_interop.SliceWithSize[byte](5)
-//line repository.gala:59
+//line repository.gala:64
 		var _, readErr = rand.Read(value)
-//line repository.gala:60
+//line repository.gala:65
 		if readErr != nil {
-//line repository.gala:61
+//line repository.gala:66
 			return std.Failure[string]{}.Apply(fmt.Errorf("generate short event ID: %w", readErr))
 		}
-//line repository.gala:63
+//line repository.gala:68
 		return std.Success[string]{}.Apply(encodeCrockford(value, 8))
 	}()
 	if _goResult.IsFailure() {
@@ -98,37 +99,37 @@ func GenerateShortID() (string, error) {
 	return _goResult.Get(), nil
 }
 
-//line repository.gala:66
+//line repository.gala:71
 func GenerateEventShortID() (string, error) {
 	return GenerateShortID()
 }
 
-//line repository.gala:67
+//line repository.gala:72
 
 // GenerateTransferCode returns a six-digit decimal matching code. Rejection
 // sampling keeps the value uniform without modulo bias, and formatting keeps
 // leading zeros so every code is exactly six digits.
 func GenerateTransferCode() (string, error) {
 	var _goResult std.Try[string] = func() std.Try[string] {
-//line repository.gala:72
+//line repository.gala:77
 		var raw = go_interop.SliceWithSize[byte](4)
-//line repository.gala:73
+//line repository.gala:78
 		for {
-//line repository.gala:74
+//line repository.gala:79
 			var _, readErr = rand.Read(raw)
-//line repository.gala:75
+//line repository.gala:80
 			if readErr != nil {
-//line repository.gala:76
+//line repository.gala:81
 				return std.Failure[string]{}.Apply(fmt.Errorf("generate transfer code: %w", readErr))
 			}
-//line repository.gala:78
+//line repository.gala:83
 			var value = uint32(raw[0])<<24 | uint32(raw[1])<<16 | uint32(raw[2])<<8 | uint32(raw[3])
-//line repository.gala:79
+//line repository.gala:84
 			if value >= 4000000000 {
-//line repository.gala:80
+//line repository.gala:85
 				continue
 			}
-//line repository.gala:82
+//line repository.gala:87
 			return std.Success[string]{}.Apply(formatTransferCode(value % 1000000))
 		}
 	}()
@@ -138,64 +139,64 @@ func GenerateTransferCode() (string, error) {
 	return _goResult.Get(), nil
 }
 
-//line repository.gala:86
+//line repository.gala:91
 func formatTransferCode(value uint32) string {
 	return fmt.Sprintf("%06d", value)
 }
 
-//line repository.gala:88
-func encodeCrockford(value []byte, length int) string {
-//line repository.gala:89
-	var result = go_interop.SliceWithSize[byte](length)
-//line repository.gala:90
-	var buffer uint64
-//line repository.gala:91
-	var bits = uint(0)
-//line repository.gala:92
-	var index = 0
 //line repository.gala:93
-	for _, b := range value {
+func encodeCrockford(value []byte, length int) string {
 //line repository.gala:94
-		buffer = buffer<<8 | uint64(b)
+	var result = go_interop.SliceWithSize[byte](length)
 //line repository.gala:95
-		bits += 8
+	var buffer uint64
 //line repository.gala:96
-		for bits >= 5 && index < length {
+	var bits = uint(0)
 //line repository.gala:97
-			bits -= 5
+	var index = 0
 //line repository.gala:98
-			result[index] = crockfordBase32[(buffer>>bits)&31]
+	for _, b := range value {
 //line repository.gala:99
+		buffer = buffer<<8 | uint64(b)
+//line repository.gala:100
+		bits += 8
+//line repository.gala:101
+		for bits >= 5 && index < length {
+//line repository.gala:102
+			bits -= 5
+//line repository.gala:103
+			result[index] = crockfordBase32[(buffer>>bits)&31]
+//line repository.gala:104
 			index++
 		}
 	}
-//line repository.gala:102
+//line repository.gala:107
 	if index < length && bits > 0 {
-//line repository.gala:103
+//line repository.gala:108
 		result[index] = crockfordBase32[(buffer<<(5-bits))&31]
 	}
-//line repository.gala:105
+//line repository.gala:110
 	return string(result)
 }
 
-//line repository.gala:108
+//line repository.gala:113
 var eventColumns = `id, short_id, owner_edit_token_hash, owner_platform_identity_id, owner_event_visitor_identity_id, name, type, is_archived, is_deleted, num_responses, schedule_version, creator_posthog_id, created_at, updated_at, payload`
 
-//line repository.gala:110
+//line repository.gala:115
 func scanEvent(row rowScanner) (*Event, error) {
 	var _goResult std.Try[*Event] = func() std.Try[*Event] {
-//line repository.gala:111
+//line repository.gala:116
 		var event = &Event{}
-//line repository.gala:112
+//line repository.gala:117
 		var scanErr = row.Scan(&event.ID, &event.ShortID, &event.OwnerEditTokenHash, &event.OwnerPlatformIdentityID, &event.OwnerEventVisitorIdentityID, &event.Name, &event.Type, &event.IsArchived, &event.IsDeleted, &event.NumResponses, &event.ScheduleVersion, &event.CreatorPosthogID, &event.CreatedAt, &event.UpdatedAt, &event.Payload)
-//line repository.gala:113
+//line repository.gala:118
 		if scanErr != nil {
-//line repository.gala:114
+//line repository.gala:119
 			return std.Failure[*Event]{}.Apply(scanErr)
 		}
-//line repository.gala:116
+//line repository.gala:121
 		event.Payload = decodePayload(event.Payload)
-//line repository.gala:117
+//line repository.gala:122
 		return std.Success[*Event]{}.Apply(event)
 	}()
 	if _goResult.IsFailure() {
@@ -204,23 +205,422 @@ func scanEvent(row rowScanner) (*Event, error) {
 	return _goResult.Get(), nil
 }
 
-//line repository.gala:119
+//line repository.gala:124
 
 // listResponsesQuery lists one event's responses in write order. The
 // supporting-index forced-plan test runs this statement directly.
 var listResponsesQuery = `SELECT id, public_id, event_visitor_identity_id, event_id, respondent_kind, platform_identity_id, payload, created_at, updated_at FROM event_responses WHERE event_id = $1 ORDER BY created_at, id`
 
-//line repository.gala:124
+//line repository.gala:129
 func isUniqueViolation(err error) bool {
-//line repository.gala:125
+//line repository.gala:130
 	var postgresError *pgconn.PgError
-//line repository.gala:126
+//line repository.gala:131
 	return errors.As(err, &postgresError) && postgresError.Code == "23505"
 }
 
-//line repository.gala:128
+//line repository.gala:133
 
 // IsUniqueViolation reports PostgreSQL unique-index conflicts to route adapters.
 func IsUniqueViolation(err error) bool {
 	return isUniqueViolation(err)
+}
+
+//line repository.gala:137
+func createEvent(r *Repository, ctx context.Context, event *Event) error {
+//line repository.gala:138
+	if event == nil {
+//line repository.gala:139
+		return errors.New("event is nil")
+	}
+//line repository.gala:141
+	var payload, encodeErr = encodePayload(event.Payload)
+//line repository.gala:142
+	if encodeErr != nil {
+//line repository.gala:143
+		return encodeErr
+	}
+//line repository.gala:145
+	if event.ScheduleVersion == 0 {
+//line repository.gala:146
+		event.ScheduleVersion = 1
+	}
+//line repository.gala:148
+	for attempt := 0; attempt < 5; attempt++ {
+//line repository.gala:149
+		var generatedShortID = event.ShortID == ""
+//line repository.gala:150
+		if event.ShortID == "" {
+//line repository.gala:151
+			var shortID, shortIDErr = GenerateShortID()
+//line repository.gala:152
+			if shortIDErr != nil {
+//line repository.gala:153
+				return shortIDErr
+			}
+//line repository.gala:155
+			event.ShortID = shortID
+		}
+//line repository.gala:157
+		var scanErr = r.db.QueryRow(ctx, `INSERT INTO events (short_id, name, type, is_archived, is_deleted, num_responses, schedule_version, creator_posthog_id, payload)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING id, created_at, updated_at`, event.ShortID, event.Name, event.Type, event.IsArchived, event.IsDeleted, event.NumResponses, event.ScheduleVersion, event.CreatorPosthogID, payload).Scan(&event.ID, &event.CreatedAt, &event.UpdatedAt)
+//line repository.gala:160
+		if scanErr == nil || !isUniqueViolation(scanErr) || !generatedShortID {
+//line repository.gala:161
+			event.Payload = decodePayload(payload)
+//line repository.gala:162
+			return scanErr
+		}
+//line repository.gala:164
+		event.ShortID = ""
+	}
+//line repository.gala:166
+	return errors.New("generate unique event identifiers")
+}
+
+//line repository.gala:169
+func getEventByShortID(r *Repository, ctx context.Context, shortID string) (*Event, error) {
+	var _goResult std.Try[*Event] = func() std.Try[*Event] {
+//line repository.gala:170
+		return std.GoTry(getEvent(r, ctx, "short_id", shortID))
+	}()
+	if _goResult.IsFailure() {
+		return *new(*Event), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
+}
+
+//line repository.gala:173
+func getEventByID(r *Repository, ctx context.Context, id string) (*Event, error) {
+	var _goResult std.Try[*Event] = func() std.Try[*Event] {
+//line repository.gala:174
+		return std.GoTry(getEvent(r, ctx, "id", id))
+	}()
+	if _goResult.IsFailure() {
+		return *new(*Event), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
+}
+
+//line repository.gala:177
+func getEvent(r *Repository, ctx context.Context, column string, value string) (*Event, error) {
+	var _goResult std.Try[*Event] = func() std.Try[*Event] {
+//line repository.gala:178
+		return std.GoTry(scanEvent(r.db.QueryRow(ctx, `SELECT `+eventColumns+` FROM events WHERE `+column+` = $1`, value)))
+	}()
+	if _goResult.IsFailure() {
+		return *new(*Event), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
+}
+
+//line repository.gala:181
+func updateEvent(r *Repository, ctx context.Context, event *Event) error {
+//line repository.gala:182
+	if event == nil || event.ID == "" {
+//line repository.gala:183
+		return errors.New("event ID is required")
+	}
+//line repository.gala:185
+	var payload, encodeErr = encodePayload(event.Payload)
+//line repository.gala:186
+	if encodeErr != nil {
+//line repository.gala:187
+		return encodeErr
+	}
+//line repository.gala:189
+	var scanErr = r.db.QueryRow(ctx, `UPDATE events SET name = $2, type = $3, is_archived = $4, is_deleted = $5, num_responses = $6, schedule_version = $7, creator_posthog_id = $8, payload = $9, owner_event_visitor_identity_id = $10, updated_at = clock_timestamp() WHERE id = $1 RETURNING updated_at`, event.ID, event.Name, event.Type, event.IsArchived, event.IsDeleted, event.NumResponses, event.ScheduleVersion, event.CreatorPosthogID, payload, event.OwnerEventVisitorIdentityID).Scan(&event.UpdatedAt)
+//line repository.gala:190
+	if scanErr != nil {
+//line repository.gala:191
+		return scanErr
+	}
+//line repository.gala:193
+	event.Payload = decodePayload(payload)
+//line repository.gala:194
+	return nil
+}
+
+//line repository.gala:196
+
+// adjustEventResponseCount applies a relative change to an event's response
+// count without rewriting the payload. The result is clamped at zero so a stale
+// count cannot violate the non-negative check when a response row is removed.
+// Callers hold the event row lock so the adjustment cannot race another
+// response mutation.
+func adjustEventResponseCount(r *Repository, ctx context.Context, eventID string, delta int) error {
+//line repository.gala:203
+	if eventID == "" {
+//line repository.gala:204
+		return errors.New("event ID is required")
+	}
+//line repository.gala:206
+	var tag, execErr = r.db.Exec(ctx, `UPDATE events
+SET num_responses = GREATEST(num_responses + $2, 0), updated_at = clock_timestamp()
+WHERE id = $1`, eventID, delta)
+//line repository.gala:209
+	if execErr != nil {
+//line repository.gala:210
+		return execErr
+	}
+//line repository.gala:212
+	if tag.RowsAffected() == 0 {
+//line repository.gala:213
+		return pgx.ErrNoRows
+	}
+//line repository.gala:215
+	return nil
+}
+
+//line repository.gala:217
+
+// setEventArchived writes only the archive flag, leaving the event payload
+// untouched. A missing event is reported as pgx.ErrNoRows.
+func setEventArchived(r *Repository, ctx context.Context, eventID string, archived bool) error {
+//line repository.gala:221
+	if eventID == "" {
+//line repository.gala:222
+		return errors.New("event ID is required")
+	}
+//line repository.gala:224
+	var tag, execErr = r.db.Exec(ctx, `UPDATE events
+SET is_archived = $2, updated_at = clock_timestamp()
+WHERE id = $1`, eventID, archived)
+//line repository.gala:227
+	if execErr != nil {
+//line repository.gala:228
+		return execErr
+	}
+//line repository.gala:230
+	if tag.RowsAffected() == 0 {
+//line repository.gala:231
+		return pgx.ErrNoRows
+	}
+//line repository.gala:233
+	return nil
+}
+
+//line repository.gala:235
+
+// setEventDeleted writes only the soft-delete flag, leaving the event payload
+// untouched. A missing event is reported as pgx.ErrNoRows.
+func setEventDeleted(r *Repository, ctx context.Context, eventID string, deleted bool) error {
+//line repository.gala:239
+	if eventID == "" {
+//line repository.gala:240
+		return errors.New("event ID is required")
+	}
+//line repository.gala:242
+	var tag, execErr = r.db.Exec(ctx, `UPDATE events
+SET is_deleted = $2, updated_at = clock_timestamp()
+WHERE id = $1`, eventID, deleted)
+//line repository.gala:245
+	if execErr != nil {
+//line repository.gala:246
+		return execErr
+	}
+//line repository.gala:248
+	if tag.RowsAffected() == 0 {
+//line repository.gala:249
+		return pgx.ErrNoRows
+	}
+//line repository.gala:251
+	return nil
+}
+
+//line repository.gala:254
+func createResponse(r *Repository, ctx context.Context, response *Response) error {
+//line repository.gala:255
+	if response == nil || response.EventID == "" {
+//line repository.gala:256
+		return errors.New("response event ID is required")
+	}
+//line repository.gala:258
+	var payload, encodeErr = encodePayload(response.Payload)
+//line repository.gala:259
+	if encodeErr != nil {
+//line repository.gala:260
+		return encodeErr
+	}
+//line repository.gala:262
+	var scanErr = r.db.QueryRow(ctx, `INSERT INTO event_responses (event_id, event_visitor_identity_id, respondent_kind, platform_identity_id, payload)
+VALUES ($1, $2, $3, $4, $5) RETURNING id, public_id, created_at, updated_at`, response.EventID, response.EventVisitorIdentityID, response.RespondentKind, response.PlatformIdentityID, payload).Scan(&response.ID, &response.PublicID, &response.CreatedAt, &response.UpdatedAt)
+//line repository.gala:264
+	if scanErr == nil {
+//line repository.gala:265
+		response.Payload = decodePayload(payload)
+	}
+//line repository.gala:267
+	return scanErr
+}
+
+//line repository.gala:270
+func getResponseByID(r *Repository, ctx context.Context, id string) (*Response, error) {
+	var _goResult std.Try[*Response] = func() std.Try[*Response] {
+//line repository.gala:271
+		return std.GoTry(getResponse(r, ctx, `id = $1`, id))
+	}()
+	if _goResult.IsFailure() {
+		return *new(*Response), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
+}
+
+//line repository.gala:274
+func getResponseByPlatformIdentityID(r *Repository, ctx context.Context, eventID string, platformIdentityID string) (*Response, error) {
+	var _goResult std.Try[*Response] = func() std.Try[*Response] {
+//line repository.gala:275
+		return std.GoTry(getResponse(r, ctx, `event_id = $1 AND respondent_kind = 'account' AND platform_identity_id = $2`, eventID, platformIdentityID))
+	}()
+	if _goResult.IsFailure() {
+		return *new(*Response), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
+}
+
+//line repository.gala:278
+func getResponse(r *Repository, ctx context.Context, predicate string, values ...any) (*Response, error) {
+	var _goResult std.Try[*Response] = func() std.Try[*Response] {
+//line repository.gala:279
+		var response = &Response{}
+//line repository.gala:280
+		var scanErr = r.db.QueryRow(ctx, `SELECT id, public_id, event_visitor_identity_id, event_id, respondent_kind, platform_identity_id, payload, created_at, updated_at FROM event_responses WHERE `+predicate, values...).Scan(&response.ID, &response.PublicID, &response.EventVisitorIdentityID, &response.EventID, &response.RespondentKind, &response.PlatformIdentityID, &response.Payload, &response.CreatedAt, &response.UpdatedAt)
+//line repository.gala:281
+		if scanErr != nil {
+//line repository.gala:282
+			return std.Failure[*Response]{}.Apply(scanErr)
+		}
+//line repository.gala:284
+		response.Payload = decodePayload(response.Payload)
+//line repository.gala:285
+		return std.Success[*Response]{}.Apply(response)
+	}()
+	if _goResult.IsFailure() {
+		return *new(*Response), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
+}
+
+//line repository.gala:288
+func listResponses(r *Repository, ctx context.Context, eventID string) ([]Response, error) {
+	var _goResult std.Try[[]Response] = func() std.Try[[]Response] {
+//line repository.gala:289
+		var rows, queryErr = r.db.Query(ctx, listResponsesQuery, eventID)
+//line repository.gala:290
+		if queryErr != nil {
+//line repository.gala:291
+			return std.Failure[[]Response]{}.Apply(queryErr)
+		}
+//line repository.gala:293
+		return resource.Bracket(rows, func(pending pgx.Rows) {
+//line repository.gala:293
+			pending.Close()
+		}, func(pending pgx.Rows) std.Try[[]Response] {
+//line repository.gala:294
+			var responses = go_interop.SliceWithSize[Response](0)
+//line repository.gala:295
+			for pending.Next() {
+//line repository.gala:296
+				var response = &Response{}
+//line repository.gala:297
+				var scanErr = pending.Scan(&response.ID, &response.PublicID, &response.EventVisitorIdentityID, &response.EventID, &response.RespondentKind, &response.PlatformIdentityID, &response.Payload, &response.CreatedAt, &response.UpdatedAt)
+//line repository.gala:298
+				if scanErr != nil {
+//line repository.gala:299
+					return std.Failure[[]Response]{}.Apply(scanErr)
+				}
+//line repository.gala:301
+				response.Payload = decodePayload(response.Payload)
+//line repository.gala:302
+				responses = go_interop.SliceAppend(responses, *response)
+			}
+//line repository.gala:304
+			var rowsErr = pending.Err()
+//line repository.gala:305
+			if rowsErr != nil {
+//line repository.gala:306
+				return std.Failure[[]Response]{}.Apply(rowsErr)
+			}
+//line repository.gala:308
+			return std.Success[[]Response]{}.Apply(responses)
+		})
+	}()
+	if _goResult.IsFailure() {
+		return *new([]Response), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
+}
+
+//line repository.gala:312
+func updateResponse(r *Repository, ctx context.Context, response *Response) error {
+//line repository.gala:313
+	if response == nil || response.ID == "" {
+//line repository.gala:314
+		return errors.New("response ID is required")
+	}
+//line repository.gala:316
+	var payload, encodeErr = encodePayload(response.Payload)
+//line repository.gala:317
+	if encodeErr != nil {
+//line repository.gala:318
+		return encodeErr
+	}
+//line repository.gala:320
+	var scanErr = r.db.QueryRow(ctx, `UPDATE event_responses SET respondent_kind = $2, platform_identity_id = $3, payload = $4, updated_at = clock_timestamp() WHERE id = $1 RETURNING updated_at`, response.ID, response.RespondentKind, response.PlatformIdentityID, payload).Scan(&response.UpdatedAt)
+//line repository.gala:321
+	if scanErr != nil {
+//line repository.gala:322
+		return scanErr
+	}
+//line repository.gala:324
+	response.Payload = decodePayload(payload)
+//line repository.gala:325
+	return nil
+}
+
+//line repository.gala:327
+
+// deleteResponse removes one response by its hidden primary key.
+func deleteResponse(r *Repository, ctx context.Context, id string) error {
+//line repository.gala:330
+	var _, execErr = r.db.Exec(ctx, `DELETE FROM event_responses WHERE id = $1`, id)
+//line repository.gala:331
+	return execErr
+}
+
+//line repository.gala:333
+
+// deleteAccountResponses removes every account response owned by the given
+// platform identities on one event in one statement and reports the deleted row
+// count so the caller can adjust the event response count exactly. Unlike the
+// former per-identity lookup and delete, this removes every matching response,
+// including more than one response for the same platform identity.
+func deleteAccountResponses(r *Repository, ctx context.Context, eventID string, platformIdentityIDs []string) (int64, error) {
+	var _goResult std.Try[int64] = func() std.Try[int64] {
+//line repository.gala:340
+		if eventID == "" {
+//line repository.gala:341
+			return std.Failure[int64]{}.Apply(errors.New("response event ID is required"))
+		}
+//line repository.gala:343
+		if len(platformIdentityIDs) == 0 {
+//line repository.gala:344
+			return std.Success[int64]{}.Apply(0)
+		}
+//line repository.gala:346
+		var tag, execErr = r.db.Exec(ctx, `DELETE FROM event_responses
+WHERE event_id = $1 AND respondent_kind = 'account' AND platform_identity_id = ANY($2::uuid[])`, eventID, platformIdentityIDs)
+//line repository.gala:348
+		if execErr != nil {
+//line repository.gala:349
+			return std.Failure[int64]{}.Apply(execErr)
+		}
+//line repository.gala:351
+		return std.Success[int64]{}.Apply(tag.RowsAffected())
+	}()
+	if _goResult.IsFailure() {
+		return *new(int64), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
 }

@@ -4,36 +4,40 @@ package postgres
 
 import "go.gala.fyi/stdlib/std"
 import (
+	"context"
 	"errors"
 	"fmt"
+	"github.com/jackc/pgx/v5"
 	"strings"
+	"time"
 	"timeful/server/respondents"
 )
 import "go.gala.fyi/stdlib/go_interop"
+import "go.gala.fyi/stdlib/resource"
 
-//line signup.gala:12
+//line signup.gala:16
 
 // ErrSignupCapacityExceeded reports that at least one requested block is already
 // at capacity. The mutation is rejected atomically, so no partial response or
 // block membership is written.
 var ErrSignupCapacityExceeded = errors.New("signup block capacity exceeded")
 
-//line signup.gala:17
+//line signup.gala:21
 
 // ErrSignupBlockNotFound reports that a requested block does not belong to the
 // signup form event.
 var ErrSignupBlockNotFound = errors.New("signup block does not belong to the event")
 
-//line signup.gala:22
+//line signup.gala:26
 var signupBlockColumns = `id, event_id, name, capacity, start_date, end_date, position, created_at, updated_at`
 
-//line signup.gala:23
+//line signup.gala:27
 
 // signupResponseColumns lists the response columns without membership. Full
 // response reads append signupResponseBlockIDsColumn and end with BlockIDs.
 var signupResponseColumns = `id, public_id, event_id, event_visitor_identity_id, respondent_kind, platform_identity_id, canonical_guest_name, name, email, created_at, updated_at`
 
-//line signup.gala:27
+//line signup.gala:31
 
 // signupResponseBlockIDsColumn aggregates a response's claimed block identities
 // in their stored position order so reads reproduce the write order. Position
@@ -45,22 +49,22 @@ var signupResponseBlockIDsColumn = `COALESCE(ARRAY(
     ORDER BY membership.position, membership.block_id
 ), '{}'::text[])`
 
-//line signup.gala:38
+//line signup.gala:42
 var signupResponseSelectColumns = signupResponseColumns + `, ` + signupResponseBlockIDsColumn
 
-//line signup.gala:40
+//line signup.gala:44
 func scanSignupBlock(row rowScanner) (*SignupBlock, error) {
 	var _goResult std.Try[*SignupBlock] = func() std.Try[*SignupBlock] {
-//line signup.gala:41
+//line signup.gala:45
 		var block = &SignupBlock{}
-//line signup.gala:42
+//line signup.gala:46
 		var scanErr = row.Scan(&block.ID, &block.EventID, &block.Name, &block.Capacity, &block.StartDate, &block.EndDate, &block.Position, &block.CreatedAt, &block.UpdatedAt)
-//line signup.gala:43
+//line signup.gala:47
 		if scanErr != nil {
-//line signup.gala:44
+//line signup.gala:48
 			return std.Failure[*SignupBlock]{}.Apply(scanErr)
 		}
-//line signup.gala:46
+//line signup.gala:50
 		return std.Success[*SignupBlock]{}.Apply(block)
 	}()
 	if _goResult.IsFailure() {
@@ -69,19 +73,19 @@ func scanSignupBlock(row rowScanner) (*SignupBlock, error) {
 	return _goResult.Get(), nil
 }
 
-//line signup.gala:49
+//line signup.gala:53
 func scanSignupResponse(row rowScanner) (*SignupResponse, error) {
 	var _goResult std.Try[*SignupResponse] = func() std.Try[*SignupResponse] {
-//line signup.gala:50
+//line signup.gala:54
 		var response = &SignupResponse{}
-//line signup.gala:51
+//line signup.gala:55
 		var scanErr = row.Scan(&response.ID, &response.PublicID, &response.EventID, &response.EventVisitorIdentityID, &response.RespondentKind, &response.PlatformIdentityID, &response.CanonicalGuestName, &response.Name, &response.Email, &response.CreatedAt, &response.UpdatedAt, &response.BlockIDs)
-//line signup.gala:52
+//line signup.gala:56
 		if scanErr != nil {
-//line signup.gala:53
+//line signup.gala:57
 			return std.Failure[*SignupResponse]{}.Apply(scanErr)
 		}
-//line signup.gala:55
+//line signup.gala:59
 		return std.Success[*SignupResponse]{}.Apply(response)
 	}()
 	if _goResult.IsFailure() {
@@ -90,90 +94,803 @@ func scanSignupResponse(row rowScanner) (*SignupResponse, error) {
 	return _goResult.Get(), nil
 }
 
-//line signup.gala:57
+//line signup.gala:61
 
 // normalizeSignupResponseIdentity resolves the respondent kind and enforces the
 // identity rules: account responses carry a platform identity uuid, and guest
 // responses carry a canonical guest name produced by the shared normalizer.
 func normalizeSignupResponseIdentity(response *SignupResponse) error {
-//line signup.gala:62
+//line signup.gala:66
 	if response.RespondentKind == "" {
-//line signup.gala:63
+//line signup.gala:67
 		if response.PlatformIdentityID != nil && *response.PlatformIdentityID != "" {
-//line signup.gala:64
+//line signup.gala:68
 			response.RespondentKind = RespondentKindAccount
 		} else {
-//line signup.gala:66
+//line signup.gala:70
 			response.RespondentKind = RespondentKindGuest
 		}
 	} else if response.RespondentKind != RespondentKindAccount && response.RespondentKind != RespondentKindGuest {
-//line signup.gala:69
+//line signup.gala:73
 		return fmt.Errorf("unsupported signup respondent kind %q", response.RespondentKind)
 	}
-//line signup.gala:71
+//line signup.gala:75
 	if response.RespondentKind == RespondentKindAccount {
-//line signup.gala:72
+//line signup.gala:76
 		if response.PlatformIdentityID == nil || *response.PlatformIdentityID == "" {
-//line signup.gala:73
+//line signup.gala:77
 			return errors.New("account signup response requires a platform identity ID")
 		}
-//line signup.gala:75
+//line signup.gala:79
 		response.CanonicalGuestName = nil
-//line signup.gala:76
+//line signup.gala:80
 		return nil
 	}
-//line signup.gala:78
+//line signup.gala:82
 	response.PlatformIdentityID = nil
-//line signup.gala:79
+//line signup.gala:83
 	var guestName = response.Name
-//line signup.gala:80
+//line signup.gala:84
 	if guestName == "" && response.CanonicalGuestName != nil {
-//line signup.gala:81
+//line signup.gala:85
 		guestName = *response.CanonicalGuestName
 	}
-//line signup.gala:83
+//line signup.gala:87
 	var canonical = respondents.NormalizeGuestName(guestName)
-//line signup.gala:84
+//line signup.gala:88
 	if canonical == "" {
-//line signup.gala:85
+//line signup.gala:89
 		return errors.New("guest signup response requires a name")
 	}
-//line signup.gala:87
+//line signup.gala:91
 	response.Name = canonical
-//line signup.gala:88
+//line signup.gala:92
 	response.CanonicalGuestName = &canonical
-//line signup.gala:89
+//line signup.gala:93
 	return nil
 }
 
-//line signup.gala:91
+//line signup.gala:95
 
 // normalizeSignupBlockIDs trims, drops empty entries, and deduplicates block
 // identities so a response cannot claim the same block twice.
 func normalizeSignupBlockIDs(blockIDs []string) []string {
-//line signup.gala:95
-	var seen = go_interop.MapWithCapacity[string, bool](len(blockIDs))
-//line signup.gala:96
-	var result = go_interop.SliceWithCapacity[string](len(blockIDs))
-//line signup.gala:97
-	for _, blockID := range blockIDs {
-//line signup.gala:98
-		var trimmed = strings.TrimSpace(blockID)
 //line signup.gala:99
-		if trimmed == "" {
+	var seen = go_interop.MapWithCapacity[string, bool](len(blockIDs))
 //line signup.gala:100
-			continue
-		}
+	var result = go_interop.SliceWithCapacity[string](len(blockIDs))
+//line signup.gala:101
+	for _, blockID := range blockIDs {
 //line signup.gala:102
-		if seen[trimmed] {
+		var trimmed = strings.TrimSpace(blockID)
 //line signup.gala:103
+		if trimmed == "" {
+//line signup.gala:104
 			continue
 		}
-//line signup.gala:105
-		seen[trimmed] = true
 //line signup.gala:106
+		if seen[trimmed] {
+//line signup.gala:107
+			continue
+		}
+//line signup.gala:109
+		seen[trimmed] = true
+//line signup.gala:110
 		result = go_interop.SliceAppend(result, trimmed)
 	}
-//line signup.gala:108
+//line signup.gala:112
 	return result
+}
+
+//line signup.gala:114
+
+// blockClaim is one block's aggregated capacity row, kept unexported because it
+// never leaves reserveSignupCapacity.
+type blockClaim struct {
+	capacity *int
+	claimed  int
+}
+
+func (s blockClaim) Copy() blockClaim {
+	return blockClaim{capacity: std.Copy(s.capacity), claimed: std.Copy(s.claimed)}
+}
+func (s blockClaim) Equal(other blockClaim) bool {
+	return std.Equal(s.capacity, other.capacity) && std.Equal(s.claimed, other.claimed)
+}
+
+//line signup.gala:121
+
+// readSignupResponseByID reads one response with its claimed blocks aggregated
+// in position order.
+func readSignupResponseByID(r *Repository, ctx context.Context, responseID string) (*SignupResponse, error) {
+	var _goResult std.Try[*SignupResponse] = func() std.Try[*SignupResponse] {
+//line signup.gala:125
+		return std.GoTry(scanSignupResponse(r.db.QueryRow(ctx, `SELECT `+signupResponseSelectColumns+`
+FROM event_signup_responses WHERE id = $1`, responseID)))
+	}()
+	if _goResult.IsFailure() {
+		return *new(*SignupResponse), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
+}
+
+//line signup.gala:128
+
+// writeSignupResponseMemberships replaces a response's claimed blocks with the
+// supplied normalized identities in their given order. The delete and the
+// set-based insert both target the join table; the capacity check in the same
+// transaction has already proven every identity names a block of the event, and
+// the unique constraint backstops a repeated claim. The affected-row check keeps
+// a caller that skips the capacity check from silently dropping a claim.
+func writeSignupResponseMemberships(r *Repository, ctx context.Context, responseID string, eventID string, blockIDs []string) error {
+//line signup.gala:136
+	var _, deleteErr = r.db.Exec(ctx, `DELETE FROM event_signup_response_blocks WHERE response_id = $1`, responseID)
+//line signup.gala:137
+	if deleteErr != nil {
+//line signup.gala:138
+		return deleteErr
+	}
+//line signup.gala:140
+	if len(blockIDs) == 0 {
+//line signup.gala:141
+		return nil
+	}
+//line signup.gala:143
+	var tag, insertErr = r.db.Exec(ctx, `INSERT INTO event_signup_response_blocks (response_id, block_id, position)
+SELECT $1, block.id, claimed.ordinality
+FROM unnest($2::text[]) WITH ORDINALITY AS claimed(block_text, ordinality)
+JOIN event_signup_blocks block
+    ON block.id::text = claimed.block_text AND block.event_id = $3`, responseID, blockIDs, eventID)
+//line signup.gala:148
+	if insertErr != nil {
+//line signup.gala:149
+		return insertErr
+	}
+//line signup.gala:151
+	if int(tag.RowsAffected()) != len(blockIDs) {
+//line signup.gala:152
+		return ErrSignupBlockNotFound
+	}
+//line signup.gala:154
+	return nil
+}
+
+//line signup.gala:156
+
+// createSignupBlock appends one block to a signup form event. A non-positive
+// position appends after the existing blocks. The event row is locked so a
+// concurrent replace or signup cannot interleave block ordering.
+func createSignupBlock(r *Repository, ctx context.Context, block *SignupBlock) error {
+//line signup.gala:161
+	if block == nil || block.EventID == "" {
+//line signup.gala:162
+		return errors.New("signup block event ID is required")
+	}
+//line signup.gala:164
+	if block.Name == "" {
+//line signup.gala:165
+		return errors.New("signup block name is required")
+	}
+//line signup.gala:167
+	if block.Capacity != nil && *block.Capacity < 0 {
+//line signup.gala:168
+		return errors.New("signup block capacity must not be negative")
+	}
+//line signup.gala:170
+	return r.withTransaction(ctx, func(ctx context.Context, tx *Repository) error {
+//line signup.gala:171
+		var _, lockErr = tx.LockEvent(ctx, block.EventID)
+//line signup.gala:172
+		if lockErr != nil {
+//line signup.gala:173
+			return lockErr
+		}
+//line signup.gala:175
+		return tx.db.QueryRow(ctx, `INSERT INTO event_signup_blocks (event_id, name, capacity, start_date, end_date, position)
+VALUES ($1, $2, $3, $4, $5, CASE WHEN $6 > 0 THEN $6 ELSE (SELECT COALESCE(MAX(position), 0) + 1 FROM event_signup_blocks WHERE event_id = $1) END)
+RETURNING `+signupBlockColumns, block.EventID, block.Name, block.Capacity, block.StartDate, block.EndDate, block.Position).Scan(&block.ID, &block.EventID, &block.Name, &block.Capacity, &block.StartDate, &block.EndDate, &block.Position, &block.CreatedAt, &block.UpdatedAt)
+	})
+}
+
+//line signup.gala:181
+
+// replaceSignupBlocks writes the supplied blocks as the complete ordered block
+// set for an event. A block with an ID must belong to the event and keeps its
+// identity and response memberships; a block without an ID is inserted.
+// Removed blocks are deleted and their memberships cascade away in the same
+// transaction, so the block/response relation never dangles. A removal still
+// bumps the affected responses' updated_at, which the retired detach path did
+// and a cascade alone does not. The event row is locked for the duration.
+// Repeated non-empty identities collapse to their last occurrence because a
+// set-based ON CONFLICT DO UPDATE cannot touch one conflict row twice; that
+// matches the old per-block loop, which applied the updates in order.
+func replaceSignupBlocks(r *Repository, ctx context.Context, eventID string, blocks []SignupBlock) ([]SignupBlock, error) {
+	var _goResult std.Try[[]SignupBlock] = func() std.Try[[]SignupBlock] {
+//line signup.gala:193
+		if eventID == "" {
+//line signup.gala:194
+			return std.Failure[[]SignupBlock]{}.Apply(errors.New("signup block event ID is required"))
+		}
+//line signup.gala:196
+		var lastIndex = go_interop.MapWithCapacity[string, int](len(blocks))
+//line signup.gala:197
+		for i := 0; i < len(blocks); i++ {
+//line signup.gala:198
+			if blocks[i].Capacity != nil && *blocks[i].Capacity < 0 {
+//line signup.gala:199
+				return std.Failure[[]SignupBlock]{}.Apply(errors.New("signup block capacity must not be negative"))
+			}
+//line signup.gala:201
+			if blocks[i].ID != "" {
+//line signup.gala:202
+				lastIndex[blocks[i].ID] = i
+			}
+		}
+//line signup.gala:205
+		var positioned = go_interop.SliceWithCapacity[SignupBlock](len(blocks))
+//line signup.gala:206
+		for i := 0; i < len(blocks); i++ {
+//line signup.gala:207
+			if blocks[i].ID != "" && lastIndex[blocks[i].ID] != i {
+//line signup.gala:208
+				continue
+			}
+//line signup.gala:210
+			positioned = go_interop.SliceAppend(positioned, blocks[i])
+		}
+//line signup.gala:212
+		var ids = go_interop.SliceWithCapacity[string](len(positioned))
+//line signup.gala:213
+		var names = go_interop.SliceWithCapacity[string](len(positioned))
+//line signup.gala:214
+		var capacities = go_interop.SliceWithCapacity[*int](len(positioned))
+//line signup.gala:215
+		var startDates = go_interop.SliceWithCapacity[*time.Time](len(positioned))
+//line signup.gala:216
+		var endDates = go_interop.SliceWithCapacity[*time.Time](len(positioned))
+//line signup.gala:217
+		var positions = go_interop.SliceWithCapacity[int](len(positioned))
+//line signup.gala:218
+		var keepIDs = go_interop.SliceWithCapacity[string](len(positioned))
+//line signup.gala:219
+		for i := 0; i < len(positioned); i++ {
+//line signup.gala:220
+			ids = go_interop.SliceAppend(ids, positioned[i].ID)
+//line signup.gala:221
+			names = go_interop.SliceAppend(names, positioned[i].Name)
+//line signup.gala:222
+			capacities = go_interop.SliceAppend(capacities, positioned[i].Capacity)
+//line signup.gala:223
+			startDates = go_interop.SliceAppend(startDates, positioned[i].StartDate)
+//line signup.gala:224
+			endDates = go_interop.SliceAppend(endDates, positioned[i].EndDate)
+//line signup.gala:225
+			positions = go_interop.SliceAppend(positions, i+1)
+//line signup.gala:226
+			if positioned[i].ID != "" {
+//line signup.gala:227
+				keepIDs = go_interop.SliceAppend(keepIDs, positioned[i].ID)
+			}
+		}
+//line signup.gala:230
+		var stored = go_interop.SliceWithSize[SignupBlock](0)
+//line signup.gala:231
+		var txErr = r.withTransaction(ctx, func(ctx context.Context, tx *Repository) error {
+//line signup.gala:232
+			var _, lockErr = tx.LockEvent(ctx, eventID)
+//line signup.gala:233
+			if lockErr != nil {
+//line signup.gala:234
+				return lockErr
+			}
+//line signup.gala:236
+			var _, updateErr = tx.db.Exec(ctx, `UPDATE event_signup_responses response
+SET updated_at = clock_timestamp()
+WHERE response.event_id = $1
+  AND EXISTS (
+      SELECT 1
+      FROM event_signup_response_blocks membership
+      JOIN event_signup_blocks block ON block.id = membership.block_id
+      WHERE membership.response_id = response.id
+        AND block.event_id = $1
+        AND block.id::text <> ALL($2::text[])
+  )`, eventID, keepIDs)
+//line signup.gala:247
+			if updateErr != nil {
+//line signup.gala:248
+				return updateErr
+			}
+//line signup.gala:250
+			var _, deleteErr = tx.db.Exec(ctx, `DELETE FROM event_signup_blocks
+WHERE event_id = $1 AND id::text <> ALL($2::text[])`, eventID, keepIDs)
+//line signup.gala:252
+			if deleteErr != nil {
+//line signup.gala:253
+				return deleteErr
+			}
+//line signup.gala:255
+			var tag, insertErr = tx.db.Exec(ctx, `INSERT INTO event_signup_blocks (id, event_id, name, capacity, start_date, end_date, position)
+SELECT COALESCE(existing.id, uuidv7()), $1, incoming.name, incoming.capacity, incoming.start_date, incoming.end_date, incoming.position
+FROM unnest($2::text[], $3::text[], $4::int[], $5::timestamptz[], $6::timestamptz[], $7::int[]) AS incoming(id_text, name, capacity, start_date, end_date, position)
+LEFT JOIN event_signup_blocks existing
+    ON existing.id::text = incoming.id_text AND existing.event_id = $1
+WHERE incoming.id_text = '' OR existing.id IS NOT NULL
+ON CONFLICT (id) DO UPDATE
+SET name = EXCLUDED.name, capacity = EXCLUDED.capacity, start_date = EXCLUDED.start_date, end_date = EXCLUDED.end_date, position = EXCLUDED.position, updated_at = clock_timestamp()`, eventID, ids, names, capacities, startDates, endDates, positions)
+//line signup.gala:264
+			if insertErr != nil {
+//line signup.gala:265
+				return insertErr
+			}
+//line signup.gala:267
+			if int(tag.RowsAffected()) != len(positioned) {
+//line signup.gala:268
+				return pgx.ErrNoRows
+			}
+//line signup.gala:270
+			var list, listErr = tx.ListSignupBlocks(ctx, eventID)
+//line signup.gala:271
+			if listErr != nil {
+//line signup.gala:272
+				return listErr
+			}
+//line signup.gala:274
+			stored = list
+//line signup.gala:275
+			return nil
+		})
+//line signup.gala:277
+		if txErr != nil {
+//line signup.gala:278
+			return std.Failure[[]SignupBlock]{}.Apply(txErr)
+		}
+//line signup.gala:280
+		return std.Success[[]SignupBlock]{}.Apply(stored)
+	}()
+	if _goResult.IsFailure() {
+		return *new([]SignupBlock), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
+}
+
+//line signup.gala:282
+
+// listSignupBlocks returns the event's blocks in their stored order.
+func listSignupBlocks(r *Repository, ctx context.Context, eventID string) ([]SignupBlock, error) {
+	var _goResult std.Try[[]SignupBlock] = func() std.Try[[]SignupBlock] {
+//line signup.gala:285
+		if eventID == "" {
+//line signup.gala:286
+			return std.Failure[[]SignupBlock]{}.Apply(errors.New("signup block event ID is required"))
+		}
+//line signup.gala:288
+		var rows, queryErr = r.db.Query(ctx, `SELECT `+signupBlockColumns+`
+FROM event_signup_blocks WHERE event_id = $1 ORDER BY position, created_at, id`, eventID)
+//line signup.gala:290
+		if queryErr != nil {
+//line signup.gala:291
+			return std.Failure[[]SignupBlock]{}.Apply(queryErr)
+		}
+//line signup.gala:293
+		return resource.Bracket(rows, func(pending pgx.Rows) {
+//line signup.gala:293
+			pending.Close()
+		}, func(pending pgx.Rows) std.Try[[]SignupBlock] {
+//line signup.gala:294
+			var blocks = go_interop.SliceWithSize[SignupBlock](0)
+//line signup.gala:295
+			for pending.Next() {
+//line signup.gala:296
+				var block, scanErr = scanSignupBlock(pending)
+//line signup.gala:297
+				if scanErr != nil {
+//line signup.gala:298
+					return std.Failure[[]SignupBlock]{}.Apply(scanErr)
+				}
+//line signup.gala:300
+				blocks = go_interop.SliceAppend(blocks, *block)
+			}
+//line signup.gala:302
+			var rowsErr = pending.Err()
+//line signup.gala:303
+			if rowsErr != nil {
+//line signup.gala:304
+				return std.Failure[[]SignupBlock]{}.Apply(rowsErr)
+			}
+//line signup.gala:306
+			return std.Success[[]SignupBlock]{}.Apply(blocks)
+		})
+	}()
+	if _goResult.IsFailure() {
+		return *new([]SignupBlock), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
+}
+
+//line signup.gala:309
+
+// createSignupResponse inserts one response for an Event Visitor Identity. The
+// respondent identity is inferred when RespondentKind is empty. Guest names are
+// canonicalized through the shared respondents normalizer; a duplicate canonical
+// guest name or account response surfaces as a unique violation. Capacity is
+// reserved atomically under the event row lock, so an over-capacity signup is
+// rejected before any row is written.
+func createSignupResponse(r *Repository, ctx context.Context, response *SignupResponse) error {
+//line signup.gala:317
+	if response == nil || response.EventID == "" {
+//line signup.gala:318
+		return errors.New("signup response event ID is required")
+	}
+//line signup.gala:320
+	if response.EventVisitorIdentityID == "" {
+//line signup.gala:321
+		return errors.New("signup response event visitor identity is required")
+	}
+//line signup.gala:323
+	var normalizeErr = normalizeSignupResponseIdentity(response)
+//line signup.gala:324
+	if normalizeErr != nil {
+//line signup.gala:325
+		return normalizeErr
+	}
+//line signup.gala:327
+	var blockIDs = normalizeSignupBlockIDs(response.BlockIDs)
+//line signup.gala:328
+	return r.withTransaction(ctx, func(ctx context.Context, tx *Repository) error {
+//line signup.gala:329
+		var _, lockErr = tx.LockEvent(ctx, response.EventID)
+//line signup.gala:330
+		if lockErr != nil {
+//line signup.gala:331
+			return lockErr
+		}
+//line signup.gala:333
+		var reserveErr = reserveSignupCapacity(tx, ctx, response.EventID, blockIDs, "")
+//line signup.gala:334
+		if reserveErr != nil {
+//line signup.gala:335
+			return reserveErr
+		}
+//line signup.gala:337
+		var scanErr = tx.db.QueryRow(ctx, `INSERT INTO event_signup_responses
+ (event_id, event_visitor_identity_id, respondent_kind, platform_identity_id, canonical_guest_name, name, email)
+ VALUES ($1, $2, $3, $4, $5, $6, $7)
+ RETURNING `+signupResponseColumns, response.EventID, response.EventVisitorIdentityID, response.RespondentKind, response.PlatformIdentityID, response.CanonicalGuestName, response.Name, response.Email).Scan(&response.ID, &response.PublicID, &response.EventID, &response.EventVisitorIdentityID, &response.RespondentKind, &response.PlatformIdentityID, &response.CanonicalGuestName, &response.Name, &response.Email, &response.CreatedAt, &response.UpdatedAt)
+//line signup.gala:343
+		if scanErr != nil {
+//line signup.gala:344
+			return scanErr
+		}
+//line signup.gala:346
+		var membershipsErr = writeSignupResponseMemberships(tx, ctx, response.ID, response.EventID, blockIDs)
+//line signup.gala:347
+		if membershipsErr != nil {
+//line signup.gala:348
+			return membershipsErr
+		}
+//line signup.gala:350
+		var stored, readErr = readSignupResponseByID(tx, ctx, response.ID)
+//line signup.gala:351
+		if readErr != nil {
+//line signup.gala:352
+			return readErr
+		}
+//line signup.gala:354
+		*response = *stored
+//line signup.gala:355
+		return nil
+	})
+}
+
+//line signup.gala:358
+
+// getSignupResponseByPublicID resolves one response by its opaque public
+// identifier within an event. A public ID that is not a canonical UUID resolves
+// to no response instead of being forwarded to the uuid column.
+func getSignupResponseByPublicID(r *Repository, ctx context.Context, eventID string, publicID string) (*SignupResponse, error) {
+	var _goResult std.Try[*SignupResponse] = func() std.Try[*SignupResponse] {
+//line signup.gala:363
+		if eventID == "" || publicID == "" {
+//line signup.gala:364
+			return std.Failure[*SignupResponse]{}.Apply(errors.New("signup response event ID and public ID are required"))
+		}
+//line signup.gala:366
+		if !validUUID(publicID) {
+//line signup.gala:367
+			return std.Failure[*SignupResponse]{}.Apply(pgx.ErrNoRows)
+		}
+//line signup.gala:369
+		return std.GoTry(scanSignupResponse(r.db.QueryRow(ctx, `SELECT `+signupResponseSelectColumns+`
+FROM event_signup_responses WHERE event_id = $1 AND public_id = $2`, eventID, publicID)))
+	}()
+	if _goResult.IsFailure() {
+		return *new(*SignupResponse), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
+}
+
+//line signup.gala:372
+
+// listSignupResponses returns every signup response for an event in write order.
+func listSignupResponses(r *Repository, ctx context.Context, eventID string) ([]SignupResponse, error) {
+	var _goResult std.Try[[]SignupResponse] = func() std.Try[[]SignupResponse] {
+//line signup.gala:375
+		if eventID == "" {
+//line signup.gala:376
+			return std.Failure[[]SignupResponse]{}.Apply(errors.New("signup response event ID is required"))
+		}
+//line signup.gala:378
+		var rows, queryErr = r.db.Query(ctx, `SELECT `+signupResponseSelectColumns+`
+FROM event_signup_responses WHERE event_id = $1 ORDER BY created_at, id`, eventID)
+//line signup.gala:380
+		if queryErr != nil {
+//line signup.gala:381
+			return std.Failure[[]SignupResponse]{}.Apply(queryErr)
+		}
+//line signup.gala:383
+		return resource.Bracket(rows, func(pending pgx.Rows) {
+//line signup.gala:383
+			pending.Close()
+		}, func(pending pgx.Rows) std.Try[[]SignupResponse] {
+//line signup.gala:384
+			var responses = go_interop.SliceWithSize[SignupResponse](0)
+//line signup.gala:385
+			for pending.Next() {
+//line signup.gala:386
+				var response, scanErr = scanSignupResponse(pending)
+//line signup.gala:387
+				if scanErr != nil {
+//line signup.gala:388
+					return std.Failure[[]SignupResponse]{}.Apply(scanErr)
+				}
+//line signup.gala:390
+				responses = go_interop.SliceAppend(responses, *response)
+			}
+//line signup.gala:392
+			var rowsErr = pending.Err()
+//line signup.gala:393
+			if rowsErr != nil {
+//line signup.gala:394
+				return std.Failure[[]SignupResponse]{}.Apply(rowsErr)
+			}
+//line signup.gala:396
+			return std.Success[[]SignupResponse]{}.Apply(responses)
+		})
+	}()
+	if _goResult.IsFailure() {
+		return *new([]SignupResponse), _goResult.GetError()
+	}
+	return _goResult.Get(), nil
+}
+
+//line signup.gala:399
+
+// updateSignupResponse writes the respondent identity, name, email, and block
+// membership for one response selected by internal ID or opaque public ID. The
+// existing row is excluded from the capacity count, so re-saving a response
+// never consumes an extra seat. The event row is locked, keeping capacity
+// reservation atomic.
+func updateSignupResponse(r *Repository, ctx context.Context, response *SignupResponse) error {
+//line signup.gala:406
+	if response == nil || response.EventID == "" {
+//line signup.gala:407
+		return errors.New("signup response event ID is required")
+	}
+//line signup.gala:409
+	if response.ID == "" && response.PublicID == "" {
+//line signup.gala:410
+		return errors.New("signup response ID is required")
+	}
+//line signup.gala:412
+	if response.ID == "" && !validUUID(response.PublicID) {
+//line signup.gala:413
+		return pgx.ErrNoRows
+	}
+//line signup.gala:415
+	var normalizeErr = normalizeSignupResponseIdentity(response)
+//line signup.gala:416
+	if normalizeErr != nil {
+//line signup.gala:417
+		return normalizeErr
+	}
+//line signup.gala:419
+	var blockIDs = normalizeSignupBlockIDs(response.BlockIDs)
+//line signup.gala:420
+	return r.withTransaction(ctx, func(ctx context.Context, tx *Repository) error {
+//line signup.gala:421
+		var _, lockErr = tx.LockEvent(ctx, response.EventID)
+//line signup.gala:422
+		if lockErr != nil {
+//line signup.gala:423
+			return lockErr
+		}
+//line signup.gala:425
+		var responseID string
+//line signup.gala:426
+		if response.ID != "" {
+//line signup.gala:427
+			var idErr = tx.db.QueryRow(ctx, `SELECT id FROM event_signup_responses
+WHERE id = $1 AND event_id = $2`, response.ID, response.EventID).Scan(&responseID)
+//line signup.gala:429
+			if idErr != nil {
+//line signup.gala:430
+				return idErr
+			}
+		} else {
+//line signup.gala:433
+			var publicIDErr = tx.db.QueryRow(ctx, `SELECT id FROM event_signup_responses
+WHERE public_id = $1 AND event_id = $2`, response.PublicID, response.EventID).Scan(&responseID)
+//line signup.gala:435
+			if publicIDErr != nil {
+//line signup.gala:436
+				return publicIDErr
+			}
+		}
+//line signup.gala:439
+		var reserveErr = reserveSignupCapacity(tx, ctx, response.EventID, blockIDs, responseID)
+//line signup.gala:440
+		if reserveErr != nil {
+//line signup.gala:441
+			return reserveErr
+		}
+//line signup.gala:443
+		var scanErr = tx.db.QueryRow(ctx, `UPDATE event_signup_responses
+SET respondent_kind = $2, platform_identity_id = $3, canonical_guest_name = $4, name = $5, email = $6, updated_at = clock_timestamp()
+WHERE id = $1
+RETURNING `+signupResponseColumns, responseID, response.RespondentKind, response.PlatformIdentityID, response.CanonicalGuestName, response.Name, response.Email).Scan(&response.ID, &response.PublicID, &response.EventID, &response.EventVisitorIdentityID, &response.RespondentKind, &response.PlatformIdentityID, &response.CanonicalGuestName, &response.Name, &response.Email, &response.CreatedAt, &response.UpdatedAt)
+//line signup.gala:449
+		if scanErr != nil {
+//line signup.gala:450
+			return scanErr
+		}
+//line signup.gala:452
+		var membershipsErr = writeSignupResponseMemberships(tx, ctx, response.ID, response.EventID, blockIDs)
+//line signup.gala:453
+		if membershipsErr != nil {
+//line signup.gala:454
+			return membershipsErr
+		}
+//line signup.gala:456
+		var stored, readErr = readSignupResponseByID(tx, ctx, response.ID)
+//line signup.gala:457
+		if readErr != nil {
+//line signup.gala:458
+			return readErr
+		}
+//line signup.gala:460
+		*response = *stored
+//line signup.gala:461
+		return nil
+	})
+}
+
+//line signup.gala:464
+
+// deleteSignupResponse removes one response selected by opaque public ID. The
+// event row is locked so a deletion cannot interleave with a capacity
+// reservation. A missing or non-canonical response is reported as pgx.ErrNoRows.
+func deleteSignupResponse(r *Repository, ctx context.Context, eventID string, publicID string) error {
+//line signup.gala:469
+	if eventID == "" || publicID == "" {
+//line signup.gala:470
+		return errors.New("signup response event ID and public ID are required")
+	}
+//line signup.gala:472
+	if !validUUID(publicID) {
+//line signup.gala:473
+		return pgx.ErrNoRows
+	}
+//line signup.gala:475
+	return r.withTransaction(ctx, func(ctx context.Context, tx *Repository) error {
+//line signup.gala:476
+		var _, lockErr = tx.LockEvent(ctx, eventID)
+//line signup.gala:477
+		if lockErr != nil {
+//line signup.gala:478
+			return lockErr
+		}
+//line signup.gala:480
+		var tag, execErr = tx.db.Exec(ctx, `DELETE FROM event_signup_responses
+WHERE event_id = $1 AND public_id = $2`, eventID, publicID)
+//line signup.gala:482
+		if execErr != nil {
+//line signup.gala:483
+			return execErr
+		}
+//line signup.gala:485
+		if tag.RowsAffected() == 0 {
+//line signup.gala:486
+			return pgx.ErrNoRows
+		}
+//line signup.gala:488
+		return nil
+	})
+}
+
+//line signup.gala:491
+
+// reserveSignupCapacity verifies every requested block belongs to the event and
+// that no limited block is already at capacity, excluding the response being
+// rewritten. It must run inside the transaction that holds the event row lock,
+// which serializes concurrent reservations for the event. The grouped join
+// counts claims on the join table, but only memberships of responses in the same
+// event; comparing block identities as text keeps a non-canonical identifier on
+// the ErrSignupBlockNotFound path instead of a cast error. The excluded
+// response identity is compared as a typed uuid, and an empty exclude value
+// matches no response so every membership is counted.
+func reserveSignupCapacity(r *Repository, ctx context.Context, eventID string, blockIDs []string, excludeResponseID string) error {
+//line signup.gala:502
+	if len(blockIDs) == 0 {
+//line signup.gala:503
+		return nil
+	}
+//line signup.gala:505
+	var rows, queryErr = r.db.Query(ctx, `SELECT block.id::text, block.capacity, count(response.id)
+FROM event_signup_blocks block
+LEFT JOIN event_signup_response_blocks membership
+    ON membership.block_id = block.id
+   AND membership.response_id IS DISTINCT FROM NULLIF($3, '')::uuid
+LEFT JOIN event_signup_responses response
+    ON response.id = membership.response_id
+   AND response.event_id = $1
+WHERE block.event_id = $1 AND block.id::text = ANY($2)
+GROUP BY block.id, block.capacity`, eventID, blockIDs, excludeResponseID)
+//line signup.gala:515
+	if queryErr != nil {
+//line signup.gala:516
+		return queryErr
+	}
+//line signup.gala:518
+	var claims = go_interop.MapWithCapacity[string, blockClaim](len(blockIDs))
+//line signup.gala:519
+	for rows.Next() {
+//line signup.gala:520
+		var id string
+//line signup.gala:521
+		var capacity *int
+//line signup.gala:522
+		var claimed int
+//line signup.gala:523
+		var scanErr = rows.Scan(&id, &capacity, &claimed)
+//line signup.gala:524
+		if scanErr != nil {
+//line signup.gala:525
+			rows.Close()
+//line signup.gala:526
+			return scanErr
+		}
+//line signup.gala:528
+		claims[id] = blockClaim{capacity: capacity, claimed: claimed}
+	}
+//line signup.gala:530
+	rows.Close()
+//line signup.gala:531
+	var rowsErr = rows.Err()
+//line signup.gala:532
+	if rowsErr != nil {
+//line signup.gala:533
+		return rowsErr
+	}
+//line signup.gala:535
+	if len(claims) != len(blockIDs) {
+//line signup.gala:536
+		return ErrSignupBlockNotFound
+	}
+//line signup.gala:538
+	for _, blockID := range blockIDs {
+//line signup.gala:539
+		var claim = claims[blockID]
+//line signup.gala:540
+		if claim.capacity == nil {
+//line signup.gala:541
+			continue
+		}
+//line signup.gala:543
+		if claim.claimed >= *claim.capacity {
+//line signup.gala:544
+			return ErrSignupCapacityExceeded
+		}
+	}
+//line signup.gala:547
+	return nil
 }
