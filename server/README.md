@@ -28,12 +28,14 @@ Regenerate and verify every twin with [`scripts/gala/verify.sh`](scripts/gala/ve
 ```sh
 server/scripts/gala/verify.sh          # drift detection
 server/scripts/gala/verify.sh --write  # regenerate the committed twins in place
+server/scripts/gala/verify.sh --jobs 1 # verify one package group at a time
 ```
 
 The script prints the compiler provenance recorded in `GALA_COMPILER`, requires every twin to regenerate byte-identically, checks `gofmt`, and runs `go build ./...`.
 It gives each source directory one shared `gala transpile-package` invocation, so the compiler's package analysis is built once per package instead of once per twin; a twin whose shared invocation produces no output is retried on its own, keeping its path and compiler diagnostic while the rest of the package still verifies.
-Each run prints per-twin progress and writes a timestamped log to `server/.gala/verify.log`; `--verbose` shows each shared compiler command, `--log FILE` moves the log, and `--no-log` disables it.
-The regression check is `python3 server/scripts/gala/test_verify.py`, which stubs `gala` and needs no real compiler.
+Independent source directories are then verified concurrently up to `--jobs N`, whose default is `min(4, CPU count)` because one compiler process keeps roughly 0.4-0.5 GiB resident; each group's report is buffered and replayed in sorted group order, so the per-twin lines, problem list, summary counts, and exit code do not depend on the worker count.
+Each run prints per-twin progress and writes a timestamped log to `server/.gala/verify.log`; `--verbose` shows each shared compiler command with its directory, `--log FILE` moves the log, and `--no-log` disables it.
+The regression check is `python3 server/scripts/gala/test_verify.py`, which stubs `gala` and needs no real compiler; it covers the shared invocation, the bounded concurrency, and the deterministic reporting.
 Server twins have adopted the published GALA stdlib: `server/go.mod` requires `go.gala.fyi/stdlib`, `verify.sh` transpiles every twin with `--stdlib-module go.gala.fyi/stdlib`, only `go.gala.fyi/stdlib/...` imports are allowed in generated Go, and `martianoff/gala` stays banned.
 Transpile from the package directory when working by hand, because the emitted `//line` directives name the path the transpiler was given, and never hand-edit a generated file:
 

@@ -23,6 +23,17 @@ When the shared invocation does not produce a twin's output, the verifier retrie
 On 2026-10-27 in this checkout (Linux 6.8.0-147-generic x86_64, Intel Core i7-1165G7, 8 CPUs) with GALA 0.93.0 and Go 1.26.7, a full `server/scripts/gala/verify.sh --check` pass reported `twins: 77 discovered, 77 transpiled, 77 ok` in 12m00s with the HEAD verifier and 4m14s with the shared invocation, making the twins phase 2.8x faster, while `gofmt`, the orphan scan, and `go build ./...` stayed unchanged.
 The regression check for the shared invocation and the per-twin failure attribution is `python3 server/scripts/gala/test_verify.py`, which stubs `gala` in a temporary git fixture and needs no real compiler.
 
+#### Concurrent package groups (TASK-0368, 2026-10-27)
+
+Independent source directories are verified concurrently under `--jobs N`, whose default is `min(4, CPU count)` because one compiler process keeps roughly 0.4-0.5 GiB resident and the host's memory budget stays bounded.
+Each group's report is buffered and replayed in sorted group order, so the per-twin progress lines, the problem list, the summary counts, and the exit code are identical for every worker count, and one group's report is never interleaved with another's.
+While the main thread waits for a group, it prints a dim line naming the groups still running; the line goes to the run log too, so a slow run stays attributable.
+`--verbose` names the directory in each shared command as `(cd server/<pkg> && gala transpile-package ...)` and keeps a package's compiler output inside that group's report.
+The shared invocation, the single-twin retry, every per-twin check, and the `--write` behavior are unchanged from TASK-0367.
+On 2026-10-27 on the same host and compiler as the TASK-0367 measurement above, `server/scripts/gala/verify.sh --check --jobs 1` reported `twins: 77 discovered, 77 transpiled, 77 ok` in 4m50s and a total of 4m52s, while `--check --jobs 4` reported the same 77 twins in 2m43s and a total of 2m45s; both runs exited 0 with identical per-twin lines, summary counts, `gofmt`, orphan-scan, and `go build` results.
+A 0.1s sampler summed the verifier process tree's `VmRSS` and recorded a 780 MiB peak with one worker and a 1,329 MiB peak with four, so the default bound makes the twins phase about 1.8x faster while staying well inside the host's 31 GiB.
+The regression check covers the worker bound and the deterministic report with the stub compiler: `test_package_groups_run_concurrently_within_the_bound` and `test_report_is_deterministic_across_worker_counts` in `python3 server/scripts/gala/test_verify.py`.
+
 ### Adopted runtime (decided 2026-10-10)
 
 TASK-0353 decides that server twins adopt the published Go module `go.gala.fyi/stdlib` at the version paired with the pinned compiler, rather than staying runtime-free.
