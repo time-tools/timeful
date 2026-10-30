@@ -46,7 +46,8 @@ func canonicalGuestName(name string) string {
 
 //line respondent_identity.gala:27
 func guestNameValidationErrorMessage(code respondents.GuestNameValidationCode) string {
-	return func(obj respondents.GuestNameValidationCode) string {
+	{
+		obj := code
 		if obj == respondents.GuestNameRequired {
 			return "Guest name is required"
 		} else if obj == respondents.GuestNameInvalidFormatting {
@@ -58,7 +59,7 @@ func guestNameValidationErrorMessage(code respondents.GuestNameValidationCode) s
 		} else {
 			return "Guest name is invalid"
 		}
-	}(code)
+	}
 }
 
 //line respondent_identity.gala:34
@@ -80,20 +81,18 @@ func populateSignUpResponsePayloadIdentity(response *models.SignUpResponse, live
 //line respondent_identity.gala:46
 			var lookupKey = response.UserId.String()
 //line respondent_identity.gala:47
-			func(obj std.Option[*models.User]) {
+			func() {
+				obj := std.OptionPtrOf(liveUsers[lookupKey]).MatchView()
 				{
-					_tmp_1 := std.Some[*models.User]{}.Unapply(obj)
+					_tmp_1 := _unapply_std_Some_d4ec3b63(obj)
 					_tmp_2 := _tmp_1.IsDefined()
-					var _tmp_3 *models.User
-					if _tmp_2 {
-						_tmp_3 = _tmp_1.Get()
-					}
+					_tmp_3 := _tmp_1.Value.Get()
 					_ = _tmp_3
 					liveUser := _tmp_3
 					if _tmp_2 {
 						response.User = sanitizedResponseUser(liveUser)
 					} else {
-						_tmp_4 := std.None[*models.User]{}.Unapply(obj)
+						_tmp_4 := _unapply_std_None_d4ec3b63(obj)
 						if _tmp_4 {
 //line respondent_identity.gala:50
 							var fallbackName = respondents.NormalizeGuestName(response.Name)
@@ -104,7 +103,7 @@ func populateSignUpResponsePayloadIdentity(response *models.SignUpResponse, live
 						}
 					}
 				}
-			}(std.OptionPtrOf(liveUsers[lookupKey]).MatchView())
+			}()
 //line respondent_identity.gala:58
 			return std.Tuple[string, bool]{V1: std.NewImmutable(lookupKey), V2: std.NewImmutable(true)}
 		}
@@ -123,4 +122,10 @@ func populateSignUpResponsePayloadIdentity(response *models.SignUpResponse, live
 		return std.Tuple[string, bool]{V1: std.NewImmutable(name), V2: std.NewImmutable(true)}
 	}()
 	return _goResult.V1.Get(), _goResult.V2.Get()
+}
+func _unapply_std_Some_d4ec3b63[_T0 any](v std.Option[_T0]) std.Option[_T0] {
+	return std.Some[_T0]{}.Unapply(v)
+}
+func _unapply_std_None_d4ec3b63[_T0 any](v std.Option[_T0]) bool {
+	return std.None[_T0]{}.Unapply(v)
 }

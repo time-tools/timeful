@@ -159,3 +159,10 @@ The uuid split keeps `ParseUUID`, `NewUUID`, `formatUUID`, and the marshalers in
 - flake rev: `8ba02b2b18eca7ca3bc410f5e467b112366bdf6c`
 - extraction: `0.93.0 6368c09381c6f9d8d72f1551101ca48207cb2e1c34122627ca928261ad05b13c`
 - Result: the default run still emits the runtime-backed `Hash`/`Compare`, the alias form still fails with `GALA-E0048`, and the suppression run still emits neither.
+
+## Re-verified (2026-10-29)
+
+- `gala version`: `GALA version 0.95.0`
+- flake rev: `173f7d778f103a05553564d841e0daba0126cb16`
+- extraction: `0.95.0 7b68112a768d6d4776444c8ab561ce629c219d86748f93f0ca1f485daf7d1648`
+- Result: the default run still emits the runtime-backed `Hash`/`Compare` (`martianoff/gala/std` without the flag), the alias form still fails with the same `GALA-E0048` message and hint, and the suppression run still emits `Time`/`IsZero` only with no GALA package named.

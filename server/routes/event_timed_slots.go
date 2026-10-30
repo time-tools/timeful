@@ -220,7 +220,8 @@ func deriveEnabledSlots(fields timedEventPayloadFields) ([]models.DateTime, erro
 func generationDays(recurrence *models.TimedRecurrence, activeSlots []models.DateTime, location *time.Location) ([]time.Time, error) {
 	var _goResult std.Try[[]time.Time] = func() std.Try[[]time.Time] {
 //line event_timed_slots.gala:133
-		return func(obj string) std.Try[[]time.Time] {
+		{
+			obj := recurrence.Kind
 			if obj == "specific_dates" {
 //line event_timed_slots.gala:135
 				var days = go_interop.SliceWithCapacity[time.Time](len(recurrence.SelectedDays))
@@ -245,7 +246,7 @@ func generationDays(recurrence *models.TimedRecurrence, activeSlots []models.Dat
 //line event_timed_slots.gala:149
 				return std.Failure[[]time.Time]{}.Apply(errIncompleteTimedEventContract)
 			}
-		}(recurrence.Kind)
+		}
 	}()
 	if _goResult.IsFailure() {
 		return *new([]time.Time), _goResult.GetError()

@@ -86,7 +86,7 @@ A block-form struct is the documented Go-shaped declaration, but it always gains
 A caller that needs the exact Go type cannot use it, and the only substitute is keeping the struct in a handwritten sibling, which preserves the caller but not the translation.
 That is a boundary gap, but whether it is worth a report depends on the caller: the added members are additive, and a repository that accepts them has no gap.
 File the opt-out request only when the Go-facing API must stay exact.
-The tag is not this gap: the block form preserves the tag (see [Constructs That Were Never Gaps](#constructs-that-were-never-gaps)).
+A struct tag is not this gap and not a tag workaround either: 0.95.0 refuses one on any field form with `GALA-E0085`, whose hint names `Codec[T]` and a handwritten `.go` file, so the tagged type itself stays in Go while the members around it can move.
 
 ## Constructs That Were Never Gaps
 
@@ -94,10 +94,6 @@ These are listed because each one was recorded as blocked before it was checked 
 
 A Go function literal inside a composite literal is a parse error in the Go spelling only.
 A GALA lambda in that position transpiles and builds, so the construct was never missing and there was nothing to file.
-
-A struct tag on a block-form declaration was recorded as a gap because the probe tested the shorthand form only.
-`type Location struct { var CountryCode string "json:\"country_code\"" }` transpiles, and the emitted Go carries the exact tag; `json.Marshal` of the generated struct matches the handwritten struct's bytes.
-The shorthand form and a raw-string tag are parse errors, so the working spelling is an interpreted string with escaped quotes, and the tag is a `workaround` row in [`constructs.md`](constructs.md).
 
 Assignment to a `:=` binding is a documented semantic, not a gap.
 The language specification states that `:=` bindings are immutable, and the rejection is that rule working as written; `var` is the mutable form and the migration is mechanical.
@@ -266,12 +262,15 @@ Do not file these, and do not spend a report slot on them.
 The first four are the ones that look like walls and are not; each has already been filed and answered upstream, and re-filing one spends the credibility a real gap needs.
 
 - A construct with a `workaround` row in [`constructs.md`](constructs.md), which is where the replacement spelling is.
-- A construct with an `answered` row there: `switch`, embedded fields, anonymous and `struct{}` types, fixed-size arrays, type assertions, `interface{}`, `goto`, a method on a defined type, the `if` initializer, `recover`, multi-value returns, channel types, grouped parameters, and nested functions.
+- A construct with an `answered` row there: `switch`, embedded fields, anonymous and `struct{}` types, struct tags, fixed-size arrays, type assertions, `interface{}`, `goto`, a method on a defined type, the `if` initializer, `recover`, multi-value returns, channel types, grouped parameters, and nested functions.
   `select` is the exception this list used to cover wholesale: its timeout and first-wins shapes are answered, while a multiplex over channels the function does not own is a language gap, so file that shape and only that shape (see [`constructs.md`](constructs.md)'s control-flow note).
 - A construct with a `semantic` row there, such as assigning to a `:=` binding.
 - A construct whose `gala explain GALA-Exxxx` page already states the fix, which is a documented answer rather than a gap.
 - A construct re-derived on the compiler you have and found working, which this file lists under [Constructs That Were Never Gaps](#constructs-that-were-never-gaps): a block-bodied lambda in a typed return position, and `go_interop.MapPut` type-argument inference.
 - A receiver typed from a Go call, which resolves on the compiler this skill was last measured against; the historical lowering defect was filed as [#613](https://github.com/martianoff/gala/issues/613) and is fixed, so re-run the row's check rather than filing either the gap or the defect again.
+
+A struct tag has moved twice: it was recorded as a gap after a shorthand-only probe, then as a `workaround` when 0.93.0's block form copied it into the generated Go, and it is an `answered` row now that 0.95.0 refuses it as `GALA-E0085` and its hint names `Codec[T]` and a handwritten `.go` file.
+Do not re-file the old block-form workaround or carry it into new work.
 
 Then the ones that are not about a construct at all:
 

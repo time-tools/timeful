@@ -85,3 +85,10 @@ This probe stays because the gap is still open on the pinned compiler.
 - flake rev: `8ba02b2b18eca7ca3bc410f5e467b112366bdf6c`
 - extraction: `0.93.0 6368c09381c6f9d8d72f1551101ca48207cb2e1c34122627ca928261ad05b13c`
 - Result: the same two parse errors; the expected-token lists still name the `default` keyword.
+
+## Re-verified (2026-10-29)
+
+- `gala version`: `GALA version 0.95.0`
+- flake rev: `173f7d778f103a05553564d841e0daba0126cb16`
+- extraction: `0.95.0 7b68112a768d6d4776444c8ab561ce629c219d86748f93f0ca1f485daf7d1648`
+- Result: the same two parse errors at the same positions (`no viable alternative at input '[16'` and `extraneous input ']'`); the second expected-token list now includes the `default` keyword.

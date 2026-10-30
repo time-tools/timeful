@@ -92,19 +92,17 @@ func SanitizeDisplayNamePart(input string) string {
 func SanitizeUserDisplayName(user *models.User) (string, string, string) {
 	var _goResult std.Tuple3[string, string, string] = func() std.Tuple3[string, string, string] {
 //line identity.gala:68
-		return func(obj std.Option[*models.User]) std.Tuple3[string, string, string] {
+		{
+			obj := std.OptionPtrOf(user).MatchView()
 			{
-				_tmp_1 := std.None[*models.User]{}.Unapply(obj)
+				_tmp_1 := _unapply_std_None_db0d483c(obj)
 				if _tmp_1 {
 //line identity.gala:69
 					return std.Tuple3[string, string, string]{V1: std.NewImmutable(""), V2: std.NewImmutable(""), V3: std.NewImmutable("")}
 				} else {
-					_tmp_2 := std.Some[*models.User]{}.Unapply(obj)
+					_tmp_2 := _unapply_std_Some_db0d483c(obj)
 					_tmp_3 := _tmp_2.IsDefined()
-					var _tmp_4 *models.User
-					if _tmp_3 {
-						_tmp_4 = _tmp_2.Get()
-					}
+					_tmp_4 := _tmp_2.Value.Get()
 					_ = _tmp_4
 					found := _tmp_4
 					if _tmp_3 {
@@ -121,7 +119,13 @@ func SanitizeUserDisplayName(user *models.User) (string, string, string) {
 					}
 				}
 			}
-		}(std.OptionPtrOf(user).MatchView())
+		}
 	}()
 	return _goResult.V1.Get(), _goResult.V2.Get(), _goResult.V3.Get()
+}
+func _unapply_std_None_db0d483c[_T0 any](v std.Option[_T0]) bool {
+	return std.None[_T0]{}.Unapply(v)
+}
+func _unapply_std_Some_db0d483c[_T0 any](v std.Option[_T0]) std.Option[_T0] {
+	return std.Some[_T0]{}.Unapply(v)
 }

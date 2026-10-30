@@ -27,17 +27,14 @@ func InstrumentDefaultTransport(recorder *Recorder) {
 	{
 		obj := std.OptionPtrOf(recorder).MatchView()
 		{
-			_tmp_1 := std.None[*Recorder]{}.Unapply(obj)
+			_tmp_1 := _unapply_std_None_f978fc47(obj)
 			if _tmp_1 {
 //line transport.gala:24
 				return
 			} else {
-				_tmp_2 := std.Some[*Recorder]{}.Unapply(obj)
+				_tmp_2 := _unapply_std_Some_f978fc47(obj)
 				_tmp_3 := _tmp_2.IsDefined()
-				var _tmp_4 *Recorder
-				if _tmp_3 {
-					_tmp_4 = _tmp_2.Get()
-				}
+				_tmp_4 := _tmp_2.Value.Get()
 				_ = _tmp_4
 				found := _tmp_4
 				if _tmp_3 {
@@ -183,4 +180,10 @@ func classifyTransportError(err error) string {
 	}
 //line transport.gala:107
 	return "transport_error"
+}
+func _unapply_std_None_f978fc47[_T0 any](v std.Option[_T0]) bool {
+	return std.None[_T0]{}.Unapply(v)
+}
+func _unapply_std_Some_f978fc47[_T0 any](v std.Option[_T0]) std.Option[_T0] {
+	return std.Some[_T0]{}.Unapply(v)
 }

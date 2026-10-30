@@ -104,7 +104,8 @@ func GetDateAtTime(date time.Time, timeString string) time.Time {
 
 // Returns the correct client id given the token origin
 func GetClientIdFromTokenOrigin(tokenOrigin models.TokenOriginType) string {
-	return func(obj models.TokenOriginType) string {
+	{
+		obj := tokenOrigin
 		if obj == models.ANDROID {
 			return os.Getenv("ANDROID_CLIENT_ID")
 		} else if obj == models.IOS {
@@ -112,7 +113,7 @@ func GetClientIdFromTokenOrigin(tokenOrigin models.TokenOriginType) string {
 		} else {
 			return os.Getenv("CLIENT_ID")
 		}
-	}(tokenOrigin)
+	}
 }
 
 //line utils.gala:80

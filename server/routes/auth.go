@@ -221,20 +221,18 @@ func signInHelper(c *gin.Context, token auth.TokenResponse, tokenOrigin models.T
 //line auth.gala:190
 		var canonicalKey = utils.GetCalendarAccountKey(email, calendarType)
 //line auth.gala:192
-		var oldSubCalendars *map[string]models.SubCalendar = func(obj std.Option[models.CalendarAccount]) *map[string]models.SubCalendar {
+		var oldSubCalendars *map[string]models.SubCalendar = func() *map[string]models.SubCalendar {
+			obj := go_interop.OptionFromMap(integrations.Accounts, canonicalKey)
 			{
-				_tmp_1 := std.Some[models.CalendarAccount]{}.Unapply(obj)
+				_tmp_1 := _unapply_std_Some_5c043510(obj)
 				_tmp_2 := _tmp_1.IsDefined()
-				var _tmp_3 models.CalendarAccount
-				if _tmp_2 {
-					_tmp_3 = _tmp_1.Get()
-				}
+				_tmp_3 := _tmp_1.Value.Get()
 				_ = _tmp_3
 				existingAcc := _tmp_3
 				if _tmp_2 {
 					return existingAcc.SubCalendars
 				} else {
-					_tmp_4 := std.None[models.CalendarAccount]{}.Unapply(obj)
+					_tmp_4 := _unapply_std_None_5c043510(obj)
 					if _tmp_4 {
 						return nil
 					} else {
@@ -242,7 +240,7 @@ func signInHelper(c *gin.Context, token auth.TokenResponse, tokenOrigin models.T
 					}
 				}
 			}
-		}(go_interop.OptionFromMap(integrations.Accounts, canonicalKey))
+		}()
 //line auth.gala:196
 		if oldSubCalendars != nil {
 //line auth.gala:197
@@ -567,4 +565,10 @@ func verifyOtp(c *gin.Context) {
 	}
 //line auth.gala:419
 	c.JSON(http.StatusOK, user)
+}
+func _unapply_std_Some_5c043510[_T0 any](v std.Option[_T0]) std.Option[_T0] {
+	return std.Some[_T0]{}.Unapply(v)
+}
+func _unapply_std_None_5c043510[_T0 any](v std.Option[_T0]) bool {
+	return std.None[_T0]{}.Unapply(v)
 }

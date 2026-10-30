@@ -49,21 +49,19 @@ func scanFolders(rows pgx.Rows) ([]Folder, error) {
 //line folders.gala:39
 				var index = 0
 //line folders.gala:40
-				func(obj std.Option[int]) {
+				func() {
+					obj := go_interop.OptionFromMap(indexByID, folder.ID)
 					{
-						_tmp_1 := std.Some[int]{}.Unapply(obj)
+						_tmp_1 := _unapply_std_Some_c059426f(obj)
 						_tmp_2 := _tmp_1.IsDefined()
-						var _tmp_3 int
-						if _tmp_2 {
-							_tmp_3 = _tmp_1.Get()
-						}
+						_tmp_3 := _tmp_1.Value.Get()
 						_ = _tmp_3
 						found := _tmp_3
 						if _tmp_2 {
 //line folders.gala:41
 							index = found
 						} else {
-							_tmp_4 := std.None[int]{}.Unapply(obj)
+							_tmp_4 := _unapply_std_None_c059426f(obj)
 							if _tmp_4 {
 //line folders.gala:43
 								folder.Members = go_interop.SliceWithSize[FolderMember](0)
@@ -78,7 +76,7 @@ func scanFolders(rows pgx.Rows) ([]Folder, error) {
 							}
 						}
 					}
-				}(go_interop.OptionFromMap(indexByID, folder.ID))
+				}()
 //line folders.gala:49
 				if eventID != nil {
 //line folders.gala:50
@@ -306,4 +304,10 @@ VALUES ($1, $2, $3)`, platformIdentityID, *folderID, *member.EventID)
 //line folders.gala:185
 		return insertErr
 	})
+}
+func _unapply_std_Some_c059426f[_T0 any](v std.Option[_T0]) std.Option[_T0] {
+	return std.Some[_T0]{}.Unapply(v)
+}
+func _unapply_std_None_c059426f[_T0 any](v std.Option[_T0]) bool {
+	return std.None[_T0]{}.Unapply(v)
 }

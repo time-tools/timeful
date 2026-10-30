@@ -2,8 +2,6 @@
 
 package middleware
 
-import "timeful/server/models"
-import "timeful/server/postgres"
 import "go.gala.fyi/stdlib/std"
 import (
 	"github.com/gin-contrib/sessions"
@@ -70,12 +68,9 @@ func AuthRequired() gin.HandlerFunc {
 		{
 			obj := std.GoTry(accounts.Resolve(c.Request.Context(), platformIdentityID))
 			{
-				_tmp_2 := std.Success[*postgres.Account]{}.Unapply(obj)
+				_tmp_2 := _unapply_std_Success_5c043510(obj)
 				_tmp_3 := _tmp_2.IsDefined()
-				var _tmp_4 *postgres.Account
-				if _tmp_3 {
-					_tmp_4 = _tmp_2.Get()
-				}
+				_tmp_4 := _tmp_2.Value.Get()
 				_ = _tmp_4
 				account := _tmp_4
 				if _tmp_3 {
@@ -83,12 +78,9 @@ func AuthRequired() gin.HandlerFunc {
 					{
 						obj := std.GoTry(accounts.LoadSessionUser(c.Request.Context(), account))
 						{
-							_tmp_5 := std.Success[*models.User]{}.Unapply(obj)
+							_tmp_5 := _unapply_std_Success_5c043510(obj)
 							_tmp_6 := _tmp_5.IsDefined()
-							var _tmp_7 *models.User
-							if _tmp_6 {
-								_tmp_7 = _tmp_5.Get()
-							}
+							_tmp_7 := _tmp_5.Value.Get()
 							_ = _tmp_7
 							user := _tmp_7
 							if _tmp_6 {
@@ -99,12 +91,9 @@ func AuthRequired() gin.HandlerFunc {
 //line auth.gala:51
 								c.Next()
 							} else {
-								_tmp_8 := std.Failure[*models.User]{}.Unapply(obj)
+								_tmp_8 := _unapply_std_Failure_5c043510(obj)
 								_tmp_9 := _tmp_8.IsDefined()
-								var _tmp_10 error
-								if _tmp_9 {
-									_tmp_10 = _tmp_8.Get()
-								}
+								_tmp_10 := _tmp_8.Value.Get()
 								_ = _tmp_10
 								if _tmp_9 {
 //line auth.gala:54
@@ -120,12 +109,9 @@ func AuthRequired() gin.HandlerFunc {
 						}
 					}
 				} else {
-					_tmp_11 := std.Failure[*postgres.Account]{}.Unapply(obj)
+					_tmp_11 := _unapply_std_Failure_5c043510(obj)
 					_tmp_12 := _tmp_11.IsDefined()
-					var _tmp_13 error
-					if _tmp_12 {
-						_tmp_13 = _tmp_11.Get()
-					}
+					_tmp_13 := _tmp_11.Value.Get()
 					_ = _tmp_13
 					if _tmp_12 {
 //line auth.gala:61
@@ -141,4 +127,10 @@ func AuthRequired() gin.HandlerFunc {
 			}
 		}
 	}
+}
+func _unapply_std_Success_5c043510[_T0 any](v std.Try[_T0]) std.Option[_T0] {
+	return std.Success[_T0]{}.Unapply(v)
+}
+func _unapply_std_Failure_5c043510[_T0 any](v std.Try[_T0]) std.Option[error] {
+	return std.Failure[_T0]{}.Unapply(v)
 }

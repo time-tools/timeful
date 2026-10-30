@@ -44,13 +44,14 @@ var calendarSubCalendarColumns = `id, calendar_account_id, sub_calendar_id, name
 // validCalendarType reports whether calendarType is one of the provider types
 // the schema admits.
 func validCalendarType(calendarType string) bool {
-	return func(obj string) bool {
+	{
+		obj := calendarType
 		if obj == CalendarTypeGoogle || obj == CalendarTypeOutlook || obj == CalendarTypeApple || obj == CalendarTypeICS {
 			return true
 		} else {
 			return false
 		}
-	}(calendarType)
+	}
 }
 
 //line calendar.gala:50
@@ -72,13 +73,14 @@ func guardPlatformIdentityID(platformIdentityID string) error {
 
 //line calendar.gala:63
 func validTokenOrigin(tokenOrigin string) bool {
-	return func(obj string) bool {
+	{
+		obj := tokenOrigin
 		if obj == "ios" || obj == "android" || obj == "web" {
 			return true
 		} else {
 			return false
 		}
-	}(tokenOrigin)
+	}
 }
 
 //line calendar.gala:68

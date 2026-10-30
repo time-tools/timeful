@@ -79,3 +79,10 @@ No specific follow-up report was found.
 - flake rev: `8ba02b2b18eca7ca3bc410f5e467b112366bdf6c`
 - extraction: `0.93.0 6368c09381c6f9d8d72f1551101ca48207cb2e1c34122627ca928261ad05b13c`
 - Result: the same parse error for the bare embed spelling; the expected-token list still names the `default` keyword.
+
+## Re-verified (2026-10-29)
+
+- `gala version`: `GALA version 0.95.0`
+- flake rev: `173f7d778f103a05553564d841e0daba0126cb16`
+- extraction: `0.95.0 7b68112a768d6d4776444c8ab561ce629c219d86748f93f0ca1f485daf7d1648`
+- Result: the same parse error for the bare embed spelling at the same position; the expected-token list now includes the `default` keyword.

@@ -45,23 +45,17 @@ func executeActiveUsers(s *discordgo.Session, m *discordgo.MessageCreate, args [
 		{
 			obj := std.GoTry(strconv.Atoi(args[1]))
 			{
-				_tmp_1 := std.Success[int]{}.Unapply(obj)
+				_tmp_1 := _unapply_std_Success_0ca0d7b1(obj)
 				_tmp_2 := _tmp_1.IsDefined()
-				var _tmp_3 int
-				if _tmp_2 {
-					_tmp_3 = _tmp_1.Get()
-				}
+				_tmp_3 := _tmp_1.Value.Get()
 				_ = _tmp_3
 				parsed := _tmp_3
 				if _tmp_2 {
 					days = parsed
 				} else {
-					_tmp_4 := std.Failure[int]{}.Unapply(obj)
+					_tmp_4 := _unapply_std_Failure_0ca0d7b1(obj)
 					_tmp_5 := _tmp_4.IsDefined()
-					var _tmp_6 error
-					if _tmp_5 {
-						_tmp_6 = _tmp_4.Get()
-					}
+					_tmp_6 := _tmp_4.Value.Get()
 					_ = _tmp_6
 					if _tmp_5 {
 //line active_users.gala:36
@@ -222,4 +216,10 @@ func activeUsersChart(labels []string, data []int) map[string]any {
 	chart["options"] = options
 //line active_users.gala:142
 	return chart
+}
+func _unapply_std_Success_0ca0d7b1[_T0 any](v std.Try[_T0]) std.Option[_T0] {
+	return std.Success[_T0]{}.Unapply(v)
+}
+func _unapply_std_Failure_0ca0d7b1[_T0 any](v std.Try[_T0]) std.Option[error] {
+	return std.Failure[_T0]{}.Unapply(v)
 }

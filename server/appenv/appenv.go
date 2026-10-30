@@ -41,7 +41,8 @@ func normalize(value string) string {
 
 //line appenv.gala:20
 func Parse(value string) Environment {
-	return func(obj Environment) Environment {
+	{
+		obj := Environment(normalize(value))
 		if obj == Test {
 			return Test
 		} else if obj == Staging {
@@ -51,7 +52,7 @@ func Parse(value string) Environment {
 		} else {
 			return Development
 		}
-	}(Environment(normalize(value)))
+	}
 }
 
 //line appenv.gala:27
@@ -66,7 +67,8 @@ func IsProductionLike(env Environment) bool {
 
 //line appenv.gala:31
 func ShouldUseReleaseMode(ginMode string, env Environment) bool {
-	return func(obj string) bool {
+	{
+		obj := normalize(ginMode)
 		{
 			mode := obj
 			if true && (mode == "debug" || mode == string(Development)) {
@@ -80,12 +82,13 @@ func ShouldUseReleaseMode(ginMode string, env Environment) bool {
 				}
 			}
 		}
-	}(normalize(ginMode))
+	}
 }
 
 //line appenv.gala:37
 func Port(env Environment) string {
-	return func(obj Environment) string {
+	{
+		obj := env
 		if obj == Test {
 			return "3003"
 		} else if obj == Staging {
@@ -95,7 +98,7 @@ func Port(env Environment) string {
 		} else {
 			return "3002"
 		}
-	}(env)
+	}
 }
 
 //line appenv.gala:43

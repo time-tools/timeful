@@ -693,7 +693,8 @@ func addCalendarAccount(c *gin.Context, args addCalendarAccountArgs) {
 //line user.gala:528
 	var calendarAccount = models.CalendarAccount{CalendarType: args.calendarType, Email: ident, Picture: args.picture, Enabled: utils.TruePtr()}
 //line user.gala:535
-	func(obj models.CalendarType) {
+	func() {
+		obj := args.calendarType
 		if obj == models.GoogleCalendarType {
 //line user.gala:537
 			calendarAccount.OAuth2CalendarAuth = args.oAuth2CalendarAuth
@@ -707,7 +708,7 @@ func addCalendarAccount(c *gin.Context, args addCalendarAccountArgs) {
 //line user.gala:546
 			calendarAccount.ICSCalendarAuth = args.icsCalendarAuth
 		}
-	}(args.calendarType)
+	}()
 //line user.gala:550
 	var canonicalKey = utils.GetCalendarAccountKey(ident, args.calendarType)
 //line user.gala:553

@@ -20,14 +20,12 @@ func CallApi(user *models.User, calendarAuth *models.OAuth2CalendarAuth, method 
 		auth.RefreshUserTokenIfNecessary(found, nil)
 	})
 //line services.gala:18
-	var req = func(obj std.Option[*map[string]any]) *http.Request {
+	var req = func() *http.Request {
+		obj := std.OptionPtrOf(body).MatchView()
 		{
-			_tmp_1 := std.Some[*map[string]any]{}.Unapply(obj)
+			_tmp_1 := _unapply_std_Some_726f21ba(obj)
 			_tmp_2 := _tmp_1.IsDefined()
-			var _tmp_3 *map[string]any
-			if _tmp_2 {
-				_tmp_3 = _tmp_1.Get()
-			}
+			_tmp_3 := _tmp_1.Value.Get()
 			_ = _tmp_3
 			payload := _tmp_3
 			if _tmp_2 {
@@ -38,7 +36,7 @@ func CallApi(user *models.User, calendarAuth *models.OAuth2CalendarAuth, method 
 //line services.gala:22
 				return std.RequirePtr(created)
 			} else {
-				_tmp_4 := std.None[*map[string]any]{}.Unapply(obj)
+				_tmp_4 := _unapply_std_None_726f21ba(obj)
 				if _tmp_4 {
 //line services.gala:25
 					var created, _ = http.NewRequest(method, url, nil)
@@ -49,7 +47,7 @@ func CallApi(user *models.User, calendarAuth *models.OAuth2CalendarAuth, method 
 				}
 			}
 		}
-	}(std.OptionPtrOf(body).MatchView())
+	}()
 //line services.gala:29
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", calendarAuth.AccessToken))
 //line services.gala:31
@@ -58,4 +56,10 @@ func CallApi(user *models.User, calendarAuth *models.OAuth2CalendarAuth, method 
 	}).Get()
 //line services.gala:33
 	return response
+}
+func _unapply_std_Some_726f21ba[_T0 any](v std.Option[_T0]) std.Option[_T0] {
+	return std.Some[_T0]{}.Unapply(v)
+}
+func _unapply_std_None_726f21ba[_T0 any](v std.Option[_T0]) bool {
+	return std.None[_T0]{}.Unapply(v)
 }

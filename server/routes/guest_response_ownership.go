@@ -21,18 +21,16 @@ func hasValidGuestName(name string) bool {
 // A nil response, or one owned by an account, is always exposed; a guest
 // response is exposed only when it carries a valid guest name.
 func shouldExposeGuestSignUpResponsePayload(_ string, response *models.SignUpResponse) bool {
-	return func(obj std.Option[*models.SignUpResponse]) bool {
+	{
+		obj := std.OptionPtrOf(response).MatchView()
 		{
-			_tmp_1 := std.None[*models.SignUpResponse]{}.Unapply(obj)
+			_tmp_1 := _unapply_std_None_6031851e(obj)
 			if _tmp_1 {
 				return true
 			} else {
-				_tmp_2 := std.Some[*models.SignUpResponse]{}.Unapply(obj)
+				_tmp_2 := _unapply_std_Some_6031851e(obj)
 				_tmp_3 := _tmp_2.IsDefined()
-				var _tmp_4 *models.SignUpResponse
-				if _tmp_3 {
-					_tmp_4 = _tmp_2.Get()
-				}
+				_tmp_4 := _tmp_2.Value.Get()
 				_ = _tmp_4
 				found := _tmp_4
 				if _tmp_3 {
@@ -42,5 +40,11 @@ func shouldExposeGuestSignUpResponsePayload(_ string, response *models.SignUpRes
 				}
 			}
 		}
-	}(std.OptionPtrOf(response).MatchView())
+	}
+}
+func _unapply_std_None_6031851e[_T0 any](v std.Option[_T0]) bool {
+	return std.None[_T0]{}.Unapply(v)
+}
+func _unapply_std_Some_6031851e[_T0 any](v std.Option[_T0]) std.Option[_T0] {
+	return std.Some[_T0]{}.Unapply(v)
 }
