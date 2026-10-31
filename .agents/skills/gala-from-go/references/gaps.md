@@ -86,7 +86,7 @@ A block-form struct is the documented Go-shaped declaration, but it always gains
 A caller that needs the exact Go type cannot use it, and the only substitute is keeping the struct in a handwritten sibling, which preserves the caller but not the translation.
 That is a boundary gap, but whether it is worth a report depends on the caller: the added members are additive, and a repository that accepts them has no gap.
 File the opt-out request only when the Go-facing API must stay exact.
-A struct tag is not this gap and not a tag workaround either: 0.95.0 refuses one on any field form with `GALA-E0085`, whose hint names `Codec[T]` and a handwritten `.go` file, so the tagged type itself stays in Go while the members around it can move.
+A struct tag is not this gap and not a tag workaround either: 0.95.0 refuses one on any field form with `GALA-E0085`, whose hint names `Codec[T]` and a handwritten `.go` file; the wire shape moves to the codec, with codec-backed `MarshalJSON`/`UnmarshalJSON` where a Go caller uses `encoding/json`, while a tag a Go reflection consumer reads keeps that type in a handwritten `.go` file of the package.
 
 ## Constructs That Were Never Gaps
 
@@ -270,6 +270,7 @@ The first four are the ones that look like walls and are not; each has already b
 - A receiver typed from a Go call, which resolves on the compiler this skill was last measured against; the historical lowering defect was filed as [#613](https://github.com/martianoff/gala/issues/613) and is fixed, so re-run the row's check rather than filing either the gap or the defect again.
 
 A struct tag has moved twice: it was recorded as a gap after a shorthand-only probe, then as a `workaround` when 0.93.0's block form copied it into the generated Go, and it is an `answered` row now that 0.95.0 refuses it as `GALA-E0085` and its hint names `Codec[T]` and a handwritten `.go` file.
+The codec side was verified on 2026-10-31 on rev `173f7d77`: codec-backed `MarshalJSON`/`UnmarshalJSON` reproduced the tagged `encoding/json` bytes in the `models-codec-wire` probe, while the tagless declaration no longer feeds `swag` the same keys.
 Do not re-file the old block-form workaround or carry it into new work.
 
 Then the ones that are not about a construct at all:

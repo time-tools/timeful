@@ -4,7 +4,7 @@ title: Advance the GALA translation loop cursor and land its runtime-free twins
 status: In Progress
 assignee: []
 created_date: '2026-10-05 08:44'
-updated_date: '2026-10-27 13:06'
+updated_date: '2026-10-31 08:02'
 labels: []
 dependencies: []
 references:
@@ -626,6 +626,20 @@ Run the `gala-loop` skill one iteration at a time, taking the next entry from th
 **Ledger:** registry stays 78 sources, with the five sibling cells now `—` (`models/datetime`, `models/uuid`, `routes/events`, `discord_bot/commands/active_users`, and `slackbot/commands/active_users`, whose row keeps `utils_extra.go`); a tenth-batch section records the construct facts and evidence; the defined-scalar and fixed-array rows and the uuid/datetime prose now record the fold and the `[]byte` form; the cursor keeps its four blocked entries and gains the tenth-batch retirement note.
 
 **State:** committed as `feat(gala): fold five expired GALA siblings into their twins`; no generated file hand-edited, no test relaxed, and no probe warranted.
+
+## Iteration 25 — switch the struct-tag substitute to Codec (2026-10-31)
+
+**Provenance:** `gala` `GALA version 0.95.0` at `/nix/store/k98xwz120rrvyk8chc2p163c1wffb3zi-gala-0.95.0/bin/gala`; flake rev `173f7d778f103a05553564d841e0daba0126cb16` matches `server/GALA_COMPILER` (extraction `0.95.0 7b68112a…`), so no bump. This is a documentation-only iteration requested by the user: switch the documented field-tag substitute to `Codec[T]`.
+
+**Changed:**
+- `server/GALA.md`: the runtime-scope and twin-style boundary lists now name a `Codec` replacing a struct tag; the struct-tag finding row leads with `Codec[T]` plus codec-backed `MarshalJSON`/`UnmarshalJSON` and keeps the handwritten `.go` type only for a tag-reading consumer; the models group and cursor now name `swag` plus the synthesized members as the blockers; the probe cell lists both probes.
+- `gala-from-go/SKILL.md`, `references/constructs.md`, `references/gaps.md`: the same switch in the boundary spellings, the struct-tag row, the boundary-gap note, and the history.
+- `server/scripts/gala/probes/models-codec-wire/` (new `main.gala` and `notes.md`): a tagless `Location` with `Codec[Location](SnakeCase())` and codec-backed `MarshalJSON`/`UnmarshalJSON`.
+- `server/scripts/gala/probes/models-struct-tag/notes.md`: links the codec probe and restates that `swag` keeps the tagged type handwritten.
+
+**Evidence:** the probe transpiles twice byte-identically with `--stdlib-module go.gala.fyi/stdlib` and is `gofmt`-clean; a scratch Go test marshaled the generated type against the tagged `Location` and matched bytes for the populated, zero, `1e21`, `1e-7`, `math.MaxFloat64`, `math.SmallestNonzeroFloat64`, HTML/unicode, and NaN-error cases, and decoded exact-key, unknown-key, duplicate-key, missing-key, and `null` payloads identically; the only difference is `encoding/json`'s case-insensitive key match, which the codec does not perform. A scratch `swag init` on a tagless `Location` produced `countryCode` instead of `country_code`, which is why a swagger-visible type stays handwritten. `go build ./...` in `server/` passes; `npm run format:markdown:check` passes; no twin, route, docs, or frontend artifact changed, so `verify.sh`, the backend suite, and `swag init`/`gen:api` were not rerun.
+
+**State:** docs and probe only; no generated twin or runtime file changed. The cursor stays at the blocked models entry, now recorded as `swag` plus the synthesized members rather than the tag alone.
 <!-- SECTION:NOTES:END -->
 
 ## Comments

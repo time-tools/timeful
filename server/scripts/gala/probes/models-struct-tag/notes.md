@@ -78,6 +78,7 @@ The error is reported after the field's type, so it replaces the earlier parse e
 ## Classification
 
 The construct is a `documented answer` row in [`constructs.md`](../../../../.agents/skills/gala-from-go/references/constructs.md) (`answered`, `GALA-E0085`): GALA has no struct tags, and the hint names both substitutes — `Codec[T]` (`.Rename`, `.Omit`, `.OmitEmpty`) for a wire shape GALA controls, and a handwritten `.go` file for a type a Go reflection library reads through its tags.
+The codec substitute is reproduced at [`../models-codec-wire/`](../models-codec-wire/): a codec-backed `MarshalJSON`/`UnmarshalJSON` keeps the runtime `encoding/json` bytes, but `swag` still reads the tag, so a swagger-visible type stays handwritten.
 No gap is filed: [#885](https://github.com/martianoff/gala/issues/885) closed completed by the rejection in PR #894, and the 0.95.0 release notes record it as a breaking change.
 The synthesized members are a separate boundary gap, and the opt-out report is conditional on the consuming repository's API rule.
 

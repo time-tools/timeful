@@ -71,7 +71,7 @@ Three shape rules decide whether a file can be rewritten whole, and all three ar
 
 The three rules are about a Go-facing surface, not about which constructs a rewrite may use.
 Every runtime construct is available to a translated file: `val` and `:=` bindings, `Try`, `Option`/`Either`, sealed types, the immutable collections, and the `go_interop` helpers all transpile, and a project on the published stdlib writes their imports as `go.gala.fyi/stdlib/...` with `gala transpile --stdlib-module go.gala.fyi/stdlib`.
-The spellings that remain boundary-changing for a Go-facing surface are: an exported `val` behind `std.Immutable`, a sealed type's merged struct, a non-`var` struct field behind `std.Immutable[T]`, and a type whose Go struct tag defines the wire shape — refused as `GALA-E0085` since 0.95.0, so the tagged type stays in a handwritten `.go` sibling while the members around it can move.
+The spellings that remain boundary-changing for a Go-facing surface are: an exported `val` behind `std.Immutable`, a sealed type's merged struct, a non-`var` struct field behind `std.Immutable[T]`, and a `Codec` replacing a struct tag — 0.95.0 refuses the tag as `GALA-E0085`, so the wire shape moves to `Codec[T]` with codec-backed `MarshalJSON`/`UnmarshalJSON` where a Go caller uses `encoding/json`, while a type whose tag a Go reflection consumer reads, such as `swag`, stays in a handwritten `.go` sibling and the members around it can move.
 
 ### The Mixed Package
 

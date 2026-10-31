@@ -1,0 +1,45 @@
+package models
+
+import . "martianoff/gala/json"
+import "martianoff/gala/go_interop"
+
+// The Go type this stands for is models.Location in server/models/location.go.
+// Its JSON keys live on the codec below instead of on field tags, which
+// GALA 0.95.0 refuses as GALA-E0085.
+type Location struct {
+	var CountryCode string
+	var CountryName string
+	var City string
+	var Postal string
+	var Latitude float64
+	var Longitude float64
+	var State string
+}
+
+// MarshalJSON emits the tagged wire shape through the codec so a Go caller
+// that marshals the value with encoding/json still sees the same bytes.
+func (location Location) MarshalJSON() ([]byte, error) {
+	val codec = Codec[Location](SnakeCase())
+	val encoded = codec.Encode(location)
+	encoded match {
+		case Success(value) => { return Success(go_interop.ToBytes(value)) }
+		case Failure(err) => { return Failure(err) }
+	}
+}
+
+// UnmarshalJSON decodes the tagged wire shape through the codec so a Go
+// caller that unmarshals with encoding/json still accepts the same payloads.
+func (location *Location) UnmarshalJSON(data []byte) error {
+	if (string(data) == "null") {
+		return nil
+	}
+	val codec = Codec[Location](SnakeCase())
+	val decoded = codec.Decode(string(data))
+	decoded match {
+		case Success(value) => {
+			*location = value
+			return nil
+		}
+		case Failure(err) => { return err }
+	}
+}
