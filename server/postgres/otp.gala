@@ -1,0 +1,142 @@
+package postgres
+
+import (
+	"context"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/base64"
+	"errors"
+	"strings"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+)
+
+import "martianoff/gala/go_interop"
+
+// This file carries the OTP hash helpers plus the free-function bodies of the
+// four former otp_methods.go methods. otpHashSaltLength, otpMaxAttempts, the
+// three ErrOtp* values, and the one-line *Repository wrappers stay handwritten
+// in otp_methods.go: a method declared on Repository in a .gala file makes the
+// GALA-declared set Repository's complete method set, which hides the eighteen
+// methods repository_methods.go declares.
+
+// normalizeOtpEmail applies the same case folding the route applies so the
+// unique email key always describes the same challenge.
+func normalizeOtpEmail(email string) string = strings.ToLower(strings.TrimSpace(email))
+
+// hashOtpCode returns the versionless salted one-way hash stored in
+// otp_challenges.code_hash as base64(salt):base64(HMAC-SHA256(salt, code)). The
+// salt is per challenge, and the code is never stored in readable form.
+func hashOtpCode(code string) (string, error) {
+	var salt = go_interop.SliceWithSize[byte](otpHashSaltLength)
+	var _, readErr = rand.Read(salt)
+	if (readErr != nil) {
+		return Failure(readErr)
+	}
+	return Success(encodeOtpHash(salt, otpDigest(salt, code)))
+}
+
+func otpDigest(salt []byte, code string) []byte {
+	var mac = hmac.New(sha256.New, salt)
+	mac.Write(go_interop.ToBytes(code))
+	return mac.Sum(nil)
+}
+
+func encodeOtpHash(salt []byte, digest []byte) string = base64.StdEncoding.EncodeToString(salt) + ":" + base64.StdEncoding.EncodeToString(digest)
+
+// otpCodeMatches recomputes the hash from the stored salt and compares in
+// constant time. A malformed stored hash is a non-match, never an error.
+func otpCodeMatches(stored string, code string) bool {
+	var saltPart, digestPart, ok = strings.Cut(stored, ":")
+	if (!ok) {
+		return false
+	}
+	var salt, saltErr = base64.StdEncoding.DecodeString(saltPart)
+	if (saltErr != nil) {
+		return false
+	}
+	var expected, digestErr = base64.StdEncoding.DecodeString(digestPart)
+	if (digestErr != nil) {
+		return false
+	}
+	return subtle.ConstantTimeCompare(otpDigest(salt, code), expected) == 1
+}
+
+// CreateOtpChallenge stores the only active challenge for email, replacing any
+// existing challenge and resetting the attempt counter. The one-time code given
+// by the caller is hashed before storage and is never persisted in plaintext.
+func createOtpChallenge(r *Repository, ctx context.Context, email string, code string, expiresAt time.Time) error {
+	var normalizedEmail = normalizeOtpEmail(email)
+	if (normalizedEmail == "") {
+		return errors.New("otp challenge email is required")
+	}
+	if (code == "") {
+		return errors.New("otp challenge code is required")
+	}
+	var codeHash, hashErr = hashOtpCode(code)
+	if (hashErr != nil) {
+		return hashErr
+	}
+	var _, execErr = r.db.Exec(ctx, `INSERT INTO otp_challenges (email, code_hash, expires_at, attempts)
+VALUES ($1, $2, $3, 0)
+ON CONFLICT (email) DO UPDATE
+SET code_hash = EXCLUDED.code_hash,
+    expires_at = EXCLUDED.expires_at,
+    attempts = 0,
+    updated_at = clock_timestamp()`, normalizedEmail, codeHash, expiresAt)
+	return execErr
+}
+
+// VerifyOtpChallenge consumes one attempt for the unexpired challenge owned by
+// email. The attempt increment, expiry check, and code match happen under a
+// single row-locked UPDATE so concurrent verifications cannot exceed the
+// attempt limit. attempts is the post-increment value, so the limit is enforced
+// when the sixth attempt is made. The challenge is deleted on success and on
+// lockout.
+func verifyOtpChallenge(r *Repository, ctx context.Context, email string, code string) error {
+	var normalizedEmail = normalizeOtpEmail(email)
+	var id string
+	var codeHash string
+	var attempts int
+	var scanErr = r.db.QueryRow(ctx, `UPDATE otp_challenges
+SET attempts = attempts + 1, updated_at = clock_timestamp()
+WHERE email = $1 AND expires_at > clock_timestamp()
+RETURNING id, code_hash, attempts`, normalizedEmail).Scan(&id, &codeHash, &attempts)
+	if (errors.Is(scanErr, pgx.ErrNoRows)) {
+		return ErrOtpExpired
+	}
+	if (scanErr != nil) {
+		return scanErr
+	}
+	if (attempts > otpMaxAttempts) {
+		var _, deleteErr = r.db.Exec(ctx, `DELETE FROM otp_challenges WHERE id = $1`, id)
+		if (deleteErr != nil) {
+			return deleteErr
+		}
+		return ErrOtpTooManyAttempts
+	}
+	if (!otpCodeMatches(codeHash, code)) {
+		return ErrOtpInvalidCode
+	}
+	var _, removeErr = r.db.Exec(ctx, `DELETE FROM otp_challenges WHERE id = $1`, id)
+	return removeErr
+}
+
+// DeleteExpiredOtpChallenges removes every challenge whose expiry has passed.
+func deleteExpiredOtpChallenges(r *Repository, ctx context.Context) (int64, error) {
+	var tag, execErr = r.db.Exec(ctx, `DELETE FROM otp_challenges WHERE expires_at <= clock_timestamp()`)
+	if (execErr != nil) {
+		return Failure(execErr)
+	}
+	return Success(tag.RowsAffected())
+}
+
+// DeleteOtpChallenge removes the challenge owned by email. Deleting a missing
+// challenge is a no-op.
+func deleteOtpChallenge(r *Repository, ctx context.Context, email string) error {
+	var _, execErr = r.db.Exec(ctx, `DELETE FROM otp_challenges WHERE email = $1`, normalizeOtpEmail(email))
+	return execErr
+}

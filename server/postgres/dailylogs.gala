@@ -1,0 +1,137 @@
+package postgres
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+)
+
+import "martianoff/gala/go_interop"
+import "martianoff/gala/resource"
+
+func dailyLogDate(now time.Time, timezoneOffset int) time.Time {
+	val adjusted = now.Add(time.Duration(timezoneOffset) * time.Minute).UTC()
+	return time.Date(adjusted.Year(), adjusted.Month(), adjusted.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+var recordDailyUserLogMembershipQuery = `INSERT INTO daily_user_log_members (daily_user_log_id, platform_identity_id, first_seen_position)
+VALUES ($1, $2, COALESCE((SELECT MAX(first_seen_position) + 1 FROM daily_user_log_members WHERE daily_user_log_id = $1), 0))
+ON CONFLICT (daily_user_log_id, platform_identity_id) DO NOTHING`
+
+var listActiveUserDaysQuery = `WITH reporting_days AS (
+    SELECT generate_series($1::date, $2::date, interval '1 day')::date AS log_date
+    UNION
+    SELECT log_date FROM daily_user_logs WHERE log_date >= $1::date
+)
+SELECT l.id, d.log_date, m.platform_identity_id, COALESCE(a.first_name, ''), COALESCE(a.last_name, ''), COALESCE(a.email, ''), m.first_seen_position
+FROM reporting_days d
+LEFT JOIN daily_user_logs l ON l.log_date = d.log_date
+LEFT JOIN daily_user_log_members m ON m.daily_user_log_id = l.id
+LEFT JOIN accounts a ON a.platform_identity_id = m.platform_identity_id
+ORDER BY d.log_date DESC, m.first_seen_position, m.id`
+
+// DailyUserLog and DailyUserLogMember are declared in dailylogs_types.go. The
+// former dailylogs_methods.go bodies live here as free functions, and the four
+// *Repository methods are one-line wrappers in that sibling: a method declared
+// on Repository in a .gala file makes the GALA-declared set Repository's
+// complete method set, which hides repository_methods.go's methods.
+
+// RecordDailyUserLogMembership records one account's sign-in for its
+// account-local day. It is idempotent per account per day and appends new
+// accounts after existing members so first-seen order is preserved. The log and
+// its new membership are written in one transaction.
+func recordDailyUserLogMembership(r *Repository, ctx context.Context, platformIdentityID string, timezoneOffset int) error {
+	return recordDailyUserLogMembershipAt(r, ctx, platformIdentityID, timezoneOffset, time.Now())
+}
+
+// recordDailyUserLogMembershipAt is the deterministic core of
+// RecordDailyUserLogMembership; tests call it with a fixed instant to exercise
+// timezone bucketing without depending on the wall clock.
+func recordDailyUserLogMembershipAt(r *Repository, ctx context.Context, platformIdentityID string, timezoneOffset int, now time.Time) error {
+	if (platformIdentityID == "") {
+		return errors.New("daily log platform identity ID is required")
+	}
+	var logDate = dailyLogDate(now, timezoneOffset)
+	return r.withTransaction(ctx, (ctx context.Context, tx *Repository) => {
+		var logID string
+		var insertErr = tx.db.QueryRow(ctx, `INSERT INTO daily_user_logs (log_date) VALUES ($1)
+ON CONFLICT (log_date) DO UPDATE SET updated_at = daily_user_logs.updated_at
+RETURNING id`, logDate).Scan(&logID)
+		if (insertErr != nil) {
+			return insertErr
+		}
+		var _, execErr = tx.db.Exec(ctx, recordDailyUserLogMembershipQuery, logID, platformIdentityID)
+		return execErr
+	})
+}
+
+// ListActiveUserDays returns active-user reporting days from startDate through
+// the UTC calendar date of now, newest first. The day spine is generated in SQL
+// so days without a log appear with an empty member list, and any stored log on
+// or after startDate is retained even when it falls outside the spine. Member
+// profiles are rebuilt from authoritative accounts in first-seen order.
+func listActiveUserDays(r *Repository, ctx context.Context, startDate time.Time, now time.Time) ([]DailyUserLog, error) {
+	var rows, queryErr = r.db.Query(ctx, listActiveUserDaysQuery,
+		startDate.UTC().Format("2006-01-02"), now.UTC().Format("2006-01-02"))
+	if (queryErr != nil) {
+		return Failure(queryErr)
+	}
+	return resource.Bracket(rows, (pending) => { pending.Close() }, (pending) => {
+		var logs = go_interop.SliceWithSize[DailyUserLog](0)
+		var currentIndex = -1
+		for pending.Next() {
+			var logID *string
+			var platformIdentityID *string
+			var firstName *string
+			var lastName *string
+			var email *string
+			var logDate time.Time
+			var position *int
+			var scanErr = pending.Scan(&logID, &logDate, &platformIdentityID, &firstName, &lastName, &email, &position)
+			if (scanErr != nil) {
+				return Failure(scanErr)
+			}
+			if (currentIndex < 0 || !logs[currentIndex].LogDate.Equal(logDate)) {
+				logs = go_interop.SliceAppend(logs, DailyUserLog{LogDate: logDate, Members: go_interop.SliceWithSize[DailyUserLogMember](0)})
+				currentIndex = logs.Size() - 1
+				if (logID != nil) {
+					logs[currentIndex].ID = *logID
+				}
+			}
+			if (platformIdentityID == nil) {
+				continue
+			}
+			var member = DailyUserLogMember{PlatformIdentityID: *platformIdentityID}
+			if (firstName != nil) {
+				member.FirstName = *firstName
+			}
+			if (lastName != nil) {
+				member.LastName = *lastName
+			}
+			if (email != nil) {
+				member.Email = *email
+			}
+			if (position != nil) {
+				member.Position = *position
+			}
+			logs[currentIndex].Members = go_interop.SliceAppend(logs[currentIndex].Members, member)
+		}
+		var rowsErr = pending.Err()
+		if (rowsErr != nil) {
+			return Failure(rowsErr)
+		}
+		return Success(logs)
+	})
+}
+
+// CountAccounts returns the number of signed-up accounts for reporting.
+func countAccounts(r *Repository, ctx context.Context) (int64, error) {
+	var count int64
+	var scanErr = r.db.QueryRow(ctx, `SELECT count(*) FROM accounts`).Scan(&count)
+	if (scanErr != nil) {
+		return Failure(scanErr)
+	}
+	return Success(count)
+}

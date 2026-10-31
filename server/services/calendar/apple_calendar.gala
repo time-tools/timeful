@@ -1,0 +1,182 @@
+package calendar
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/emersion/go-ical"
+	"github.com/jonyTF/go-webdav"
+	"github.com/jonyTF/go-webdav/caldav"
+	"timeful/server/models"
+	"timeful/server/utils"
+
+	"martianoff/gala/go_interop"
+)
+
+func (cal Ptr[AppleCalendar]) GetCalendarList() (map[string]models.SubCalendar, error) {
+	var webdavClient, caldavClient, clientsErr = cal.getClients()
+	if (clientsErr != nil) {
+		return Failure(clientsErr)
+	}
+
+	var principal, principalErr = webdavClient.FindCurrentUserPrincipal(context.Background())
+	if (principalErr != nil) {
+		return Failure(principalErr)
+	}
+
+	var calendarHomeSet, homeSetErr = caldavClient.FindCalendarHomeSet(context.Background(), principal)
+	if (homeSetErr != nil) {
+		return Failure(homeSetErr)
+	}
+
+	var calendars, calendarsErr = caldavClient.FindCalendars(context.Background(), calendarHomeSet)
+	if (calendarsErr != nil) {
+		return Failure(calendarsErr)
+	}
+
+	// Only include calendars that support VEVENT
+	var filteredCalendars = go_interop.MapEmpty[string, models.SubCalendar]()
+	for _, calendar := range calendars {
+		for _, supportedComponent := range calendar.SupportedComponentSet {
+			if (supportedComponent == "VEVENT") {
+				go_interop.MapPut(filteredCalendars, calendar.Path, models.SubCalendar{
+					Name:    calendar.Name,
+					Enabled: utils.TruePtr(),
+				})
+				break
+			}
+		}
+	}
+
+	return Success(filteredCalendars)
+}
+
+func (cal Ptr[AppleCalendar]) GetCalendarEvents(calendarId string, timeMin time.Time, timeMax time.Time) ([]models.CalendarEvent, error) {
+	var _, caldavClient, clientsErr = cal.getClients()
+	if (clientsErr != nil) {
+		return Failure(clientsErr)
+	}
+
+	// Get events
+	var events, queryErr = caldavClient.QueryCalendar(context.Background(), calendarId, &caldav.CalendarQuery{
+		CompRequest: caldav.CalendarCompRequest{
+			Name: "VCALENDAR",
+			Comps: go_interop.SliceOf(caldav.CalendarCompRequest{
+				Name: "VEVENT",
+				Props: go_interop.SliceOf(
+					"SUMMARY",
+					"UID",
+					"DTSTART",
+					"DTEND",
+					"DURATION",
+				),
+			}),
+			Expand: &caldav.CalendarExpandRequest{
+				Start: timeMin,
+				End:   timeMax,
+			},
+		},
+		CompFilter: caldav.CompFilter{
+			Name: "VCALENDAR",
+			Comps: go_interop.SliceOf(caldav.CompFilter{
+				Name:  "VEVENT",
+				Start: timeMin,
+				End:   timeMax,
+			}),
+		},
+	})
+	if (queryErr != nil) {
+		return Failure(queryErr)
+	}
+
+	var filteredEvents []models.CalendarEvent
+	for _, event := range events {
+		var startTimeString = event.Data.Children[0].Props["DTSTART"][0].Value
+		var allDay = false
+
+		var startTime time.Time
+		var endTime time.Time
+
+		if (!strings.Contains(startTimeString, "T")) {
+			// Handle all day events
+			var parsedStart, _ = time.Parse("20060102", startTimeString)
+			startTime = parsedStart
+			var parsedEnd, _ = time.Parse("20060102", event.Data.Children[0].Props["DTEND"][0].Value)
+			endTime = parsedEnd
+			allDay = true
+		} else {
+			// Handle normal events
+			var parsedStart, startErr = parseTimeWithTZ(event.Data.Children[0].Props.Get("DTSTART"))
+			if (startErr != nil) {
+				continue
+			}
+			startTime = parsedStart
+			var parsedEnd, endErr = parseTimeWithTZ(event.Data.Children[0].Props.Get("DTEND"))
+			if (endErr != nil) {
+				continue
+			}
+			endTime = parsedEnd
+		}
+
+		filteredEvents = go_interop.SliceAppend(filteredEvents, models.CalendarEvent{
+			Id:         event.Data.Children[0].Props.Get("UID").Value,
+			CalendarId: calendarId,
+			Summary:    event.Data.Children[0].Props.Get("SUMMARY").Value,
+			StartDate:  models.NewDateTimeFromTime(startTime),
+			EndDate:    models.NewDateTimeFromTime(endTime),
+			AllDay:     allDay,
+		})
+	}
+
+	return Success(filteredEvents)
+}
+
+func (cal Ptr[AppleCalendar]) getClients() (*webdav.Client, *caldav.Client, error) {
+	// The Apple app password arrives decrypted from the PostgreSQL repository,
+	// which owns encryption at rest; request paths never see the legacy AES-CFB
+	// value.
+	var httpClient = webdav.HTTPClientWithBasicAuth(nil, cal.Email, cal.Password)
+
+	var webdavClient, webdavErr = webdav.NewClient(httpClient, "https://caldav.icloud.com")
+	if (webdavErr != nil) {
+		return Failure(webdavErr)
+	}
+
+	var caldavClient, caldavErr = caldav.NewClient(httpClient, "https://caldav.icloud.com")
+	if (caldavErr != nil) {
+		return Failure(caldavErr)
+	}
+
+	return Success((webdavClient, caldavClient))
+}
+
+func parseTimeWithTZ(prop *ical.Prop) (time.Time, error) {
+	var timeStr = prop.Value
+	var tzID = prop.Params.Get("TZID")
+
+	var t time.Time
+	var parseErr error
+
+	if (tzID != "") {
+		var loc, locErr = time.LoadLocation(tzID)
+		if (locErr != nil) {
+			return Failure(fmt.Errorf("invalid timezone: %v", locErr))
+		}
+		// The original shadows err inside this branch, so a parse failure here
+		// is deliberately ignored.
+		var parsed, _ = time.ParseInLocation("20060102T150405", timeStr, loc)
+		t = parsed
+	} else {
+		var parsed, formatErr = time.Parse("20060102T150405Z", timeStr)
+		t = parsed
+		parseErr = formatErr
+	}
+
+	if (parseErr != nil) {
+		return Failure(fmt.Errorf("unable to parse time: %v", parseErr))
+	}
+
+	return Success(t)
+}

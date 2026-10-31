@@ -1,0 +1,110 @@
+// The /events group contains all the routes to get and edit events
+package routes
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+
+	"github.com/gin-gonic/gin"
+	"timeful/server/middleware"
+	"timeful/server/models"
+)
+
+import "martianoff/gala/go_interop"
+
+func rejectLegacyTimedScheduleFields(c Ptr[gin.Context]) error {
+	var body, readErr = io.ReadAll(c.Request.Body)
+	if (readErr != nil) {
+		return readErr
+	}
+	c.Request.Body = io.NopCloser(bytes.NewReader(body))
+
+	var payload map[string]json.RawMessage
+	var unmarshalErr = json.Unmarshal(body, &payload)
+	if (unmarshalErr != nil) {
+		return unmarshalErr
+	}
+	var daysOnly = false
+	var rawDaysOnly, hasDaysOnly = go_interop.MapGet(payload, "daysOnly")
+	if (hasDaysOnly) {
+		var decodeErr = json.Unmarshal(rawDaysOnly, &daysOnly)
+		if (decodeErr != nil) {
+			return decodeErr
+		}
+	}
+	var legacyFields = go_interop.SliceOf("duration", "times", "timeIncrement", "hasSpecificTimes", "startOnMonday")
+	if (!daysOnly) {
+		legacyFields = go_interop.SliceAppend(legacyFields, "dates")
+	}
+	for _, field := range legacyFields {
+		if (go_interop.MapContains(payload, field)) {
+			return fmt.Errorf("legacy-timed-event-field:%s", field)
+		}
+	}
+	return nil
+}
+
+func InitEvents(router Ptr[gin.RouterGroup]) {
+	var eventRouter = router.Group("/events")
+
+	eventRouter.POST("", createEvent)
+	eventRouter.POST("/:eventId/transfers", createTransfer)
+	eventRouter.POST("/:eventId/transfers/:transferId/:action", transferAction)
+	eventRouter.POST("/:eventId/grant-association", grantAssociation)
+	eventRouter.PUT("/:eventId", editEvent)
+	eventRouter.GET("/:eventId/ids", getEventIDs)
+	eventRouter.GET("/:eventId", getEvent)
+	eventRouter.GET("/:eventId/responses", getResponses)
+	eventRouter.POST("/:eventId/response", updateResponse)
+	eventRouter.DELETE("/:eventId/response", deleteResponse)
+	eventRouter.PUT("/:eventId/schedule", saveSchedule)
+	eventRouter.DELETE("/:eventId/schedule", clearSchedule)
+	eventRouter.POST("/:eventId/rename-user", renameUser)
+	eventRouter.POST("/:eventId/decline", middleware.AuthRequired(), declineInvite)
+	eventRouter.GET("/:eventId/calendar-availabilities", middleware.AuthRequired(), getCalendarAvailabilities)
+	eventRouter.DELETE("/:eventId", deleteEvent)
+	eventRouter.POST("/:eventId/archive", archiveEvent)
+}
+
+// stripSensitiveUserFields removes fields from a User that should never be
+// exposed in the event page API response (calendar accounts, etc.).
+// Email is NOT stripped here as callers handle email visibility separately based
+// on the collectEmails setting and owner status.
+func stripSensitiveUserFields(user *models.User) {
+	OptionPtrOf(user).ForEach((found) => {
+		found.CalendarAccounts = nil
+		found.CalendarOptions = nil
+		found.PrimaryAccountKey = nil
+	})
+}
+
+// normalizeTimedResponseAvailabilitySlots keeps the first occurrence of each
+// slot and drops every repeated slot; ifNeeded also drops any slot already
+// present in availability. The dedup sets never leave the function, so their
+// element type is unobservable and each one is a map[models.DateTime]bool.
+func normalizeTimedResponseAvailabilitySlots(availability []models.DateTime, ifNeeded []models.DateTime) ([]models.DateTime, []models.DateTime) {
+	var normalizedAvailability = go_interop.SliceWithCapacity[models.DateTime](availability.Size())
+	var availabilitySet = go_interop.MapWithCapacity[models.DateTime, bool](availability.Size())
+	for _, slot := range availability {
+		if (availabilitySet[slot]) {
+			continue
+		}
+		availabilitySet[slot] = true
+		normalizedAvailability = go_interop.SliceAppend(normalizedAvailability, slot)
+	}
+	var normalizedIfNeeded = go_interop.SliceWithCapacity[models.DateTime](ifNeeded.Size())
+	var ifNeededSet = go_interop.MapWithCapacity[models.DateTime, bool](ifNeeded.Size())
+	for _, slot := range ifNeeded {
+		if (availabilitySet[slot]) {
+			continue
+		}
+		if (ifNeededSet[slot]) {
+			continue
+		}
+		ifNeededSet[slot] = true
+		normalizedIfNeeded = go_interop.SliceAppend(normalizedIfNeeded, slot)
+	}
+	return (normalizedAvailability, normalizedIfNeeded)
+}

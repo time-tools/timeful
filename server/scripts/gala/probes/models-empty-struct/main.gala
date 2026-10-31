@@ -1,0 +1,5 @@
+package probe
+
+// The Go type this stands for is models.Set in server/models/set.go:
+// type Set[T comparable] map[T]struct{}
+type Set[T comparable] map[T]struct{}

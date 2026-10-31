@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: Session handoff, handoff notes, or handoff file: use when the user explicitly asks to capture durable context from the current session for later work.
+description: "Session handoff, handoff notes, or handoff file: use when the user explicitly asks to capture durable context from the current session for later work."
 ---
 
 # Session Handoff

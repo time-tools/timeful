@@ -1,0 +1,170 @@
+package postgres
+
+import (
+	"context"
+	"errors"
+	"strings"
+
+	"github.com/jackc/pgx/v5"
+)
+
+import "martianoff/gala/go_interop"
+import "martianoff/gala/resource"
+
+// This file carries the attendee query strings, the scanAttendee row scanner,
+// and the free-function bodies of the former attendees_extra.go methods.
+// Attendee and the *Repository wrappers stay handwritten in attendees_extra.go
+// because a method declared on Repository in a .gala file makes the
+// GALA-declared set Repository's complete method set, which hides the eighteen
+// methods that repository_methods.go declares.
+
+// attendeeColumns names the attendee columns every attendee query selects.
+var attendeeColumns = `id, event_id, email, platform_identity_id, declined, created_at, updated_at`
+
+// listAttendeesQuery lists one event's email-keyed memberships in write order.
+var listAttendeesQuery = `SELECT ` + attendeeColumns + `
+FROM event_attendees WHERE event_id = $1 ORDER BY created_at, id`
+
+// nonDeclinedAttendeeEmailExistsQuery answers the group viewer invitee check
+// with one EXISTS over event_attendees (event_id, lower(email)) instead of a
+// scan of the loaded attendee list. It ignores declined memberships and matches
+// the dashboard membership predicate exactly.
+var nonDeclinedAttendeeEmailExistsQuery = `SELECT EXISTS (
+    SELECT 1 FROM event_attendees
+    WHERE event_id = $1 AND declined IS NOT TRUE AND lower(email) = lower($2)
+)`
+
+func scanAttendee(row rowScanner) (*Attendee, error) {
+	var attendee = &Attendee{}
+	var scanErr = row.Scan(&attendee.ID, &attendee.EventID, &attendee.Email, &attendee.PlatformIdentityID, &attendee.Declined, &attendee.CreatedAt, &attendee.UpdatedAt)
+	if (scanErr != nil) {
+		return Failure(scanErr)
+	}
+	return Success(attendee)
+}
+
+// AddAttendees inserts one email-keyed membership per distinct email in one
+// statement, merging duplicate emails and skipping blank ones. The conflict
+// update keeps the stored decline state while filling in a missing account
+// resolution.
+func addAttendees(r *Repository, ctx context.Context, eventID string, emails []string, declined *bool) error {
+	if (eventID == "") {
+		return errors.New("attendee event ID is required")
+	}
+	var input = go_interop.SliceWithCapacity[string](emails.Size())
+	for _, email := range emails {
+		if (strings.TrimSpace(email) == "") {
+			continue
+		}
+		input = go_interop.SliceAppend(input, email)
+	}
+	if (input.Size() == 0) {
+		return nil
+	}
+	var _, execErr = r.db.Exec(ctx, `INSERT INTO event_attendees (event_id, email, platform_identity_id, declined)
+SELECT $1, input.email, resolved.platform_identity_id, $3
+FROM (
+    SELECT DISTINCT ON (email) email, ordinal
+    FROM unnest($2::text[]) WITH ORDINALITY AS listed(email, ordinal)
+    ORDER BY email, ordinal
+) AS input
+LEFT JOIN LATERAL (
+    SELECT a.platform_identity_id
+    FROM accounts a
+    WHERE lower(a.email) = lower(input.email)
+    ORDER BY a.created_at, a.id
+    LIMIT 1
+) AS resolved ON TRUE
+ORDER BY input.ordinal
+ON CONFLICT (event_id, email) DO UPDATE
+SET platform_identity_id = COALESCE(event_attendees.platform_identity_id, EXCLUDED.platform_identity_id), updated_at = clock_timestamp()`, eventID, input, declined)
+	return execErr
+}
+
+// ListAttendees returns every email-keyed membership for a group event in write
+// order.
+func listAttendees(r *Repository, ctx context.Context, eventID string) ([]Attendee, error) {
+	if (eventID == "") {
+		return Failure(errors.New("attendee event ID is required"))
+	}
+	var rows, queryErr = r.db.Query(ctx, listAttendeesQuery, eventID)
+	if (queryErr != nil) {
+		return Failure(queryErr)
+	}
+	return resource.Bracket(rows, (pending) => { pending.Close() }, (pending) => {
+		var attendees = go_interop.SliceWithSize[Attendee](0)
+		for pending.Next() {
+			var attendee, scanErr = scanAttendee(pending)
+			if (scanErr != nil) {
+				return Failure(scanErr)
+			}
+			attendees = go_interop.SliceAppend(attendees, *attendee)
+		}
+		var rowsErr = pending.Err()
+		if (rowsErr != nil) {
+			return Failure(rowsErr)
+		}
+		return Success(attendees)
+	})
+}
+
+// GetAttendeeByEmail resolves one membership by event and invitation email. A
+// missing membership is reported as pgx.ErrNoRows.
+func getAttendeeByEmail(r *Repository, ctx context.Context, eventID string, email string) (*Attendee, error) {
+	if (eventID == "" || email == "") {
+		return Failure(errors.New("attendee event ID and email are required"))
+	}
+	var attendee, scanErr = scanAttendee(r.db.QueryRow(ctx, `SELECT `+attendeeColumns+`
+FROM event_attendees WHERE event_id = $1 AND email = $2`, eventID, email))
+	if (scanErr != nil) {
+		return Failure(scanErr)
+	}
+	return Success(attendee)
+}
+
+// HasNonDeclinedAttendeeEmail reports whether the event has a non-declined
+// membership for the email, matching the dashboard membership predicate. An
+// empty event or email reports no membership.
+func hasNonDeclinedAttendeeEmail(r *Repository, ctx context.Context, eventID string, email string) (bool, error) {
+	if (eventID == "" || email == "") {
+		return Success(false)
+	}
+	var exists bool
+	var scanErr = r.db.QueryRow(ctx, nonDeclinedAttendeeEmailExistsQuery, eventID, email).Scan(&exists)
+	if (scanErr != nil) {
+		return Failure(scanErr)
+	}
+	return Success(exists)
+}
+
+// SetAttendeeDeclined writes the explicit decline state for one email-keyed
+// membership. It serves both decline and undecline. A missing membership is
+// reported as pgx.ErrNoRows.
+func setAttendeeDeclined(r *Repository, ctx context.Context, eventID string, email string, declined bool) error {
+	if (eventID == "" || email == "") {
+		return errors.New("attendee event ID and email are required")
+	}
+	var tag, execErr = r.db.Exec(ctx, `UPDATE event_attendees
+SET declined = $3, updated_at = clock_timestamp()
+WHERE event_id = $1 AND email = $2`, eventID, email, declined)
+	if (execErr != nil) {
+		return execErr
+	}
+	if (tag.RowsAffected() == 0) {
+		return pgx.ErrNoRows
+	}
+	return nil
+}
+
+// RemoveAttendees deletes the given email-keyed memberships from one event in
+// one statement. Missing memberships are ignored.
+func removeAttendees(r *Repository, ctx context.Context, eventID string, emails []string) error {
+	if (eventID == "") {
+		return errors.New("attendee event ID is required")
+	}
+	if (emails.Size() == 0) {
+		return nil
+	}
+	var _, execErr = r.db.Exec(ctx, `DELETE FROM event_attendees WHERE event_id = $1 AND email = ANY($2::text[])`, eventID, emails)
+	return execErr
+}

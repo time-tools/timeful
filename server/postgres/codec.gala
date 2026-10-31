@@ -1,0 +1,37 @@
+package postgres
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+)
+
+import "martianoff/gala/go_interop"
+
+var emptyPayload = json.RawMessage(go_interop.ToBytes("{}"))
+
+func encodePayload(payload json.RawMessage) ([]byte, error) {
+	if (payload.Size() == 0) {
+		return Success(go_interop.SliceCopy(emptyPayload))
+	}
+	if (!json.Valid(payload)) {
+		return Failure(fmt.Errorf("payload is not valid JSON"))
+	}
+	if (!bytes.HasPrefix(bytes.TrimSpace(payload), go_interop.ToBytes("{"))) {
+		return Failure(fmt.Errorf("payload must be a JSON object"))
+	}
+	var value map[string]json.RawMessage
+	var unmarshalErr = json.Unmarshal(payload, &value)
+	if (unmarshalErr != nil) {
+		return Failure(fmt.Errorf("payload must be a JSON object: %w", unmarshalErr))
+	}
+	return Success(go_interop.SliceCopy(payload))
+}
+
+func decodePayload(payload []byte) json.RawMessage {
+	if (payload.Size() == 0) {
+		var empty json.RawMessage
+		return empty
+	}
+	return json.RawMessage(go_interop.SliceCopy(payload))
+}

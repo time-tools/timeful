@@ -2,6 +2,7 @@
 
 `codebase-memory-mcp` serves this repository's code knowledge graph over MCP.
 The devShell provides the `codebase-memory-mcp` binary from the pinned nixpkgs flake input, and OpenCode connects to it through the local MCP entry in `.opencode/opencode.jsonc`.
+The `dsh` harness connects to it through the repository-local overlay in `.dsh/cordis.patch.yml`, passed with `--patch` when dsh is launched.
 This document records the artifact and exclusion policy; `.cbmignore` is the machine-readable exclude list.
 
 ## Usage

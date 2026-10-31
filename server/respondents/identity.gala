@@ -1,0 +1,78 @@
+package respondents
+
+import (
+	"strings"
+	"unicode"
+	"unicode/utf8"
+
+	"golang.org/x/text/unicode/norm"
+	"timeful/server/models"
+)
+
+import "martianoff/gala/go_interop"
+
+func stripDisallowedNameRunes(input string) string {
+	var builder strings.Builder
+	builder.Grow(input.ByteSize())
+
+	for _, r := range input {
+		if (unicode.IsControl(r) || unicode.In(r, unicode.Cf)) {
+			continue
+		}
+		builder.WriteRune(r)
+	}
+
+	return builder.String()
+}
+
+func normalizeName(input string) string {
+	var stripped = stripDisallowedNameRunes(input)
+	return strings.TrimSpace(norm.NFC.String(stripped))
+}
+
+func NormalizeGuestName(input string) string = normalizeName(input)
+
+func ValidateGuestName(input string) GuestNameValidationResult {
+	var trimmedInput = strings.TrimSpace(input)
+	if (trimmedInput == "") {
+		return GuestNameValidationResult{Code: GuestNameRequired}
+	}
+
+	var normalized = NormalizeGuestName(input)
+	if (normalized == "") {
+		return GuestNameValidationResult{Code: GuestNameInvalidFormatting}
+	}
+
+	if (utf8.RuneCountInString(normalized) > MaxGuestNameLength) {
+		return GuestNameValidationResult{Code: GuestNameTooLong}
+	}
+
+	var _, uuidLike = models.ParseUUID(normalized)
+	if (uuidLike) {
+		return GuestNameValidationResult{Code: GuestNameAccountIDLike}
+	}
+
+	return GuestNameValidationResult{
+		Name: normalized,
+		Code: GuestNameValid,
+	}
+}
+
+func HasValidGuestName(input string) bool {
+	return ValidateGuestName(input).Code == GuestNameValid
+}
+
+func SanitizeDisplayNamePart(input string) string = normalizeName(input)
+
+func SanitizeUserDisplayName(user *models.User) (string, string, string) {
+	OptionPtrOf(user) match {
+		case None() => { return ("", "", "") }
+		case Some(found) => {
+			var firstName = SanitizeDisplayNamePart(found.FirstName)
+			var lastName = SanitizeDisplayNamePart(found.LastName)
+			var displayName = strings.TrimSpace(strings.Join(go_interop.SliceOf(firstName, lastName), " "))
+
+			return (firstName, lastName, displayName)
+		}
+	}
+}

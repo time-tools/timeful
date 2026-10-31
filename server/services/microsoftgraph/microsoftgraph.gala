@@ -1,0 +1,34 @@
+package microsoftgraph
+
+import (
+	"encoding/json"
+	"fmt"
+
+	"timeful/server/logger"
+	"timeful/server/models"
+	"timeful/server/services"
+	"timeful/server/services/providerconfig"
+)
+
+func GetUserInfo(user *models.User, calendarAuth *models.OAuth2CalendarAuth) UserInfo {
+	var response = services.CallApi(
+		user,
+		calendarAuth,
+		"GET",
+		fmt.Sprintf("%s/me?$select=givenName,surname,mail", providerconfig.MicrosoftGraphAPIBaseURL()),
+		nil,
+	)
+	var userResponse microsoftGraphUserResponse
+
+	var decodeErr = json.NewDecoder(response.Body).Decode(&userResponse)
+	response.Body.Close()
+	if (decodeErr != nil) {
+		logger.StdErr.Panicln(decodeErr)
+	}
+
+	return UserInfo{
+		FirstName: userResponse.GivenName,
+		LastName:  userResponse.Surname,
+		Email:     userResponse.Mail,
+	}
+}

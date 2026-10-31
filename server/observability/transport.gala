@@ -1,0 +1,108 @@
+package observability
+
+import (
+	"context"
+	"errors"
+	"net"
+	"net/http"
+	"strconv"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
+)
+
+import "martianoff/gala/go_interop"
+import "martianoff/gala/resource"
+
+// InstrumentDefaultTransport wraps http.DefaultTransport so every outbound
+// request made through http.DefaultClient, http.Get, and http.PostForm is
+// traced. A nil or disabled recorder leaves the transport untouched.
+func InstrumentDefaultTransport(recorder *Recorder) {
+	OptionPtrOf(recorder) match {
+		case None() => { return }
+		case Some(found) => {
+			if (found.tracer == nil) {
+				return
+			}
+			http.DefaultTransport = found.Transport(http.DefaultTransport)
+		}
+	}
+}
+
+// tracingTransport records one bounded client span per outbound request.
+struct tracingTransport(
+	var base http.RoundTripper,
+	var tracer trace.Tracer,
+	var propagator propagation.TextMapPropagator
+)
+
+// Transport returns a RoundTripper that records one bounded client span per
+// outbound request. The span carries the method, scheme, host, port, status
+// code, and a coarse error class; it never carries the URL path or query,
+// headers, bodies, or error text, so token-bearing URLs and credentials cannot
+// reach the exported telemetry (QR-004). Any 4xx or 5xx response marks the span
+// status as Error, matching otelhttp's client-span behavior.
+func (t Ptr[tracingTransport]) RoundTrip(request *http.Request) (*http.Response, error) {
+	var ctx, span = t.tracer.Start(request.Context(), request.Method,
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(outboundRequestAttributes(request)...),
+	)
+	return resource.Bracket(span, (s) => s.End(), (s) => {
+		if (request.Header == nil) {
+			request.Header = http.Header{}
+		}
+		t.propagator.Inject(ctx, propagation.HeaderCarrier(request.Header))
+
+		var response, err = t.base.RoundTrip(request)
+		if (err != nil) {
+			span.SetAttributes(attribute.String("error.type", classifyTransportError(err)))
+			span.SetStatus(codes.Error, "")
+			return Failure(err)
+		}
+		span.SetAttributes(attribute.Int("http.response.status_code", response.StatusCode))
+		if (response.StatusCode >= 400) {
+			span.SetStatus(codes.Error, "")
+		}
+		return Success(response)
+	})
+}
+
+func outboundRequestAttributes(request *http.Request) []attribute.KeyValue {
+	var attributes = go_interop.SliceOf(
+		attribute.String("http.request.method", request.Method),
+	)
+	if (request.URL == nil) {
+		return attributes
+	}
+	if (request.URL.Scheme != "") {
+		attributes = go_interop.SliceAppend(attributes, attribute.String("url.scheme", request.URL.Scheme))
+	}
+	if (request.URL.Hostname() != "") {
+		attributes = go_interop.SliceAppend(attributes, attribute.String("server.address", request.URL.Hostname()))
+	}
+	if (request.URL.Port() != "") {
+		var parsed, parseErr = strconv.Atoi(request.URL.Port())
+		if (parseErr == nil) {
+			attributes = go_interop.SliceAppend(attributes, attribute.Int("server.port", parsed))
+		}
+	}
+	return attributes
+}
+
+// classifyTransportError maps a transport failure to a coarse class. The error
+// text is never used because it can embed the full request URL.
+func classifyTransportError(err error) string {
+	if (errors.Is(err, context.DeadlineExceeded)) {
+		return "timeout"
+	}
+	if (errors.Is(err, context.Canceled)) {
+		return "canceled"
+	}
+	var netError net.Error
+	if (errors.As(err, &netError) && netError.Timeout()) {
+		return "timeout"
+	}
+	return "transport_error"
+}

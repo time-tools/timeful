@@ -1,0 +1,42 @@
+package slackbot
+
+import (
+	"os"
+
+	"github.com/gin-gonic/gin"
+	"timeful/server/slackbot/commands"
+	"timeful/server/utils"
+)
+
+func SendTextMessage(message string) {
+	SendTextMessageWithType(message, GENERAL)
+}
+
+func SendTextMessageWithType(message string, messageType SlackbotMessageType) {
+	SendMessageWithType(&commands.Response{Text: message}, messageType)
+}
+
+func SendMessage(message *commands.Response) {
+	SendMessageWithType(message, GENERAL)
+}
+
+func SendMessageWithType(message *commands.Response, messageType SlackbotMessageType) {
+	var webhookUrl string
+	if (utils.IsRelease()) {
+		if (messageType == GENERAL) {
+			// timeful-bot
+			webhookUrl = os.Getenv("SLACK_PROD_WEBHOOK_URL")
+		}
+	} else {
+		// timeful-bot-dev
+		webhookUrl = os.Getenv("SLACK_DEV_WEBHOOK_URL")
+	}
+
+	commands.SendRawMessage(message, webhookUrl)
+}
+
+func InitSlackbot(router Ptr[gin.RouterGroup]) {
+	var slackbotRouter = router.Group("/slackbot")
+
+	slackbotRouter.POST("", execCommand)
+}

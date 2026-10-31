@@ -1,6 +1,6 @@
 ---
 name: review-task
-description: Review an existing Backlog task against the current codebase, surface stale or invalid assumptions, weak acceptance criteria, dependency and overlap problems, then ask clarifying questions before any approved task updates: use when the user asks to review or sanity-check a Backlog task or invokes /review-task.
+description: "Review an existing Backlog task against the current codebase, surface stale or invalid assumptions, weak acceptance criteria, dependency and overlap problems, then ask clarifying questions before any approved task updates: use when the user asks to review or sanity-check a Backlog task or invokes /review-task."
 ---
 
 # Review Task

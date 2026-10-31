@@ -1,0 +1,420 @@
+/* The /auth group contains all the routes to sign in and sign out */
+package routes
+
+import (
+	"context"
+	"crypto/rand"
+	"errors"
+	"fmt"
+	"math/big"
+	"net/http"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-gonic/gin"
+	"timeful/server/accounts"
+	"timeful/server/errs"
+	"timeful/server/logger"
+	"timeful/server/middleware"
+	"timeful/server/models"
+	pgstore "timeful/server/postgres"
+	"timeful/server/responses"
+	"timeful/server/services/auth"
+	"timeful/server/services/calendar"
+	"timeful/server/services/listmonk"
+	"timeful/server/services/microsoftgraph"
+	"timeful/server/utils"
+)
+
+import "martianoff/gala/go_interop"
+
+func InitAuth(router Ptr[gin.RouterGroup]) {
+	var authRouter = router.Group("/auth")
+
+	authRouter.POST("/sign-in", signIn)
+	authRouter.POST("/sign-in-mobile", signInMobile)
+	authRouter.POST("/sign-out", signOut)
+	authRouter.GET("/status", middleware.AuthRequired(), getStatus)
+	authRouter.POST("/visitor-identities", associateVisitorIdentities)
+
+	authRouter.POST("/otp/check-email", checkEmail)
+	authRouter.POST("/otp/send", sendOtp)
+	authRouter.POST("/otp/verify", verifyOtp)
+}
+
+// @Summary Signs user in
+// @Description Signs user in and sets the access token session variable
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param payload body object{code=string,scope=string,calendarType=string,timezoneOffset=int} true "Object containing the Google authorization code, scope, calendar type, and the user's timezone offset"
+// @Success 200
+// @Router /auth/sign-in [post]
+func signIn(c Ptr[gin.Context]) {
+	var payload = newSignInPayload()
+	var bindErr = c.BindJSON(&payload)
+	if (bindErr != nil) {
+		return
+	}
+
+	var tokens = auth.GetTokensFromAuthCode(payload.Code, payload.Scope, utils.GetOrigin(c), payload.CalendarType)
+
+	var user, signInErr = signInHelper(c, tokens, models.WEB, payload.CalendarType, *payload.TimezoneOffset)
+	if (signInErr != nil) {
+		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.InvalidIdToken})
+		return
+	}
+
+	c.JSON(http.StatusOK, user)
+}
+
+// @Summary Signs user in from mobile
+// @Description Signs user in and sets the access token session variable
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param payload body object{timezoneOffset=int,accessToken=string,scope=string,idToken=string,expiresIn=int,refreshToken=string,tokenOrigin=string,calendarType=string} true "Object containing the Google authorization code, calendar type, and the user's timezone offset"
+// @Success 200
+// @Router /auth/sign-in-mobile [post]
+func signInMobile(c Ptr[gin.Context]) {
+	var payload = newSignInMobilePayload()
+	var bindErr = c.BindJSON(&payload)
+	if (bindErr != nil) {
+		return
+	}
+
+	var _, signInErr = signInHelper(
+		c,
+		auth.TokenResponse{
+			AccessToken:  payload.AccessToken,
+			IdToken:      payload.IdToken,
+			ExpiresIn:    payload.ExpiresIn,
+			RefreshToken: payload.RefreshToken,
+			Scope:        payload.Scope,
+		},
+		payload.TokenOrigin,
+		payload.CalendarType,
+		payload.TimezoneOffset,
+	)
+	if (signInErr != nil) {
+		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.InvalidIdToken})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{})
+}
+
+// Helper function to sign user in with the given parameters from the google oauth route
+func signInHelper(c Ptr[gin.Context], token auth.TokenResponse, tokenOrigin models.TokenOriginType, calendarType models.CalendarType, timezoneOffset int) (models.User, error) {
+	var accessTokenExpireDate = utils.GetAccessTokenExpireDate(token.ExpiresIn)
+
+	var calendarAuth = models.OAuth2CalendarAuth{
+		AccessToken:           token.AccessToken,
+		AccessTokenExpireDate: models.NewDateTimeFromTime(accessTokenExpireDate),
+		RefreshToken:          token.RefreshToken,
+		Scope:                 token.Scope,
+	}
+
+	var email, firstName, lastName, picture string
+	if (calendarType == models.GoogleCalendarType) {
+		var allowedAuds = go_interop.SliceOf(
+			os.Getenv("CLIENT_ID"),
+			os.Getenv("IOS_CLIENT_ID"),
+			os.Getenv("ANDROID_CLIENT_ID"),
+		)
+		var info, verifyErr = auth.VerifyGoogleIdToken(token.IdToken, allowedAuds)
+		if (verifyErr != nil) {
+			logger.StdErr.Printf("Failed to verify Google ID token: %v", verifyErr)
+			return Failure(verifyErr)
+		}
+		email = info.Email
+		firstName = info.GivenName
+		lastName = info.FamilyName
+		picture = info.Picture
+	} else if (calendarType == models.OutlookCalendarType) {
+		var userInfo = microsoftgraph.GetUserInfo(nil, &calendarAuth)
+		email = userInfo.Email
+		firstName = userInfo.FirstName
+		lastName = userInfo.LastName
+		picture = ""
+	}
+	email = utils.NormalizeEmail(email)
+
+	var primaryAccountKey = utils.GetCalendarAccountKey(email, calendarType)
+
+	var ctx = context.Background()
+
+	var account, _, resolveErr = accounts.ResolveForSignIn(ctx, accounts.Profile{
+		Email:          email,
+		FirstName:      firstName,
+		LastName:       lastName,
+		Picture:        picture,
+		TimezoneOffset: timezoneOffset,
+	})
+	if (resolveErr != nil) {
+		logger.StdErr.Printf("Failed to resolve account for %s: %v", email, resolveErr)
+		return Failure(resolveErr)
+	}
+
+	if (account.HasCustomName == nil || !*account.HasCustomName) {
+		account.FirstName = firstName
+		account.LastName = lastName
+	}
+	if (picture != "") {
+		account.Picture = picture
+	}
+	account.Email = email
+	account.TimezoneOffset = timezoneOffset
+	var updateErr = accounts.UpdateProfile(ctx, account)
+	if (updateErr != nil) {
+		logger.StdErr.Panicln(updateErr)
+	}
+
+	var integrations, integrationsErr = accounts.LoadCalendarIntegrations(ctx, account.PlatformIdentityID)
+	if (integrationsErr != nil) {
+		logger.StdErr.Printf("Failed to load calendar integrations for %s: %v", account.PlatformIdentityID, integrationsErr)
+		return Failure(integrationsErr)
+	}
+
+	var calendarAccount = models.CalendarAccount{
+		CalendarType:       calendarType,
+		OAuth2CalendarAuth: &calendarAuth,
+
+		Email:   email,
+		Picture: picture,
+		Enabled: utils.TruePtr(),
+	}
+	var canonicalKey = utils.GetCalendarAccountKey(email, calendarType)
+
+	var oldSubCalendars *map[string]models.SubCalendar = go_interop.OptionFromMap(integrations.Accounts, canonicalKey) match {
+		case Some(existingAcc) => existingAcc.SubCalendars
+		case None() => nil
+	}
+	if (oldSubCalendars != nil) {
+		calendarAccount.SubCalendars = oldSubCalendars
+	} else {
+		var provider = calendar.GetCalendarProvider(calendarAccount)
+		var subCalendars, listErr = provider.GetCalendarList()
+		if (listErr == nil) {
+			calendarAccount.SubCalendars = &subCalendars
+		}
+	}
+
+	var saveErr = accounts.SaveCalendarAccount(ctx, account.PlatformIdentityID, canonicalKey, calendarAccount)
+	if (saveErr != nil) {
+		logger.StdErr.Printf("Failed to save calendar connection for %s: %v", account.PlatformIdentityID, saveErr)
+		return Failure(saveErr)
+	}
+	var preferencesErr = accounts.SaveCalendarPreferences(ctx, account.PlatformIdentityID, accounts.CalendarPreferences{
+		PrimaryAccountKey: &primaryAccountKey,
+		TokenOrigin:       tokenOrigin,
+		CalendarOptions:   integrations.CalendarOptions,
+	})
+	if (preferencesErr != nil) {
+		logger.StdErr.Printf("Failed to save calendar preferences for %s: %v", account.PlatformIdentityID, preferencesErr)
+		return Failure(preferencesErr)
+	}
+
+	var listmonkExists, listmonkUserId = listmonk.DoesUserExist(email)
+	if (listmonkExists) {
+		listmonk.AddUserToListmonk(email, firstName, lastName, picture, listmonkUserId, true)
+	} else {
+		listmonk.AddUserToListmonk(email, firstName, lastName, picture, nil, true)
+	}
+
+	var session = sessions.Default(c)
+	session.Set("userId", account.PlatformIdentityID)
+	session.Save()
+
+	var reloadedIntegrations, reloadErr = accounts.LoadCalendarIntegrations(ctx, account.PlatformIdentityID)
+	if (reloadErr != nil) {
+		logger.StdErr.Printf("Failed to reload calendar integrations for %s: %v", account.PlatformIdentityID, reloadErr)
+		return Failure(reloadErr)
+	}
+	return Success(*accounts.CalendarUser(account, reloadedIntegrations))
+}
+
+// @Summary Signs user out
+// @Description Signs user out and deletes the session
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Success 200
+// @Router /auth/sign-out [post]
+func signOut(c Ptr[gin.Context]) {
+	var session = sessions.Default(c)
+	session.Delete("userId")
+	session.Save()
+
+	c.JSON(http.StatusOK, gin.H{})
+}
+
+// @Summary Gets whether the user is signed in or not
+// @Description Returns a 401 error if user is not signed in, 200 if they are
+// @Tags auth
+// @Success 200
+// @Failure 401 {object} responses.Error "Error object"
+// @Router /auth/status [get]
+func getStatus(c Ptr[gin.Context]) {
+	c.JSON(http.StatusOK, gin.H{})
+}
+
+func generateOtpCode() string {
+	var n, randErr = rand.Int(rand.Reader, big.NewInt(1000000))
+	if (randErr != nil) {
+		logger.StdErr.Panicln(randErr)
+	}
+	return fmt.Sprintf("%06d", n.Int64())
+}
+
+// @Summary Checks whether a user with the given email exists
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param payload body object{email=string} true "Email to check"
+// @Success 200
+// @Router /auth/otp/check-email [post]
+func checkEmail(c Ptr[gin.Context]) {
+	var payload = newOtpEmailPayload()
+	var bindErr = c.BindJSON(&payload)
+	if (bindErr != nil) {
+		return
+	}
+
+	var email = strings.ToLower(strings.TrimSpace(payload.Email))
+
+	var isNewUser, newUserErr = accounts.IsNewUser(email)
+	if (newUserErr != nil) {
+		logger.StdErr.Printf("failed to check account existence for %s: %v", email, newUserErr)
+		c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed to check account existence"})
+		return
+	}
+
+	c.JSON(http.StatusOK, go_interop.MapPut[string, any](go_interop.MapEmpty[string, any](), "isNewUser", isNewUser))
+}
+
+// @Summary Sends an OTP code to the given email
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param payload body object{email=string} true "Email to send OTP to"
+// @Success 200
+// @Router /auth/otp/send [post]
+func sendOtp(c Ptr[gin.Context]) {
+	var payload = newOtpEmailPayload()
+	var bindErr = c.BindJSON(&payload)
+	if (bindErr != nil) {
+		return
+	}
+
+	var email = strings.ToLower(strings.TrimSpace(payload.Email))
+
+	var otpTemplateId, templateErr = strconv.Atoi(os.Getenv("LISTMONK_OTP_EMAIL_TEMPLATE_ID"))
+	if (templateErr != nil) {
+		logger.StdErr.Println("LISTMONK_OTP_EMAIL_TEMPLATE_ID is not set or invalid")
+		c.JSON(http.StatusInternalServerError, responses.Error{Error: "OTP email service is not configured"})
+		return
+	}
+	var fromAddress, fromErr = utils.GetListmonkOtpFromAddress()
+	if (fromErr != nil) {
+		c.JSON(http.StatusServiceUnavailable, responses.Error{Error: fromErr.Error()})
+		return
+	}
+
+	var repository, repoErr = pgstore.DefaultRepository()
+	if (repoErr != nil) {
+		logger.StdErr.Println(repoErr)
+		c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed to store the verification code"})
+		return
+	}
+	var ctx = context.Background()
+	var _, sweepErr = repository.DeleteExpiredOtpChallenges(ctx)
+	if (sweepErr != nil) {
+		logger.StdErr.Println(sweepErr)
+		c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed to store the verification code"})
+		return
+	}
+
+	var code = generateOtpCode()
+	var createErr = repository.CreateOtpChallenge(ctx, email, code, time.Now().Add(10*time.Minute))
+	if (createErr != nil) {
+		logger.StdErr.Println(createErr)
+		c.JSON(http.StatusInternalServerError, responses.Error{Error: "failed to store the verification code"})
+		return
+	}
+
+	listmonk.SendEmailAddSubscriberIfNotExist(email, otpTemplateId, go_interop.MapPut[string, any](go_interop.MapEmpty[string, any](), "code", code), false, fromAddress)
+
+	c.JSON(http.StatusOK, gin.H{})
+}
+
+// @Summary Verifies an OTP code and signs the user in
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param payload body object{email=string,code=string,timezoneOffset=int} true "Email, OTP code, and timezone offset"
+// @Success 200
+// @Router /auth/otp/verify [post]
+func verifyOtp(c Ptr[gin.Context]) {
+	var payload = newVerifyOtpPayload()
+	var bindErr = c.BindJSON(&payload)
+	if (bindErr != nil) {
+		return
+	}
+
+	var email = strings.ToLower(strings.TrimSpace(payload.Email))
+
+	var repository, repoErr = pgstore.DefaultRepository()
+	if (repoErr != nil) {
+		logger.StdErr.Panicln(repoErr)
+	}
+	var verifyErr = repository.VerifyOtpChallenge(context.Background(), email, payload.Code)
+	if (errors.Is(verifyErr, pgstore.ErrOtpExpired)) {
+		c.JSON(http.StatusBadRequest, responses.Error{Error: errs.OtpExpired})
+		return
+	} else if (errors.Is(verifyErr, pgstore.ErrOtpTooManyAttempts)) {
+		c.JSON(http.StatusTooManyRequests, responses.Error{Error: errs.OtpTooManyAttempts})
+		return
+	} else if (errors.Is(verifyErr, pgstore.ErrOtpInvalidCode)) {
+		c.JSON(http.StatusBadRequest, responses.Error{Error: errs.OtpInvalidCode})
+		return
+	} else if (verifyErr != nil) {
+		logger.StdErr.Panicln(verifyErr)
+	}
+
+	var firstName = strings.TrimSpace(payload.FirstName)
+	var lastName = strings.TrimSpace(payload.LastName)
+
+	var ctx = context.Background()
+	var account, created, resolveErr = accounts.ResolveForSignIn(ctx, accounts.Profile{
+		Email:          email,
+		FirstName:      firstName,
+		LastName:       lastName,
+		TimezoneOffset: *payload.TimezoneOffset,
+	})
+	if (resolveErr != nil) {
+		logger.StdErr.Panicln(resolveErr)
+	}
+
+	if (created) {
+		var exists, listmonkUserId = listmonk.DoesUserExist(email)
+		if (exists) {
+			listmonk.AddUserToListmonk(email, firstName, lastName, "", listmonkUserId, true)
+		} else {
+			listmonk.AddUserToListmonk(email, firstName, lastName, "", nil, true)
+		}
+	}
+
+	var session = sessions.Default(c)
+	session.Set("userId", account.PlatformIdentityID)
+	session.Save()
+
+	var user, loadErr = accounts.LoadSessionUser(ctx, account)
+	if (loadErr != nil) {
+		logger.StdErr.Panicln(loadErr)
+	}
+	c.JSON(http.StatusOK, user)
+}

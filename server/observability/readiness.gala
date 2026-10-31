@@ -1,0 +1,43 @@
+package observability
+
+import "time"
+
+// ReadinessState is the last observed service readiness for request records.
+opaque type ReadinessState string
+
+// ReadinessUnknown is the state before the first probe and when no probe is
+// configured.
+var ReadinessUnknown ReadinessState = "unknown"
+
+// ReadinessReady is the state observed when the last probe succeeded.
+var ReadinessReady ReadinessState = "ready"
+
+// ReadinessUnavailable is the state observed when the last probe failed.
+var ReadinessUnavailable ReadinessState = "unavailable"
+
+// DefaultReadinessInterval is how often the readiness probe runs.
+var DefaultReadinessInterval = 10 * time.Second
+
+// DefaultReadinessTimeout bounds a single readiness probe.
+var DefaultReadinessTimeout = 2 * time.Second
+
+// NewReadinessMonitor builds a monitor around the given probe. A nil probe
+// keeps the state unknown.
+func NewReadinessMonitor(probeFn Probe, intervalValue time.Duration, timeoutValue time.Duration) Ptr[ReadinessMonitor] {
+	var probe = probeFn
+	var interval = intervalValue
+	var timeout = timeoutValue
+	if (interval <= 0) {
+		interval = DefaultReadinessInterval
+	}
+	if (timeout <= 0) {
+		timeout = DefaultReadinessTimeout
+	}
+	var monitor = &ReadinessMonitor{
+		probe:    probe,
+		interval: interval,
+		timeout:  timeout,
+	}
+	monitor.state.Store(ReadinessUnknown)
+	return monitor
+}

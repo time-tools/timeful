@@ -1,0 +1,83 @@
+package postgres
+
+import (
+	"context"
+
+	"github.com/jackc/pgx/v5"
+)
+
+// This file carries the free-function bodies of the former transfers.go.
+// AccessTransfer and TransferRequest stay handwritten in transfers_extra.go:
+// both are exported structs whose GALA declaration would add Copy, Equal,
+// Unapply, NewAccessTransfer/NewTransferRequest, and StructMeta members to the
+// package's Go-facing surface, and TransferRequest's json tags define a wire
+// shape. Every *Repository method also stays there as a one-line wrapper over
+// these free functions, because a method declared on Repository in a .gala
+// file makes Repository's method set GALA-resolved, which hides the eighteen
+// methods repository_methods.go declares.
+
+// lockAccessTransferQuery locks one transfer row by event and primary key. The
+// supporting-index forced-plan test runs this statement directly.
+var lockAccessTransferQuery = `SELECT id,event_id,source_hash,source_credential_id,platform_identity_id,grants_owner,expires_at,state,approved_request_id,grant_id FROM access_transfers WHERE event_id=$1 AND id=$2 FOR UPDATE`
+
+func createAccessTransfer(r *Repository, ctx context.Context, v *AccessTransfer) error = r.db.QueryRow(ctx, `INSERT INTO access_transfers(event_id,source_hash,source_credential_id,platform_identity_id,grants_owner)
+ VALUES($1,$2,$3,$4,$5) RETURNING id,expires_at,state`, v.EventID, v.SourceHash, v.SourceCredentialID, v.PlatformIdentityID, v.GrantsOwner).Scan(&v.ID, &v.ExpiresAt, &v.State)
+
+// lockAccessTransfer locks one transfer row for a lifecycle transition. All
+// lifecycle transitions use this row lock, including opening target requests.
+// A non-canonical transfer identifier resolves to no transfer instead of
+// reaching the uuid column as an invalid literal.
+func lockAccessTransfer(r *Repository, ctx context.Context, eventID string, id string) (*AccessTransfer, error) {
+	if (!validUUID(id)) {
+		return Failure(pgx.ErrNoRows)
+	}
+	var v = &AccessTransfer{}
+	var scanErr = r.db.QueryRow(ctx, lockAccessTransferQuery, eventID, id).Scan(&v.ID, &v.EventID, &v.SourceHash, &v.SourceCredentialID, &v.PlatformIdentityID, &v.GrantsOwner, &v.ExpiresAt, &v.State, &v.ApprovedRequestID, &v.GrantID)
+	if (scanErr != nil) {
+		return Failure(scanErr)
+	}
+	return Success(v)
+}
+
+func saveAccessTransfer(r *Repository, ctx context.Context, v *AccessTransfer) error {
+	var _, execErr = r.db.Exec(ctx, `UPDATE access_transfers SET state=$2,approved_request_id=$3,grant_id=$4 WHERE id=$1`, v.ID, v.State, v.ApprovedRequestID, v.GrantID)
+	return execErr
+}
+
+func createTransferRequest(r *Repository, ctx context.Context, transferID string, v *TransferRequest) error = r.db.QueryRow(ctx, `INSERT INTO access_transfer_requests(transfer_id,target_hash,code,user_agent) VALUES($1,$2,$3,$4) RETURNING id`, transferID, v.TargetHash, v.Code, v.UserAgent).Scan(&v.ID)
+
+// pruneExpiredAccessTransfers deletes past-deadline transfers that can no
+// longer progress, together with their cascade-deleted requests. Redeemed
+// transfers are retained so the source can revoke issued grants.
+func pruneExpiredAccessTransfers(r *Repository, ctx context.Context) error {
+	var _, execErr = r.db.Exec(ctx, `DELETE FROM access_transfers WHERE expires_at < clock_timestamp() AND state IN ('pending','approved','cancelled')`)
+	return execErr
+}
+
+func revokeGrantedCredential(r *Repository, ctx context.Context, id string) error {
+	var _, execErr = r.db.Exec(ctx, `UPDATE event_visitor_credentials SET revoked_at=clock_timestamp() WHERE id=$1 AND kind='granted'`, id)
+	return execErr
+}
+
+
+// getTransferSourceCredential reads the transfer's source credential by its
+// primary key in one query. The visitor association needs no re-filter, so the
+// credential lookup and visitor lookup share a single row read.
+func getTransferSourceCredential(r *Repository, ctx context.Context, id string) (*EventVisitorCredential, error) {
+	var value = &EventVisitorCredential{}
+	var scanErr = r.db.QueryRow(ctx, `SELECT id, event_visitor_identity_id, credential_hash, created_at, revoked_at, kind, grants_owner
+FROM event_visitor_credentials WHERE id = $1`, id).Scan(&value.ID, &value.EventVisitorIdentityID, &value.CredentialHash, &value.CreatedAt, &value.RevokedAt, &value.Kind, &value.GrantsOwner)
+	if (scanErr != nil) {
+		return Failure(scanErr)
+	}
+	return Success(value)
+}
+
+func getTransferSourceVisitor(r *Repository, ctx context.Context, id string) (*EventVisitorIdentity, error) {
+	var v = &EventVisitorIdentity{}
+	var scanErr = r.db.QueryRow(ctx, `SELECT id,event_id,public_id,platform_identity_id,created_at FROM event_visitor_identities WHERE id=$1`, id).Scan(&v.ID, &v.EventID, &v.PublicID, &v.PlatformIdentityID, &v.CreatedAt)
+	if (scanErr != nil) {
+		return Failure(scanErr)
+	}
+	return Success(v)
+}

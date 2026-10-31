@@ -125,6 +125,20 @@
 - [ ] FR must be formatted - in FR-013, there are two lines of text
 - [x] ? When scheduling an event, the black slot cursor shall not be visible, only the blue span shall be visible
       Currently, both are visible. Cursor appears on tap inside the grid. It doesn't appear on tap and drag
+- [ ] Show tint on hover of display time zone
+- [ ] Show tinted button without outline on hover of currently inactive element in
+  - time format
+  - Dates and times & Dates only
+  - Specific times & Days of the week
+- [ ] In New event form, shift Event name lower to not cover the label with the form header
+- [ ] When editing availability, when I click the title, the cursor (as for typing) shouldn't be visible
+- [ ] Prove in lean 4 soundness (?) of transpilation: if gala typechecks, resulting go will typecheck too
+- [ ] Get rid of "err != nil"
+- [ ] Avoid raw pointers
+- [ ] Why need Immutable in go if mutability can be controlled on the gala side?
+- [ ] codec.gala - why "var value map[string]json.RawMessage"?
+- [ ] `Option[Pointer]` instead of `*`
+- [ ] make verify.sh log what it's doing and time it 
 
 ## UX
 

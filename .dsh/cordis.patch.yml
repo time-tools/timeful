@@ -1,0 +1,26 @@
+# Repository-local dsh overlay. dsh does not discover it, so pass it
+# explicitly when launching dsh from this checkout:
+#
+#   dsh --patch .dsh/cordis.patch.yml --profile web  --port 0 --no-open
+#
+# Overlays are read at launch; restart dsh after editing this file.
+#
+# `backlog` and `codebase-memory-mcp` come from the devShell. `backlog`
+# resolves the project from BACKLOG_CWD, which `.envrc` pins to this checkout;
+# `codebase-memory-mcp` keeps its cache in CBM_CACHE_DIR, which `.envrc` pins
+# under `.local/` so indexing survives the workspace-write sandbox.
+- insert:
+    - id: mcp-backlog
+      name: "@deepseek-ai/dsh-mcp-client"
+      config:
+        serverName: backlog
+        transport: stdio
+        command: backlog
+        args: ["mcp", "start"]
+    - id: mcp-codebase-memory
+      name: "@deepseek-ai/dsh-mcp-client"
+      config:
+        serverName: codebase-memory-mcp
+        transport: stdio
+        command: codebase-memory-mcp
+        args: []

@@ -1,0 +1,411 @@
+package routes
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/base64"
+	"errors"
+	"log"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
+	pgstore "timeful/server/postgres"
+)
+
+import "martianoff/gala/go_interop"
+
+func transferSecret() (string, []byte, error) {
+	var raw = go_interop.SliceWithSize[byte](32)
+	var _, readErr = rand.Read(raw)
+	if (readErr != nil) {
+		return Failure(readErr)
+	}
+	var value = base64.RawURLEncoding.EncodeToString(raw)
+	var hash = hashBytes(value)
+	return Success((value, hash))
+}
+func transferCookie(c Ptr[gin.Context], name string, value string) {
+	http.SetCookie(c.Writer, &http.Cookie{Name: name, Value: value, Path: "/api", MaxAge: 34560000, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"})
+}
+func transferProof(c Ptr[gin.Context], name string, hash []byte) bool {
+	var value, cookieErr = c.Cookie(name)
+	var digest = hashBytes(value)
+	return cookieErr == nil && value != "" && subtle.ConstantTimeCompare(digest, hash) == 1
+}
+
+func transferDenied(c Ptr[gin.Context], err error) {
+	if (errors.Is(err, pgx.ErrNoRows)) {
+		c.JSON(403, go_interop.MapPut[string, any](go_interop.MapEmpty[string, any](), "error", "Transfer unavailable, expired, or unauthorized"))
+		return
+	}
+	log.Printf("access transfer failed: %v", err)
+	mutationError(c, err)
+}
+
+// @Summary Create a five-minute source-confirmed access transfer
+// @Description Requires a signed-in session or base EVCC; anonymous owners additionally prove their owner token. The link grants no authority.
+// @Tags events
+// @Produce json
+// @Param eventId path string true "Event ID"
+// @Success 201 {object} object{id=string,expiresAt=string}
+// @Failure 403
+// @Router /events/{eventId}/transfers [post]
+func createTransfer(c Ptr[gin.Context]) {
+	var repo = defaultRepository(c)
+	if (repo == nil) {
+		return
+	}
+	var event = loadEvent(c, repo)
+	if (event == nil) {
+		return
+	}
+	var secret, hash, secretErr = transferSecret()
+	if (secretErr != nil) {
+		transferDenied(c, secretErr)
+		return
+	}
+	var transfer = &pgstore.AccessTransfer{EventID: event.ID, SourceHash: hash}
+	var txErr = repo.WithTransaction(c.Request.Context(), (ctx context.Context, tx *pgstore.Repository) => {
+		var locked, lockErr = tx.LockEvent(ctx, event.ID)
+		if (lockErr != nil) {
+			return lockErr
+		}
+		if (locked.IsDeleted) {
+			return pgx.ErrNoRows
+		}
+		var pruneErr = tx.PruneExpiredAccessTransfers(ctx)
+		if (pruneErr != nil) {
+			return pruneErr
+		}
+		var sessionValue = sessions.Default(c).Get("userId")
+		var platformIdentityID = sessionValue match {
+			case id: string => id
+			case _ => ""
+		}
+		var platform, platformErr = resolveSessionPlatformIdentity(ctx, tx, platformIdentityID)
+		if (platformErr != nil) {
+			return platformErr
+		}
+		if (platform != nil) {
+			transfer.PlatformIdentityID = &platform.ID
+		} else {
+			var cookie, cookieErr = c.Cookie(credentialCookieName(event.ShortID))
+			if (cookieErr != nil) {
+				return pgx.ErrNoRows
+			}
+			var cookieParts = strings.Split(cookie, ".")
+			var visitor, visitorErr = tx.GetEventVisitorIdentity(ctx, event.ID, cookieParts[0])
+			if (visitorErr != nil) {
+				return visitorErr
+			}
+			var credential, credentialErr = provenCredential(c, tx, visitor, event.ShortID)
+			if (credentialErr != nil) {
+				return credentialErr
+			}
+			if (credential == nil || credential.Kind != pgstore.CredentialKindBase) {
+				return pgx.ErrNoRows
+			}
+			transfer.SourceCredentialID = &credential.ID
+			if (locked.OwnerEventVisitorIdentityID != nil && *locked.OwnerEventVisitorIdentityID == visitor.ID) {
+				var token, ownerCookieErr = c.Cookie(ownerCookieName(event.ShortID))
+				var ownerDigest = hashBytes(token)
+				if (ownerCookieErr != nil || subtle.ConstantTimeCompare(ownerDigest, locked.OwnerEditTokenHash) != 1) {
+					return pgx.ErrNoRows
+				}
+				transfer.GrantsOwner = true
+			}
+		}
+		return tx.CreateAccessTransfer(ctx, transfer)
+	})
+	if (txErr != nil) {
+		transferDenied(c, txErr)
+		return
+	}
+	transferCookie(c, "timeful_transfer_source_"+transfer.ID, secret)
+	c.JSON(201, go_interop.MapPut[string, any](go_interop.MapPut[string, any](go_interop.MapEmpty[string, any](), "id", transfer.ID), "expiresAt", transfer.ExpiresAt))
+}
+
+// @Summary Advance a source-confirmed transfer
+// @Description Actions: open (new target request, or the approved request back to its target), status (source lists codes), approve (source supplies requestId and exact code), redeem (target proof; replacing a different signed-in account requires confirmAccountSwitch), cancel, revoke. Approval is single-use and only the selected target can redeem before expiry; cancel works while the transfer is pending or approved but unredeemed. Revocation has no time limit.
+// @Tags events
+// @Accept json
+// @Produce json
+// @Param eventId path string true "Event ID"
+// @Param transferId path string true "Transfer ID"
+// @Param action path string true "Transfer action"
+// @Param payload body object{requestId=string,code=string,confirmAccountSwitch=bool} true "Approval selection, explicit account-switch consent, or empty object"
+// @Success 200 {object} object{state=string,revocable=bool,requestId=string,code=string,targetUserAgent=string,requests=[]object{id=string,code=string,userAgent=string}}
+// @Failure 403
+// @Failure 409 {object} object{accountSwitchRequired=bool} "Explicit consent required to replace a different sign-in"
+// @Router /events/{eventId}/transfers/{transferId}/{action} [post]
+func transferAction(c Ptr[gin.Context]) {
+	var repo = defaultRepository(c)
+	if (repo == nil) {
+		return
+	}
+	var event = loadEvent(c, repo)
+	if (event == nil) {
+		return
+	}
+	var input = newTransferActionInput()
+	var bindErr = c.BindJSON(&input)
+	if (bindErr != nil) {
+		return
+	}
+	var action = c.Param("action")
+	var result = gin.H{}
+	var targetSecret, grantValue, grantPublicID string
+	var targetPlatformIdentityID *string
+	var accountSwitchRequired bool
+	var responseHeaders = c.Writer.Header()
+	var previousCookies = go_interop.SliceCopy(responseHeaders.Values("Set-Cookie"))
+	var txErr = repo.WithTransaction(c.Request.Context(), (ctx context.Context, tx *pgstore.Repository) => {
+		var locked, lockErr = tx.LockEvent(ctx, event.ID)
+		if (lockErr != nil) {
+			return lockErr
+		}
+		if (locked.IsDeleted) {
+			return pgx.ErrNoRows
+		}
+		var transfer, transferErr = tx.LockAccessTransfer(ctx, event.ID, c.Param("transferId"))
+		if (transferErr != nil) {
+			return transferErr
+		}
+		var source = transferProof(c, "timeful_transfer_source_"+transfer.ID, transfer.SourceHash)
+		var sourceCredential *pgstore.EventVisitorCredential
+		if (transfer.SourceCredentialID != nil) {
+			var loadedCredential, loadedErr = tx.GetTransferSourceCredential(ctx, *transfer.SourceCredentialID)
+			if (loadedErr != nil) {
+				return loadedErr
+			}
+			sourceCredential = loadedCredential
+		}
+		if (action == "revoke") {
+			if (!source || transfer.GrantID == nil) {
+				return pgx.ErrNoRows
+			}
+			var revokeErr = tx.RevokeGrantedCredential(ctx, *transfer.GrantID)
+			if (revokeErr != nil) {
+				return revokeErr
+			}
+			transfer.State = "cancelled"
+			result["state"] = "revoked"
+			return tx.SaveAccessTransfer(ctx, transfer)
+		}
+		if (action == "status" && source) {
+			result["state"] = transfer.State
+			result["revocable"] = transfer.GrantID != nil && transfer.State == "redeemed"
+			if (time.Now().After(transfer.ExpiresAt) && (transfer.State == "pending" || transfer.State == "approved")) {
+				result["state"] = "expired"
+			}
+			var statusRequests, statusErr = tx.ListTransferRequests(ctx, transfer.ID)
+			result["requests"] = statusRequests
+			if (transfer.ApprovedRequestID != nil) {
+				for _, request := range statusRequests {
+					if (request.ID == *transfer.ApprovedRequestID) {
+						result["targetUserAgent"] = request.UserAgent
+					}
+				}
+			}
+			return statusErr
+		}
+		if (time.Now().After(transfer.ExpiresAt) || transfer.State == "cancelled" || transfer.State == "redeemed" || (sourceCredential != nil && sourceCredential.RevokedAt != nil)) {
+			return pgx.ErrNoRows
+		}
+		var requests, requestsErr = tx.ListTransferRequests(ctx, transfer.ID)
+		if (requestsErr != nil) {
+			return requestsErr
+		}
+		action match {
+			case "open" => {
+				if (source) {
+					return pgx.ErrNoRows
+				}
+				if (transfer.State == "approved" && transfer.ApprovedRequestID != nil) {
+					for _, request := range requests {
+						if (request.ID == *transfer.ApprovedRequestID && transferProof(c, "timeful_transfer_target_"+transfer.ID, request.TargetHash)) {
+							result["requestId"] = request.ID
+							result["code"] = request.Code
+							result["state"] = transfer.State
+							return nil
+						}
+					}
+				}
+				if (transfer.State != "pending") {
+					return pgx.ErrNoRows
+				}
+				for _, request := range requests {
+					if (transferProof(c, "timeful_transfer_target_"+transfer.ID, request.TargetHash)) {
+						result["requestId"] = request.ID
+						result["code"] = request.Code
+						return nil
+					}
+				}
+				if (requests.Size() >= 20) {
+					return pgx.ErrNoRows
+				}
+				var targetSecretValue, targetHash, targetSecretErr = transferSecret()
+				if (targetSecretErr != nil) {
+					return targetSecretErr
+				}
+				targetSecret = targetSecretValue
+				var code = ""
+				var duplicate = true
+				for duplicate {
+					var generated, generatedErr = pgstore.GenerateTransferCode()
+					if (generatedErr != nil) {
+						return generatedErr
+					}
+					code = generated
+					duplicate = false
+					for _, existing := range requests {
+						if (existing.Code == code) {
+							duplicate = true
+							break
+						}
+					}
+				}
+				var request = &pgstore.TransferRequest{Code: code, TargetHash: targetHash, UserAgent: transferUserAgent(c.Request.UserAgent())}
+				var createRequestErr = tx.CreateTransferRequest(ctx, transfer.ID, request)
+				if (createRequestErr != nil) {
+					return createRequestErr
+				}
+				result["requestId"] = request.ID
+				result["code"] = request.Code
+			}
+			case "approve" => {
+				if (!source || transfer.State != "pending") {
+					return pgx.ErrNoRows
+				}
+				if (transfer.PlatformIdentityID != nil) {
+					var currentValue = sessions.Default(c).Get("userId")
+					var current = currentValue match {
+						case id: string => id
+						case _ => ""
+					}
+					if (current != *transfer.PlatformIdentityID) {
+						return pgx.ErrNoRows
+					}
+				} else {
+					var visitor, visitorErr = tx.GetTransferSourceVisitor(ctx, sourceCredential.EventVisitorIdentityID)
+					if (visitorErr != nil) {
+						return visitorErr
+					}
+					var proof, proofErr = provenCredential(c, tx, visitor, event.ShortID)
+					if (proofErr != nil) {
+						return proofErr
+					}
+					if (proof == nil || proof.ID != sourceCredential.ID) {
+						return pgx.ErrNoRows
+					}
+					if (transfer.GrantsOwner) {
+						var token, ownerCookieErr = c.Cookie(ownerCookieName(event.ShortID))
+						var ownerDigest = hashBytes(token)
+						if (ownerCookieErr != nil || subtle.ConstantTimeCompare(ownerDigest, locked.OwnerEditTokenHash) != 1) {
+							return pgx.ErrNoRows
+						}
+					}
+				}
+				var matched = false
+				for _, request := range requests {
+					if (request.ID == input.RequestID && request.Code == input.Code) {
+						matched = true
+					}
+				}
+				if (!matched) {
+					return pgx.ErrNoRows
+				}
+				transfer.ApprovedRequestID = &input.RequestID
+				transfer.State = "approved"
+			}
+			case "redeem" => {
+				if (transfer.State != "approved" || transfer.ApprovedRequestID == nil) {
+					return pgx.ErrNoRows
+				}
+				var matched = false
+				for _, request := range requests {
+					if (request.ID == *transfer.ApprovedRequestID && transferProof(c, "timeful_transfer_target_"+transfer.ID, request.TargetHash)) {
+						matched = true
+					}
+				}
+				if (!matched) {
+					return pgx.ErrNoRows
+				}
+				if (transfer.PlatformIdentityID != nil) {
+					targetPlatformIdentityID = transfer.PlatformIdentityID
+					var currentValue = sessions.Default(c).Get("userId")
+					var current = currentValue match {
+						case id: string => id
+						case _ => ""
+					}
+					if (current != "" && current != *targetPlatformIdentityID && !input.ConfirmAccountSwitch) {
+						accountSwitchRequired = true
+						return nil
+					}
+				} else {
+					var visitor, visitorErr = tx.GetTransferSourceVisitor(ctx, sourceCredential.EventVisitorIdentityID)
+					if (visitorErr != nil) {
+						return visitorErr
+					}
+					var grantSecret, grantHash, grantErr = transferSecret()
+					if (grantErr != nil) {
+						return grantErr
+					}
+					var credential = &pgstore.EventVisitorCredential{EventVisitorIdentityID: visitor.ID, CredentialHash: grantHash, Kind: pgstore.CredentialKindGranted, GrantsOwner: transfer.GrantsOwner}
+					var createCredentialErr = tx.CreateEventVisitorCredential(ctx, credential)
+					if (createCredentialErr != nil) {
+						return createCredentialErr
+					}
+					transfer.GrantID = &credential.ID
+					grantValue = credential.ID + "." + grantSecret
+					grantPublicID = visitor.PublicID
+				}
+				transfer.State = "redeemed"
+			}
+			case "cancel" => {
+				if (!source || (transfer.State != "pending" && transfer.State != "approved")) {
+					return pgx.ErrNoRows
+				}
+				transfer.State = "cancelled"
+			}
+			case _ => {
+				return pgx.ErrNoRows
+			}
+		}
+		result["state"] = transfer.State
+		var saveErr = tx.SaveAccessTransfer(ctx, transfer)
+		if (saveErr != nil) {
+			return saveErr
+		}
+		if (targetPlatformIdentityID != nil) {
+			var session = sessions.Default(c)
+			session.Set("userId", *targetPlatformIdentityID)
+			return session.Save()
+		}
+		return nil
+	})
+	if (txErr != nil) {
+		responseHeaders.Del("Set-Cookie")
+		for _, cookie := range previousCookies {
+			responseHeaders.Add("Set-Cookie", cookie)
+		}
+		transferDenied(c, txErr)
+		return
+	}
+	if (accountSwitchRequired) {
+		c.JSON(http.StatusConflict, go_interop.MapPut[string, any](go_interop.MapEmpty[string, any](), "accountSwitchRequired", true))
+		return
+	}
+	if (targetSecret != "") {
+		transferCookie(c, "timeful_transfer_target_"+c.Param("transferId"), targetSecret)
+	}
+	if (grantValue != "") {
+		transferCookie(c, grantCookieName(event.ShortID), grantPublicID+"."+grantValue)
+	}
+	c.JSON(200, result)
+}

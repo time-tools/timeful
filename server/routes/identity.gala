@@ -1,0 +1,323 @@
+package routes
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/base64"
+	"errors"
+	"net/http"
+	"strings"
+
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
+	pgstore "timeful/server/postgres"
+)
+
+import "martianoff/gala/go_interop"
+
+// resolveSessionPlatformIdentity resolves the platform identity UUID a session
+// carries. An empty, retired, or deleted value reports no identity, so a stale
+// session never adopts an account and never reaches a uuid column as an invalid literal.
+func resolveSessionPlatformIdentity(ctx context.Context, repo *pgstore.Repository, platformIdentityID string) (*pgstore.PlatformIdentity, error) {
+	if (platformIdentityID == "") {
+		return Success(nil)
+	}
+	var platform, platformErr = repo.GetPlatformIdentity(ctx, platformIdentityID)
+	if (errors.Is(platformErr, pgx.ErrNoRows)) {
+		return Success(nil)
+	}
+	if (platformErr != nil) {
+		return Failure(platformErr)
+	}
+	return Success(platform)
+}
+
+// @Summary Associate browser Event Visitor Identities with the authenticated account
+// @Description Source EVCC proof associates response identity; independent Event Owner Edit Token proof associates or moves event ownership without moving responses. Granted EVCC association awaits the transfer confirmation flow.
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param payload body object{identities=[]object{eventId=string,eventVisitorId=string}} true "Browser-local public identities; matching HttpOnly credentials are required"
+// @Success 200
+// @Failure 401
+// @Router /auth/visitor-identities [post]
+func associateVisitorIdentities(c Ptr[gin.Context]) {
+	var sessionValue = sessions.Default(c).Get("userId")
+	var platformIdentityID = sessionValue match {
+		case id: string => id
+		case _ => ""
+	}
+	if (platformIdentityID == "") {
+		c.Status(http.StatusUnauthorized)
+		return
+	}
+	var input = newVisitorIdentityInput()
+	var bindErr = c.BindJSON(&input)
+	if (bindErr != nil) {
+		return
+	}
+	if (input.Identities.Size() > 200) {
+		c.Status(http.StatusBadRequest)
+		return
+	}
+	var repo = defaultRepository(c)
+	if (repo == nil) {
+		return
+	}
+	var txErr = repo.WithTransaction(c.Request.Context(), (ctx context.Context, tx *pgstore.Repository) => {
+		for _, item := range input.Identities {
+			var event, eventErr = tx.GetEventByShortID(ctx, item.EventID)
+			if (errors.Is(eventErr, pgx.ErrNoRows)) {
+				continue
+			}
+			if (eventErr != nil) {
+				return eventErr
+			}
+			var locked, lockErr = tx.LockEvent(ctx, event.ID)
+			if (lockErr != nil) {
+				return lockErr
+			}
+			if (locked.IsDeleted) {
+				continue
+			}
+			var _, authErr = authorizeOwner(c, tx, locked)
+			if (authErr != nil) {
+				return authErr
+			}
+			var visitor, visitorErr = tx.GetEventVisitorIdentity(ctx, locked.ID, item.EventVisitorID)
+			if (errors.Is(visitorErr, pgx.ErrNoRows)) {
+				continue
+			}
+			if (visitorErr != nil) {
+				return visitorErr
+			}
+			var credential, credentialErr = provenCredential(c, tx, visitor, locked.ShortID)
+			if (credentialErr != nil) {
+				return credentialErr
+			}
+			if (credential == nil || credential.Kind != pgstore.CredentialKindBase || visitor.PlatformIdentityID != nil) {
+				continue
+			}
+			var platform, platformErr = resolveSessionPlatformIdentity(ctx, tx, platformIdentityID)
+			if (platformErr != nil) {
+				return platformErr
+			}
+			if (platform == nil) {
+				continue
+			}
+			var associateErr = tx.AssociateEventVisitorIdentity(ctx, visitor.ID, platform.ID)
+			if (associateErr != nil) {
+				return associateErr
+			}
+		}
+		return nil
+	})
+	if (txErr != nil) {
+		mutationError(c, txErr)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{})
+}
+
+func credentialCookieName(eventID string) string = "timeful_evcc_" + eventID
+
+func issueCredential(ctx context.Context, repo *pgstore.Repository, visitorID string) (string, error) {
+	var secret = go_interop.SliceWithSize[byte](32)
+	var _, readErr = rand.Read(secret)
+	if (readErr != nil) {
+		return Failure(readErr)
+	}
+	var value = base64.RawURLEncoding.EncodeToString(secret)
+	var credential = &pgstore.EventVisitorCredential{EventVisitorIdentityID: visitorID, CredentialHash: hashBytes(value)}
+	var createErr = repo.CreateEventVisitorCredential(ctx, credential)
+	if (createErr != nil) {
+		return Failure(createErr)
+	}
+	return Success(credential.ID + "." + value)
+}
+
+func setCredentialCookie(c Ptr[gin.Context], eventID string, publicID string, credential string) {
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     credentialCookieName(eventID),
+		Value:    publicID + "." + credential,
+		Path:     "/api",
+		MaxAge:   34560000,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https",
+	})
+}
+
+func provenCredential(c Ptr[gin.Context], repo *pgstore.Repository, visitor *pgstore.EventVisitorIdentity, eventID string) (*pgstore.EventVisitorCredential, error) {
+	return provenCredentialCookie(c, repo, visitor, credentialCookieName(eventID))
+}
+
+func provenCredentialCookie(c Ptr[gin.Context], repo *pgstore.Repository, visitor *pgstore.EventVisitorIdentity, name string) (*pgstore.EventVisitorCredential, error) {
+	var cookie, cookieErr = c.Cookie(name)
+	if (cookieErr != nil) {
+		return Success(nil)
+	}
+	var parts = strings.Split(cookie, ".")
+	if (parts.Size() != 3 || parts[0] != visitor.PublicID) {
+		return Success(nil)
+	}
+	var credential, credentialErr = repo.GetEventVisitorCredential(c.Request.Context(), visitor.ID, parts[1])
+	if (errors.Is(credentialErr, pgx.ErrNoRows)) {
+		return Success(nil)
+	}
+	if (credentialErr != nil) {
+		return Failure(credentialErr)
+	}
+	if (subtle.ConstantTimeCompare(hashBytes(parts[2]), credential.CredentialHash) != 1 || credential.RevokedAt != nil) {
+		return Success(nil)
+	}
+	return Success(credential)
+}
+
+// The public identifier selects a visitor but never proves control of it.
+func resolveVisitor(c Ptr[gin.Context], repo *pgstore.Repository, event *pgstore.Event) (*visitor, error) {
+	var owner, ownerErr = resolveOwner(c, repo, event)
+	if (ownerErr != nil) {
+		return Failure(ownerErr)
+	}
+	var sessionValue = sessions.Default(c).Get("userId")
+	var platformIdentityID = sessionValue match {
+		case id: string => id
+		case _ => ""
+	}
+	// Normalize the session value once: only a live canonical platform identity
+	// stays visible to callers, so a stale or retired session behaves as
+	// anonymous and never reaches a uuid column as an invalid literal.
+	if (platformIdentityID != "") {
+		var platform, platformErr = resolveSessionPlatformIdentity(c.Request.Context(), repo, platformIdentityID)
+		if (platformErr != nil) {
+			return Failure(platformErr)
+		}
+		if (platform == nil) {
+			platformIdentityID = ""
+		} else {
+			platformIdentityID = platform.ID
+		}
+	}
+	var publicID = c.Query("eventVisitorId")
+	if (publicID == "") {
+		var cookie, cookieErr = c.Cookie(credentialCookieName(event.ShortID))
+		if (cookieErr == nil) {
+			var cookieParts = strings.Split(cookie, ".")
+			publicID = cookieParts[0]
+		}
+	}
+	var result = newVisitor(platformIdentityID, owner)
+	var grantVisitor, _, grantErr = provenGrant(c, repo, event)
+	if (grantErr != nil) {
+		return Failure(grantErr)
+	}
+	if (grantVisitor != nil) {
+		result.grantedVisitorID = grantVisitor.ID
+	}
+	if (publicID != "") {
+		var visitorRecord, visitorErr = repo.GetEventVisitorIdentity(c.Request.Context(), event.ID, publicID)
+		if (visitorErr != nil && !errors.Is(visitorErr, pgx.ErrNoRows)) {
+			return Failure(visitorErr)
+		}
+		if (visitorErr == nil) {
+			var credential, credentialErr = provenCredential(c, repo, visitorRecord, event.ShortID)
+			if (credentialErr != nil) {
+				return Failure(credentialErr)
+			}
+			var valid = credential != nil
+			result.granted = valid && credential.Kind == pgstore.CredentialKindGranted
+			var account = false
+			if (platformIdentityID != "") {
+				var ownsVisitor, ownsErr = repo.VisitorBelongsToAccount(c.Request.Context(), visitorRecord.ID, platformIdentityID)
+				if (ownsErr != nil) {
+					return Failure(ownsErr)
+				}
+				account = ownsVisitor
+			}
+			result.identity = visitorRecord
+			if (valid || account) {
+				result.authorized = true
+				if (account && !valid) {
+					var newCredential, issueErr = issueCredential(c.Request.Context(), repo, visitorRecord.ID)
+					if (issueErr != nil) {
+						return Failure(issueErr)
+					}
+					setCredentialCookie(c, event.ShortID, visitorRecord.PublicID, newCredential)
+				}
+			}
+		}
+	}
+	if (result.identity == nil) {
+		var credential string
+		var createErr = repo.WithTransaction(c.Request.Context(), (ctx context.Context, tx *pgstore.Repository) => {
+			var created, createdErr = tx.CreateEventVisitorIdentity(ctx, event.ID)
+			if (createdErr != nil) {
+				return createdErr
+			}
+			result.identity = created
+			result.authorized = true
+			var issued, issueErr = issueCredential(ctx, tx, created.ID)
+			if (issueErr != nil) {
+				return issueErr
+			}
+			credential = issued
+			return nil
+		})
+		if (createErr != nil) {
+			return Failure(createErr)
+		}
+		setCredentialCookie(c, event.ShortID, result.identity.PublicID, credential)
+	}
+	if (platformIdentityID != "" && result.authorized && !result.granted && result.identity.PlatformIdentityID == nil) {
+		var associateErr = repo.AssociateEventVisitorIdentity(c.Request.Context(), result.identity.ID, platformIdentityID)
+		if (associateErr != nil) {
+			return Failure(associateErr)
+		}
+		result.identity.PlatformIdentityID = &platformIdentityID
+	}
+	return Success(result)
+}
+
+func (v Ptr[visitor]) controls(ctx context.Context, repo *pgstore.Repository, visitorID string) (bool, error) {
+	if (v.grantedVisitorID == visitorID || (v.authorized && v.identity.ID == visitorID)) {
+		return Success(true)
+	}
+	if (v.platformIdentityID == "") {
+		return Success(false)
+	}
+	return repo.VisitorBelongsToAccount(ctx, visitorID, v.platformIdentityID)
+}
+
+// controlsBatch answers controls for many visitor identities with at most one
+// ownership read, preserving the single-control precedence: a granted visitor,
+// the acting authorized visitor, then the signed-in account's associated
+// visitors. A visitor whose identity is not determined by the first two rules
+// and has no platform identity is unauthorized.
+func (v Ptr[visitor]) controlsBatch(ctx context.Context, repo *pgstore.Repository, visitorIDs []string) (map[string]bool, error) {
+	var authorized = go_interop.MapWithCapacity[string, bool](visitorIDs.Size())
+	var lookup = go_interop.SliceWithCapacity[string](visitorIDs.Size())
+	for _, visitorID := range visitorIDs {
+		if (v.grantedVisitorID == visitorID || (v.authorized && v.identity.ID == visitorID)) {
+			authorized[visitorID] = true
+			continue
+		}
+		authorized[visitorID] = false
+		if (v.platformIdentityID != "") {
+			lookup = go_interop.SliceAppend(lookup, visitorID)
+		}
+	}
+	if (lookup.Size() == 0) {
+		return Success(authorized)
+	}
+	var owned, ownedErr = repo.EventVisitorIdentitiesBelongingToAccount(ctx, v.platformIdentityID, lookup)
+	if (ownedErr != nil) {
+		return Failure(ownedErr)
+	}
+	for _, visitorID := range lookup {
+		authorized[visitorID] = owned[visitorID]
+	}
+	return Success(authorized)
+}

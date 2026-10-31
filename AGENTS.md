@@ -86,3 +86,4 @@ The protocol is scoped to bug fixes and does not require a failing check before 
 
 - VS Code MCP: only use `search_symbols_code`, `get_symbol_definition_code`, and `get_diagnostics_code`.
 - codebase-memory-mcp: follow `docs/codebase-memory.md` before grepping or reading files for codebase questions.
+- DSH MCP: pass `--patch .dsh/cordis.patch.yml` when launching `dsh` from the checkout root, for example `dsh web --patch .dsh/cordis.patch.yml`, which registers Backlog as `mcp__backlog__*`; change servers there, not in `~/.dsh`.

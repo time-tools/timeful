@@ -1,0 +1,270 @@
+package postgres
+
+import (
+	"context"
+	"errors"
+
+	"github.com/jackc/pgx/v5"
+)
+
+import "martianoff/gala/go_interop"
+
+// This file carries the free-function bodies of the former accounts.go. The
+// Account struct and every *Repository method stay handwritten in
+// accounts_extra.go: a method declared on Repository in a .gala file makes the
+// transpiler treat the GALA-declared set as Repository's complete method set,
+// which hides repository_methods.go's methods and refuses repository.gala's
+// WithTransaction call with GALA-E0044.
+
+// accountColumns is the account projection shared by the account reads. It
+// stays a plain package var rather than a val so accounts_extra.go's batched
+// read can concatenate it, and no caller uses it in a constant expression.
+var accountColumns = `a.id, a.platform_identity_id, a.email, a.first_name, a.last_name, a.picture, a.has_custom_name, a.timezone_offset, a.num_events_created, a.created_at, a.updated_at`
+
+func scanAccount(row rowScanner) (*Account, error) {
+	var account = newAccount()
+	var scanErr = row.Scan(
+		&account.ID,
+		&account.PlatformIdentityID,
+		&account.Email,
+		&account.FirstName,
+		&account.LastName,
+		&account.Picture,
+		&account.HasCustomName,
+		&account.TimezoneOffset,
+		&account.NumEventsCreated,
+		&account.CreatedAt,
+		&account.UpdatedAt,
+	)
+	if (scanErr != nil) {
+		return Failure(scanErr)
+	}
+	return Success(account)
+}
+
+func getAccount(r *Repository, ctx context.Context, predicate string, values ...any) (*Account, error) = scanAccount(r.db.QueryRow(ctx, `SELECT `+accountColumns+` FROM accounts a WHERE `+predicate, values...))
+
+// getAccountByPlatformIdentityID resolves the account for a sign-in session
+// value. A value that is not a canonical platform identity UUID resolves to no
+// account because the retired 24-character identifier is never looked up.
+func getAccountByPlatformIdentityID(r *Repository, ctx context.Context, platformIdentityID string) (*Account, error) {
+	if (!validPlatformIdentityID(platformIdentityID)) {
+		return Failure(pgx.ErrNoRows)
+	}
+	return getAccount(r, ctx, `a.platform_identity_id = $1`, platformIdentityID)
+}
+
+// getAccountByEmail resolves the oldest account for a case-insensitive email.
+// Email is not unique by contract, so a deterministic order is required.
+func getAccountByEmail(r *Repository, ctx context.Context, email string) (*Account, error) {
+	if (email == "") {
+		return Failure(errors.New("account email is required"))
+	}
+	return getAccount(r, ctx, `lower(a.email) = lower($1) ORDER BY a.created_at, a.id LIMIT 1`, email)
+}
+
+// createAccount mints a platform identity and inserts the account once in one
+// transaction, so a crash or cancellation cannot leave a partially applied
+// sign-in unit. The identity's uuidv7() default supplies the account
+// identifier; no external value is minted or stored.
+func createAccount(r *Repository, ctx context.Context, initial Account) (*Account, error) {
+	var account *Account
+	var createErr = r.withTransaction(ctx, (ctx context.Context, tx *Repository) => {
+		var platform, platformErr = createPlatformIdentity(tx, ctx)
+		if (platformErr != nil) {
+			return platformErr
+		}
+		var _, insertErr = tx.db.Exec(ctx, `INSERT INTO accounts
+ (platform_identity_id, email, first_name, last_name, picture, has_custom_name, timezone_offset, num_events_created)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+ON CONFLICT (platform_identity_id) DO NOTHING`,
+			platform.ID, initial.Email, initial.FirstName, initial.LastName, initial.Picture, initial.HasCustomName, initial.TimezoneOffset, initial.NumEventsCreated)
+		if (insertErr != nil) {
+			return insertErr
+		}
+		var stored, loadErr = getAccountByPlatformIdentityID(tx, ctx, platform.ID)
+		if (loadErr != nil) {
+			return loadErr
+		}
+		account = stored
+		return nil
+	})
+	if (createErr != nil) {
+		return Failure(createErr)
+	}
+	return Success(account)
+}
+
+// findOrCreateAccountByEmail resolves the single account for a case-insensitive
+// email or creates it when none exists. Concurrent first-time sign-ins for the
+// same email are serialized by a transaction-scoped advisory lock, so only one
+// account and platform identity can be created.
+func findOrCreateAccountByEmail(r *Repository, ctx context.Context, email string, initial Account) (*Account, bool, error) {
+	if (email == "") {
+		return Failure(errors.New("account email is required"))
+	}
+	var account *Account
+	var created bool
+	var resolveErr = r.withTransaction(ctx, (ctx context.Context, tx *Repository) => {
+		var _, lockErr = tx.db.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended(lower($1), 0))`, email)
+		if (lockErr != nil) {
+			return lockErr
+		}
+		var existing, existingErr = getAccountByEmail(tx, ctx, email)
+		if (existingErr == nil) {
+			account = existing
+			return nil
+		}
+		if (!errors.Is(existingErr, pgx.ErrNoRows)) {
+			return existingErr
+		}
+		var createdAccount, newErr = createAccount(tx, ctx, initial)
+		if (newErr != nil) {
+			return newErr
+		}
+		account = createdAccount
+		created = true
+		return nil
+	})
+	if (resolveErr != nil) {
+		return Failure(resolveErr)
+	}
+	return Success((account, created))
+}
+
+// updateAccountProfile writes the authoritative profile fields. Calendar
+// connections, tokens, preferences, and the usage counter are never written
+// here; the counter advances only through IncrementAccountEventsCreated.
+func updateAccountProfile(r *Repository, ctx context.Context, account *Account) error {
+	if (account == nil || account.ID == "") {
+		return errors.New("account ID is required")
+	}
+	return r.db.QueryRow(ctx, `UPDATE accounts
+SET email = $2, first_name = $3, last_name = $4, picture = $5, has_custom_name = $6, timezone_offset = $7, updated_at = clock_timestamp()
+WHERE id = $1 RETURNING updated_at`,
+		account.ID, account.Email, account.FirstName, account.LastName, account.Picture, account.HasCustomName, account.TimezoneOffset).Scan(&account.UpdatedAt)
+}
+
+// incrementAccountEventsCreated advances the usage counter without touching the
+// rest of the profile.
+func incrementAccountEventsCreated(r *Repository, ctx context.Context, platformIdentityID string) error {
+	if (!validPlatformIdentityID(platformIdentityID)) {
+		return pgx.ErrNoRows
+	}
+	var _, execErr = r.db.Exec(ctx, `UPDATE accounts SET num_events_created = num_events_created + 1, updated_at = clock_timestamp()
+WHERE platform_identity_id = $1`, platformIdentityID)
+	return execErr
+}
+
+// deleteAccountByPlatformIdentityID permanently removes the account authority
+// and everything the deleted visitor owns, then records a tombstone keyed by
+// the platform identity uuid so the identity can never be adopted again. It
+// runs as one transaction under the same advisory lock that creation paths use.
+func deleteAccountByPlatformIdentityID(r *Repository, ctx context.Context, platformIdentityID string) error {
+	if (platformIdentityID == "") {
+		return errors.New("account platform identity ID is required")
+	}
+	return r.withTransaction(ctx, (ctx context.Context, tx *Repository) => {
+		var _, lockErr = tx.db.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, platformIdentityID)
+		if (lockErr != nil) {
+			return lockErr
+		}
+		var storedIdentityID string
+		var lookupErr = tx.db.QueryRow(ctx, `SELECT id FROM platform_identities WHERE id = $1`, platformIdentityID).Scan(&storedIdentityID)
+		if (lookupErr != nil && !errors.Is(lookupErr, pgx.ErrNoRows)) {
+			return lookupErr
+		}
+		if (lookupErr == nil) {
+			var deleteErr = deleteAccountAuthority(tx, ctx, platformIdentityID)
+			if (deleteErr != nil) {
+				return deleteErr
+			}
+		}
+		var _, tombstoneErr = tx.db.Exec(ctx, `INSERT INTO account_deletion_tombstones (platform_identity_id) VALUES ($1)
+ON CONFLICT (platform_identity_id) DO NOTHING`, platformIdentityID)
+		return tombstoneErr
+	})
+}
+
+// deleteAccountAuthority removes one platform identity's account and everything
+// it owns. Visitor identities tied to the account either directly through the
+// platform mapping or through a response's account reference are removed
+// together with their credentials and transfers.
+func deleteAccountAuthority(r *Repository, ctx context.Context, platformIdentityID string) error {
+	var visitorIDs = go_interop.SliceEmpty[string]()
+	var rows, queryErr = r.db.Query(ctx, `SELECT id FROM event_visitor_identities WHERE platform_identity_id = $1
+UNION
+SELECT event_visitor_identity_id FROM event_responses WHERE platform_identity_id = $1
+UNION
+SELECT event_visitor_identity_id FROM event_signup_responses WHERE platform_identity_id = $1`, platformIdentityID)
+	if (queryErr != nil) {
+		return queryErr
+	}
+	for rows.Next() {
+		var visitorID string
+		var scanErr = rows.Scan(&visitorID)
+		if (scanErr != nil) {
+			rows.Close()
+			return scanErr
+		}
+		visitorIDs = go_interop.SliceAppend(visitorIDs, visitorID)
+	}
+	rows.Close()
+	var iterErr = rows.Err()
+	if (iterErr != nil) {
+		return iterErr
+	}
+	var _, transferErr = r.db.Exec(ctx, `DELETE FROM access_transfers
+WHERE platform_identity_id = $1
+   OR source_credential_id IN (SELECT id FROM event_visitor_credentials WHERE event_visitor_identity_id = ANY($2))
+   OR grant_id IN (SELECT id FROM event_visitor_credentials WHERE event_visitor_identity_id = ANY($2))`,
+		platformIdentityID, visitorIDs)
+	if (transferErr != nil) {
+		return transferErr
+	}
+	var _, ownerErr = r.db.Exec(ctx, `UPDATE events
+SET owner_platform_identity_id = NULL, owner_event_visitor_identity_id = NULL, updated_at = clock_timestamp()
+WHERE owner_platform_identity_id = $1
+   OR owner_event_visitor_identity_id = ANY($2)`, platformIdentityID, visitorIDs)
+	if (ownerErr != nil) {
+		return ownerErr
+	}
+	var _, attendeeErr = r.db.Exec(ctx, `UPDATE event_attendees
+SET platform_identity_id = NULL, updated_at = clock_timestamp()
+WHERE platform_identity_id = $1`, platformIdentityID)
+	if (attendeeErr != nil) {
+		return attendeeErr
+	}
+	var _, responseErr = r.db.Exec(ctx, `DELETE FROM event_responses
+WHERE platform_identity_id = $1 OR event_visitor_identity_id = ANY($2)`, platformIdentityID, visitorIDs)
+	if (responseErr != nil) {
+		return responseErr
+	}
+	var _, signupErr = r.db.Exec(ctx, `DELETE FROM event_signup_responses
+WHERE platform_identity_id = $1 OR event_visitor_identity_id = ANY($2)`, platformIdentityID, visitorIDs)
+	if (signupErr != nil) {
+		return signupErr
+	}
+	var _, visitorErr = r.db.Exec(ctx, `DELETE FROM event_visitor_identities WHERE id = ANY($1)`, visitorIDs)
+	if (visitorErr != nil) {
+		return visitorErr
+	}
+	var _, folderErr = r.db.Exec(ctx, `DELETE FROM folders WHERE platform_identity_id = $1`, platformIdentityID)
+	if (folderErr != nil) {
+		return folderErr
+	}
+	var _, memberErr = r.db.Exec(ctx, `DELETE FROM daily_user_log_members WHERE platform_identity_id = $1`, platformIdentityID)
+	if (memberErr != nil) {
+		return memberErr
+	}
+	var _, emptyLogErr = r.db.Exec(ctx, `DELETE FROM daily_user_logs l WHERE NOT EXISTS (SELECT 1 FROM daily_user_log_members m WHERE m.daily_user_log_id = l.id)`)
+	if (emptyLogErr != nil) {
+		return emptyLogErr
+	}
+	var _, accountErr = r.db.Exec(ctx, `DELETE FROM accounts WHERE platform_identity_id = $1`, platformIdentityID)
+	if (accountErr != nil) {
+		return accountErr
+	}
+	var _, identityErr = r.db.Exec(ctx, `DELETE FROM platform_identities WHERE id = $1`, platformIdentityID)
+	return identityErr
+}

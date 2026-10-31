@@ -1,0 +1,11 @@
+package models
+
+type Location struct {
+    var CountryCode string "json:\"country_code\""
+    var CountryName string "json:\"country_name\""
+    var City string "json:\"city\""
+    var Postal string "json:\"postal\""
+    var Latitude float64 "json:\"latitude\""
+    var Longitude float64 "json:\"longitude\""
+    var State string "json:\"state\""
+}

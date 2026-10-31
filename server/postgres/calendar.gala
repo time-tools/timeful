@@ -1,0 +1,656 @@
+package postgres
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+)
+
+import "martianoff/gala/go_interop"
+import "martianoff/gala/resource"
+
+// This file carries the declarations and free functions of the former
+// calendar.go, plus the free-function bodies of the former calendar_extra.go
+// *Repository methods. The exported Calendar* structs, encodedCalendarSecrets,
+// and (*CalendarAccount).requiresEncryption stay handwritten in
+// calendar_extra.go: a GALA struct declaration widens the Go surface of an
+// exported type with Copy/Equal/Unapply/StructMeta helpers and std.Immutable
+// fields. The *Repository methods are one-line wrappers there, because a method
+// declared on Repository in a .gala file makes Repository's GALA method set its
+// complete one, which hides the methods the package's handwritten files
+// declare.
+
+// Provider types stored in calendar_accounts.calendar_type.
+var CalendarTypeGoogle = "google"
+
+var CalendarTypeOutlook = "outlook"
+
+var CalendarTypeApple = "apple"
+
+var CalendarTypeICS = "ics"
+
+var calendarAccountColumns = `a.id, a.platform_identity_id, a.calendar_key, a.calendar_type, a.email, a.picture, a.enabled,
+ c.oauth_access_token_ciphertext, c.oauth_refresh_token_ciphertext, c.oauth_access_token_expires_at, c.oauth_scope, c.apple_password_ciphertext, c.ics_feed_url_ciphertext,
+ a.created_at, a.updated_at`
+
+var calendarAccountFrom = `FROM calendar_accounts a
+ LEFT JOIN calendar_account_credentials c ON c.calendar_account_id = a.id`
+
+var calendarSubCalendarColumns = `id, calendar_account_id, sub_calendar_id, name, enabled, created_at, updated_at`
+
+// validCalendarType reports whether calendarType is one of the provider types
+// the schema admits.
+func validCalendarType(calendarType string) bool = calendarType match {
+	case CalendarTypeGoogle | CalendarTypeOutlook | CalendarTypeApple | CalendarTypeICS => true
+	case _ => false
+}
+
+// guardPlatformIdentityID validates the canonical platform identity UUID form
+// without a database round trip. Statements that imply identity liveness (an
+// insert into an identity-keyed table, or a row-scoped update that maps zero
+// rows to pgx.ErrNoRows) merge the liveness requirement themselves, so a
+// non-canonical value still reports pgx.ErrNoRows before reaching PostgreSQL.
+func guardPlatformIdentityID(platformIdentityID string) error {
+	if (!validPlatformIdentityID(platformIdentityID)) {
+		return pgx.ErrNoRows
+	}
+	return nil
+}
+
+func validTokenOrigin(tokenOrigin string) bool = tokenOrigin match {
+	case "ios" | "android" | "web" => true
+	case _ => false
+}
+
+func scanCalendarSubCalendar(row rowScanner) (*CalendarSubCalendar, error) {
+	var sub = &CalendarSubCalendar{}
+	var scanErr = row.Scan(&sub.ID, &sub.CalendarAccountID, &sub.SubCalendarID, &sub.Name, &sub.Enabled, &sub.CreatedAt, &sub.UpdatedAt)
+	if (scanErr != nil) {
+		return Failure(scanErr)
+	}
+	return Success(sub)
+}
+
+// encodeCalendarSecrets encrypts only non-empty secrets. An empty secret is
+// absent, so it is stored as NULL and needs no key.
+func encodeCalendarSecrets(account *CalendarAccount) (encodedCalendarSecrets, error) {
+	var secrets = encodedCalendarSecrets{}
+	if (!account.requiresEncryption()) {
+		return Success(secrets)
+	}
+	var codec, codecErr = credentialCodecFromEnvironment()
+	if (codecErr != nil) {
+		return Failure(codecErr)
+	}
+	if (account.OAuth2 != nil) {
+		var accessToken, accessTokenErr = encryptCalendarSecret(codec, account.OAuth2.AccessToken)
+		if (accessTokenErr != nil) {
+			return Failure(accessTokenErr)
+		}
+		secrets.accessToken = accessToken
+		var refreshToken, refreshTokenErr = encryptCalendarSecret(codec, account.OAuth2.RefreshToken)
+		if (refreshTokenErr != nil) {
+			return Failure(refreshTokenErr)
+		}
+		secrets.refreshToken = refreshToken
+	}
+	if (account.Apple != nil) {
+		var applePassword, applePasswordErr = encryptCalendarSecret(codec, account.Apple.Password)
+		if (applePasswordErr != nil) {
+			return Failure(applePasswordErr)
+		}
+		secrets.applePassword = applePassword
+	}
+	if (account.ICS != nil) {
+		var icsFeedURL, icsFeedURLErr = encryptCalendarSecret(codec, account.ICS.FeedURL)
+		if (icsFeedURLErr != nil) {
+			return Failure(icsFeedURLErr)
+		}
+		secrets.icsFeedURL = icsFeedURL
+	}
+	return Success(secrets)
+}
+
+func encryptCalendarSecret(codec *credentialCodec, value string) (*string, error) {
+	if (value == "") {
+		return Success(nil)
+	}
+	var encrypted, encryptErr = RequirePtr(codec).encrypt(value)
+	if (encryptErr != nil) {
+		return Failure(encryptErr)
+	}
+	return Success(&encrypted)
+}
+
+func decodeCalendarCredentials(account *CalendarAccount, accessToken *string, refreshToken *string, expiresAt *time.Time, scope *string, applePassword *string, icsFeedURL *string) error {
+	var needsCodec = accessToken != nil || refreshToken != nil || applePassword != nil || icsFeedURL != nil
+	var codec *credentialCodec
+	if (needsCodec) {
+		var resolved, resolveErr = credentialCodecFromEnvironment()
+		if (resolveErr != nil) {
+			return resolveErr
+		}
+		codec = resolved
+	}
+	if (accessToken != nil || refreshToken != nil || expiresAt != nil || scope != nil) {
+		var token, tokenErr = decryptCalendarSecret(codec, accessToken)
+		if (tokenErr != nil) {
+			return tokenErr
+		}
+		var refresh, refreshErr = decryptCalendarSecret(codec, refreshToken)
+		if (refreshErr != nil) {
+			return refreshErr
+		}
+		account.OAuth2 = &CalendarOAuth2Credentials{AccessToken: token, RefreshToken: refresh, AccessTokenExpiresAt: expiresAt, Scope: dereference(scope)}
+	}
+	if (applePassword != nil) {
+		var password, passwordErr = decryptCalendarSecret(codec, applePassword)
+		if (passwordErr != nil) {
+			return passwordErr
+		}
+		account.Apple = &CalendarAppleCredentials{Password: password}
+	}
+	if (icsFeedURL != nil) {
+		var feedURL, feedURLErr = decryptCalendarSecret(codec, icsFeedURL)
+		if (feedURLErr != nil) {
+			return feedURLErr
+		}
+		account.ICS = &CalendarICSCredentials{FeedURL: feedURL}
+	}
+	return nil
+}
+
+// decryptCalendarSecret surfaces a decryption failure as an error and never
+// substitutes an empty credential.
+func decryptCalendarSecret(codec *credentialCodec, ciphertext *string) (string, error) {
+	if (ciphertext == nil) {
+		return Success("")
+	}
+	if (codec == nil) {
+		return Failure(ErrEncryptionKeyUnavailable)
+	}
+	return RequirePtr(codec).decrypt(*ciphertext)
+}
+
+func dereference(value *string) string {
+	if (value == nil) {
+		return ""
+	}
+	return *value
+}
+
+func stringPointer(value string) *string {
+	if (value == "") {
+		return nil
+	}
+	var stored = value
+	return &stored
+}
+
+// requirePlatformIdentityID resolves the canonical platform identity UUID that
+// owns a calendar record. A non-canonical value and a uuid with no live identity
+// are both pgx.ErrNoRows, so a calendar record never creates, merges, or renames
+// an account. List and delete paths keep the liveness read because their merged
+// statements cannot distinguish a missing identity from an empty result.
+func requirePlatformIdentityID(r *Repository, ctx context.Context, platformIdentityID string) (string, error) {
+	var _, identityErr = r.GetPlatformIdentity(ctx, platformIdentityID)
+	if (identityErr != nil) {
+		return Failure(identityErr)
+	}
+	return Success(platformIdentityID)
+}
+
+// calendarAccountID resolves one connection identity by owner and runtime key.
+// The cascade from platform_identities means a deleted identity owns no
+// connection, so the row lookup alone preserves pgx.ErrNoRows.
+func calendarAccountID(r *Repository, ctx context.Context, platformIdentityID string, calendarKey string) (string, error) {
+	if (calendarKey == "") {
+		return Failure(errors.New("calendar account key is required"))
+	}
+	var guardErr = guardPlatformIdentityID(platformIdentityID)
+	if (guardErr != nil) {
+		return Failure(guardErr)
+	}
+	var accountID string
+	var scanErr = r.db.QueryRow(ctx, `SELECT id FROM calendar_accounts WHERE platform_identity_id = $1 AND calendar_key = $2`, platformIdentityID, calendarKey).Scan(&accountID)
+	if (scanErr != nil) {
+		return Failure(scanErr)
+	}
+	return Success(accountID)
+}
+
+// createCalendarAccount inserts one connection and its credentials. A duplicate
+// owner-and-key is a unique violation rather than a silent merge.
+func createCalendarAccount(r *Repository, ctx context.Context, platformIdentityID string, account *CalendarAccount) error {
+	if (account == nil) {
+		return errors.New("calendar account is nil")
+	}
+	return writeCalendarAccount(r, ctx, platformIdentityID, account, false)
+}
+
+// upsertCalendarAccount creates or updates one connection by owner and runtime
+// key. An incoming nil enabled keeps the stored explicit value, so a partial
+// write cannot clear an absent-versus-false distinction; an incoming explicit
+// value wins.
+func upsertCalendarAccount(r *Repository, ctx context.Context, platformIdentityID string, account *CalendarAccount) error {
+	if (account == nil) {
+		return errors.New("calendar account is nil")
+	}
+	return writeCalendarAccount(r, ctx, platformIdentityID, account, true)
+}
+
+func writeCalendarAccount(r *Repository, ctx context.Context, platformIdentityID string, account *CalendarAccount, upsert bool) error {
+	if (account.CalendarKey == "") {
+		return errors.New("calendar account key is required")
+	}
+	if (!validCalendarType(account.CalendarType)) {
+		return fmt.Errorf("unsupported calendar type %q", account.CalendarType)
+	}
+	var guardErr = guardPlatformIdentityID(platformIdentityID)
+	if (guardErr != nil) {
+		return guardErr
+	}
+	return r.withTransaction(ctx, (ctx context.Context, tx *Repository) => {
+		account.PlatformIdentityID = platformIdentityID
+		// Selecting the owner from platform_identities merges identity liveness
+		// into the write, so a deleted identity inserts nothing and the missing
+		// RETURNING row surfaces as pgx.ErrNoRows.
+		var statement = `INSERT INTO calendar_accounts (platform_identity_id, calendar_key, calendar_type, email, picture, enabled)
+SELECT $1, $2, $3, $4, $5, $6 FROM platform_identities WHERE id = $1`
+		if (upsert) {
+			statement = statement + `
+ON CONFLICT (platform_identity_id, calendar_key) DO UPDATE
+SET calendar_type = EXCLUDED.calendar_type,
+    email = EXCLUDED.email,
+    picture = EXCLUDED.picture,
+    enabled = COALESCE(EXCLUDED.enabled, calendar_accounts.enabled),
+    updated_at = clock_timestamp()`
+		}
+		statement = statement + `
+RETURNING id, enabled, created_at, updated_at`
+		var scanErr = tx.db.QueryRow(ctx, statement,
+			platformIdentityID, account.CalendarKey, account.CalendarType, account.Email, account.Picture, account.Enabled).
+			Scan(&account.ID, &account.Enabled, &account.CreatedAt, &account.UpdatedAt)
+		if (scanErr != nil) {
+			return scanErr
+		}
+		return writeCalendarCredentials(tx, ctx, account)
+	})
+}
+
+// getCalendarAccountByKey reads one connection and decrypts its credentials. A
+// missing connection is pgx.ErrNoRows, which includes a deleted owner because
+// the identity cascade removes its connections.
+func getCalendarAccountByKey(r *Repository, ctx context.Context, platformIdentityID string, calendarKey string) (*CalendarAccount, error) {
+	if (calendarKey == "") {
+		return Failure(errors.New("calendar account key is required"))
+	}
+	var guardErr = guardPlatformIdentityID(platformIdentityID)
+	if (guardErr != nil) {
+		return Failure(guardErr)
+	}
+	return getCalendarAccount(r, ctx, `a.platform_identity_id = $1 AND a.calendar_key = $2`, platformIdentityID, calendarKey)
+}
+
+// listCalendarAccountsForUser reads every connection owned by an external
+// account identifier and decrypts its credentials. The identity liveness read
+// is kept because an empty list is a valid result for a live identity, so the
+// merged query could not distinguish it from a non-canonical or deleted owner.
+func listCalendarAccountsForUser(r *Repository, ctx context.Context, platformIdentityID string) ([]CalendarAccount, error) {
+	var resolvedID, resolveErr = requirePlatformIdentityID(r, ctx, platformIdentityID)
+	if (resolveErr != nil) {
+		return Failure(resolveErr)
+	}
+	var rows, queryErr = r.db.Query(ctx, `SELECT `+calendarAccountColumns+` `+calendarAccountFrom+`
+ WHERE a.platform_identity_id = $1 ORDER BY a.created_at, a.id`, resolvedID)
+	if (queryErr != nil) {
+		return Failure(queryErr)
+	}
+	return resource.Bracket(rows, (pending) => { pending.Close() }, (pending) => {
+		var accounts = go_interop.SliceWithSize[*CalendarAccount](0)
+		for pending.Next() {
+			var account, scanErr = scanCalendarAccount(pending)
+			if (scanErr != nil) {
+				return Failure(scanErr)
+			}
+			accounts = go_interop.SliceAppend(accounts, account)
+		}
+		var rowsErr = pending.Err()
+		if (rowsErr != nil) {
+			return Failure(rowsErr)
+		}
+		var attachErr = attachCalendarSubCalendars(r, ctx, accounts)
+		if (attachErr != nil) {
+			return Failure(attachErr)
+		}
+		var result = go_interop.SliceWithCapacity[CalendarAccount](accounts.Size())
+		for _, account := range accounts {
+			result = go_interop.SliceAppend(result, *account)
+		}
+		return Success(result)
+	})
+}
+
+// deleteCalendarAccount removes one connection and, by cascade, its credentials
+// and sub-calendars. Deleting a missing key is a no-op, while a missing identity
+// stays pgx.ErrNoRows because a merged delete cannot distinguish that from an
+// absent connection row.
+func deleteCalendarAccount(r *Repository, ctx context.Context, platformIdentityID string, calendarKey string) error {
+	var resolvedID, resolveErr = requirePlatformIdentityID(r, ctx, platformIdentityID)
+	if (resolveErr != nil) {
+		return resolveErr
+	}
+	if (calendarKey == "") {
+		return errors.New("calendar account key is required")
+	}
+	var _, execErr = r.db.Exec(ctx, `DELETE FROM calendar_accounts WHERE platform_identity_id = $1 AND calendar_key = $2`, resolvedID, calendarKey)
+	return execErr
+}
+
+// setCalendarAccountEnabled writes the explicit enabled state for one
+// connection. A missing connection is pgx.ErrNoRows, and a deleted owner has no
+// connection because of the identity cascade.
+func setCalendarAccountEnabled(r *Repository, ctx context.Context, platformIdentityID string, calendarKey string, enabled bool) error {
+	if (calendarKey == "") {
+		return errors.New("calendar account key is required")
+	}
+	var guardErr = guardPlatformIdentityID(platformIdentityID)
+	if (guardErr != nil) {
+		return guardErr
+	}
+	var tag, execErr = r.db.Exec(ctx, `UPDATE calendar_accounts SET enabled = $3, updated_at = clock_timestamp()
+ WHERE platform_identity_id = $1 AND calendar_key = $2`, platformIdentityID, calendarKey, enabled)
+	if (execErr != nil) {
+		return execErr
+	}
+	if (tag.RowsAffected() == 0) {
+		return pgx.ErrNoRows
+	}
+	return nil
+}
+
+// updateCalendarOAuthAccessToken replaces only the encrypted OAuth2 access token
+// and its plaintext expiry for one connection. It deliberately leaves the
+// refresh token, scope, and every non-OAuth credential untouched so a token
+// refresh cannot drop provider credentials it did not observe.
+func updateCalendarOAuthAccessToken(r *Repository, ctx context.Context, platformIdentityID string, calendarKey string, accessToken string, expiresAt time.Time) error {
+	if (calendarKey == "") {
+		return errors.New("calendar account key is required")
+	}
+	if (accessToken == "") {
+		return errors.New("oauth access token is required")
+	}
+	var guardErr = guardPlatformIdentityID(platformIdentityID)
+	if (guardErr != nil) {
+		return guardErr
+	}
+	var codec, codecErr = credentialCodecFromEnvironment()
+	if (codecErr != nil) {
+		return codecErr
+	}
+	var encrypted, encryptErr = RequirePtr(codec).encrypt(accessToken)
+	if (encryptErr != nil) {
+		return encryptErr
+	}
+	var tag, execErr = r.db.Exec(ctx, `UPDATE calendar_account_credentials c
+SET oauth_access_token_ciphertext = $3, oauth_access_token_expires_at = $4, updated_at = clock_timestamp()
+FROM calendar_accounts a
+WHERE c.calendar_account_id = a.id AND a.platform_identity_id = $1 AND a.calendar_key = $2`,
+		platformIdentityID, calendarKey, encrypted, expiresAt)
+	if (execErr != nil) {
+		return execErr
+	}
+	if (tag.RowsAffected() == 0) {
+		return pgx.ErrNoRows
+	}
+	return nil
+}
+
+// syncCalendarSubCalendars upserts the supplied provider calendars on one
+// connection and removes the stored calendars absent from the supplied set in
+// one transaction. An empty set removes every stored sub-calendar. Resolving
+// the connection first keeps a missing connection as pgx.ErrNoRows even when
+// the set is empty. An incoming nil enabled keeps the stored explicit value, so
+// a provider refresh cannot clear a user's absent-versus-false choice. Exact
+// duplicate sub-calendar IDs collapse to their first occurrence, because a
+// set-based ON CONFLICT DO UPDATE cannot touch the same conflict row twice.
+func syncCalendarSubCalendars(r *Repository, ctx context.Context, platformIdentityID string, calendarKey string, subCalendars []CalendarSubCalendar) error {
+	return r.withTransaction(ctx, (ctx context.Context, tx *Repository) => {
+		var accountID, accountErr = calendarAccountID(tx, ctx, platformIdentityID, calendarKey)
+		if (accountErr != nil) {
+			return accountErr
+		}
+		var ids = go_interop.SliceWithCapacity[string](subCalendars.Size())
+		var names = go_interop.SliceWithCapacity[string](subCalendars.Size())
+		var enabled = go_interop.SliceWithCapacity[*bool](subCalendars.Size())
+		for _, sub := range subCalendars {
+			ids = go_interop.SliceAppend(ids, sub.SubCalendarID)
+			names = go_interop.SliceAppend(names, sub.Name)
+			enabled = go_interop.SliceAppend(enabled, sub.Enabled)
+		}
+		var _, insertErr = tx.db.Exec(ctx, `INSERT INTO calendar_sub_calendars (calendar_account_id, sub_calendar_id, name, enabled)
+SELECT $1, listed.sub_calendar_id, listed.name, listed.enabled
+FROM (
+    SELECT DISTINCT ON (sub_calendar_id) sub_calendar_id, name, enabled
+    FROM unnest($2::text[], $3::text[], $4::bool[]) WITH ORDINALITY AS incoming(sub_calendar_id, name, enabled, ordinal)
+    ORDER BY sub_calendar_id, ordinal
+) AS listed
+ON CONFLICT (calendar_account_id, sub_calendar_id) DO UPDATE
+SET name = EXCLUDED.name,
+    enabled = COALESCE(EXCLUDED.enabled, calendar_sub_calendars.enabled),
+    updated_at = clock_timestamp()`, accountID, ids, names, enabled)
+		if (insertErr != nil) {
+			return insertErr
+		}
+		// ids is always non-nil so an empty incoming set binds an empty array,
+		// where <> ALL('{}') is true for every stored row and deletes them all.
+		var _, deleteErr = tx.db.Exec(ctx, `DELETE FROM calendar_sub_calendars
+WHERE calendar_account_id = $1 AND sub_calendar_id <> ALL($2::text[])`, accountID, ids)
+		return deleteErr
+	})
+}
+
+// setCalendarSubCalendarEnabled writes the explicit enabled state for one
+// provider calendar. A missing sub-calendar is pgx.ErrNoRows.
+func setCalendarSubCalendarEnabled(r *Repository, ctx context.Context, platformIdentityID string, calendarKey string, subCalendarID string, enabled bool) error {
+	if (subCalendarID == "") {
+		return errors.New("sub-calendar ID is required")
+	}
+	var accountID, accountErr = calendarAccountID(r, ctx, platformIdentityID, calendarKey)
+	if (accountErr != nil) {
+		return accountErr
+	}
+	var tag, execErr = r.db.Exec(ctx, `UPDATE calendar_sub_calendars SET enabled = $3, updated_at = clock_timestamp()
+ WHERE calendar_account_id = $1 AND sub_calendar_id = $2`, accountID, subCalendarID, enabled)
+	if (execErr != nil) {
+		return execErr
+	}
+	if (tag.RowsAffected() == 0) {
+		return pgx.ErrNoRows
+	}
+	return nil
+}
+
+// getCalendarPreferences reads the calendar preferences for an external account
+// identifier. Missing preferences are pgx.ErrNoRows, and a deleted owner has no
+// preferences because of the identity cascade.
+func getCalendarPreferences(r *Repository, ctx context.Context, platformIdentityID string) (*CalendarPreferences, error) {
+	var guardErr = guardPlatformIdentityID(platformIdentityID)
+	if (guardErr != nil) {
+		return Failure(guardErr)
+	}
+	var preferences = &CalendarPreferences{}
+	var options []byte
+	var scanErr = r.db.QueryRow(ctx, `SELECT platform_identity_id, primary_account_key, token_origin, calendar_options, created_at, updated_at
+ FROM calendar_preferences WHERE platform_identity_id = $1`, platformIdentityID).
+		Scan(&preferences.PlatformIdentityID, &preferences.PrimaryAccountKey, &preferences.TokenOrigin, &options, &preferences.CreatedAt, &preferences.UpdatedAt)
+	if (scanErr != nil) {
+		return Failure(scanErr)
+	}
+	if (options != nil) {
+		preferences.CalendarOptions = decodePayload(options)
+	}
+	return Success(preferences)
+}
+
+// upsertCalendarPreferences creates or replaces the preferences for an external
+// account identifier. The caller supplies the complete preference state, so a
+// nil field clears it: this is the explicit write path, distinct from the
+// read-time absent-versus-present semantics.
+func upsertCalendarPreferences(r *Repository, ctx context.Context, platformIdentityID string, preferences *CalendarPreferences) error {
+	if (preferences == nil) {
+		return errors.New("calendar preferences are nil")
+	}
+	// An empty-string pointer means absent, not a present empty value.
+	if (preferences.PrimaryAccountKey != nil && *preferences.PrimaryAccountKey == "") {
+		preferences.PrimaryAccountKey = nil
+	}
+	if (preferences.TokenOrigin != nil && *preferences.TokenOrigin == "") {
+		preferences.TokenOrigin = nil
+	}
+	if (preferences.TokenOrigin != nil && !validTokenOrigin(*preferences.TokenOrigin)) {
+		return fmt.Errorf("unsupported token origin %q", *preferences.TokenOrigin)
+	}
+	var calendarOptions = preferences.CalendarOptions
+	var calendarOptionsBytes []byte = calendarOptions
+	var options []byte
+	if (calendarOptionsBytes.Size() > 0) {
+		var encoded, encodeErr = encodePayload(calendarOptions)
+		if (encodeErr != nil) {
+			return encodeErr
+		}
+		options = encoded
+	}
+	var guardErr = guardPlatformIdentityID(platformIdentityID)
+	if (guardErr != nil) {
+		return guardErr
+	}
+	return r.db.QueryRow(ctx, `INSERT INTO calendar_preferences (platform_identity_id, primary_account_key, token_origin, calendar_options)
+ SELECT $1, $2, $3, $4 FROM platform_identities WHERE id = $1
+ ON CONFLICT (platform_identity_id) DO UPDATE
+ SET primary_account_key = EXCLUDED.primary_account_key,
+     token_origin = EXCLUDED.token_origin,
+     calendar_options = EXCLUDED.calendar_options,
+     updated_at = clock_timestamp()
+ RETURNING created_at, updated_at`,
+		platformIdentityID, preferences.PrimaryAccountKey, preferences.TokenOrigin, options).
+		Scan(&preferences.CreatedAt, &preferences.UpdatedAt)
+}
+
+// deleteCalendarPreferences removes the preferences for an external account
+// identifier. Deleting missing preferences is a no-op, while a missing identity
+// stays pgx.ErrNoRows because a merged delete cannot distinguish that from an
+// absent preference row.
+func deleteCalendarPreferences(r *Repository, ctx context.Context, platformIdentityID string) error {
+	var resolvedID, resolveErr = requirePlatformIdentityID(r, ctx, platformIdentityID)
+	if (resolveErr != nil) {
+		return resolveErr
+	}
+	var _, execErr = r.db.Exec(ctx, `DELETE FROM calendar_preferences WHERE platform_identity_id = $1`, resolvedID)
+	return execErr
+}
+
+func getCalendarAccount(r *Repository, ctx context.Context, predicate string, values ...any) (*CalendarAccount, error) {
+	var account, scanErr = scanCalendarAccount(r.db.QueryRow(ctx, `SELECT `+calendarAccountColumns+` `+calendarAccountFrom+` WHERE `+predicate, values...))
+	if (scanErr != nil) {
+		return Failure(scanErr)
+	}
+	var attachErr = attachCalendarSubCalendars(r, ctx, go_interop.SliceOf(account))
+	if (attachErr != nil) {
+		return Failure(attachErr)
+	}
+	return Success(account)
+}
+
+func scanCalendarAccount(row rowScanner) (*CalendarAccount, error) {
+	var account = &CalendarAccount{}
+	var accessToken *string
+	var refreshToken *string
+	var scope *string
+	var applePassword *string
+	var icsFeedURL *string
+	var expiresAt *time.Time
+	var scanErr = row.Scan(&account.ID, &account.PlatformIdentityID, &account.CalendarKey, &account.CalendarType, &account.Email, &account.Picture, &account.Enabled,
+		&accessToken, &refreshToken, &expiresAt, &scope, &applePassword, &icsFeedURL, &account.CreatedAt, &account.UpdatedAt)
+	if (scanErr != nil) {
+		return Failure(scanErr)
+	}
+	var decodeErr = decodeCalendarCredentials(account, accessToken, refreshToken, expiresAt, scope, applePassword, icsFeedURL)
+	if (decodeErr != nil) {
+		return Failure(decodeErr)
+	}
+	return Success(account)
+}
+
+func attachCalendarSubCalendars(r *Repository, ctx context.Context, accounts []*CalendarAccount) error {
+	for _, account := range accounts {
+		account.SubCalendars = go_interop.MapEmpty[string, CalendarSubCalendar]()
+	}
+	if (accounts.Size() == 0) {
+		return nil
+	}
+	var ids = go_interop.SliceWithCapacity[string](accounts.Size())
+	var byID = go_interop.MapWithCapacity[string, *CalendarAccount](accounts.Size())
+	for _, account := range accounts {
+		ids = go_interop.SliceAppend(ids, account.ID)
+		byID[account.ID] = account
+	}
+	var rows, queryErr = r.db.Query(ctx, `SELECT `+calendarSubCalendarColumns+`
+ FROM calendar_sub_calendars WHERE calendar_account_id = ANY($1::uuid[]) ORDER BY created_at, id`, ids)
+	if (queryErr != nil) {
+		return queryErr
+	}
+	for rows.Next() {
+		var sub, scanErr = scanCalendarSubCalendar(rows)
+		if (scanErr != nil) {
+			rows.Close()
+			return scanErr
+		}
+		var account = byID[sub.CalendarAccountID]
+		if (account != nil) {
+			account.SubCalendars[sub.SubCalendarID] = *sub
+		}
+	}
+	rows.Close()
+	return rows.Err()
+}
+
+// writeCalendarCredentials replaces the single credential row for a connection.
+// An absent credential is stored as NULL rather than an encrypted empty secret,
+// and a secret requires a usable ENCRYPTION_KEY.
+func writeCalendarCredentials(r *Repository, ctx context.Context, account *CalendarAccount) error {
+	var accessToken *string
+	var refreshToken *string
+	var scope *string
+	var applePassword *string
+	var icsFeedURL *string
+	var expiresAt *time.Time
+	if (account.OAuth2 != nil) {
+		scope = stringPointer(account.OAuth2.Scope)
+		expiresAt = account.OAuth2.AccessTokenExpiresAt
+	}
+	var encrypted, encodeErr = encodeCalendarSecrets(account)
+	if (encodeErr != nil) {
+		return encodeErr
+	}
+	accessToken = encrypted.accessToken
+	refreshToken = encrypted.refreshToken
+	applePassword = encrypted.applePassword
+	icsFeedURL = encrypted.icsFeedURL
+	var _, execErr = r.db.Exec(ctx, `INSERT INTO calendar_account_credentials
+ (calendar_account_id, oauth_access_token_ciphertext, oauth_refresh_token_ciphertext, oauth_access_token_expires_at, oauth_scope, apple_password_ciphertext, ics_feed_url_ciphertext)
+ VALUES ($1, $2, $3, $4, $5, $6, $7)
+ ON CONFLICT (calendar_account_id) DO UPDATE
+ SET oauth_access_token_ciphertext = EXCLUDED.oauth_access_token_ciphertext,
+     oauth_refresh_token_ciphertext = EXCLUDED.oauth_refresh_token_ciphertext,
+     oauth_access_token_expires_at = EXCLUDED.oauth_access_token_expires_at,
+     oauth_scope = EXCLUDED.oauth_scope,
+     apple_password_ciphertext = EXCLUDED.apple_password_ciphertext,
+     ics_feed_url_ciphertext = EXCLUDED.ics_feed_url_ciphertext,
+     updated_at = clock_timestamp()`,
+		account.ID, accessToken, refreshToken, expiresAt, scope, applePassword, icsFeedURL)
+	return execErr
+}

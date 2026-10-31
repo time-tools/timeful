@@ -9,6 +9,7 @@
       inputs.nixpkgs-lib.url = "github:nix-community/nixpkgs.lib";
     };
     backlog-md.url = "github:time-tools/Backlog.md/aded8e254e6a0205b878cf07e631d1a592782040";
+    gala.url = "github:martianoff/gala";
   };
 
   outputs = inputs@{ flake-parts, systems, ... }:
@@ -41,12 +42,19 @@
             pkgs.go
             pkgs.playwright-driver.browsers
             inputs.backlog-md.packages.${system}.default
+            inputs.gala.packages.${system}.gala-local
             pkgs.codebase-memory-mcp
             pkgs.ripgrep
             pkgs.actionlint
           ];
           shellHook = ''
-             export BACKLOG_CWD="$PWD"
+             # Do not export BACKLOG_CWD here: shellHook sees the directory
+             # `nix develop` was invoked from, not the checkout, so the value is
+             # redundant inside the repository and wrong outside it. Clear any
+             # stale BACKLOG_CWD inherited from the launching shell and let
+             # backlog resolve the project from its cwd; .envrc pins the
+             # checkout root for direnv users.
+             unset BACKLOG_CWD
              export PLAYWRIGHT_BROWSERS_PATH="${pkgs.playwright-driver.browsers}"
           '';
         };

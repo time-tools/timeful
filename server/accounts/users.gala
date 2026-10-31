@@ -1,0 +1,103 @@
+package accounts
+
+import (
+	"context"
+	"errors"
+	"strings"
+
+	"github.com/jackc/pgx/v5"
+	"timeful/server/logger"
+	"timeful/server/models"
+	"timeful/server/postgres"
+)
+
+// UserFromAccount builds the internal user shape from the authoritative
+// account. It performs no fallback lookup.
+func UserFromAccount(account *postgres.Account) *models.User {
+	if (account == nil) {
+		return nil
+	}
+	var user = &models.User{Id: models.UUID(account.PlatformIdentityID)}
+	user.Email = account.Email
+	user.FirstName = account.FirstName
+	user.LastName = account.LastName
+	user.Picture = account.Picture
+	user.HasCustomName = account.HasCustomName
+	user.TimezoneOffset = account.TimezoneOffset
+	user.NumEventsCreated = account.NumEventsCreated
+	return user
+}
+
+// UserByPlatformIdentityID returns the authoritative account profile. A lookup
+// that fails for any reason other than a genuine no-row result yields nil
+// instead of an inferred account, so a transient database failure can never be
+// mistaken for account authority.
+func UserByPlatformIdentityID(platformIdentityID string) *models.User {
+	var found, lookupErr = accountByPlatformIdentityID(platformIdentityID)
+	if (lookupErr != nil) {
+		logger.StdErr.Printf("account lookup failed for %s: %v", platformIdentityID, lookupErr)
+		return nil
+	}
+	return UserFromAccount(found)
+}
+
+// UserByEmail resolves the authoritative account by case-insensitive email and
+// returns its profile. A lookup failure other than a genuine no-row result
+// yields nil instead of an inferred account.
+func UserByEmail(email string) *models.User {
+	var emailQuery = strings.TrimSpace(email)
+	if (emailQuery == "") {
+		return nil
+	}
+	var found, lookupErr = accountByEmail(emailQuery)
+	if (lookupErr != nil) {
+		logger.StdErr.Printf("account lookup failed for %s: %v", emailQuery, lookupErr)
+		return nil
+	}
+	return UserFromAccount(found)
+}
+
+// accountByPlatformIdentityID resolves the authoritative account. A
+// deliberately uninitialized pool and a missing account row both return no
+// account; every other failure is returned so callers never mistake the error
+// for absence.
+func accountByPlatformIdentityID(platformIdentityID string) (*postgres.Account, error) {
+	if (platformIdentityID == "") {
+		return Success(nil)
+	}
+	var repository, repoErr = postgres.DefaultRepository()
+	if (repoErr != nil) {
+		if (errors.Is(repoErr, postgres.ErrPoolUninitialized)) {
+			return Success(nil)
+		}
+		return Failure(repoErr)
+	}
+	var account, lookupErr = repository.GetAccountByPlatformIdentityID(context.Background(), platformIdentityID)
+	if (errors.Is(lookupErr, pgx.ErrNoRows)) {
+		return Success(nil)
+	}
+	if (lookupErr != nil) {
+		return Failure(lookupErr)
+	}
+	return Success(account)
+}
+
+// accountByEmail applies the same outcome classification as
+// accountByPlatformIdentityID for a case-insensitive email lookup.
+func accountByEmail(email string) (*postgres.Account, error) {
+	var repository, repoErr = postgres.DefaultRepository()
+	if (repoErr != nil) {
+		if (errors.Is(repoErr, postgres.ErrPoolUninitialized)) {
+			return Success(nil)
+		}
+		return Failure(repoErr)
+	}
+	var account, lookupErr = repository.GetAccountByEmail(context.Background(), email)
+	if (errors.Is(lookupErr, pgx.ErrNoRows)) {
+		return Success(nil)
+	}
+	if (lookupErr != nil) {
+		return Failure(lookupErr)
+	}
+	return Success(account)
+}
