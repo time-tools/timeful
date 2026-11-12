@@ -86,24 +86,22 @@ describe("ColorLegend", () => {
     ])
   })
 
-  it("keeps the availability editing labels while adding availability", () => {
+  it("shows the availability editing labels while adding availability", () => {
     const wrapper = mountLegend({
       activeSlotsCount: 1,
       isAddingAvailability: true,
     })
 
-    expect(wrapper.text()).toContain("Available")
-    expect(wrapper.text()).toContain("If needed")
-    expect(wrapper.text()).toContain(
-      "Unavailable, change in Add/Edit availability",
-    )
+    expect(wrapper.text()).toContain("Available (you)")
+    expect(wrapper.text()).toContain("If needed (you)")
+    expect(wrapper.text()).toContain("Unavailable (you)")
     expect(wrapper.text()).not.toContain("Available (at least one respondent)")
     expect(wrapper.text()).not.toContain("If needed (at least one respondent)")
     expect(wrapper.text()).not.toContain("Unavailable (all respondents)")
     expect(labels(wrapper)).toEqual([
-      "Available",
-      "If needed",
-      "Unavailable, change in Add/Edit availability",
+      "Available (you)",
+      "If needed (you)",
+      "Unavailable (you)",
       "Scheduled event",
       "Disabled, inside the event dates in the event timezone",
       "Disabled, outside the event dates in the event timezone",
