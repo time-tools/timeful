@@ -308,9 +308,7 @@ describe("ScheduleOverlapSidebar", () => {
       },
     })
 
-    expect(wrapper.text()).toContain(
-      "Unavailable, change in Add/Edit availability",
-    )
+    expect(wrapper.text()).toContain("Unavailable (all respondents)")
     expect(wrapper.text()).toContain(
       "Disabled, inside the event dates in the event timezone",
     )
