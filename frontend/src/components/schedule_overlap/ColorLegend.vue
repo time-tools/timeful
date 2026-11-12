@@ -7,7 +7,8 @@
           class="tw:h-4 tw:w-4 tw:rounded tw:border tw:border-(--timeful-grid-line-color) tw:bg-[#00994C77]"
         ></div>
       </div>
-      <span class="tw:text-sm">Available</span>
+      <span v-if="isAddingAvailability" class="tw:text-sm">Available</span>
+      <span v-else class="tw:text-sm">Available (at least one respondent)</span>
     </div>
     <div v-if="showResponsePalette" class="tw:flex tw:items-start">
       <div class="color-legend__indicator-slot">
@@ -15,7 +16,8 @@
           class="tw:h-4 tw:w-4 tw:rounded tw:border tw:border-(--timeful-grid-line-color) tw:bg-yellow"
         ></div>
       </div>
-      <span class="tw:text-sm">If needed</span>
+      <span v-if="isAddingAvailability" class="tw:text-sm">If needed</span>
+      <span v-else class="tw:text-sm">If needed (at least one respondent)</span>
     </div>
     <div v-if="activeSlotsCount > 0" class="tw:flex tw:items-start">
       <div class="color-legend__indicator-slot">
@@ -23,10 +25,11 @@
           class="tw:h-4 tw:w-4 tw:rounded tw:border tw:border-(--timeful-grid-line-color) tw:bg-[#F9CCCC]"
         ></div>
       </div>
-      <span class="tw:text-sm"
+      <span v-if="isAddingAvailability" class="tw:text-sm"
         >Unavailable, change in <br class="tw:hidden tw:md:block" />Add/Edit
         availability</span
       >
+      <span v-else class="tw:text-sm">Unavailable (all respondents)</span>
     </div>
     <div class="tw:flex tw:items-start">
       <div class="color-legend__indicator-slot">
