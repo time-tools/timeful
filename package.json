@@ -15,7 +15,7 @@
     "test:markdown-format": "vitest run prettier/markdown/"
   },
   "devDependencies": {
-    "@eslint/markdown": "^8.0.3",
+    "@eslint/markdown": "^9.0.0",
     "eslint": "^10.14.0",
     "eslint-plugin-sentences-per-line": "^0.1.3",
     "jiti": "^2.7.0",
