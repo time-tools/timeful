@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test"
+import { expect, test, type Locator } from "@playwright/test"
 import {
   buildSpecificDateSeed,
   changeDisplayTimezone,
@@ -295,5 +295,105 @@ test("event header reports the saved Timed Event Occurrence Span", async ({
     await expect(span).toBeVisible()
     await expect(span).toContainText("Thu, May 28, 2026")
     await expect(span).toContainText("06:00 \u2013 08:00")
+  })
+})
+
+test("desktop scheduled time occupies a full header action row", async ({
+  page,
+}) => {
+  const eventName = "Scheduled header alignment"
+  const day = "2026-05-28"
+  const startDate = `${day}T11:00:00Z`
+  const endDate = `${day}T12:00:00Z`
+  const seeded = await seedCanonicalTimedEvent(
+    page.request,
+    buildSpecificDateSeed({
+      name: eventName,
+      selectedDays: [day],
+      activeSlots: [startDate, endDate],
+      eventTimezone: "UTC",
+      startTimeLocal: "11:00:00",
+      endTimeLocal: "13:00:00",
+      timeIncrementMinutes: 60,
+    }),
+  )
+  const response = await page.request.post(
+    `/api/events/${seeded.eventId}/response`,
+    {
+      data: {
+        guest: true,
+        createResponse: true,
+        name: "Guest",
+        email: "",
+        availability: [startDate],
+        ifNeeded: [],
+      },
+    },
+  )
+  expect(response.ok()).toBeTruthy()
+
+  const title = page.getByText(eventName, { exact: true })
+  const spanRow = page.locator("#event-header-scheduled-span")
+  const spanText = spanRow.getByText("11:00 – 12:00", { exact: false })
+  const metadata = page.locator("#event-header-meta-row")
+  const options = page.getByRole("button", {
+    name: "More options",
+    exact: true,
+  })
+  const box = async (locator: Locator) => {
+    await expect(locator).toBeVisible()
+    const bounds = await locator.boundingBox()
+    if (!bounds)
+      throw new Error("Expected a visible header element to have a box")
+    return bounds
+  }
+  const centerY = (bounds: { y: number; height: number }) =>
+    bounds.y + bounds.height / 2
+
+  await test.step("the unscheduled header leaves no reserved span row", async () => {
+    await openEventPage(page, seeded.shortId)
+    await waitForScheduleOverlapMounted(page)
+    await expect(spanRow).toHaveCount(0)
+    expect((await box(metadata)).y).toBeCloseTo((await box(options)).y)
+  })
+
+  const schedule = await page.request.put(
+    `/api/events/${seeded.eventId}/schedule`,
+    {
+      data: { startDate, endDate },
+    },
+  )
+  expect(schedule.ok()).toBeTruthy()
+  await page.reload()
+  await waitForScheduleOverlapMounted(page)
+
+  await test.step("the scheduled row stays compact on a phone", async () => {
+    await page.setViewportSize({ width: 375, height: 900 })
+    const row = await box(spanRow)
+    const text = await box(spanText)
+    const titleBounds = await box(title)
+    expect(row.height).toBeCloseTo(text.height)
+    expect(row.y - (titleBounds.y + titleBounds.height)).toBeCloseTo(4)
+    expect((await box(metadata)).y).toBeGreaterThan(row.y + row.height)
+  })
+
+  await test.step("the scheduled row and metadata align with the desktop controls", async () => {
+    await page.setViewportSize({ width: 1066, height: 850 })
+    const row = await box(spanRow)
+    const optionsBounds = await box(options)
+    const reschedule = await box(
+      page.getByRole("button", { name: "Reschedule event", exact: true }),
+    )
+    expect(row.height, "scheduled row height").toBeCloseTo(optionsBounds.height)
+    expect(row.y, "scheduled row top").toBeCloseTo(optionsBounds.y)
+    expect(centerY(await box(spanText)), "scheduled time center").toBeCloseTo(
+      centerY(row),
+    )
+    for (const name of ["Edit event", "Copy link", "Manage access"]) {
+      const action = await box(
+        metadata.getByRole("button", { name, exact: true }),
+      )
+      expect(centerY(action), `${name} center`).toBeCloseTo(centerY(reschedule))
+    }
   })
 })

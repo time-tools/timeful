@@ -210,6 +210,7 @@
                     v-if="scheduledOccurrenceSpanText"
                     id="event-header-scheduled-span"
                     class="tw:mt-1 tw:flex tw:items-center tw:gap-1 tw:text-sm tw:text-very-dark-gray"
+                    :class="{ 'tw:sm:mt-3 tw:sm:min-h-10': !event.daysOnly }"
                   >
                     <v-icon size="small"><MdiClockOutline /></v-icon>
                     <span>{{ scheduledOccurrenceSpanText }}</span>
